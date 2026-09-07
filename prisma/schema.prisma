@@ -1,0 +1,14 @@
+// ConnectSphere — Prisma schema.
+//
+// Intentionally models-free for now. The first-pass domain model is described
+// in CLAUDE.md §7; add models per user story as they are estimated, rather
+// than bulk-generating the whole schema up front (CLAUDE.md §11).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

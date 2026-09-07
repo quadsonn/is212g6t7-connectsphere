@@ -62,6 +62,7 @@ describe('US-02 role-based and ownership access control (e2e)', () => {
 
     const baseEvent = {
       purpose: 'Purpose',
+      category: 'Conference',
       description: 'Description',
       proposedStart: new Date('2026-10-01T09:00:00Z'),
       proposedEnd: new Date('2026-10-01T17:00:00Z'),

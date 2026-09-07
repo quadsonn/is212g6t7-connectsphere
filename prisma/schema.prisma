@@ -119,6 +119,11 @@ model EventRequest {
   purpose     String
   description String
 
+  // AC-1 requires an event "type/category" at submission. The brief lists no
+  // controlled vocabulary, so this is free text rather than an invented enum.
+  // AMBIGUOUS: confirm whether the customer wants a fixed category list.
+  category String
+
   proposedStart      DateTime
   proposedEnd        DateTime
   expectedAttendance Int

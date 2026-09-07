@@ -41,6 +41,7 @@ async function main() {
     organiserId: organiser.id,
     coordinatorId: coordinator.id,
     purpose: 'Bring the cohort together and introduce campus services.',
+    category: 'Student engagement',
     description: 'Full-day programme with talks, booths and a closing social.',
     expectedAttendance: 320,
     preferredLayout: 'Theatre',

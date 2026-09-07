@@ -143,6 +143,30 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-03 rows', () => {
+    it('grants the Organiser CREATE and SUBMIT on their own events', () => {
+      // US-02 already added these rows; US-03 needs no new ones. Asserted
+      // explicitly so removing them breaks this story's tests, not just US-02's.
+      expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.CREATE)).toBe(Scope.OWN);
+      expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.SUBMIT)).toBe(Scope.OWN);
+    });
+
+    it('agrees with the hardcoded @Roles list on POST /events', () => {
+      // The controller declares @Roles(EVENT_ORGANISER). If the matrix ever
+      // grants EVENT/CREATE to another role, that literal becomes wrong — this
+      // test is what catches the drift.
+      expect(rolesWithPermission(Resource.EVENT, Action.CREATE)).toEqual([
+        Role.EVENT_ORGANISER,
+      ]);
+    });
+
+    it('does not let any other role create an event', () => {
+      for (const role of ALL_ROLES.filter((r) => r !== Role.EVENT_ORGANISER)) {
+        expect(isPermitted(role, Resource.EVENT, Action.CREATE)).toBe(false);
+      }
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

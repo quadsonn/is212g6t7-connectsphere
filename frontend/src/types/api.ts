@@ -1,0 +1,150 @@
+/**
+ * Shapes returned by the ConnectSphere API.
+ *
+ * These mirror the backend contract (Prisma schema + controllers) and are the
+ * single definition used across the app — never redeclare an API shape inside
+ * a component.
+ */
+
+/** Mirrors the backend Role enum. */
+export const ROLES = [
+  'EVENT_ORGANISER',
+  'EVENT_COORDINATOR',
+  'VENUE_STAFF',
+  'TECHNICAL_SUPPORT_STAFF',
+  'ATTENDEE',
+] as const;
+export type Role = (typeof ROLES)[number];
+
+/** Mirrors the backend EventStatus enum exactly. */
+export const EVENT_STATUSES = [
+  'DRAFT',
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'APPROVED',
+  'REJECTED',
+  'PLANNING',
+  'CONFIRMED',
+  'COMPLETED',
+  'CANCELLED',
+] as const;
+export type EventStatus = (typeof EVENT_STATUSES)[number];
+
+/** Mirrors the backend VenueStatus enum. */
+export type VenueStatus = 'DRAFT' | 'PUBLISHED';
+
+/** POST /auth/login */
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+export interface LoginResponse {
+  accessToken: string;
+}
+
+/** GET /auth/me */
+export interface CurrentUser {
+  userId: string;
+  role: Role;
+  jti: string;
+  exp?: number;
+}
+
+/** GET /auth/me/permissions */
+export interface PermittedAction {
+  resource: string;
+  action: string;
+  scope: 'ANY' | 'OWN' | 'ASSIGNED' | 'PUBLIC';
+}
+export interface PermissionsResponse {
+  role: Role;
+  permissions: PermittedAction[];
+}
+
+/**
+ * GET /events — the full record, as returned to an Organiser or Coordinator.
+ */
+export interface EventRequest {
+  id: string;
+  organiserId: string;
+  coordinatorId: string | null;
+  name: string;
+  purpose: string;
+  description: string;
+  proposedStart: string;
+  proposedEnd: string;
+  expectedAttendance: number;
+  preferredLayout: string | null;
+  layoutNotes: string | null;
+  accessibilityNeeds: string | null;
+  equipmentNeeds: string | null;
+  registrationEnabled: boolean;
+  status: EventStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * GET /events as returned to an Attendee — the backend projects internal
+ * planning fields away (US-02 AC-7), so this is a genuinely different shape.
+ */
+export interface PublicEventView {
+  id: string;
+  name: string;
+  purpose: string;
+  description: string;
+  proposedStart: string;
+  proposedEnd: string;
+  status: EventStatus;
+  registrationEnabled: boolean;
+}
+
+/** Venue catalogue. Endpoint not built yet — served by a mock service. */
+export interface Venue {
+  id: string;
+  name: string;
+  location: string;
+  capacity: number;
+  facilities: string[];
+  accessibilityFeatures: string[];
+  supportedLayouts: string[];
+  operatingInfo: string | null;
+  status: VenueStatus;
+}
+
+/** Equipment inventory. Endpoint not built yet — served by a mock service. */
+export interface Equipment {
+  id: string;
+  type: string;
+  totalQuantity: number;
+  technicalSpecs: string | null;
+}
+
+/**
+ * An equipment request awaiting Technical Support review. Composed from
+ * EquipmentReservation + Equipment; no endpoint exposes it yet.
+ */
+export interface EquipmentReservationSummary {
+  id: string;
+  eventId: string;
+  eventName: string;
+  equipmentType: string;
+  quantity: number;
+  start: string;
+  end: string;
+  status: 'REQUESTED' | 'APPROVED' | 'REJECTED';
+}
+
+/** An attendee's registration state for an event. No endpoint yet. */
+export interface RegistrationSummary {
+  eventId: string;
+  status: 'REGISTERED' | 'WITHDRAWN' | null;
+}
+
+/** Nest's error envelope, plus the loginUrl our UnauthorizedFilter adds. */
+export interface ApiErrorBody {
+  statusCode: number;
+  message: string | string[];
+  error?: string;
+  loginUrl?: string;
+}

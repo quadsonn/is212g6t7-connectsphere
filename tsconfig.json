@@ -12,6 +12,10 @@
     "sourceMap": true,
     "outDir": "./dist",
     "incremental": true,
+    // Must live inside outDir: nest-cli's deleteOutDir wipes dist/ on every
+    // build, and a build-info file outside it would then claim everything is
+    // already up to date and emit nothing.
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "skipLibCheck": true,
     "strict": true,
     "strictPropertyInitialization": false,

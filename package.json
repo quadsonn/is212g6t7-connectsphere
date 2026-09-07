@@ -1,7 +1,7 @@
 {
   "name": "connectsphere",
   "version": "0.0.1",
-  "description": "ConnectSphere — event management system",
+  "description": "ConnectSphere \u2014 event management system",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
@@ -21,7 +21,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:reset": "prisma migrate reset"
+    "prisma:reset": "prisma migrate reset",
+    "prisma:seed": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

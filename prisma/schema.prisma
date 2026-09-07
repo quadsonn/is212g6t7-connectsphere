@@ -45,6 +45,13 @@ enum BookingStatus {
   REJECTED
 }
 
+// Venue catalogue lifecycle. Venue Staff draft a venue, then publish it so it
+// becomes bookable and visible to coordinators.
+enum VenueStatus {
+  DRAFT
+  PUBLISHED
+}
+
 enum RegistrationStatus {
   REGISTERED
   WITHDRAWN
@@ -158,6 +165,8 @@ model Venue {
   supportedLayouts      String[]
 
   operatingInfo String?
+
+  status VenueStatus @default(DRAFT)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

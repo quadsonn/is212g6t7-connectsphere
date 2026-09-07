@@ -28,7 +28,7 @@ Then open http://localhost:5173.
 
 ### Seeded logins
 
-All five accounts use the password `Password123!`:
+All five accounts use the password `12345678`:
 
 | Email | Role | Lands on |
 |---|---|---|

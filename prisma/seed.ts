@@ -9,7 +9,7 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-const PASSWORD = 'Password123!';
+const PASSWORD = '12345678';
 
 const USERS = [
   { email: 'organiser@connectsphere.local', name: 'Priya Organiser', role: Role.EVENT_ORGANISER },
@@ -25,7 +25,9 @@ async function main() {
   for (const user of USERS) {
     await prisma.user.upsert({
       where: { email: user.email },
-      update: {},
+      // Re-seeding must re-apply the password, otherwise changing PASSWORD
+      // above has no effect on users that already exist.
+      update: { passwordHash },
       create: { ...user, passwordHash },
     });
   }

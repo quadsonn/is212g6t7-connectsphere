@@ -82,6 +82,11 @@ model User {
   name         String
   role         Role
 
+  // AC-5 lockout state. Counted per account, over a trailing window.
+  failedLoginAttempts   Int       @default(0)
+  failedWindowStartedAt DateTime?
+  lockedUntil           DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -279,4 +284,21 @@ model Notification {
 
   @@index([recipientId, read])
   @@index([relatedEventId])
+}
+
+// AC-4: logout must actually terminate the session. A signed JWT stays valid
+// until it expires, so revocation needs server-side state — this table holds
+// the jti of every token that has been logged out, until its natural expiry.
+//
+// NOTE: this is a deliberate departure from the "stateless" rationale in
+// CLAUDE.md §2. See the AMBIGUOUS note in auth.service.ts.
+model RevokedToken {
+  id        String   @id @default(cuid())
+  jti       String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@index([userId])
 }

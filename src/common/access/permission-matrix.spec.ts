@@ -167,6 +167,35 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-04 rows', () => {
+    it('grants the Organiser UPDATE on their own events', () => {
+      // Editing a draft is EVENT/UPDATE at OWN scope — already present from
+      // US-02, so US-04 adds no new rows. Asserted here so a change breaks
+      // this story's tests too.
+      expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.UPDATE)).toBe(Scope.OWN);
+    });
+
+    it('agrees with the hardcoded @Roles list on the draft routes', () => {
+      // PATCH /events/:id and POST /events/:id/submit both declare
+      // @Roles(EVENT_ORGANISER).
+      expect(rolesWithPermission(Resource.EVENT, Action.SUBMIT)).toEqual([
+        Role.EVENT_ORGANISER,
+      ]);
+    });
+
+    it('does not let a Coordinator edit or submit an event request', () => {
+      expect(isPermitted(Role.EVENT_COORDINATOR, Resource.EVENT, Action.SUBMIT)).toBe(false);
+      // A Coordinator may UPDATE assigned events (review outcomes), but never
+      // at OWN scope — they cannot act as the Organiser.
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.UPDATE)).toBe(Scope.ASSIGNED);
+    });
+
+    it('does not let an Attendee touch drafts', () => {
+      expect(isPermitted(Role.ATTENDEE, Resource.EVENT, Action.UPDATE)).toBe(false);
+      expect(isPermitted(Role.ATTENDEE, Resource.EVENT, Action.SUBMIT)).toBe(false);
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

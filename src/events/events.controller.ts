@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
+import { DraftEventRequestDto } from './dto/draft-event-request.dto';
 import { EventsService } from './events.service';
 
 /**
@@ -49,6 +51,48 @@ export class EventsController {
     @Body() dto: CreateEventRequestDto,
   ) {
     return this.eventsService.createAndSubmit(user, dto);
+  }
+
+  /**
+   * US-04 AC-1 — save a partial draft.
+   *
+   * AMBIGUOUS: CLAUDE.md §7 sketches a single `POST /events` covering both
+   * "create request/draft". A separate route is used instead because the two
+   * carry different validation contracts, and Nest resolves the DTO from the
+   * route — one endpoint would mean hand-rolled conditional validation, and
+   * would change the US-03 contract that POST /events returns a SUBMITTED
+   * request. §7 is labelled illustrative, so this is a deliberate deviation.
+   */
+  @Post('drafts')
+  @Roles(Role.EVENT_ORGANISER)
+  @HttpCode(HttpStatus.CREATED)
+  saveDraft(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: DraftEventRequestDto,
+  ) {
+    return this.eventsService.saveDraft(user, dto);
+  }
+
+  /** US-04 AC-2 — continue editing an existing draft. */
+  @Patch(':id')
+  @Roles(Role.EVENT_ORGANISER)
+  updateDraft(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: DraftEventRequestDto,
+  ) {
+    return this.eventsService.updateDraft(user, id, dto);
+  }
+
+  /** US-04 AC-4 — DRAFT -> SUBMITTED, through setStatus(). */
+  @Post(':id/submit')
+  @Roles(Role.EVENT_ORGANISER)
+  @HttpCode(HttpStatus.OK)
+  submitDraft(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.eventsService.submitDraft(user, id);
   }
 
   @Get()

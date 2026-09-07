@@ -65,15 +65,22 @@ export function OrganiserDashboard() {
                 {events.map((event) => (
                   <tr key={event.id} className="hover:bg-ink-50">
                     <td className="px-5 py-3.5">
-                      <span className="font-medium text-ink-900">{event.name}</span>
+                      {/* A draft may have these fields still empty (US-04). */}
+                      <span className="font-medium text-ink-900">
+                        {event.name ?? (
+                          <span className="italic text-ink-400">Untitled draft</span>
+                        )}
+                      </span>
                       <span className="mt-0.5 block max-w-md truncate text-xs text-ink-500">
-                        {event.purpose}
+                        {event.purpose ?? 'No purpose entered yet'}
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-ink-600">
                       {formatDateRange(event.proposedStart, event.proposedEnd)}
                     </td>
-                    <td className="px-5 py-3.5 text-ink-600">{event.expectedAttendance}</td>
+                    <td className="px-5 py-3.5 text-ink-600">
+                      {event.expectedAttendance ?? '—'}
+                    </td>
                     <td className="px-5 py-3.5">
                       <EventStatusBadge status={event.status} />
                     </td>

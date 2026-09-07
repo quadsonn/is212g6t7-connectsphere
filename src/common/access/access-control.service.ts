@@ -50,11 +50,15 @@ const ATTENDEE_VISIBLE_STATUSES: EventStatus[] = [
  */
 export interface PublicEventView {
   id: string;
-  name: string;
-  purpose: string;
-  description: string;
-  proposedStart: Date;
-  proposedEnd: Date;
+  // Nullable since US-04 made partial drafts storable. In practice an Attendee
+  // only ever sees post-review events, which the EventRequest_complete_unless_draft
+  // CHECK constraint guarantees are fully populated — but the type must match
+  // the model rather than the happy path.
+  name: string | null;
+  purpose: string | null;
+  description: string | null;
+  proposedStart: Date | null;
+  proposedEnd: Date | null;
   status: EventStatus;
   registrationEnabled: boolean;
 }

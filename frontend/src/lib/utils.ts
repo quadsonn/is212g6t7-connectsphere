@@ -29,7 +29,13 @@ export function formatDate(iso: string): string {
   return dateFormatter.format(new Date(iso));
 }
 
-export function formatDateRange(startIso: string, endIso: string): string {
+export function formatDateRange(
+  startIso: string | null,
+  endIso: string | null,
+): string {
+  // A draft may not have dates yet (US-04).
+  if (!startIso || !endIso) return 'Dates not set';
+
   const start = new Date(startIso);
   const end = new Date(endIso);
   const sameDay = start.toDateString() === end.toDateString();

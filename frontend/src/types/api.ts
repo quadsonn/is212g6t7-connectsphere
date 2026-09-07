@@ -68,12 +68,18 @@ export interface EventRequest {
   id: string;
   organiserId: string;
   coordinatorId: string | null;
-  name: string;
-  purpose: string;
-  description: string;
-  proposedStart: string;
-  proposedEnd: string;
-  expectedAttendance: number;
+  /**
+   * Nullable since US-04: a saved draft may have required fields still empty.
+   * Anything past DRAFT is guaranteed complete by a database CHECK constraint,
+   * but the type reflects the model rather than the happy path.
+   */
+  name: string | null;
+  purpose: string | null;
+  description: string | null;
+  category: string | null;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  expectedAttendance: number | null;
   preferredLayout: string | null;
   layoutNotes: string | null;
   accessibilityNeeds: string | null;
@@ -90,11 +96,11 @@ export interface EventRequest {
  */
 export interface PublicEventView {
   id: string;
-  name: string;
-  purpose: string;
-  description: string;
-  proposedStart: string;
-  proposedEnd: string;
+  name: string | null;
+  purpose: string | null;
+  description: string | null;
+  proposedStart: string | null;
+  proposedEnd: string | null;
   status: EventStatus;
   registrationEnabled: boolean;
 }

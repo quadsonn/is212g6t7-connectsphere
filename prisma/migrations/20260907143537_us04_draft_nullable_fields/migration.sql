@@ -1,0 +1,8 @@
+-- AlterTable
+ALTER TABLE "EventRequest" ALTER COLUMN "name" DROP NOT NULL,
+ALTER COLUMN "purpose" DROP NOT NULL,
+ALTER COLUMN "description" DROP NOT NULL,
+ALTER COLUMN "proposedStart" DROP NOT NULL,
+ALTER COLUMN "proposedEnd" DROP NOT NULL,
+ALTER COLUMN "expectedAttendance" DROP NOT NULL,
+ALTER COLUMN "category" DROP NOT NULL;

@@ -10,19 +10,19 @@ the visual direction and the app shell. Sub-screens are deliberately not built.
 The frontend needs the API running. From the repository root:
 
 ```bash
-# 1. Database (once per machine)
+# 1. Once per machine
 pg_ctl -D /opt/homebrew/var/postgresql@18 start   # or: brew services start postgresql@18
+npm install && npm --prefix frontend install
 npm run prisma:migrate                            # apply migrations
 npm run prisma:seed                               # one user per role + sample events
 
-# 2. API on :3000
-npm run start:dev
-
-# 3. Frontend on :5173, in a second terminal
-cd frontend
-npm install
+# 2. Every day — API on :3000 and frontend on :5173, together
 npm run dev
 ```
+
+`npm run dev` runs both with colour-coded, prefixed output (`[api]`, `[web]`).
+Ctrl-C stops both. To run just one, use `npm run start:dev` or
+`npm run dev:web`.
 
 Then open http://localhost:5173.
 

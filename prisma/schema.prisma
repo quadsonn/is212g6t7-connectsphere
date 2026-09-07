@@ -1,8 +1,10 @@
 // ConnectSphere — Prisma schema.
 //
-// Intentionally models-free for now. The first-pass domain model is described
-// in CLAUDE.md §7; add models per user story as they are estimated, rather
-// than bulk-generating the whole schema up front (CLAUDE.md §11).
+// First-pass domain model, transcribed from CLAUDE.md §5. This is the starting
+// shape, not the final schema: refine as stories are estimated.
+//
+// Decisions made where §5 was ambiguous are marked "AMBIGUOUS:" below. Each one
+// is a question for the team, not a settled answer.
 
 generator client {
   provider = "prisma-client-js"
@@ -11,4 +13,270 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  EVENT_ORGANISER
+  EVENT_COORDINATOR
+  VENUE_STAFF
+  TECHNICAL_SUPPORT_STAFF
+  ATTENDEE
+}
+
+enum EventStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  PLANNING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum BookingStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  WITHDRAWN
+}
+
+// AMBIGUOUS: §5 gives EquipmentReservation a `status` but never defines its
+// enum. Reusing BookingStatus would couple two independently-evolving
+// workflows, so this is a separate enum with the same starting values.
+enum ReservationStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+}
+
+// AMBIGUOUS: §5 says Notification.type is an enum but lists no values. These
+// are inferred from the workflows the brief does describe (§1) and are the
+// most likely thing here to need revising — extend as stories land.
+enum NotificationType {
+  EVENT_STATUS_CHANGED
+  EVENT_CHANGE_REQUESTED
+  VENUE_BOOKING_DECIDED
+  EQUIPMENT_RESERVATION_DECIDED
+  REGISTRATION_CONFIRMED
+  REGISTRATION_WITHDRAWN
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String @id @default(cuid())
+  email        String @unique
+  passwordHash String
+  name         String
+  role         Role
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organisedEvents   EventRequest[] @relation("EventOrganiser")
+  coordinatedEvents EventRequest[] @relation("EventCoordinator")
+  registrations     Registration[]
+  notifications     Notification[]
+
+  @@index([role])
+}
+
+model EventRequest {
+  id String @id @default(cuid())
+
+  organiserId String
+  organiser   User   @relation("EventOrganiser", fields: [organiserId], references: [id], onDelete: Restrict)
+
+  // Null until a Coordinator is assigned during review (§1).
+  coordinatorId String?
+  coordinator   User?   @relation("EventCoordinator", fields: [coordinatorId], references: [id], onDelete: Restrict)
+
+  name        String
+  purpose     String
+  description String
+
+  proposedStart      DateTime
+  proposedEnd        DateTime
+  expectedAttendance Int
+
+  // AMBIGUOUS: the brief never enumerates layouts, so this stays free text
+  // rather than an invented enum.
+  preferredLayout String?
+  layoutNotes     String?
+
+  // AMBIGUOUS: free text captured at request time. This is what the Organiser
+  // *asks for*; the structured commitments live in VenueBooking and
+  // EquipmentReservation. Kept deliberately unstructured until a story needs
+  // to query it.
+  accessibilityNeeds String?
+  equipmentNeeds     String?
+
+  registrationEnabled Boolean     @default(false)
+  status              EventStatus @default(DRAFT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  venueBookings         VenueBooking[]
+  equipmentReservations EquipmentReservation[]
+  registrations         Registration[]
+  notifications         Notification[]
+
+  @@index([organiserId])
+  @@index([coordinatorId])
+  @@index([status])
+}
+
+model Venue {
+  id       String @id @default(cuid())
+  name     String
+  location String
+  capacity Int
+
+  // AMBIGUOUS: modelled as string arrays rather than lookup tables. Adequate
+  // for the filtering §1 describes; promote to their own tables if venues ever
+  // need to be searched or managed by individual facility.
+  facilities            String[]
+  accessibilityFeatures String[]
+  supportedLayouts      String[]
+
+  operatingInfo String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings VenueBooking[]
+
+  @@index([capacity])
+}
+
+model VenueBooking {
+  id String @id @default(cuid())
+
+  eventId String
+  event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  venueId String
+  venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Restrict)
+
+  // AMBIGUOUS: deliberately separate from EventRequest.proposedStart/End. The
+  // booked slot can differ from the proposed one (setup/teardown, negotiated
+  // times), and conflict detection must run against what is actually booked.
+  start DateTime
+  end   DateTime
+
+  status         BookingStatus @default(REQUESTED)
+  decisionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Supports the (venueId, time range) conflict lookup in §5.
+  //
+  // NOTE: this index makes the check fast but does NOT make it correct under
+  // concurrency. A true guarantee needs a Postgres EXCLUDE constraint with
+  // btree_gist, which Prisma's schema language cannot express — it would have
+  // to be added via a hand-edited migration. Until then, overlap prevention
+  // lives in the bookings service (CLAUDE.md §3.4).
+  @@index([venueId, start, end])
+  @@index([eventId])
+  @@index([status])
+}
+
+model Equipment {
+  id String @id @default(cuid())
+
+  // AMBIGUOUS: free text — the brief lists no equipment catalogue to enumerate.
+  type String
+
+  totalQuantity  Int
+  technicalSpecs String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reservations EquipmentReservation[]
+
+  @@index([type])
+}
+
+model EquipmentReservation {
+  id String @id @default(cuid())
+
+  eventId String
+  event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  equipmentId String
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+
+  quantity Int
+  start    DateTime
+  end      DateTime
+
+  status ReservationStatus @default(REQUESTED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Availability is quantity-based: summing approved reservations that overlap
+  // a window must stay within Equipment.totalQuantity. Same concurrency caveat
+  // as VenueBooking — the index helps the query, the service enforces the rule.
+  @@index([equipmentId, start, end])
+  @@index([eventId])
+  @@index([status])
+}
+
+model Registration {
+  id String @id @default(cuid())
+
+  eventId String
+  event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  attendeeId String
+  attendee   User   @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+
+  status RegistrationStatus @default(REGISTERED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // AMBIGUOUS: one row per (event, attendee). Withdrawing flips status rather
+  // than deleting, and re-registering flips it back — so the table holds
+  // current state, not an audit trail. If the team needs registration history,
+  // this constraint has to go and a separate events log takes its place.
+  @@unique([eventId, attendeeId])
+  @@index([attendeeId])
+}
+
+model Notification {
+  id String @id @default(cuid())
+
+  recipientId String
+  recipient   User   @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  message String
+
+  // AMBIGUOUS: nullable. Every notification type above relates to an event, but
+  // making it required would block account-level notices later.
+  relatedEventId String?
+  relatedEvent   EventRequest? @relation(fields: [relatedEventId], references: [id], onDelete: Cascade)
+
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([recipientId, read])
+  @@index([relatedEventId])
 }

@@ -1,13 +1,16 @@
 import { Module } from '@nestjs/common';
 
+import { EventsController } from './events.controller';
+import { EventsService } from './events.service';
+
 /**
  * E2/E3 — event requests, drafts, review, status. E8 change requests live here.
- * Stub — controllers, services and DTOs to be added per user story.
+ * US-02 adds the read paths; create/submit arrive with US-04.
  */
 @Module({
   imports: [],
-  controllers: [],
-  providers: [],
-  exports: [],
+  controllers: [EventsController],
+  providers: [EventsService],
+  exports: [EventsService],
 })
 export class EventsModule {}

@@ -40,6 +40,8 @@ describe('US-01 secure login (e2e)', () => {
 
   beforeEach(async () => {
     await prisma.revokedToken.deleteMany();
+    // EventRequest.organiserId is onDelete: Restrict, so events must go first.
+    await prisma.eventRequest.deleteMany();
     await prisma.user.deleteMany();
     await prisma.user.create({
       data: {

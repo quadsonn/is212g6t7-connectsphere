@@ -8,6 +8,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { Role } from '@prisma/client';
+
+import { permittedActionsFor } from '../common/access/permission-matrix';
+import { PermittedAction } from '../common/access/permission.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthService, JwtPayload } from './auth.service';
@@ -52,5 +56,22 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthenticatedUser): AuthenticatedUser {
     return user;
+  }
+
+  /**
+   * AC-4: what this user's role may do, so a client can build menus and
+   * controls from the same table the server enforces. Read-only projection of
+   * the matrix — it grants nothing by itself.
+   */
+  @Get('me/permissions')
+  @UseGuards(JwtAuthGuard)
+  permissions(@CurrentUser() user: AuthenticatedUser): {
+    role: string;
+    permissions: PermittedAction[];
+  } {
+    return {
+      role: user.role,
+      permissions: permittedActionsFor(user.role as Role),
+    };
   }
 }

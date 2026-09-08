@@ -196,6 +196,27 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-06 rows', () => {
+    it('adds no new actions — layout and accessibility are part of CREATE/UPDATE', () => {
+      // US-06 captures extra fields on an event request; it introduces no new
+      // verb, so the matrix is unchanged. Asserted so that if a later story
+      // does add a layout-specific action, this expectation forces the
+      // decision to be explicit rather than incidental.
+      expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.CREATE)).toBe(Scope.OWN);
+      expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.UPDATE)).toBe(Scope.OWN);
+    });
+
+    it('lets a Coordinator read the preferences on assigned events', () => {
+      // AC-6: visibility comes from the existing EVENT/READ grant at ASSIGNED
+      // scope — no separate permission for the layout fields.
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.READ)).toBe(Scope.ASSIGNED);
+    });
+
+    it('keeps the Attendee on the public projection, which omits them', () => {
+      expect(permissionScope(Role.ATTENDEE, Resource.EVENT, Action.READ)).toBe(Scope.PUBLIC);
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

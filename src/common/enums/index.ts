@@ -16,4 +16,10 @@ export {
   RegistrationStatus,
   ReservationStatus,
   NotificationType,
+  VenueStatus,
+  // US-06. Shared so the venue suitability story compares a requested layout
+  // against a supported one using the same values, rather than matching
+  // strings across two independent vocabularies.
+  RoomLayout,
+  AccessibilityFeature,
 } from '@prisma/client';

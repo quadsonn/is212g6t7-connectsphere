@@ -30,6 +30,23 @@ export const EVENT_STATUSES = [
 ] as const;
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
+/** Mirrors the backend RoomLayout enum (US-06). Shared with venue suitability. */
+export const ROOM_LAYOUTS = [
+  'THEATRE',
+  'CLASSROOM',
+  'BANQUET',
+  'BOARDROOM',
+] as const;
+export type RoomLayout = (typeof ROOM_LAYOUTS)[number];
+
+/** Mirrors the backend AccessibilityFeature enum (US-06). */
+export const ACCESSIBILITY_FEATURES = [
+  'STEP_FREE_ACCESS',
+  'HEARING_LOOP',
+  'ACCESSIBLE_RESTROOMS',
+] as const;
+export type AccessibilityFeature = (typeof ACCESSIBILITY_FEATURES)[number];
+
 /** Mirrors the backend VenueStatus enum. */
 export type VenueStatus = 'DRAFT' | 'PUBLISHED';
 
@@ -80,9 +97,10 @@ export interface EventRequest {
   proposedStart: string | null;
   proposedEnd: string | null;
   expectedAttendance: number | null;
-  preferredLayout: string | null;
+  preferredLayout: RoomLayout | null;
   layoutNotes: string | null;
-  accessibilityNeeds: string | null;
+  accessibilityRequirements: AccessibilityFeature[];
+  accessibilityNotes: string | null;
   equipmentNeeds: string | null;
   registrationEnabled: boolean;
   status: EventStatus;

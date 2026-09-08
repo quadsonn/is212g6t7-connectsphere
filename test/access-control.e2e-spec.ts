@@ -67,9 +67,9 @@ describe('US-02 role-based and ownership access control (e2e)', () => {
       proposedStart: new Date('2026-10-01T09:00:00Z'),
       proposedEnd: new Date('2026-10-01T17:00:00Z'),
       expectedAttendance: 200,
-      preferredLayout: 'Theatre',
+      preferredLayout: 'THEATRE' as const,
       layoutNotes: 'INTERNAL staging notes',
-      accessibilityNeeds: 'INTERNAL accessibility planning',
+      accessibilityNotes: 'INTERNAL accessibility planning',
       equipmentNeeds: 'INTERNAL equipment planning',
       registrationEnabled: true,
     };
@@ -303,7 +303,8 @@ describe('US-02 role-based and ownership access control (e2e)', () => {
         .expect(200);
 
       expect(res.body).not.toHaveProperty('layoutNotes');
-      expect(res.body).not.toHaveProperty('accessibilityNeeds');
+      expect(res.body).not.toHaveProperty('accessibilityNotes');
+      expect(res.body).not.toHaveProperty('accessibilityRequirements');
       expect(res.body).not.toHaveProperty('equipmentNeeds');
       expect(res.body).not.toHaveProperty('expectedAttendance');
       expect(res.body).not.toHaveProperty('organiserId');

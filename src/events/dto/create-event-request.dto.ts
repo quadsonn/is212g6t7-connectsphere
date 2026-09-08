@@ -1,7 +1,11 @@
 import { Type } from 'class-transformer';
+import { AccessibilityFeature, RoomLayout } from '@prisma/client';
 import {
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsDate,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -78,20 +82,37 @@ export class CreateEventRequestDto {
   @Type(() => Number)
   expectedAttendance: number;
 
+  /**
+   * US-06 AC-1 — a selection from the predefined list. Optional: AC-5 makes
+   * layout a preference, not a blocker on submission.
+   */
   @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  preferredLayout?: string;
+  @IsEnum(RoomLayout, {
+    message: `preferredLayout must be one of: ${Object.values(RoomLayout).join(', ')}`,
+  })
+  preferredLayout?: RoomLayout;
 
+  /** US-06 AC-2 — qualification for a layout that does not fit the list. */
   @IsOptional()
   @IsString()
   @MaxLength(2000)
   layoutNotes?: string;
 
+  /** US-06 AC-3 — structured requirements. Empty or absent means none. */
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsEnum(AccessibilityFeature, {
+    each: true,
+    message: `accessibilityRequirements must contain only: ${Object.values(AccessibilityFeature).join(', ')}`,
+  })
+  accessibilityRequirements?: AccessibilityFeature[];
+
+  /** US-06 AC-3 — free-text qualification alongside the selections. */
   @IsOptional()
   @IsString()
   @MaxLength(2000)
-  accessibilityNeeds?: string;
+  accessibilityNotes?: string;
 
   @IsOptional()
   @IsString()

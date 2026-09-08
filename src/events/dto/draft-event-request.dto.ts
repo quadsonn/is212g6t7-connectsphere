@@ -1,7 +1,11 @@
 import { Type } from 'class-transformer';
+import { AccessibilityFeature, RoomLayout } from '@prisma/client';
 import {
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsDate,
+  IsEnum,
   IsInt,
   IsOptional,
   IsPositive,
@@ -73,10 +77,17 @@ export class DraftEventRequestDto {
   @Type(() => Number)
   expectedAttendance?: number;
 
+  /**
+   * US-06 — still validated against the predefined list even on a draft. A
+   * layout outside the list is not "incomplete", it is wrong, and the
+   * Organiser is better told now than at submission. Free-text qualification
+   * belongs in layoutNotes.
+   */
   @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  preferredLayout?: string;
+  @IsEnum(RoomLayout, {
+    message: `preferredLayout must be one of: ${Object.values(RoomLayout).join(', ')}`,
+  })
+  preferredLayout?: RoomLayout;
 
   @IsOptional()
   @IsString()
@@ -84,9 +95,18 @@ export class DraftEventRequestDto {
   layoutNotes?: string;
 
   @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsEnum(AccessibilityFeature, {
+    each: true,
+    message: `accessibilityRequirements must contain only: ${Object.values(AccessibilityFeature).join(', ')}`,
+  })
+  accessibilityRequirements?: AccessibilityFeature[];
+
+  @IsOptional()
   @IsString()
   @MaxLength(2000)
-  accessibilityNeeds?: string;
+  accessibilityNotes?: string;
 
   @IsOptional()
   @IsString()

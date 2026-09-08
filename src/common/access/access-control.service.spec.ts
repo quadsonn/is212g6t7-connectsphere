@@ -27,9 +27,10 @@ describe('AccessControlService (US-02)', () => {
       proposedStart: new Date('2026-10-01T09:00:00Z'),
       proposedEnd: new Date('2026-10-01T17:00:00Z'),
       expectedAttendance: 300,
-      preferredLayout: 'Theatre',
+      preferredLayout: 'THEATRE',
       layoutNotes: 'Internal note about staging',
-      accessibilityNeeds: 'Internal accessibility planning',
+      accessibilityRequirements: ['HEARING_LOOP'],
+      accessibilityNotes: 'Internal accessibility planning',
       equipmentNeeds: 'Internal equipment planning',
       registrationEnabled: true,
       status: EventStatus.CONFIRMED,
@@ -148,7 +149,8 @@ describe('AccessControlService (US-02)', () => {
       const projected = service.projectEvent(userWith(Role.ATTENDEE), anEvent()) as Record<string, unknown>;
 
       expect(projected).not.toHaveProperty('layoutNotes');
-      expect(projected).not.toHaveProperty('accessibilityNeeds');
+      expect(projected).not.toHaveProperty('accessibilityNotes');
+      expect(projected).not.toHaveProperty('accessibilityRequirements');
       expect(projected).not.toHaveProperty('equipmentNeeds');
       expect(projected).not.toHaveProperty('expectedAttendance');
       expect(projected).not.toHaveProperty('organiserId');

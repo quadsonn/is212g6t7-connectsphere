@@ -45,6 +45,33 @@ enum BookingStatus {
   REJECTED
 }
 
+// US-06: the predefined room layouts an Organiser may choose from.
+//
+// Shared deliberately — the venue suitability story reuses this rather than
+// declaring its own list, so a layout requested on an event and a layout
+// supported by a venue are the same value.
+//
+// AMBIGUOUS: exactly the four the acceptance criteria name. Any further layout
+// (cabaret, u-shape, workshop) is a customer decision, not an invention.
+enum RoomLayout {
+  THEATRE
+  CLASSROOM
+  BANQUET
+  BOARDROOM
+}
+
+// US-06: accessibility requirements an Organiser may record.
+//
+// AMBIGUOUS: the AC lists these three after "e.g.", so the real list is almost
+// certainly longer. Only the named three are here — extending it is a customer
+// conversation, and free-text accessibilityNotes covers anything missing in
+// the meantime.
+enum AccessibilityFeature {
+  STEP_FREE_ACCESS
+  HEARING_LOOP
+  ACCESSIBLE_RESTROOMS
+}
+
 // Venue catalogue lifecycle. Venue Staff draft a venue, then publish it so it
 // becomes bookable and visible to coordinators.
 enum VenueStatus {
@@ -133,15 +160,19 @@ model EventRequest {
 
   // AMBIGUOUS: the brief never enumerates layouts, so this stays free text
   // rather than an invented enum.
-  preferredLayout String?
+  // US-06: a selection from the predefined list, plus optional qualification.
+  preferredLayout RoomLayout?
   layoutNotes     String?
 
+  // US-06: structured requirements, plus optional free-text qualification.
+  // Empty array means "none recorded" — these are preferences, not blockers.
+  accessibilityRequirements AccessibilityFeature[] @default([])
+  accessibilityNotes        String?
+
   // AMBIGUOUS: free text captured at request time. This is what the Organiser
-  // *asks for*; the structured commitments live in VenueBooking and
-  // EquipmentReservation. Kept deliberately unstructured until a story needs
-  // to query it.
-  accessibilityNeeds String?
-  equipmentNeeds     String?
+  // *asks for*; the structured commitment lives in EquipmentReservation.
+  // Kept unstructured until the equipment story (E6) needs to query it.
+  equipmentNeeds String?
 
   registrationEnabled Boolean     @default(false)
   status              EventStatus @default(DRAFT)

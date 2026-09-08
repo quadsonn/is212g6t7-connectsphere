@@ -266,9 +266,10 @@ describe('US-03 submit new event request (e2e)', () => {
   describe('AC-4: the Organiser sees every detail plus current status', () => {
     it('returns each submitted field accurately', async () => {
       const payload = validPayload({
-        preferredLayout: 'Theatre',
+        preferredLayout: 'THEATRE',
         layoutNotes: 'Front row reserved for accessibility seating',
-        accessibilityNeeds: 'Hearing loop required',
+        accessibilityRequirements: ['HEARING_LOOP'],
+        accessibilityNotes: 'Hearing loop required',
         equipmentNeeds: 'Six wireless microphones',
         registrationEnabled: true,
       });
@@ -290,9 +291,10 @@ describe('US-03 submit new event request (e2e)', () => {
         description: payload.description,
         category: payload.category,
         expectedAttendance: payload.expectedAttendance,
-        preferredLayout: 'Theatre',
+        preferredLayout: 'THEATRE',
         layoutNotes: 'Front row reserved for accessibility seating',
-        accessibilityNeeds: 'Hearing loop required',
+        accessibilityRequirements: ['HEARING_LOOP'],
+        accessibilityNotes: 'Hearing loop required',
         equipmentNeeds: 'Six wireless microphones',
         registrationEnabled: true,
         status: EventStatus.SUBMITTED,

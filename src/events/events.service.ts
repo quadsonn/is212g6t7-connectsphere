@@ -32,7 +32,8 @@ type DraftFields = Partial<
     | 'expectedAttendance'
     | 'preferredLayout'
     | 'layoutNotes'
-    | 'accessibilityNeeds'
+    | 'accessibilityRequirements'
+    | 'accessibilityNotes'
     | 'equipmentNeeds'
     | 'registrationEnabled'
   >
@@ -70,9 +71,11 @@ export class EventsService {
           proposedStart: dto.proposedStart,
           proposedEnd: dto.proposedEnd,
           expectedAttendance: dto.expectedAttendance,
+          // US-06: preferences, not blockers — absent stays absent.
           preferredLayout: dto.preferredLayout ?? null,
           layoutNotes: dto.layoutNotes ?? null,
-          accessibilityNeeds: dto.accessibilityNeeds ?? null,
+          accessibilityRequirements: dto.accessibilityRequirements ?? [],
+          accessibilityNotes: dto.accessibilityNotes ?? null,
           equipmentNeeds: dto.equipmentNeeds ?? null,
           registrationEnabled: dto.registrationEnabled ?? false,
           // status intentionally omitted — DRAFT is the schema default, and
@@ -198,7 +201,8 @@ export class EventsService {
       'expectedAttendance',
       'preferredLayout',
       'layoutNotes',
-      'accessibilityNeeds',
+      'accessibilityRequirements',
+      'accessibilityNotes',
       'equipmentNeeds',
       'registrationEnabled',
     ] as const) {

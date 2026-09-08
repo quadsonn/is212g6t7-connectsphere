@@ -4,7 +4,14 @@
  *
  * Usage: npm run prisma:seed
  */
-import { EventStatus, PrismaClient, Role, VenueStatus } from '@prisma/client';
+import {
+  AccessibilityFeature,
+  EventStatus,
+  PrismaClient,
+  Role,
+  RoomLayout,
+  VenueStatus,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -46,9 +53,13 @@ async function main() {
     category: 'Student engagement',
     description: 'Full-day programme with talks, booths and a closing social.',
     expectedAttendance: 320,
-    preferredLayout: 'Theatre',
+    preferredLayout: RoomLayout.THEATRE,
     layoutNotes: 'Reserve front row for accessibility seating.',
-    accessibilityNeeds: 'Hearing loop and step-free stage access.',
+    accessibilityRequirements: [
+      AccessibilityFeature.HEARING_LOOP,
+      AccessibilityFeature.STEP_FREE_ACCESS,
+    ],
+    accessibilityNotes: 'Reserve front-row seating adjacent to the ramp.',
     equipmentNeeds: 'Six wireless microphones, two projectors.',
     registrationEnabled: true,
   };

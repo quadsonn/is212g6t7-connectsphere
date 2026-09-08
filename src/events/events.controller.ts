@@ -20,6 +20,8 @@ import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { AssignCoordinatorDto } from './dto/assign-coordinator.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
+import { RejectRequestDto } from './dto/reject-request.dto';
+import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
 import { EventsService } from './events.service';
 
@@ -97,6 +99,33 @@ export class EventsController {
   @HttpCode(HttpStatus.OK)
   approve(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.eventsService.approve(user, id);
+  }
+
+  /**
+   * US-08 — reject the request outright. Separate route from return: they are
+   * distinct decisions with distinct outcomes, not one endpoint with a flag.
+   */
+  @Post(':id/reject')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  reject(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: RejectRequestDto,
+  ) {
+    return this.eventsService.reject(user, id, dto);
+  }
+
+  /** US-08 — return the request to the Organiser to amend and resubmit. */
+  @Post(':id/return')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  returnForAmendment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReturnRequestDto,
+  ) {
+    return this.eventsService.returnForAmendment(user, id, dto);
   }
 
   /**

@@ -37,8 +37,18 @@ describe('Event status transitions (US-03)', () => {
       expect(canTransition(EventStatus.SUBMITTED, EventStatus.REJECTED)).toBe(true);
     });
 
-    it('allows clarification to send a request back to DRAFT', () => {
-      expect(canTransition(EventStatus.UNDER_REVIEW, EventStatus.DRAFT)).toBe(true);
+    it('returns a request rather than demoting it to DRAFT (US-08)', () => {
+      expect(canTransition(EventStatus.UNDER_REVIEW, EventStatus.RETURNED)).toBe(true);
+      // US-08 replaced the old "clarification sends it back to DRAFT" edge.
+      expect(canTransition(EventStatus.UNDER_REVIEW, EventStatus.DRAFT)).toBe(false);
+    });
+
+    it('allows a returned request to be resubmitted', () => {
+      expect(canTransition(EventStatus.RETURNED, EventStatus.SUBMITTED)).toBe(true);
+    });
+
+    it('does not allow a returned request to skip review', () => {
+      expect(canTransition(EventStatus.RETURNED, EventStatus.APPROVED)).toBe(false);
     });
 
     it('does not allow a submitted request to jump straight to CONFIRMED', () => {
@@ -64,6 +74,7 @@ describe('Event status transitions (US-03)', () => {
         EventStatus.DRAFT,
         EventStatus.SUBMITTED,
         EventStatus.UNDER_REVIEW,
+        EventStatus.RETURNED,
         EventStatus.APPROVED,
         EventStatus.PLANNING,
         EventStatus.CONFIRMED,
@@ -78,6 +89,7 @@ describe('Event status transitions (US-03)', () => {
       EventStatus.DRAFT,
       EventStatus.SUBMITTED,
       EventStatus.UNDER_REVIEW,
+      EventStatus.RETURNED,
       EventStatus.APPROVED,
       EventStatus.PLANNING,
       EventStatus.CONFIRMED,

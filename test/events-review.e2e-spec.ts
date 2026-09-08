@@ -90,9 +90,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(res.body.status).toBe(status);
     });
 
-    it('shows a returned request as DRAFT awaiting clarification', async () => {
+    it('shows a returned request with its outstanding question', async () => {
+      // US-08 made RETURNED a status in its own right.
       const event = await seedEvent({
-        status: EventStatus.DRAFT,
+        status: EventStatus.RETURNED,
         clarificationRequest: 'Please confirm the attendance figure',
       });
 
@@ -101,7 +102,7 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
         .set('Authorization', as('coordinatorA'))
         .expect(200);
 
-      expect(res.body.status).toBe(EventStatus.DRAFT);
+      expect(res.body.status).toBe(EventStatus.RETURNED);
       expect(res.body.clarificationRequested).toBe(true);
       expect(res.body.clarificationRequest).toMatch(/attendance/);
     });

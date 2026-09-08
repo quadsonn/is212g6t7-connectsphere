@@ -324,6 +324,29 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-08 rows', () => {
+    it('covers reject and return with the existing REVIEW grant', () => {
+      // Both are review decisions: EVENT/REVIEW at ASSIGNED, granted in US-02.
+      // They are distinct *actions* in the service and distinct endpoints, but
+      // they are not distinct permissions — a Coordinator who may review may
+      // reach either outcome.
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.REVIEW)).toBe(Scope.ASSIGNED);
+    });
+
+    it('lets no other role reject or return a request', () => {
+      for (const role of ALL_ROLES.filter((r) => r !== Role.EVENT_COORDINATOR)) {
+        expect(isPermitted(role, Resource.EVENT, Action.REVIEW)).toBe(false);
+      }
+    });
+
+    it('leaves the Organiser able to amend, but never to decide', () => {
+      // A returned request becomes editable again, which is UPDATE at OWN —
+      // not a review permission.
+      expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.UPDATE)).toBe(Scope.OWN);
+      expect(isPermitted(Role.EVENT_ORGANISER, Resource.EVENT, Action.REVIEW)).toBe(false);
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

@@ -32,6 +32,10 @@ enum EventStatus {
   SUBMITTED
   UNDER_REVIEW
   APPROVED
+  // US-08: a distinct outcome from REJECTED — the Coordinator hands the
+  // request back for the Organiser to amend and resubmit. Supersedes the
+  // US-07 reading of "returned" as DRAFT plus a clarification note.
+  RETURNED
   REJECTED
   PLANNING
   CONFIRMED

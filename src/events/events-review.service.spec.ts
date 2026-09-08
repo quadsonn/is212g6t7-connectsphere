@@ -84,18 +84,19 @@ describe('EventsService review (US-07)', () => {
       expect(result.status).toBe(status);
     });
 
-    it('reports a "returned" request as DRAFT with clarification outstanding', async () => {
+    it('reports a returned request with its outstanding question', async () => {
+      // US-08 made RETURNED a real status, superseding the US-07 reading of
+      // "returned" as DRAFT plus a clarification note.
       prisma.eventRequest.findUniqueOrThrow.mockResolvedValue(
         event({
-          status: EventStatus.DRAFT,
+          status: EventStatus.RETURNED,
           clarificationRequest: 'Please confirm the attendance figure',
         }),
       );
 
       const result = await service.findAssignedRequest(coordinator, 'event-1');
 
-      // "Returned" is not a stored status — it is this combination.
-      expect(result.status).toBe(EventStatus.DRAFT);
+      expect(result.status).toBe(EventStatus.RETURNED);
       expect(result.clarificationRequested).toBe(true);
     });
 

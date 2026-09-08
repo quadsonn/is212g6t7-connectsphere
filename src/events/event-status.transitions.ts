@@ -22,20 +22,26 @@ export const ALLOWED_TRANSITIONS: Readonly<Record<EventStatus, readonly EventSta
     [EventStatus.SUBMITTED]: [
       EventStatus.UNDER_REVIEW,
       EventStatus.APPROVED,
+      EventStatus.RETURNED,
       EventStatus.REJECTED,
       EventStatus.CANCELLED,
     ],
 
-    // AMBIGUOUS: UNDER_REVIEW -> DRAFT models "request clarification" — the
-    // Coordinator hands the request back for the Organiser to amend and
-    // resubmit. If clarification should instead be a status of its own, this
-    // edge is the thing to change.
+    // US-08 answered the question the old comment here raised: clarification
+    // IS a status of its own. UNDER_REVIEW -> DRAFT has therefore been
+    // removed — returning a request now produces RETURNED, which keeps a
+    // handed-back request distinguishable from one never submitted.
     [EventStatus.UNDER_REVIEW]: [
       EventStatus.APPROVED,
+      EventStatus.RETURNED,
       EventStatus.REJECTED,
-      EventStatus.DRAFT,
       EventStatus.CANCELLED,
     ],
+
+    // US-08: the Organiser amends in place and resubmits. No edge back to
+    // DRAFT — a returned request is complete (it passed submission validation
+    // once), so demoting it to DRAFT would lose that distinction for nothing.
+    [EventStatus.RETURNED]: [EventStatus.SUBMITTED, EventStatus.CANCELLED],
 
     // Approved requests move into planning (venue and equipment booking).
     [EventStatus.APPROVED]: [EventStatus.PLANNING, EventStatus.CANCELLED],

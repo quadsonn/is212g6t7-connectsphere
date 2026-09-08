@@ -15,6 +15,8 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssignCoordinatorDto } from './dto/assign-coordinator.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
+import { RejectRequestDto } from './dto/reject-request.dto';
+import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
 import { canTransition } from './event-status.transitions';
 
@@ -59,6 +61,7 @@ export const EVENT_CONTACTS_INCLUDE = {
 export const ASSIGNABLE_STATUSES: EventStatus[] = [
   EventStatus.SUBMITTED,
   EventStatus.UNDER_REVIEW,
+  EventStatus.RETURNED,
   EventStatus.APPROVED,
   EventStatus.PLANNING,
   EventStatus.CONFIRMED,
@@ -195,7 +198,7 @@ export class EventsService {
   ): Promise<EventRequest> {
     const event = await this.access.assertEventAccess(user, id, Action.UPDATE);
 
-    this.assertIsDraft(event);
+    this.assertIsEditable(event);
 
     return this.prisma.eventRequest.update({
       where: { id: event.id },
@@ -217,15 +220,25 @@ export class EventsService {
   ): Promise<EventRequest> {
     const event = await this.access.assertEventAccess(user, id, Action.SUBMIT);
 
-    this.assertIsDraft(event);
+    this.assertIsEditable(event);
     await this.assertReadyForSubmission(event);
 
     return this.setStatus(event, EventStatus.SUBMITTED);
   }
 
-  /** AC-5: editing and submitting apply to drafts only. */
-  private assertIsDraft(event: EventRequest): void {
-    if (event.status !== EventStatus.DRAFT) {
+  /**
+   * US-04 AC-5: editing and submitting apply to work still in the Organiser's
+   * hands.
+   *
+   * US-08 widened this from DRAFT alone to include RETURNED — a returned
+   * request has been handed back precisely so the Organiser can amend and
+   * resubmit it, and requiring a demotion to DRAFT first would add a step
+   * with no purpose. A SUBMITTED or APPROVED request remains frozen.
+   */
+  private assertIsEditable(event: EventRequest): void {
+    const editable: EventStatus[] = [EventStatus.DRAFT, EventStatus.RETURNED];
+
+    if (!editable.includes(event.status)) {
       throw new ConflictException(
         `request is ${event.status} and can no longer be edited as a draft`,
       );
@@ -361,6 +374,76 @@ export class EventsService {
     });
 
     return this.toOrganiserView(approved);
+  }
+
+  /**
+   * US-08 — reject a request outright, with a mandatory reason.
+   *
+   * Distinct from returnForAmendment(): a rejection ends the request, and the
+   * reason is stored in decisionReason, which US-05 AC-2 surfaces to the
+   * Organiser.
+   */
+  async reject(
+    user: AuthenticatedUser,
+    id: string,
+    dto: RejectRequestDto,
+  ): Promise<CoordinatorRequestView> {
+    return this.decide(user, id, EventStatus.REJECTED, {
+      decisionReason: dto.reason,
+      // A rejection supersedes any outstanding question.
+      clarificationRequest: null,
+    });
+  }
+
+  /**
+   * US-08 — return a request to the Organiser to amend, with a mandatory
+   * reason.
+   *
+   * Distinct from reject(): the request stays alive and becomes editable
+   * again. The reason is what the Organiser must address, so it is stored in
+   * clarificationRequest and surfaced by US-05 AC-3.
+   */
+  async returnForAmendment(
+    user: AuthenticatedUser,
+    id: string,
+    dto: ReturnRequestDto,
+  ): Promise<CoordinatorRequestView> {
+    return this.decide(user, id, EventStatus.RETURNED, {
+      clarificationRequest: dto.reason,
+      // A return is not a rejection; clear any earlier rejection reason.
+      decisionReason: null,
+    });
+  }
+
+  /**
+   * Shared mechanics for a review decision: authorise, record the reason, then
+   * transition. The two callers differ in the status they target and the field
+   * the reason lands in — everything else is identical, and keeping it in one
+   * place means neither can bypass setStatus() or the ownership check.
+   */
+  private async decide(
+    user: AuthenticatedUser,
+    id: string,
+    next: EventStatus,
+    reasonFields: {
+      decisionReason?: string | null;
+      clarificationRequest?: string | null;
+    },
+  ): Promise<CoordinatorRequestView> {
+    const event = await this.access.assertEventAccess(user, id, Action.REVIEW);
+
+    this.assertIsAssignedTo(user, event);
+
+    const decided = await this.prisma.$transaction(async (tx) => {
+      await tx.eventRequest.update({
+        where: { id: event.id },
+        data: reasonFields,
+      });
+
+      return this.setStatus(event, next, tx);
+    });
+
+    return this.toOrganiserView(decided);
   }
 
   /**

@@ -17,6 +17,9 @@ export const EVENT_STATUS_STYLES: Record<EventStatus, StatusStyle> = {
   SUBMITTED: { label: 'Submitted', className: 'bg-blue-50 text-blue-800 ring-blue-300' },
   UNDER_REVIEW: { label: 'Under review', className: 'bg-amber-50 text-amber-900 ring-amber-400' },
   APPROVED: { label: 'Approved', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
+  // US-08: returned is a distinct outcome from rejected — amber signals
+  // "action needed from you", red signals "declined".
+  RETURNED: { label: 'Returned', className: 'bg-amber-50 text-amber-900 ring-amber-400' },
   REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-800 ring-red-300' },
   PLANNING: { label: 'Planning', className: 'bg-violet-50 text-violet-800 ring-violet-300' },
   CONFIRMED: { label: 'Confirmed', className: 'bg-emerald-100 text-emerald-900 ring-emerald-400' },

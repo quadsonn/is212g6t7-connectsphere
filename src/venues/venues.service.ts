@@ -13,6 +13,11 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { VenueBookingLookup } from '../bookings/booking-impact';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  BrowseVenuesDto,
+  SortOrder,
+  VenueSortField,
+} from './dto/browse-venues.dto';
 import { PublishableVenueDto } from './dto/publishable-venue.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 
@@ -77,12 +82,56 @@ export class VenuesService {
     };
   }
 
-  /** AC-4/AC-5/AC-6 — the catalogue, scoped to the caller. */
-  async findAllForUser(user: AuthenticatedUser): Promise<Venue[]> {
+  /**
+   * US-13 AC-4/AC-6 and US-15 AC-1/AC-3/AC-4 — the catalogue, scoped to the
+   * caller and optionally searched or sorted.
+   *
+   * AC-4: read straight from the database on every call. Nothing is cached
+   * server-side, so a venue added or edited a moment ago is present in the
+   * next response.
+   *
+   * AMBIGUOUS: the list returns whole venue records rather than a trimmed
+   * summary. AC-1 asks for key details "at a glance", which those records
+   * satisfy; a narrower projection would be a payload optimisation, and would
+   * break clients already reading layouts from the list. See the summary.
+   */
+  async findAllForUser(
+    user: AuthenticatedUser,
+    query: BrowseVenuesDto = {},
+  ): Promise<Venue[]> {
+    const visibility = this.visibilityFilter(user);
+
+    const where: Prisma.VenueWhereInput = query.search
+      ? {
+          AND: [
+            visibility,
+            { name: { contains: query.search, mode: 'insensitive' } },
+          ],
+        }
+      : visibility;
+
     return this.prisma.venue.findMany({
-      where: this.visibilityFilter(user),
-      orderBy: [{ status: 'asc' }, { name: 'asc' }],
+      where,
+      orderBy: this.orderBy(query),
     });
+  }
+
+  /**
+   * AC-3 — sorting. Defaults to name ascending, which is what a person
+   * scanning a catalogue expects.
+   *
+   * Drafts sort first so a Venue Staff member sees their unfinished work
+   * before the published list; nulls sort last, so a half-filled draft does
+   * not push a named venue down the page.
+   */
+  private orderBy(query: BrowseVenuesDto): Prisma.VenueOrderByWithRelationInput[] {
+    const field = query.sortBy ?? VenueSortField.NAME;
+    const order = query.sortOrder ?? SortOrder.ASC;
+
+    return [
+      { status: 'asc' },
+      { [field]: { sort: order, nulls: 'last' } } as Prisma.VenueOrderByWithRelationInput,
+    ];
   }
 
   /** A single entry, denied as not-found when outside the caller's view. */

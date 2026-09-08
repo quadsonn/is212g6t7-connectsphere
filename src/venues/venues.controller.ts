@@ -2,11 +2,13 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
@@ -18,6 +20,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { BrowseVenuesDto } from './dto/browse-venues.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
 
@@ -33,8 +36,15 @@ export class VenuesController {
    */
   @Get()
   @RequirePermission(Resource.VENUE, Action.READ)
-  findAll(@CurrentUser() user: AuthenticatedUser) {
-    return this.venuesService.findAllForUser(user);
+  // US-15 AC-4: the catalogue changes whenever staff edit it, so a cached copy
+  // is a wrong copy. This stops a browser or proxy serving a stale list; the
+  // server itself holds no cache.
+  @Header('Cache-Control', 'no-store')
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: BrowseVenuesDto,
+  ) {
+    return this.venuesService.findAllForUser(user, query);
   }
 
   /** AC-2 — create a draft, however incomplete. */
@@ -70,6 +80,7 @@ export class VenuesController {
   /** Declared after the literal routes above so "drafts" is not read as an id. */
   @Get(':id')
   @RequirePermission(Resource.VENUE, Action.READ)
+  @Header('Cache-Control', 'no-store')
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.venuesService.findOneForUser(user, id);
   }

@@ -423,6 +423,29 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-15 rows', () => {
+    it('covers browsing with the existing VENUE/READ grant', () => {
+      // US-15 adds no verb. Draft exclusion is record-level and lives in
+      // VenuesService.visibilityFilter, as it has since US-13.
+      for (const role of [Role.VENUE_STAFF, Role.EVENT_COORDINATOR]) {
+        expect(permissionScope(role, Resource.VENUE, Action.READ)).toBe(Scope.ANY);
+      }
+    });
+
+    it('also admits Organisers, who were granted VENUE/READ in US-02', () => {
+      // The story says "staff/coordinator roles per the permission matrix";
+      // the matrix is wider than that phrase. Asserted so the difference is a
+      // decision rather than an oversight — see the US-15 summary.
+      expect(permissionScope(Role.EVENT_ORGANISER, Resource.VENUE, Action.READ)).toBe(Scope.ANY);
+    });
+
+    it('keeps the catalogue away from Attendees and Technical Support', () => {
+      for (const role of [Role.ATTENDEE, Role.TECHNICAL_SUPPORT_STAFF]) {
+        expect(isPermitted(role, Resource.VENUE, Action.READ)).toBe(false);
+      }
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

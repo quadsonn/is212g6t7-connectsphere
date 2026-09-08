@@ -43,6 +43,16 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.READ, Scope.ASSIGNED),
         g(Action.UPDATE, Scope.ASSIGNED),
         g(Action.REVIEW, Scope.ASSIGNED),
+        // US-10. Deliberately ANY, not ASSIGNED: AC-2 requires reassigning an
+        // event away from the Coordinator who currently holds it, and an
+        // ASSIGNED scope would hide a peer's event entirely.
+        //
+        // This means any Coordinator can take an event from any other. CLAUDE.md
+        // §1 gives the role "assigns/coordinates events" and the brief defines
+        // no manager or admin role, so this is the reading that invents least —
+        // but see the US-10 summary: a Coordinator Manager is the likelier real
+        // answer and needs a customer decision.
+        g(Action.ASSIGN, Scope.ANY),
       ],
       [Resource.VENUE]: [g(Action.READ, Scope.ANY)],
       [Resource.BOOKING]: [

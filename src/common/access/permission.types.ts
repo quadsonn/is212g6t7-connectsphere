@@ -23,6 +23,8 @@ export enum Action {
   DELETE = 'DELETE',
   SUBMIT = 'SUBMIT',
   REVIEW = 'REVIEW',
+  /** US-10: link a Coordinator to an event as its main point of contact. */
+  ASSIGN = 'ASSIGN',
   DECIDE = 'DECIDE',
   REGISTER = 'REGISTER',
   WITHDRAW = 'WITHDRAW',

@@ -141,6 +141,10 @@ export class AccessControlService {
 
     const event = await this.prisma.eventRequest.findFirst({
       where: { AND: [{ id: eventId }, filter] },
+      // US-10 AC-3: the assigned Coordinator travels with every single-record
+      // read, so the main point of contact is identifiable wherever an event
+      // is opened.
+      include: { coordinator: { select: { id: true, name: true, email: true } } },
     });
 
     if (!event) {

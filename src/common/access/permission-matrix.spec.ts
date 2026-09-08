@@ -242,6 +242,34 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-10 rows', () => {
+    it('grants the Coordinator EVENT/ASSIGN at ANY scope', () => {
+      // ANY, not ASSIGNED: AC-2 requires reassigning an event currently held
+      // by a different Coordinator, which an ASSIGNED scope would hide.
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.ASSIGN)).toBe(Scope.ANY);
+    });
+
+    it('agrees with the hardcoded @Roles list on PATCH /events/:id/coordinator', () => {
+      expect(rolesWithPermission(Resource.EVENT, Action.ASSIGN)).toEqual([
+        Role.EVENT_COORDINATOR,
+      ]);
+    });
+
+    it('lets no other role assign a Coordinator', () => {
+      for (const role of ALL_ROLES.filter((r) => r !== Role.EVENT_COORDINATOR)) {
+        expect(isPermitted(role, Resource.EVENT, Action.ASSIGN)).toBe(false);
+      }
+    });
+
+    it('keeps ASSIGN wider than the Coordinator’s other event grants', () => {
+      // The asymmetry is deliberate and worth pinning: a Coordinator may
+      // assign any event but may only read/update/review assigned ones.
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.READ)).toBe(Scope.ASSIGNED);
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.UPDATE)).toBe(Scope.ASSIGNED);
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.REVIEW)).toBe(Scope.ASSIGNED);
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EventRequest, EventStatus, Prisma } from '@prisma/client';
+import { EventRequest, EventStatus, Prisma, Role } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
@@ -12,9 +12,39 @@ import { AccessControlService, PublicEventView } from '../common/access/access-c
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
+import { AssignCoordinatorDto } from './dto/assign-coordinator.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
 import { canTransition } from './event-status.transitions';
+
+/**
+ * US-10 AC-3 — the assigned Coordinator, exposed on every read so the main
+ * point of contact is identifiable rather than an opaque id.
+ *
+ * Email is included because "main point of contact" implies contactability.
+ * The Attendee projection strips this along with the rest of the internal
+ * planning fields (US-02 AC-7).
+ */
+export const COORDINATOR_SELECT = {
+  coordinator: { select: { id: true, name: true, email: true } },
+} as const;
+
+/**
+ * Statuses at which a Coordinator may be assigned or reassigned.
+ *
+ * AMBIGUOUS: AC-1 describes assigning a *submitted* event, but AC-2's
+ * reassignment trigger ("availability changes") happens throughout planning,
+ * so restricting to SUBMITTED would make AC-2 unreachable. DRAFT is excluded —
+ * an unsubmitted request has nothing to coordinate — as are the terminal
+ * statuses.
+ */
+export const ASSIGNABLE_STATUSES: EventStatus[] = [
+  EventStatus.SUBMITTED,
+  EventStatus.UNDER_REVIEW,
+  EventStatus.APPROVED,
+  EventStatus.PLANNING,
+  EventStatus.CONFIRMED,
+];
 
 /**
  * US-05 — an Organiser's view of one of their requests.
@@ -226,6 +256,63 @@ export class EventsService {
   }
 
   /**
+   * US-10 — link a Coordinator to an event as its main point of contact.
+   *
+   * Assignment is deliberately NOT a status change: AC-1 asks only that the
+   * Coordinator be linked, and moving SUBMITTED -> UNDER_REVIEW here would be
+   * inventing review behaviour this story does not describe. setStatus() is
+   * therefore not called, and the event's status is left exactly as found.
+   *
+   * AC-2 falls out of the single coordinatorId column: assigning a new
+   * Coordinator is what removes the previous one's ownership, so the two can
+   * never disagree.
+   */
+  async assignCoordinator(
+    user: AuthenticatedUser,
+    eventId: string,
+    dto: AssignCoordinatorDto,
+  ): Promise<EventRequest> {
+    const event = await this.access.assertEventAccess(
+      user,
+      eventId,
+      Action.ASSIGN,
+    );
+
+    if (!ASSIGNABLE_STATUSES.includes(event.status)) {
+      throw new ConflictException(
+        `a coordinator cannot be assigned while the request is ${event.status}`,
+      );
+    }
+
+    await this.assertIsCoordinator(dto.coordinatorId);
+
+    return this.prisma.eventRequest.update({
+      where: { id: event.id },
+      data: { coordinatorId: dto.coordinatorId },
+      include: COORDINATOR_SELECT,
+    });
+  }
+
+  /**
+   * The target must exist and actually hold the Coordinator role — otherwise
+   * an event could be handed to an Attendee, who would then be unable to see
+   * it at all.
+   */
+  private async assertIsCoordinator(userId: string): Promise<void> {
+    const target = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (!target) {
+      throw new NotFoundException('coordinator not found');
+    }
+
+    if (target.role !== Role.EVENT_COORDINATOR) {
+      throw new BadRequestException(
+        'the assigned user must have the EVENT_COORDINATOR role',
+      );
+    }
+  }
+
+  /**
    * THE status transition method. Nothing in the codebase may write
    * EventRequest.status directly — every change comes through here so the
    * transition table is enforced in one place (CLAUDE.md §3.4).
@@ -272,6 +359,7 @@ export class EventsService {
     const events = await this.prisma.eventRequest.findMany({
       where: this.access.scopedEventFilter(user, Action.READ),
       orderBy: { createdAt: 'desc' },
+      include: COORDINATOR_SELECT,
     });
 
     return events.map((event) => this.toOrganiserView(event));
@@ -301,6 +389,7 @@ export class EventsService {
     const events = await this.prisma.eventRequest.findMany({
       where: this.access.scopedEventFilter(user),
       orderBy: { createdAt: 'desc' },
+      include: COORDINATOR_SELECT,
     });
 
     return events.map((event) => this.access.projectEvent(user, event));

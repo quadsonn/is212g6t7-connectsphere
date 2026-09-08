@@ -58,15 +58,22 @@ The API must allow this origin. The backend reads `WEB_ORIGIN` (defaults to
 |---|---|---|
 | Login | `POST /auth/login` | **Real** |
 | Logout | `POST /auth/logout` (revokes the token server-side) | **Real** |
-| Organiser — my requests | `GET /events` | **Real** |
+| Organiser — my requests | `GET /events/mine` | **Real** |
+| Organiser — new request (draft + submit) | `POST /events/drafts`, `POST /events` | **Real** |
 | Coordinator — review queue | `GET /events` | **Real** |
 | Attendee — browse events | `GET /events` | **Real** |
-| Venue Staff — catalogue | `venuesApi` mock | **Mocked** — no `GET /venues` yet (E4) |
+| Venue Staff — catalogue (with search + sort) | `GET /venues` | **Real** |
 | Technical Support — requests + inventory | `equipmentApi` mock | **Mocked** — no equipment endpoints yet (E6) |
 | Attendee — register / withdraw | none | **Inert** — no registration endpoints yet (E7) |
 
 Mocked surfaces render a visible amber notice naming the missing endpoint, so
 mocked data is never mistaken for real data in a demo.
+
+The Organiser flow is the one to walk in a demo: sign in as
+`organiser@connectsphere.local`, choose **New event request**, and either save
+a partial draft or submit a complete one. Submitting with bad data shows every
+offending field at once, flagged against its own input — that is the server's
+validation (US-03 AC-3) surfaced, not a client-side copy of the rules.
 
 `GET /events` is one endpoint serving three dashboards: the backend scopes the
 result to the caller (organiser → own, coordinator → assigned, attendee →

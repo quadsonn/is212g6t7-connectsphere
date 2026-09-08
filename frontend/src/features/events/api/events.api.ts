@@ -1,5 +1,10 @@
 import { apiClient } from '@/lib/api-client';
-import type { EventRequest, PublicEventView } from '@/types/api';
+import type {
+  EventRequest,
+  EventRequestPayload,
+  OrganiserRequestView,
+  PublicEventView,
+} from '@/types/api';
 
 /**
  * REAL — GET /events and GET /events/:id exist.
@@ -17,4 +22,20 @@ export const eventsApi = {
 
   getById: (id: string) =>
     apiClient.get<EventRequest>(`/events/${id}`).then((r) => r.data),
+
+  /** US-05 — the Organiser's own requests, with status detail. */
+  listMine: () =>
+    apiClient.get<OrganiserRequestView[]>('/events/mine').then((r) => r.data),
+
+  /** US-03 — create and submit in one step. Returns the SUBMITTED record. */
+  createAndSubmit: (body: EventRequestPayload) =>
+    apiClient.post<EventRequest>('/events', body).then((r) => r.data),
+
+  /** US-04 — save an incomplete draft. */
+  saveDraft: (body: EventRequestPayload) =>
+    apiClient.post<EventRequest>('/events/drafts', body).then((r) => r.data),
+
+  /** US-04 — submit a draft that is now complete. */
+  submitDraft: (id: string) =>
+    apiClient.post<EventRequest>(`/events/${id}/submit`).then((r) => r.data),
 };

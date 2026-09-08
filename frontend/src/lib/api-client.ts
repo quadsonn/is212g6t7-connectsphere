@@ -41,6 +41,41 @@ apiClient.interceptors.response.use(
   },
 );
 
+/**
+ * Splits a 400 validation response into per-field messages.
+ *
+ * The API returns a flat array like ["name is required", "proposedStart must
+ * be in the future"] and flags EVERY offending field at once (US-03 AC-3), so
+ * the form can show each error against its own input rather than dumping a
+ * list at the top. Messages that do not start with a known field name fall
+ * back to the form-level bucket.
+ */
+export function fieldErrors(
+  error: unknown,
+  fields: readonly string[],
+): { byField: Record<string, string[]>; general: string[] } {
+  const byField: Record<string, string[]> = {};
+  const general: string[] = [];
+
+  if (!axios.isAxiosError<ApiErrorBody>(error) || error.response?.status !== 400) {
+    return { byField, general };
+  }
+
+  const raw = error.response?.data?.message;
+  const messages = Array.isArray(raw) ? raw : raw ? [raw] : [];
+
+  for (const message of messages) {
+    const field = fields.find((name) => message.startsWith(name));
+    if (field) {
+      (byField[field] ??= []).push(message);
+    } else {
+      general.push(message);
+    }
+  }
+
+  return { byField, general };
+}
+
 /** Pulls a displayable message out of Nest's error envelope. */
 export function apiErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError<ApiErrorBody>(error)) {

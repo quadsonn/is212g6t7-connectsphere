@@ -28,7 +28,7 @@ export interface NavItem {
 export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   EVENT_ORGANISER: [
     { label: 'My requests', to: '/organiser', icon: LayoutDashboard },
-    { label: 'New request', to: '/organiser/new', icon: CalendarPlus, comingSoon: true },
+    { label: 'New request', to: '/organiser/new', icon: CalendarPlus },
   ],
   EVENT_COORDINATOR: [
     { label: 'Review queue', to: '/coordinator', icon: ClipboardList },

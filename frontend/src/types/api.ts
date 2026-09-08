@@ -123,6 +123,23 @@ export interface ClarificationMessage {
   author: { id: string; name: string; email: string; role: Role };
 }
 
+/** Payload for POST /events (submit) and POST /events/drafts (save). */
+export interface EventRequestPayload {
+  name?: string;
+  purpose?: string;
+  description?: string;
+  category?: string;
+  proposedStart?: string;
+  proposedEnd?: string;
+  expectedAttendance?: number;
+  preferredLayout?: RoomLayout | null;
+  layoutNotes?: string;
+  accessibilityRequirements?: AccessibilityFeature[];
+  accessibilityNotes?: string;
+  equipmentNeeds?: string;
+  registrationEnabled?: boolean;
+}
+
 /** US-11 — the consolidated status view the API attaches to every request. */
 export interface EventStatusView {
   status: EventStatus;
@@ -157,14 +174,36 @@ export interface PublicEventView {
 /** Venue catalogue. Endpoint not built yet — served by a mock service. */
 export interface Venue {
   id: string;
-  name: string;
-  location: string;
-  capacity: number;
+  /** Nullable since US-13: a draft venue may be incomplete. */
+  name: string | null;
+  location: string | null;
+  capacity: number | null;
   facilities: string[];
+  /** Free text — deliberately not the AccessibilityFeature enum (US-13). */
   accessibilityFeatures: string[];
-  supportedLayouts: string[];
+  /** The shared US-06 lookup, same values an event request uses. */
+  supportedLayouts: RoomLayout[];
   operatingInfo: string | null;
   status: VenueStatus;
+  /** The Venue Staff member who owns this entry (US-13 AC-4). */
+  managedById: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** US-14 — a warning returned alongside an edit that may invalidate bookings. */
+export interface VenueUpdateWarning {
+  code: 'BOOKINGS_MAY_NEED_REVIEW';
+  message: string;
+  reasons: string[];
+  affectedBookingIds: string[];
+}
+
+/** US-15 — catalogue search and sort. */
+export interface BrowseVenuesQuery {
+  search?: string;
+  sortBy?: 'name' | 'capacity' | 'location';
+  sortOrder?: 'asc' | 'desc';
 }
 
 /** Equipment inventory. Endpoint not built yet — served by a mock service. */

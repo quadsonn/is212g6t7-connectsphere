@@ -1,17 +1,19 @@
 import { Plus } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/app-shell';
-import { Button } from '@/components/ui/button';
+import { LinkButton } from '@/components/ui/link-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
-import { useEvents } from '@/features/events/hooks/use-events';
+import { useMyRequests } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
 import { formatDateRange } from '@/lib/utils';
 
 /** REAL data — GET /events, scoped by the backend to this organiser's own. */
 export function OrganiserDashboard() {
-  const { data: events, isPending, isError, error } = useEvents();
+  // US-05: the Organiser-specific endpoint, which also carries decision
+  // reasons and outstanding clarifications.
+  const { data: events, isPending, isError, error } = useMyRequests();
 
   return (
     <>
@@ -19,10 +21,10 @@ export function OrganiserDashboard() {
         title="My event requests"
         description="Requests you have raised, and where each one has reached."
         action={
-          <Button disabled title="Not built yet — US-04">
+          <LinkButton to="/organiser/new">
             <Plus className="size-4" aria-hidden="true" />
             New event request
-          </Button>
+          </LinkButton>
         }
       />
 
@@ -46,6 +48,12 @@ export function OrganiserDashboard() {
           <EmptyState
             title="No requests yet"
             description="When you raise an event request it will appear here with its current status."
+            action={
+              <LinkButton to="/organiser/new">
+                <Plus className="size-4" aria-hidden="true" />
+                New event request
+              </LinkButton>
+            }
           />
         ) : null}
 

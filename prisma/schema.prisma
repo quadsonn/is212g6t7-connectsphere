@@ -47,6 +47,14 @@ enum EventStatus {
   AWAITING_CLARIFICATION
   REJECTED
   PLANNING
+  // US-11 AC-1 names this alongside PLANNING, so the two are modelled as
+  // distinct stages: PLANNING is the Coordinator arranging things, this is
+  // waiting on Venue Staff / Technical Support to decide on the booking and
+  // equipment requests they have been sent.
+  //
+  // AMBIGUOUS: no story yet drives a transition into or out of it — E5/E6
+  // will. It exists now because AC-1 requires the event to be able to show it.
+  AWAITING_ARRANGEMENTS
   CONFIRMED
   COMPLETED
   CANCELLED

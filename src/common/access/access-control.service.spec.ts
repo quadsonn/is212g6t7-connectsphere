@@ -3,6 +3,7 @@ import { EventStatus, Role } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../auth/jwt.strategy';
+import { ATTENDEE_VISIBLE_STATUSES } from '../../events/event-status.machine';
 import { AccessControlService } from './access-control.service';
 import { Action, Resource, Scope } from './permission.types';
 
@@ -133,16 +134,28 @@ describe('AccessControlService (US-02)', () => {
 
   describe('AC-7: Attendee sees only registration-facing info', () => {
     it('restricts the list to events past review', () => {
+      // The set itself lives in the US-11 state machine; this asserts the
+      // filter uses it rather than a second, divergent list.
       expect(service.scopedEventFilter(userWith(Role.ATTENDEE))).toEqual({
-        status: {
-          in: [
-            EventStatus.APPROVED,
-            EventStatus.PLANNING,
-            EventStatus.CONFIRMED,
-            EventStatus.COMPLETED,
-          ],
-        },
+        status: { in: [...ATTENDEE_VISIBLE_STATUSES] },
       });
+    });
+
+    it('hides everything still under review', () => {
+      const filter = service.scopedEventFilter(userWith(Role.ATTENDEE)) as {
+        status: { in: EventStatus[] };
+      };
+
+      for (const hidden of [
+        EventStatus.DRAFT,
+        EventStatus.SUBMITTED,
+        EventStatus.UNDER_REVIEW,
+        EventStatus.AWAITING_CLARIFICATION,
+        EventStatus.RETURNED,
+        EventStatus.REJECTED,
+      ]) {
+        expect(filter.status.in).not.toContain(hidden);
+      }
     });
 
     it('strips internal planning fields from the record', () => {

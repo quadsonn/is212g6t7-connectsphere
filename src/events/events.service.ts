@@ -27,7 +27,13 @@ import { RespondClarificationDto } from './dto/respond-clarification.dto';
 import { RejectRequestDto } from './dto/reject-request.dto';
 import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
-import { canTransition } from './event-status.transitions';
+import {
+  ASSIGNABLE_STATUSES,
+  buildStatusView,
+  canTransition,
+  EDITABLE_STATUSES,
+  EventStatusView,
+} from './event-status.machine';
 
 /**
  * US-10 AC-3 — the assigned Coordinator, exposed on every read so the main
@@ -72,24 +78,6 @@ export const EVENT_CONTACTS_INCLUDE = {
 } as const;
 
 /**
- * Statuses at which a Coordinator may be assigned or reassigned.
- *
- * AMBIGUOUS: AC-1 describes assigning a *submitted* event, but AC-2's
- * reassignment trigger ("availability changes") happens throughout planning,
- * so restricting to SUBMITTED would make AC-2 unreachable. DRAFT is excluded —
- * an unsubmitted request has nothing to coordinate — as are the terminal
- * statuses.
- */
-export const ASSIGNABLE_STATUSES: EventStatus[] = [
-  EventStatus.SUBMITTED,
-  EventStatus.UNDER_REVIEW,
-  EventStatus.RETURNED,
-  EventStatus.APPROVED,
-  EventStatus.PLANNING,
-  EventStatus.CONFIRMED,
-];
-
-/**
  * US-05 — an Organiser's view of one of their requests.
  *
  * The full record plus one derived convenience flag. `clarificationRequested`
@@ -97,6 +85,8 @@ export const ASSIGNABLE_STATUSES: EventStatus[] = [
  * `clarificationRequest`.
  */
 export type OrganiserRequestView = EventRequest & {
+  /** US-11 — the consolidated view every story reads. */
+  statusView: EventStatusView;
   clarificationRequested: boolean;
 };
 
@@ -259,9 +249,7 @@ export class EventsService {
    * with no purpose. A SUBMITTED or APPROVED request remains frozen.
    */
   private assertIsEditable(event: EventRequest): void {
-    const editable: EventStatus[] = [EventStatus.DRAFT, EventStatus.RETURNED];
-
-    if (!editable.includes(event.status)) {
+    if (!EDITABLE_STATUSES.includes(event.status)) {
       throw new ConflictException(
         `request is ${event.status} and can no longer be edited as a draft`,
       );
@@ -714,11 +702,18 @@ export class EventsService {
     return this.toOrganiserView(event);
   }
 
-  /** Derived, never stored — see OrganiserRequestView. */
+  /**
+   * US-11 — attaches the consolidated status view. Derived on every read, so
+   * it always reflects what setStatus() last committed (AC-3).
+   */
   private toOrganiserView(event: EventRequest): OrganiserRequestView {
+    const view = buildStatusView(event);
+
     return {
       ...event,
-      clarificationRequested: event.clarificationRequest !== null,
+      statusView: view,
+      // Kept flat for the callers established in US-05 and US-09.
+      clarificationRequested: view.clarificationRequested,
     };
   }
 

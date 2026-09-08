@@ -1,42 +1,14 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventRequest, EventStatus, Prisma, Role } from '@prisma/client';
 
+import {
+  ATTENDEE_VISIBLE_STATUSES,
+  COORDINATOR_POOL_STATUSES,
+} from '../../events/event-status.machine';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../auth/jwt.strategy';
 import { permissionScope } from './permission-matrix';
 import { Action, Resource, Scope } from './permission.types';
-
-/**
- * Statuses an Attendee may see at all. Everything earlier is internal review
- * traffic, and REJECTED/CANCELLED events are not registration-facing.
- *
- * AMBIGUOUS: the brief says an Attendee sees "permitted event info" without
- * defining which events are visible. This is the narrowest reading that still
- * lets registration work.
- */
-/**
- * Unassigned requests a Coordinator may pick up (US-03 AC-2).
- *
- * A freshly submitted request has no coordinatorId, so a strict "assigned to
- * me" scope would hide it from every Coordinator and no review could ever
- * start. CLAUDE.md §1 has Coordinators "review requests, assign/coordinate
- * events", which implies an unassigned pool they draw from.
- *
- * AMBIGUOUS: the alternative is auto-assigning a Coordinator at submission —
- * but the brief says nothing about who or by what rule, so the pool is the
- * smaller assumption.
- */
-const COORDINATOR_POOL_STATUSES: EventStatus[] = [
-  EventStatus.SUBMITTED,
-  EventStatus.UNDER_REVIEW,
-];
-
-const ATTENDEE_VISIBLE_STATUSES: EventStatus[] = [
-  EventStatus.APPROVED,
-  EventStatus.PLANNING,
-  EventStatus.CONFIRMED,
-  EventStatus.COMPLETED,
-];
 
 /**
  * The registration-facing view of an event (AC-7). Everything omitted here —
@@ -114,12 +86,12 @@ export class AccessControlService {
             { coordinatorId: user.userId },
             {
               coordinatorId: null,
-              status: { in: COORDINATOR_POOL_STATUSES },
+              status: { in: [...COORDINATOR_POOL_STATUSES] },
             },
           ],
         };
       case Scope.PUBLIC:
-        return { status: { in: ATTENDEE_VISIBLE_STATUSES } };
+        return { status: { in: [...ATTENDEE_VISIBLE_STATUSES] } };
     }
   }
 

@@ -26,6 +26,7 @@ export const EVENT_STATUSES = [
   'RETURNED',
   'REJECTED',
   'PLANNING',
+  'AWAITING_ARRANGEMENTS',
   'CONFIRMED',
   'COMPLETED',
   'CANCELLED',
@@ -122,8 +123,18 @@ export interface ClarificationMessage {
   author: { id: string; name: string; email: string; role: Role };
 }
 
+/** US-11 — the consolidated status view the API attaches to every request. */
+export interface EventStatusView {
+  status: EventStatus;
+  isTerminal: boolean;
+  /** Present only when the status represents a Coordinator decision. */
+  decision: { outcome: EventStatus; reason: string | null } | null;
+  clarificationRequested: boolean;
+}
+
 /** GET /events/mine — the Organiser's status view (US-05). */
 export interface OrganiserRequestView extends EventRequest {
+  statusView: EventStatusView;
   /** Derived server-side from clarificationRequest; never stored. */
   clarificationRequested: boolean;
 }

@@ -4,6 +4,10 @@
  *
  * Usage: npm run prisma:seed
  */
+// The Prisma CLI loads .env by itself, but this script is plain ts-node and
+// does not — without this, DATABASE_URL is unset on a fresh clone.
+import 'dotenv/config';
+
 import {
   AccessibilityFeature,
   EventStatus,

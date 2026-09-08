@@ -15,8 +15,9 @@ import { join, relative } from 'node:path';
 describe('status write audit (US-11)', () => {
   const SRC = join(__dirname, '..');
 
-  /** The single sanctioned writer. */
+  /** The single sanctioned writer of each model's status column. */
   const ALLOWED_FILE = 'events/events.service.ts';
+  const ALLOWED_VENUE_FILE = 'venues/venues.service.ts';
 
   const sourceFiles = (dir: string): string[] =>
     readdirSync(dir).flatMap((entry) => {
@@ -29,8 +30,18 @@ describe('status write audit (US-11)', () => {
 
   const files = sourceFiles(SRC);
 
-  /** Matches a Prisma `data: { ... status: ... }` payload. */
-  const STATUS_WRITE = /data:\s*\{[^{}]*\bstatus\s*:/g;
+  /**
+   * Matches a status write on a specific Prisma delegate, e.g.
+   * `eventRequest.update({ where: ..., data: { status: ... } })`.
+   *
+   * Scoped per model so each lifecycle is guarded independently: an event's
+   * status is owned by setStatus(), a venue's by publish().
+   */
+  const statusWriteOn = (delegate: string) =>
+    new RegExp(
+      `${delegate}\\.(update|updateMany|create|createMany|upsert)\\(\\s*\\{[\\s\\S]{0,200}?data:\\s*\\{[^{}]*\\bstatus\\s*:`,
+      'g',
+    );
 
   it('finds source files to audit (guards against a broken scan)', () => {
     expect(files.length).toBeGreaterThan(20);
@@ -39,11 +50,34 @@ describe('status write audit (US-11)', () => {
 
   it('writes EventRequest.status in exactly one place', () => {
     const offenders = files.flatMap((file) => {
-      const matches = readFileSync(file, 'utf8').match(STATUS_WRITE) ?? [];
+      const matches =
+        readFileSync(file, 'utf8').match(statusWriteOn('eventRequest')) ?? [];
       return matches.map(() => relative(SRC, file));
     });
 
     expect(offenders).toEqual([ALLOWED_FILE]);
+  });
+
+  it('writes Venue.status in exactly one place', () => {
+    // A venue's lifecycle is only DRAFT -> PUBLISHED, but the same rule
+    // applies: one writer, guarded by a completeness check (US-13 AC-3).
+    const offenders = files.flatMap((file) => {
+      const matches = readFileSync(file, 'utf8').match(statusWriteOn('venue')) ?? [];
+      return matches.map(() => relative(SRC, file));
+    });
+
+    expect(offenders).toEqual([ALLOWED_VENUE_FILE]);
+  });
+
+  it('guards the venue write behind the publishable check', () => {
+    const source = readFileSync(join(SRC, ALLOWED_VENUE_FILE), 'utf8');
+    const publishBody = source.slice(
+      source.indexOf('async publish('),
+      source.indexOf('private async findManaged('),
+    );
+
+    expect(publishBody).toMatch(/assertPublishable\(/);
+    expect(publishBody).toMatch(/data:\s*\{\s*status:\s*VenueStatus\.PUBLISHED\s*\}/);
   });
 
   it('makes that one write the setStatus transition', () => {
@@ -89,7 +123,7 @@ describe('status write audit (US-11)', () => {
         data: { status: EventStatus.APPROVED },
       });
     `;
-    expect(smuggled.match(STATUS_WRITE)).toHaveLength(1);
+    expect(smuggled.match(statusWriteOn('eventRequest'))).toHaveLength(1);
 
     const innocent = `
       await this.prisma.eventRequest.update({
@@ -97,6 +131,6 @@ describe('status write audit (US-11)', () => {
         data: { decisionReason: reason },
       });
     `;
-    expect(innocent.match(STATUS_WRITE)).toBeNull();
+    expect(innocent.match(statusWriteOn('eventRequest'))).toBeNull();
   });
 });

@@ -153,6 +153,7 @@ model User {
   registrations         Registration[]
   notifications         Notification[]
   clarificationMessages ClarificationMessage[]
+  managedVenues         Venue[]                @relation("VenueManager")
 
   @@index([role])
 }
@@ -231,17 +232,40 @@ model EventRequest {
 }
 
 model Venue {
-  id       String @id @default(cuid())
-  name     String
-  location String
-  capacity Int
+  id String @id @default(cuid())
+
+  // US-13 AC-2: nullable so an incomplete venue can be saved as a draft.
+  // Completeness is enforced at publish, and by a CHECK constraint that only
+  // permits nulls while the venue is a DRAFT.
+  name     String?
+  location String?
+  capacity Int?
+
+  // US-13 AC-4: the Venue Staff member who owns this entry. Drafts are visible
+  // only to them.
+  //
+  // AMBIGUOUS: nullable, because venues created before this story have no
+  // owner to backfill from. A draft with no manager is visible to nobody —
+  // see the US-13 summary.
+  managedById String?
+  managedBy   User?   @relation("VenueManager", fields: [managedById], references: [id], onDelete: SetNull)
 
   // AMBIGUOUS: modelled as string arrays rather than lookup tables. Adequate
   // for the filtering §1 describes; promote to their own tables if venues ever
   // need to be searched or managed by individual facility.
-  facilities            String[]
+  facilities String[]
+
+  // AMBIGUOUS: deliberately NOT the US-06 AccessibilityFeature enum. That enum
+  // holds the three things an Organiser may *request*; a venue advertises many
+  // more (braille signage, assistance-animal access, quiet rooms). Forcing
+  // venues into the request vocabulary would discard information. Suitability
+  // matching will need a mapping, or an expanded enum — see the US-13 summary.
   accessibilityFeatures String[]
-  supportedLayouts      String[]
+
+  // US-13: the shared US-06 lookup, so a layout a venue supports and a layout
+  // an event requests are literally the same value rather than two strings
+  // that happen to look alike.
+  supportedLayouts RoomLayout[] @default([])
 
   operatingInfo String?
 

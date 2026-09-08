@@ -89,6 +89,10 @@ async function main() {
 
   // Venues have no endpoint yet (the UI mocks them), but seeding keeps the
   // dev database coherent for when E4 lands.
+  const venueStaff = await prisma.user.findUniqueOrThrow({
+    where: { email: 'venue@connectsphere.local' },
+  });
+
   const venues = [
     { name: 'Sandbox Auditorium', location: 'School of Computing, Level 1', capacity: 420, status: VenueStatus.PUBLISHED },
     { name: 'Seminar Room 3-4', location: 'Administration Building, Level 3', capacity: 60, status: VenueStatus.PUBLISHED },
@@ -104,8 +108,10 @@ async function main() {
         ...venue,
         facilities: ['Power supply'],
         accessibilityFeatures: ['Step-free access'],
-        supportedLayouts: ['Theatre'],
+        supportedLayouts: [RoomLayout.THEATRE],
         operatingInfo: 'Mon–Fri, 08:00–22:00',
+        // US-13: drafts are visible only to their manager.
+        managedById: venueStaff.id,
       },
     });
   }

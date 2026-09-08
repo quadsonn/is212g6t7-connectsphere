@@ -27,6 +27,8 @@ export enum Action {
   ASSIGN = 'ASSIGN',
   /** US-09: take part in an event's clarification thread. */
   CLARIFY = 'CLARIFY',
+  /** US-13: make a draft catalogue entry visible to everyone else. */
+  PUBLISH = 'PUBLISH',
   DECIDE = 'DECIDE',
   REGISTER = 'REGISTER',
   WITHDRAW = 'WITHDRAW',

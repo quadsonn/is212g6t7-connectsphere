@@ -376,6 +376,36 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-13 rows', () => {
+    it('grants Venue Staff create, update and publish on their own venues', () => {
+      expect(permissionScope(Role.VENUE_STAFF, Resource.VENUE, Action.CREATE)).toBe(Scope.OWN);
+      expect(permissionScope(Role.VENUE_STAFF, Resource.VENUE, Action.UPDATE)).toBe(Scope.OWN);
+      expect(permissionScope(Role.VENUE_STAFF, Resource.VENUE, Action.PUBLISH)).toBe(Scope.OWN);
+    });
+
+    it('agrees with the hardcoded @Roles list on the venue write routes', () => {
+      for (const action of [Action.CREATE, Action.UPDATE, Action.PUBLISH]) {
+        expect(rolesWithPermission(Resource.VENUE, action)).toEqual([Role.VENUE_STAFF]);
+      }
+    });
+
+    it('leaves the catalogue readable by the roles that plan events', () => {
+      // AC-4's draft rule is record-level and lives in VenuesService; the
+      // matrix only says who may read venues at all.
+      for (const role of [
+        Role.VENUE_STAFF,
+        Role.EVENT_COORDINATOR,
+        Role.EVENT_ORGANISER,
+      ]) {
+        expect(permissionScope(role, Resource.VENUE, Action.READ)).toBe(Scope.ANY);
+      }
+    });
+
+    it('gives an Attendee no sight of the venue catalogue', () => {
+      expect(isPermitted(Role.ATTENDEE, Resource.VENUE, Action.READ)).toBe(false);
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

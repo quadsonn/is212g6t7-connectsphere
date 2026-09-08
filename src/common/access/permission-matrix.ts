@@ -77,7 +77,17 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.READ, Scope.ANY),
         g(Action.DECIDE, Scope.ANY),
       ],
-      [Resource.VENUE]: [g(Action.READ, Scope.ANY)],
+      [Resource.VENUE]: [
+        // US-13. READ is ANY because a Venue Staff member browses the whole
+        // published catalogue; the draft-visibility rule is a record-level
+        // concern and lives in VenuesService, exactly as event ownership does.
+        g(Action.READ, Scope.ANY),
+        g(Action.CREATE, Scope.OWN),
+        g(Action.UPDATE, Scope.OWN),
+        // Separate from UPDATE: publishing exposes an entry to every other
+        // role, so it is worth being able to grant it independently later.
+        g(Action.PUBLISH, Scope.OWN),
+      ],
       [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
     },
 

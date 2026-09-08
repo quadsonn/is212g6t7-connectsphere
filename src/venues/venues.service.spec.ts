@@ -1,7 +1,9 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Role, RoomLayout, VenueStatus } from '@prisma/client';
 
+import { VenueBookingLookup } from '../bookings/booking-impact';
 import { AccessControlService } from '../common/access/access-control.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,6 +22,8 @@ describe('VenuesService (US-13)', () => {
     };
   };
   let access: { requireScope: jest.Mock };
+  let bookings: { findLiveBookingsForVenue: jest.Mock };
+  let notifications: { notify: jest.Mock; notifySafely: jest.Mock };
   let service: VenuesService;
 
   const staff: AuthenticatedUser = {
@@ -62,9 +66,16 @@ describe('VenuesService (US-13)', () => {
       },
     };
     access = { requireScope: jest.fn().mockReturnValue(Scope.OWN) };
+    // US-14 added the booking-impact check; a venue with no live bookings is
+    // the neutral case for US-13's tests.
+    bookings = { findLiveBookingsForVenue: jest.fn().mockResolvedValue([]) };
+    notifications = { notify: jest.fn(), notifySafely: jest.fn() };
+
     service = new VenuesService(
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
+      bookings as unknown as VenueBookingLookup,
+      notifications as unknown as NotificationsService,
     );
   });
 

@@ -1,13 +1,19 @@
 import { Module } from '@nestjs/common';
 
+import { BookingsService } from './bookings.service';
+import { VenueBookingLookup } from './booking-impact';
+
 /**
  * E5 — venue booking requests, approval, conflict detection.
- * Stub — controllers, services and DTOs to be added per user story.
+ *
+ * Exposes BookingsService under the VenueBookingLookup token so consumers
+ * depend on the contract rather than the implementation (US-14 AC-3).
  */
 @Module({
-  imports: [],
-  controllers: [],
-  providers: [],
-  exports: [],
+  providers: [
+    BookingsService,
+    { provide: VenueBookingLookup, useExisting: BookingsService },
+  ],
+  exports: [VenueBookingLookup, BookingsService],
 })
 export class BookingsModule {}

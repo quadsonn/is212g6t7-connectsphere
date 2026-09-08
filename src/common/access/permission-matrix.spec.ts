@@ -406,6 +406,23 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-14 rows', () => {
+    it('covers editing an existing venue with the US-13 UPDATE grant', () => {
+      // US-14 adds no verb: editing a published venue is the same VENUE/UPDATE
+      // at OWN scope that editing a draft is. What differs is the completeness
+      // rule, which is a service concern, not a permission one.
+      expect(permissionScope(Role.VENUE_STAFF, Resource.VENUE, Action.UPDATE)).toBe(Scope.OWN);
+    });
+
+    it('does not let a Coordinator or Organiser edit the catalogue', () => {
+      for (const role of [Role.EVENT_COORDINATOR, Role.EVENT_ORGANISER]) {
+        expect(isPermitted(role, Resource.VENUE, Action.UPDATE)).toBe(false);
+        // ...though they may still read it.
+        expect(isPermitted(role, Resource.VENUE, Action.READ)).toBe(true);
+      }
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

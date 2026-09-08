@@ -1,5 +1,5 @@
 import { RoomLayout } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
@@ -20,21 +20,32 @@ import {
  * missing.
  */
 export class VenueDraftDto {
+  /**
+   * US-14 AC-4: an empty or whitespace-only value means "cleared", not "set to
+   * an empty string" — otherwise a blanked field would satisfy NOT NULL while
+   * being blank to a human.
+   */
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? null : value,
+  )
   @IsString()
   @MaxLength(200)
-  name?: string;
+  name?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? null : value,
+  )
   @IsString()
   @MaxLength(300)
-  location?: string;
+  location?: string | null;
 
   @IsOptional()
   @IsInt({ message: 'capacity must be a whole number' })
   @IsPositive({ message: 'capacity must be greater than zero' })
   @Type(() => Number)
-  capacity?: number;
+  capacity?: number | null;
 
   @IsOptional()
   @IsArray()

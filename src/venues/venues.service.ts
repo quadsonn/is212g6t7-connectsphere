@@ -3,13 +3,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Venue, VenueStatus } from '@prisma/client';
+import { NotificationType, Prisma, Venue, VenueStatus } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { VenueBookingLookup } from '../bookings/booking-impact';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PublishableVenueDto } from './dto/publishable-venue.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
@@ -18,6 +20,20 @@ import { VenueDraftDto } from './dto/venue-draft.dto';
  * The staff-editable scalar columns, typed as the subset Prisma accepts for
  * both create and update so one mapper serves saveDraft and updateDraft.
  */
+/**
+ * US-14 AC-3 — a warning attached to an update, telling the staff member that
+ * existing bookings may no longer be valid.
+ */
+export interface VenueUpdateWarning {
+  code: 'BOOKINGS_MAY_NEED_REVIEW';
+  message: string;
+  /** What about the venue changed for the worse. */
+  reasons: string[];
+  affectedBookingIds: string[];
+}
+
+export type VenueWithWarnings = Venue & { warnings: VenueUpdateWarning[] };
+
 type VenueDraftFields = Partial<
   Pick<
     Prisma.VenueUncheckedCreateInput,
@@ -36,6 +52,8 @@ export class VenuesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessControlService,
+    private readonly bookings: VenueBookingLookup,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -99,18 +117,117 @@ export class VenuesService {
     });
   }
 
-  /** AC-1/AC-2 — continue filling in a draft. */
+  /**
+   * US-13 AC-1/AC-2 and US-14 AC-1/AC-2/AC-4 — edit a venue.
+   *
+   * The same method serves a half-finished draft and a live catalogue entry;
+   * what differs is how strict it is. A draft may be left incomplete (US-13
+   * AC-2), a published venue may not (US-14 AC-4), so the completeness rules
+   * are applied only when the entry is published.
+   */
   async updateDraft(
     user: AuthenticatedUser,
     id: string,
     dto: VenueDraftDto,
-  ): Promise<Venue> {
+  ): Promise<VenueWithWarnings> {
     const venue = await this.findManaged(user, id, Action.UPDATE);
+    const changes = this.draftFields(dto);
 
-    return this.prisma.venue.update({
+    // AC-4: what the record would look like after this edit.
+    const merged = { ...venue, ...changes } as Venue;
+
+    if (venue.status === VenueStatus.PUBLISHED) {
+      await this.assertPublishable(merged);
+    }
+
+    // AC-3: assessed BEFORE writing, so the reasons compare the old record
+    // against the new one.
+    const warning = await this.assessBookingImpact(venue, merged);
+
+    const updated = await this.prisma.venue.update({
       where: { id: venue.id },
-      data: this.draftFields(dto),
+      data: changes,
     });
+
+    if (warning) {
+      // Durable as well as immediate: the staff member sees the warning in the
+      // response, and it survives them navigating away.
+      await this.notifications.notifySafely({
+        recipientId: user.userId,
+        type: NotificationType.VENUE_CHANGED_BOOKINGS_AFFECTED,
+        message: warning.message,
+      });
+    }
+
+    return { ...updated, warnings: warning ? [warning] : [] };
+  }
+
+  /**
+   * US-14 AC-3 — does this edit put existing bookings at risk?
+   *
+   * AMBIGUOUS: "details that could affect suitability" is read as changes that
+   * make the venue *less* capable — capacity reduced, a supported layout
+   * withdrawn, an accessibility feature removed, or the venue relocated.
+   * Additions cannot invalidate a booking, so they raise nothing.
+   *
+   * Only the warning is US-14's job. Re-validating each booking against its
+   * event, and deciding what happens to one that no longer fits, belongs to
+   * E5 — see VenueBookingLookup.
+   */
+  private async assessBookingImpact(
+    before: Venue,
+    after: Venue,
+  ): Promise<VenueUpdateWarning | null> {
+    const reasons: string[] = [];
+
+    if (
+      after.capacity !== null &&
+      before.capacity !== null &&
+      after.capacity < before.capacity
+    ) {
+      reasons.push(
+        `capacity reduced from ${before.capacity} to ${after.capacity}`,
+      );
+    }
+
+    const withdrawnLayouts = before.supportedLayouts.filter(
+      (layout) => !after.supportedLayouts.includes(layout),
+    );
+    if (withdrawnLayouts.length > 0) {
+      reasons.push(`layouts no longer supported: ${withdrawnLayouts.join(', ')}`);
+    }
+
+    const removedAccess = before.accessibilityFeatures.filter(
+      (feature) => !after.accessibilityFeatures.includes(feature),
+    );
+    if (removedAccess.length > 0) {
+      reasons.push(`accessibility features removed: ${removedAccess.join(', ')}`);
+    }
+
+    if (before.location !== null && after.location !== before.location) {
+      reasons.push(
+        `location changed from "${before.location}" to "${after.location}"`,
+      );
+    }
+
+    if (reasons.length === 0) {
+      return null;
+    }
+
+    const live = await this.bookings.findLiveBookingsForVenue(before.id);
+
+    if (live.length === 0) {
+      return null;
+    }
+
+    return {
+      code: 'BOOKINGS_MAY_NEED_REVIEW',
+      message:
+        `${live.length} existing booking(s) on this venue may need review: ` +
+        reasons.join('; '),
+      reasons,
+      affectedBookingIds: live.map((booking) => booking.bookingId),
+    };
   }
 
   /**

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -73,6 +74,17 @@ export const ASSIGNABLE_STATUSES: EventStatus[] = [
 export type OrganiserRequestView = EventRequest & {
   clarificationRequested: boolean;
 };
+
+/**
+ * US-07 AC-1 lists a status called "returned" that EventStatus does not have,
+ * and US-05 AC-1 lists the nine enum values without it. The two stories
+ * describe the same lifecycle in different vocabularies.
+ *
+ * Reconciled without adding a tenth status: "returned" is DRAFT with a
+ * clarification attached, which is exactly what clarificationRequested already
+ * reports. A client renders "Returned" when status is DRAFT and this is true.
+ */
+export type CoordinatorRequestView = OrganiserRequestView;
 
 /**
  * The Organiser-editable scalar columns. Typed as the subset Prisma accepts
@@ -278,12 +290,16 @@ export class EventsService {
    * Read-only. Scoping is the shared ASSIGNED filter from US-02, so this
    * cannot drift from the rule the rest of the module enforces.
    */
-  async findAssignedRequests(user: AuthenticatedUser): Promise<EventRequest[]> {
-    return this.prisma.eventRequest.findMany({
+  async findAssignedRequests(
+    user: AuthenticatedUser,
+  ): Promise<CoordinatorRequestView[]> {
+    const events = await this.prisma.eventRequest.findMany({
       where: this.access.scopedEventFilter(user, Action.READ),
       orderBy: { createdAt: 'desc' },
       include: EVENT_CONTACTS_INCLUDE,
     });
+
+    return events.map((event) => this.toOrganiserView(event));
   }
 
   /**
@@ -296,15 +312,80 @@ export class EventsService {
   async findAssignedRequest(
     user: AuthenticatedUser,
     id: string,
-  ): Promise<EventRequest> {
+  ): Promise<CoordinatorRequestView> {
     // Establishes the caller may see this event at all (reuses US-02).
     await this.access.assertEventAccess(user, id, Action.READ);
 
     // Re-read with the contact relations attached.
-    return this.prisma.eventRequest.findUniqueOrThrow({
+    const event = await this.prisma.eventRequest.findUniqueOrThrow({
       where: { id },
       include: EVENT_CONTACTS_INCLUDE,
     });
+
+    return this.toOrganiserView(event);
+  }
+
+  /**
+   * US-07 AC-3 — approve a request.
+   *
+   * The status change goes through setStatus(), so SUBMITTED/UNDER_REVIEW ->
+   * APPROVED is validated against the US-03 transition table and no other
+   * source status can slip through.
+   *
+   * Stale review artefacts are cleared in the same transaction: a request that
+   * was previously returned for clarification or rejected, then resubmitted
+   * and approved, must not still advertise a clarification question or a
+   * rejection reason.
+   *
+   * AMBIGUOUS: clearing them discards the record of the earlier decision.
+   * There is no audit table, so that history is simply lost — see the US-07
+   * summary.
+   */
+  async approve(
+    user: AuthenticatedUser,
+    id: string,
+  ): Promise<CoordinatorRequestView> {
+    const event = await this.access.assertEventAccess(user, id, Action.REVIEW);
+
+    this.assertIsAssignedTo(user, event);
+
+    const approved = await this.prisma.$transaction(async (tx) => {
+      // Non-status housekeeping first, so setStatus stays the sole writer of
+      // the status column.
+      await tx.eventRequest.update({
+        where: { id: event.id },
+        data: { clarificationRequest: null, decisionReason: null },
+      });
+
+      return this.setStatus(event, EventStatus.APPROVED, tx);
+    });
+
+    return this.toOrganiserView(approved);
+  }
+
+  /**
+   * US-07 — reviewing requires being the assigned Coordinator, not merely
+   * able to see the request.
+   *
+   * The ASSIGNED scope also admits the unassigned review pool (US-03 AC-2), so
+   * scope alone would let any Coordinator approve a request nobody owns. US-10
+   * exists to establish that ownership first.
+   */
+  private assertIsAssignedTo(
+    user: AuthenticatedUser,
+    event: EventRequest,
+  ): void {
+    if (event.coordinatorId === null) {
+      throw new ConflictException(
+        'assign a coordinator to this request before reviewing it',
+      );
+    }
+
+    if (!this.access.isAssignedCoordinator(user, event)) {
+      throw new ForbiddenException(
+        'only the assigned coordinator may review this request',
+      );
+    }
   }
 
   /**

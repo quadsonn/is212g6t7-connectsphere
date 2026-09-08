@@ -86,6 +86,20 @@ export class EventsController {
   }
 
   /**
+   * US-07 AC-3 — approve a request the Coordinator is assigned to.
+   *
+   * POST rather than PATCH: this is a review decision, not a field edit. It is
+   * naturally idempotent anyway — setStatus() treats APPROVED -> APPROVED as a
+   * no-op rather than an error.
+   */
+  @Post(':id/approve')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  approve(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.eventsService.approve(user, id);
+  }
+
+  /**
    * US-10 — assign or reassign the event's main point of contact.
    *
    * @Roles(EVENT_COORDINATOR) per CLAUDE.md §1, which gives the Coordinator

@@ -295,6 +295,35 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-07 rows', () => {
+    it('covers approval with the existing REVIEW grant at ASSIGNED scope', () => {
+      // US-07 adds no verb: approving is EVENT/REVIEW, granted in US-02. The
+      // service narrows ASSIGNED further, to the coordinator actually linked
+      // to the event — the matrix cannot express "assigned to me specifically
+      // rather than the unassigned pool".
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.REVIEW)).toBe(Scope.ASSIGNED);
+    });
+
+    it('agrees with the hardcoded @Roles list on POST /events/:id/approve', () => {
+      expect(rolesWithPermission(Resource.EVENT, Action.REVIEW)).toEqual([
+        Role.EVENT_COORDINATOR,
+      ]);
+    });
+
+    it('lets no other role review a request', () => {
+      for (const role of ALL_ROLES.filter((r) => r !== Role.EVENT_COORDINATOR)) {
+        expect(isPermitted(role, Resource.EVENT, Action.REVIEW)).toBe(false);
+      }
+    });
+
+    it('keeps REVIEW narrower than ASSIGN', () => {
+      // US-10 deliberately made assignment ANY-scope; reviewing stays bound to
+      // the assignment relationship.
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.ASSIGN)).toBe(Scope.ANY);
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.REVIEW)).toBe(Scope.ASSIGNED);
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

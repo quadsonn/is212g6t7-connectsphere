@@ -22,6 +22,7 @@ export const EVENT_STATUSES = [
   'SUBMITTED',
   'UNDER_REVIEW',
   'APPROVED',
+  'AWAITING_CLARIFICATION',
   'RETURNED',
   'REJECTED',
   'PLANNING',
@@ -111,6 +112,14 @@ export interface EventRequest {
   clarificationRequest: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** One entry in an event's clarification thread (US-09). */
+export interface ClarificationMessage {
+  id: string;
+  body: string;
+  createdAt: string;
+  author: { id: string; name: string; email: string; role: Role };
 }
 
 /** GET /events/mine — the Organiser's status view (US-05). */

@@ -25,6 +25,8 @@ export enum Action {
   REVIEW = 'REVIEW',
   /** US-10: link a Coordinator to an event as its main point of contact. */
   ASSIGN = 'ASSIGN',
+  /** US-09: take part in an event's clarification thread. */
+  CLARIFY = 'CLARIFY',
   DECIDE = 'DECIDE',
   REGISTER = 'REGISTER',
   WITHDRAW = 'WITHDRAW',

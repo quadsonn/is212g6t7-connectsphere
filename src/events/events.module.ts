@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { NotificationsModule } from '../notifications/notifications.module';
 import { EventsController } from './events.controller';
 import { EventsService } from './events.service';
 
@@ -8,7 +9,7 @@ import { EventsService } from './events.service';
  * US-02 adds the read paths; create/submit arrive with US-04.
  */
 @Module({
-  imports: [],
+  imports: [NotificationsModule],
   controllers: [EventsController],
   providers: [EventsService],
   exports: [EventsService],

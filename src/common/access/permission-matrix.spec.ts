@@ -347,6 +347,35 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-09 rows', () => {
+    it('grants both parties CLARIFY, at their own scope', () => {
+      // A new verb, unlike US-07/US-08: taking part in a clarification thread
+      // is neither reviewing nor editing, and both roles need it from
+      // opposite sides.
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.CLARIFY)).toBe(Scope.ASSIGNED);
+      expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.CLARIFY)).toBe(Scope.OWN);
+    });
+
+    it('is the only action both roles share on events', () => {
+      const shared = (Object.values(Action) as Action[]).filter(
+        (action) =>
+          isPermitted(Role.EVENT_ORGANISER, Resource.EVENT, action) &&
+          isPermitted(Role.EVENT_COORDINATOR, Resource.EVENT, action),
+      );
+      expect(shared).toEqual([Action.READ, Action.UPDATE, Action.CLARIFY]);
+    });
+
+    it('lets no uninvolved role join a clarification thread', () => {
+      for (const role of [
+        Role.ATTENDEE,
+        Role.VENUE_STAFF,
+        Role.TECHNICAL_SUPPORT_STAFF,
+      ]) {
+        expect(isPermitted(role, Resource.EVENT, Action.CLARIFY)).toBe(false);
+      }
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

@@ -5,16 +5,25 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EventRequest, EventStatus, Prisma, Role } from '@prisma/client';
+import {
+  EventRequest,
+  EventStatus,
+  NotificationType,
+  Prisma,
+  Role,
+} from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import { AccessControlService, PublicEventView } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssignCoordinatorDto } from './dto/assign-coordinator.dto';
+import { AskClarificationDto } from './dto/ask-clarification.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
+import { RespondClarificationDto } from './dto/respond-clarification.dto';
 import { RejectRequestDto } from './dto/reject-request.dto';
 import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
@@ -44,6 +53,19 @@ export const COORDINATOR_SELECT = {
  * an explicit field list, so nested relations are dropped with the rest of the
  * internal planning data (US-02 AC-7).
  */
+/**
+ * US-09 AC-5 — the clarification thread, oldest first, with each entry's
+ * author so the trail shows who said what and when.
+ */
+export const CLARIFICATION_THREAD_INCLUDE = {
+  clarifications: {
+    orderBy: { createdAt: 'asc' },
+    include: {
+      author: { select: { id: true, name: true, email: true, role: true } },
+    },
+  },
+} as const;
+
 export const EVENT_CONTACTS_INCLUDE = {
   coordinator: { select: { id: true, name: true, email: true } },
   organiser: { select: { id: true, name: true, email: true } },
@@ -117,6 +139,7 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessControlService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -332,7 +355,7 @@ export class EventsService {
     // Re-read with the contact relations attached.
     const event = await this.prisma.eventRequest.findUniqueOrThrow({
       where: { id },
-      include: EVENT_CONTACTS_INCLUDE,
+      include: { ...EVENT_CONTACTS_INCLUDE, ...CLARIFICATION_THREAD_INCLUDE },
     });
 
     return this.toOrganiserView(event);
@@ -374,6 +397,100 @@ export class EventsService {
     });
 
     return this.toOrganiserView(approved);
+  }
+
+  /**
+   * US-09 AC-1/AC-2/AC-3 — the Coordinator asks the Organiser a question.
+   *
+   * The message is appended to the thread (AC-2/AC-5) and the request moves to
+   * AWAITING_CLARIFICATION through setStatus(). clarificationRequest is also
+   * updated so US-05's Organiser view keeps surfacing the outstanding question
+   * without having to read the thread.
+   *
+   * AMBIGUOUS: that denormalisation means the same text lives in two places.
+   * It is always written together with the thread entry, in one transaction,
+   * and only ever holds the *latest* outstanding question — the thread remains
+   * the record of the exchange.
+   */
+  async askClarification(
+    user: AuthenticatedUser,
+    id: string,
+    dto: AskClarificationDto,
+  ): Promise<CoordinatorRequestView> {
+    const event = await this.access.assertEventAccess(user, id, Action.CLARIFY);
+
+    this.assertIsAssignedTo(user, event);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.clarificationMessage.create({
+        data: { eventId: event.id, authorId: user.userId, body: dto.question },
+      });
+
+      await tx.eventRequest.update({
+        where: { id: event.id },
+        data: { clarificationRequest: dto.question },
+      });
+
+      return this.setStatus(event, EventStatus.AWAITING_CLARIFICATION, tx);
+    });
+
+    // AC-4 direction 1: tell the Organiser a question is waiting. Raised after
+    // the transaction commits — see NotificationsService.notifySafely.
+    await this.notifications.notifySafely({
+      recipientId: event.organiserId,
+      type: NotificationType.CLARIFICATION_REQUESTED,
+      message: `The coordinator has asked a question about "${event.name ?? 'your event request'}".`,
+      relatedEventId: event.id,
+    });
+
+    return this.toOrganiserView(updated);
+  }
+
+  /**
+   * US-09 AC-4 — the Organiser answers, and the Coordinator is notified.
+   *
+   * The answer joins the same thread, so a multi-round exchange accumulates in
+   * one place. The request returns to UNDER_REVIEW: the answer is now the
+   * Coordinator's to consider.
+   */
+  async respondToClarification(
+    user: AuthenticatedUser,
+    id: string,
+    dto: RespondClarificationDto,
+  ): Promise<OrganiserRequestView> {
+    const event = await this.access.assertEventAccess(user, id, Action.CLARIFY);
+
+    if (event.status !== EventStatus.AWAITING_CLARIFICATION) {
+      throw new ConflictException(
+        `there is no outstanding clarification on this request (status ${event.status})`,
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.clarificationMessage.create({
+        data: { eventId: event.id, authorId: user.userId, body: dto.response },
+      });
+
+      // The question has been answered; nothing is outstanding.
+      await tx.eventRequest.update({
+        where: { id: event.id },
+        data: { clarificationRequest: null },
+      });
+
+      return this.setStatus(event, EventStatus.UNDER_REVIEW, tx);
+    });
+
+    // AC-4 direction 2: the Coordinator is notified of the response.
+    if (event.coordinatorId) {
+      await this.notifications.notifySafely({
+        recipientId: event.coordinatorId,
+        type: NotificationType.CLARIFICATION_ANSWERED,
+        message: `The organiser has responded on "${event.name ?? 'an event request'}".`,
+        relatedEventId: event.id,
+      });
+    }
+
+    return this.toOrganiserView(updated);
   }
 
   /**
@@ -586,7 +703,14 @@ export class EventsService {
     user: AuthenticatedUser,
     id: string,
   ): Promise<OrganiserRequestView> {
-    const event = await this.access.assertEventAccess(user, id, Action.READ);
+    await this.access.assertEventAccess(user, id, Action.READ);
+
+    // Re-read with contacts and the clarification thread (US-09 AC-5).
+    const event = await this.prisma.eventRequest.findUniqueOrThrow({
+      where: { id },
+      include: { ...EVENT_CONTACTS_INCLUDE, ...CLARIFICATION_THREAD_INCLUDE },
+    });
+
     return this.toOrganiserView(event);
   }
 

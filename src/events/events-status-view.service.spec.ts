@@ -3,6 +3,7 @@ import { EventStatus, Role } from '@prisma/client';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
 
@@ -11,6 +12,7 @@ describe('EventsService status view (US-05)', () => {
   let prisma: {
     eventRequest: {
       findMany: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
     };
@@ -22,6 +24,7 @@ describe('EventsService status view (US-05)', () => {
     assertEventAccess: jest.Mock;
     projectEvent: jest.Mock;
   };
+  let notifications: { notify: jest.Mock; notifySafely: jest.Mock };
   let service: EventsService;
 
   const organiser: AuthenticatedUser = {
@@ -44,6 +47,8 @@ describe('EventsService status view (US-05)', () => {
     prisma = {
       eventRequest: {
         findMany: jest.fn().mockResolvedValue([]),
+        // findMyRequest re-reads to attach the US-09 clarification thread.
+        findUniqueOrThrow: jest.fn().mockResolvedValue(row()),
         create: jest.fn(),
         update: jest.fn(),
       },
@@ -55,9 +60,11 @@ describe('EventsService status view (US-05)', () => {
       assertEventAccess: jest.fn(),
       projectEvent: jest.fn((_u, e) => e),
     };
+    notifications = { notify: jest.fn(), notifySafely: jest.fn() };
     service = new EventsService(
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
+      notifications as unknown as NotificationsService,
     );
   });
 

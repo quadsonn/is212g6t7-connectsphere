@@ -4,6 +4,7 @@ import { EventStatus, Role } from '@prisma/client';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
@@ -20,6 +21,7 @@ describe('EventsService drafts (US-04)', () => {
     assertEventAccess: jest.Mock;
     projectEvent: jest.Mock;
   };
+  let notifications: { notify: jest.Mock; notifySafely: jest.Mock };
   let service: EventsService;
 
   const organiser: AuthenticatedUser = {
@@ -71,9 +73,11 @@ describe('EventsService drafts (US-04)', () => {
       assertEventAccess: jest.fn(),
       projectEvent: jest.fn((_u, e) => e),
     };
+    notifications = { notify: jest.fn(), notifySafely: jest.fn() };
     service = new EventsService(
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
+      notifications as unknown as NotificationsService,
     );
   });
 

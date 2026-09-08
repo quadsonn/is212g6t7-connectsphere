@@ -3,6 +3,7 @@ import { AccessibilityFeature, EventStatus, Role, RoomLayout } from '@prisma/cli
 import { AccessControlService } from '../common/access/access-control.service';
 import { Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
@@ -20,6 +21,7 @@ describe('EventsService layout & accessibility (US-06)', () => {
     assertEventAccess: jest.Mock;
     projectEvent: jest.Mock;
   };
+  let notifications: { notify: jest.Mock; notifySafely: jest.Mock };
   let service: EventsService;
 
   const organiser: AuthenticatedUser = {
@@ -66,9 +68,11 @@ describe('EventsService layout & accessibility (US-06)', () => {
       assertEventAccess: jest.fn(),
       projectEvent: jest.fn((_u, e) => e),
     };
+    notifications = { notify: jest.fn(), notifySafely: jest.fn() };
     service = new EventsService(
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
+      notifications as unknown as NotificationsService,
     );
   });
 

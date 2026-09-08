@@ -36,6 +36,15 @@ enum EventStatus {
   // request back for the Organiser to amend and resubmit. Supersedes the
   // US-07 reading of "returned" as DRAFT plus a clarification note.
   RETURNED
+  // US-09: the Coordinator has asked a question and is waiting on an answer.
+  //
+  // AMBIGUOUS / OVERLAP: this and RETURNED both mean "waiting on the
+  // Organiser". US-08 asked for RETURNED, US-09 asks for this by name. They
+  // are modelled as distinct because the workflows differ — a return makes the
+  // request editable so it can be amended and resubmitted, a clarification
+  // keeps it locked and expects only an answer. The customer should confirm
+  // they really want both; see the US-09 summary.
+  AWAITING_CLARIFICATION
   REJECTED
   PLANNING
   CONFIRMED
@@ -103,6 +112,9 @@ enum ReservationStatus {
 enum NotificationType {
   EVENT_STATUS_CHANGED
   EVENT_CHANGE_REQUESTED
+  // US-09 AC-4.
+  CLARIFICATION_REQUESTED
+  CLARIFICATION_ANSWERED
   VENUE_BOOKING_DECIDED
   EQUIPMENT_RESERVATION_DECIDED
   REGISTRATION_CONFIRMED
@@ -128,10 +140,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organisedEvents   EventRequest[] @relation("EventOrganiser")
-  coordinatedEvents EventRequest[] @relation("EventCoordinator")
-  registrations     Registration[]
-  notifications     Notification[]
+  organisedEvents       EventRequest[]         @relation("EventOrganiser")
+  coordinatedEvents     EventRequest[]         @relation("EventCoordinator")
+  registrations         Registration[]
+  notifications         Notification[]
+  clarificationMessages ClarificationMessage[]
 
   @@index([role])
 }
@@ -198,6 +211,7 @@ model EventRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  clarifications        ClarificationMessage[]
   venueBookings         VenueBooking[]
   equipmentReservations EquipmentReservation[]
   registrations         Registration[]
@@ -367,4 +381,28 @@ model RevokedToken {
 
   @@index([expiresAt])
   @@index([userId])
+}
+
+/**
+ * US-09 — one entry in an event request's clarification thread.
+ * Append-only by design: entries are never edited or deleted, which is what
+ * makes the thread an audit trail (AC-5). The sender's role is not copied
+ * here — it is read from the author, so a thread cannot disagree with the
+ * user record.
+ */
+model ClarificationMessage {
+  id String @id @default(cuid())
+
+  eventId String
+  event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  body String
+
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt])
+  @@index([authorId])
 }

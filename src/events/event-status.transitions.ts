@@ -22,6 +22,7 @@ export const ALLOWED_TRANSITIONS: Readonly<Record<EventStatus, readonly EventSta
     [EventStatus.SUBMITTED]: [
       EventStatus.UNDER_REVIEW,
       EventStatus.APPROVED,
+      EventStatus.AWAITING_CLARIFICATION,
       EventStatus.RETURNED,
       EventStatus.REJECTED,
       EventStatus.CANCELLED,
@@ -33,6 +34,18 @@ export const ALLOWED_TRANSITIONS: Readonly<Record<EventStatus, readonly EventSta
     // handed-back request distinguishable from one never submitted.
     [EventStatus.UNDER_REVIEW]: [
       EventStatus.APPROVED,
+      EventStatus.AWAITING_CLARIFICATION,
+      EventStatus.RETURNED,
+      EventStatus.REJECTED,
+      EventStatus.CANCELLED,
+    ],
+
+    // US-09: answering returns the request to the Coordinator's desk. It does
+    // not go straight to APPROVED — the answer is what the Coordinator now has
+    // to review. The Coordinator may still return or reject without an answer,
+    // e.g. if the Organiser never replies.
+    [EventStatus.AWAITING_CLARIFICATION]: [
+      EventStatus.UNDER_REVIEW,
       EventStatus.RETURNED,
       EventStatus.REJECTED,
       EventStatus.CANCELLED,

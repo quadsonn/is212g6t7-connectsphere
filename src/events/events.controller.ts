@@ -19,7 +19,9 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { AssignCoordinatorDto } from './dto/assign-coordinator.dto';
+import { AskClarificationDto } from './dto/ask-clarification.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
+import { RespondClarificationDto } from './dto/respond-clarification.dto';
 import { RejectRequestDto } from './dto/reject-request.dto';
 import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
@@ -99,6 +101,36 @@ export class EventsController {
   @HttpCode(HttpStatus.OK)
   approve(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.eventsService.approve(user, id);
+  }
+
+  /**
+   * US-09 — the Coordinator asks the Organiser a question.
+   *
+   * Separate route from the response below so each carries its own role gate;
+   * one endpoint serving both parties would need two roles and a branch, which
+   * would put an authorisation decision inside the service.
+   */
+  @Post(':id/clarifications')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.CREATED)
+  askClarification(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: AskClarificationDto,
+  ) {
+    return this.eventsService.askClarification(user, id, dto);
+  }
+
+  /** US-09 AC-4 — the Organiser answers; the Coordinator is notified. */
+  @Post(':id/clarifications/responses')
+  @Roles(Role.EVENT_ORGANISER)
+  @HttpCode(HttpStatus.CREATED)
+  respondToClarification(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: RespondClarificationDto,
+  ) {
+    return this.eventsService.respondToClarification(user, id, dto);
   }
 
   /**

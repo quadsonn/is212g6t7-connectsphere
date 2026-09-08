@@ -4,6 +4,7 @@ import { AccessibilityFeature, EventStatus, Role, RoomLayout } from '@prisma/cli
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
 
@@ -25,6 +26,7 @@ describe('EventsService coordinator view (US-12)', () => {
     assertEventAccess: jest.Mock;
     projectEvent: jest.Mock;
   };
+  let notifications: { notify: jest.Mock; notifySafely: jest.Mock };
   let service: EventsService;
 
   const coordinator: AuthenticatedUser = {
@@ -70,9 +72,11 @@ describe('EventsService coordinator view (US-12)', () => {
       assertEventAccess: jest.fn().mockResolvedValue(fullEvent()),
       projectEvent: jest.fn((_u, e) => e),
     };
+    notifications = { notify: jest.fn(), notifySafely: jest.fn() };
     service = new EventsService(
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
+      notifications as unknown as NotificationsService,
     );
   });
 

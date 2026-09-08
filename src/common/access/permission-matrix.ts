@@ -31,6 +31,8 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.READ, Scope.OWN),
         g(Action.UPDATE, Scope.OWN),
         g(Action.SUBMIT, Scope.OWN),
+        // US-09: answering a clarification on their own request.
+        g(Action.CLARIFY, Scope.OWN),
       ],
       [Resource.VENUE]: [g(Action.READ, Scope.ANY)],
       [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
@@ -43,6 +45,8 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.READ, Scope.ASSIGNED),
         g(Action.UPDATE, Scope.ASSIGNED),
         g(Action.REVIEW, Scope.ASSIGNED),
+        // US-09: asking a clarification on an assigned request.
+        g(Action.CLARIFY, Scope.ASSIGNED),
         // US-10. Deliberately ANY, not ASSIGNED: AC-2 requires reassigning an
         // event away from the Coordinator who currently holds it, and an
         // ASSIGNED scope would hide a peer's event entirely.

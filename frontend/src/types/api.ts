@@ -104,8 +104,18 @@ export interface EventRequest {
   equipmentNeeds: string | null;
   registrationEnabled: boolean;
   status: EventStatus;
+  /** US-05: why a Coordinator rejected the request. */
+  decisionReason: string | null;
+  /** US-05: what a Coordinator asked the Organiser to clarify. */
+  clarificationRequest: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** GET /events/mine — the Organiser's status view (US-05). */
+export interface OrganiserRequestView extends EventRequest {
+  /** Derived server-side from clarificationRequest; never stored. */
+  clarificationRequested: boolean;
 }
 
 /**

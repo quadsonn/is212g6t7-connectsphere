@@ -177,6 +177,20 @@ model EventRequest {
   registrationEnabled Boolean     @default(false)
   status              EventStatus @default(DRAFT)
 
+  // US-05 AC-2: why a Coordinator rejected the request. Written by the review
+  // story; US-05 only reads it.
+  decisionReason String?
+
+  // US-05 AC-3: what a Coordinator has asked the Organiser to clarify.
+  //
+  // Deliberately separate from status: AC-1 enumerates exactly the nine
+  // EventStatus values and none of them is "awaiting clarification", so
+  // clarification is a signal carried alongside status rather than a status
+  // of its own. Per the US-03 transition map, requesting clarification returns
+  // the request to DRAFT so the Organiser can edit and resubmit — this field
+  // is what distinguishes that from a never-submitted draft.
+  clarificationRequest String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -101,6 +101,32 @@ export class EventsController {
     return this.eventsService.findAllForUser(user);
   }
 
+  /**
+   * US-05 — the Organiser's own requests and their statuses.
+   *
+   * MUST be declared before @Get(':id'), or Nest matches "mine" as an id.
+   *
+   * A dedicated route rather than reusing GET /events: this story specifies
+   * @Roles(EVENT_ORGANISER), and putting that on the shared list would lock
+   * out Coordinators and Attendees, breaking US-02 AC-2 and US-06 AC-6. See
+   * the US-05 summary.
+   */
+  @Get('mine')
+  @Roles(Role.EVENT_ORGANISER)
+  findMine(@CurrentUser() user: AuthenticatedUser) {
+    return this.eventsService.findMyRequests(user);
+  }
+
+  /** US-05 — one of the Organiser's own requests, with its status detail. */
+  @Get('mine/:id')
+  @Roles(Role.EVENT_ORGANISER)
+  findMineById(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.eventsService.findMyRequest(user, id);
+  }
+
   /** AC-4 — every detail entered, plus current status. */
   @Get(':id')
   @RequirePermission(Resource.EVENT, Action.READ)

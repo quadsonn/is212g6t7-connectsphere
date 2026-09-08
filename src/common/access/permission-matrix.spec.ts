@@ -217,6 +217,31 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-05 rows', () => {
+    it('covers viewing own requests with the existing READ grant at OWN scope', () => {
+      // US-05 is read-only and introduces no new verb: GET /events/mine is
+      // EVENT/READ scoped to OWN, which US-02 already granted.
+      expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.READ)).toBe(Scope.OWN);
+    });
+
+    it('agrees with the hardcoded @Roles list on the /events/mine routes', () => {
+      // Both routes declare @Roles(EVENT_ORGANISER). Other roles hold EVENT
+      // READ too, but never at OWN scope — so the literal is narrower than the
+      // matrix here by design, and this asserts the intended difference.
+      expect(
+        rolesWithPermission(Resource.EVENT, Action.READ).filter(
+          (role) => permissionScope(role, Resource.EVENT, Action.READ) === Scope.OWN,
+        ),
+      ).toEqual([Role.EVENT_ORGANISER]);
+    });
+
+    it('does not let another role read at OWN scope', () => {
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.READ)).toBe(Scope.ASSIGNED);
+      expect(permissionScope(Role.ATTENDEE, Resource.EVENT, Action.READ)).toBe(Scope.PUBLIC);
+      expect(isPermitted(Role.VENUE_STAFF, Resource.EVENT, Action.READ)).toBe(false);
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

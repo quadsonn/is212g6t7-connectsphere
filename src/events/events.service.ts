@@ -17,6 +17,17 @@ import { DraftEventRequestDto } from './dto/draft-event-request.dto';
 import { canTransition } from './event-status.transitions';
 
 /**
+ * US-05 — an Organiser's view of one of their requests.
+ *
+ * The full record plus one derived convenience flag. `clarificationRequested`
+ * is computed at read time and never stored, so it cannot drift from
+ * `clarificationRequest`.
+ */
+export type OrganiserRequestView = EventRequest & {
+  clarificationRequested: boolean;
+};
+
+/**
  * The Organiser-editable scalar columns. Typed as the subset Prisma accepts
  * for both create and update, so one mapper serves saveDraft and updateDraft.
  */
@@ -243,6 +254,44 @@ export class EventsService {
       where: { id: event.id },
       data: { status: next },
     });
+  }
+
+  /**
+   * US-05 — the Organiser's own requests with their current status.
+   *
+   * Strictly read-only: this method owns no transition logic and never writes.
+   * The status it reports is whatever setStatus() last committed (AC-4), and
+   * decisionReason / clarificationRequest are surfaced as the review story
+   * wrote them (AC-2, AC-3).
+   *
+   * Ownership comes from the same scopedEventFilter the rest of the module
+   * uses, so AC-5 is enforced by the shared access layer rather than by a
+   * second, divergent rule here.
+   */
+  async findMyRequests(user: AuthenticatedUser): Promise<OrganiserRequestView[]> {
+    const events = await this.prisma.eventRequest.findMany({
+      where: this.access.scopedEventFilter(user, Action.READ),
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return events.map((event) => this.toOrganiserView(event));
+  }
+
+  /** US-05 — a single request of the Organiser's, with ownership enforced. */
+  async findMyRequest(
+    user: AuthenticatedUser,
+    id: string,
+  ): Promise<OrganiserRequestView> {
+    const event = await this.access.assertEventAccess(user, id, Action.READ);
+    return this.toOrganiserView(event);
+  }
+
+  /** Derived, never stored — see OrganiserRequestView. */
+  private toOrganiserView(event: EventRequest): OrganiserRequestView {
+    return {
+      ...event,
+      clarificationRequested: event.clarificationRequest !== null,
+    };
   }
 
   /** AC-4 / US-02 AC-5,6 — scoped list; the server decides what is visible. */

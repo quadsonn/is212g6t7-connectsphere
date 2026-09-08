@@ -30,6 +30,23 @@ export const COORDINATOR_SELECT = {
 } as const;
 
 /**
+ * US-12 — both parties resolved to contact details rather than opaque ids.
+ *
+ * The organiser is included because a Coordinator reviewing a request needs to
+ * reach the person who raised it; US-10 established the same pattern for the
+ * coordinator side. AMBIGUOUS: AC-1 lists the request's own fields and does
+ * not mention the organiser — see the US-12 summary.
+ *
+ * Attendees never receive either: projectEvent() rebuilds the public view from
+ * an explicit field list, so nested relations are dropped with the rest of the
+ * internal planning data (US-02 AC-7).
+ */
+export const EVENT_CONTACTS_INCLUDE = {
+  coordinator: { select: { id: true, name: true, email: true } },
+  organiser: { select: { id: true, name: true, email: true } },
+} as const;
+
+/**
  * Statuses at which a Coordinator may be assigned or reassigned.
  *
  * AMBIGUOUS: AC-1 describes assigning a *submitted* event, but AC-2's
@@ -253,6 +270,41 @@ export class EventsService {
     }
 
     return fields as DraftFields;
+  }
+
+  /**
+   * US-12 — the requests in this Coordinator's queue, in full.
+   *
+   * Read-only. Scoping is the shared ASSIGNED filter from US-02, so this
+   * cannot drift from the rule the rest of the module enforces.
+   */
+  async findAssignedRequests(user: AuthenticatedUser): Promise<EventRequest[]> {
+    return this.prisma.eventRequest.findMany({
+      where: this.access.scopedEventFilter(user, Action.READ),
+      orderBy: { createdAt: 'desc' },
+      include: EVENT_CONTACTS_INCLUDE,
+    });
+  }
+
+  /**
+   * US-12 AC-1 / AC-2 — every detail of one request the Coordinator may see.
+   *
+   * AC-3 is enforced by assertEventAccess(): an event outside the caller's
+   * scope raises NotFoundException before any field is read, so a denied
+   * request returns no event data at all rather than a filtered record.
+   */
+  async findAssignedRequest(
+    user: AuthenticatedUser,
+    id: string,
+  ): Promise<EventRequest> {
+    // Establishes the caller may see this event at all (reuses US-02).
+    await this.access.assertEventAccess(user, id, Action.READ);
+
+    // Re-read with the contact relations attached.
+    return this.prisma.eventRequest.findUniqueOrThrow({
+      where: { id },
+      include: EVENT_CONTACTS_INCLUDE,
+    });
   }
 
   /**

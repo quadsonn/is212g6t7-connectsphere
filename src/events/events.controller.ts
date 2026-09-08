@@ -139,6 +139,30 @@ export class EventsController {
     return this.eventsService.findMyRequests(user);
   }
 
+  /**
+   * US-12 — the Coordinator's queue, in full detail.
+   *
+   * MUST be declared before @Get(':id'). A dedicated route rather than the
+   * shared GET /events, for the same reason as /events/mine: this story
+   * specifies @Roles(EVENT_COORDINATOR), and putting that on the shared list
+   * would lock out Organisers and Attendees.
+   */
+  @Get('assigned')
+  @Roles(Role.EVENT_COORDINATOR)
+  findAssigned(@CurrentUser() user: AuthenticatedUser) {
+    return this.eventsService.findAssignedRequests(user);
+  }
+
+  /** US-12 AC-1/AC-2 — all details of one request in the Coordinator's queue. */
+  @Get('assigned/:id')
+  @Roles(Role.EVENT_COORDINATOR)
+  findAssignedById(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.eventsService.findAssignedRequest(user, id);
+  }
+
   /** US-05 — one of the Organiser's own requests, with its status detail. */
   @Get('mine/:id')
   @Roles(Role.EVENT_ORGANISER)

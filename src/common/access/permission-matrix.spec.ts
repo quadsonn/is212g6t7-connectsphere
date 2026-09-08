@@ -270,6 +270,31 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  describe('US-12 rows', () => {
+    it('covers the coordinator detail view with the existing READ grant', () => {
+      // US-12 is read-only and adds no verb: GET /events/assigned[/:id] is
+      // EVENT/READ at ASSIGNED scope, granted back in US-02.
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.READ)).toBe(Scope.ASSIGNED);
+    });
+
+    it('agrees with the hardcoded @Roles list on the /events/assigned routes', () => {
+      // ASSIGNED scope is unique to the Coordinator, which is what makes
+      // @Roles(EVENT_COORDINATOR) the correct literal on those routes.
+      expect(
+        rolesWithPermission(Resource.EVENT, Action.READ).filter(
+          (role) =>
+            permissionScope(role, Resource.EVENT, Action.READ) === Scope.ASSIGNED,
+        ),
+      ).toEqual([Role.EVENT_COORDINATOR]);
+    });
+
+    it('gives no other role sight of an assigned event’s full detail', () => {
+      expect(isPermitted(Role.VENUE_STAFF, Resource.EVENT, Action.READ)).toBe(false);
+      expect(isPermitted(Role.TECHNICAL_SUPPORT_STAFF, Resource.EVENT, Action.READ)).toBe(false);
+      expect(permissionScope(Role.ATTENDEE, Resource.EVENT, Action.READ)).toBe(Scope.PUBLIC);
+    });
+  });
+
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });

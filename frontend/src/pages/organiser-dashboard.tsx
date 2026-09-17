@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { LinkButton } from '@/components/ui/link-button';
@@ -7,6 +8,7 @@ import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { useMyRequests } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { formatDateRange } from '@/lib/utils';
 
 /** REAL data — GET /events, scoped by the backend to this organiser's own. */
@@ -71,14 +73,21 @@ export function OrganiserDashboard() {
               </thead>
               <tbody className="divide-y divide-ink-100">
                 {events.map((event) => (
-                  <tr key={event.id} className="hover:bg-ink-50">
+                  <tr key={event.id} className="relative hover:bg-ink-50">
                     <td className="px-5 py-3.5">
-                      {/* A draft may have these fields still empty (US-04). */}
-                      <span className="font-medium text-ink-900">
+                      {/* A draft may have these fields still empty (US-04). The
+                          after:inset-0 pseudo-element stretches this single
+                          link to cover the whole row, so the row is clickable
+                          without breaking table semantics or adding a second
+                          tab stop. */}
+                      <Link
+                        to={`/organiser/${event.id}`}
+                        className="static font-medium text-ink-900 after:absolute after:inset-0 after:content-[''] hover:underline"
+                      >
                         {event.name ?? (
                           <span className="italic text-ink-400">Untitled draft</span>
                         )}
-                      </span>
+                      </Link>
                       <span className="mt-0.5 block max-w-md truncate text-xs text-ink-500">
                         {event.purpose ?? 'No purpose entered yet'}
                       </span>
@@ -87,7 +96,7 @@ export function OrganiserDashboard() {
                       {formatDateRange(event.proposedStart, event.proposedEnd)}
                     </td>
                     <td className="px-5 py-3.5 text-ink-600">
-                      {event.expectedAttendance ?? '—'}
+                      {attendanceBandLabel(event.expectedAttendance)}
                     </td>
                     <td className="px-5 py-3.5">
                       <EventStatusBadge status={event.status} />

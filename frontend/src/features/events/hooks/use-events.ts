@@ -36,6 +36,15 @@ export function useMyRequests() {
   });
 }
 
+/** US-05 — one of the Organiser's own requests, for the detail/edit views. */
+export function useMyRequest(id: string | undefined) {
+  return useQuery<OrganiserRequestView>({
+    queryKey: eventKeys.detail(id ?? ''),
+    queryFn: () => eventsApi.getMine(id!),
+    enabled: Boolean(id),
+  });
+}
+
 /**
  * US-03/US-04 — raise a request, either submitted outright or kept as a draft.
  *
@@ -60,6 +69,39 @@ export function useCreateEventRequest() {
   });
 
   return { submit, saveDraft };
+}
+
+/**
+ * US-04 AC-2/AC-4 — continue editing a draft (or a RETURNED request, US-08)
+ * and, separately, submit it once it is complete.
+ *
+ * `submit` PATCHes the latest edits before calling the submit endpoint, since
+ * POST /events/:id/submit takes no body and validates the row already stored
+ * — an edit made moments before clicking "Submit" must be saved first or it
+ * would be silently lost.
+ */
+export function useUpdateEventRequest(id: string) {
+  const queryClient = useQueryClient();
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: eventKeys.mine });
+    void queryClient.invalidateQueries({ queryKey: eventKeys.detail(id) });
+  };
+
+  const saveChanges = useMutation({
+    mutationFn: (body: EventRequestPayload) => eventsApi.updateDraft(id, body),
+    onSuccess: invalidate,
+  });
+
+  const submit = useMutation({
+    mutationFn: async (body: EventRequestPayload) => {
+      await eventsApi.updateDraft(id, body);
+      return eventsApi.submitDraft(id);
+    },
+    onSuccess: invalidate,
+  });
+
+  return { saveChanges, submit };
 }
 
 /** Same endpoint, projected shape — an Attendee never receives internal fields. */

@@ -27,6 +27,10 @@ export const eventsApi = {
   listMine: () =>
     apiClient.get<OrganiserRequestView[]>('/events/mine').then((r) => r.data),
 
+  /** US-05 — one of the Organiser's own requests, with status detail. */
+  getMine: (id: string) =>
+    apiClient.get<OrganiserRequestView>(`/events/mine/${id}`).then((r) => r.data),
+
   /** US-03 — create and submit in one step. Returns the SUBMITTED record. */
   createAndSubmit: (body: EventRequestPayload) =>
     apiClient.post<EventRequest>('/events', body).then((r) => r.data),
@@ -34,6 +38,10 @@ export const eventsApi = {
   /** US-04 — save an incomplete draft. */
   saveDraft: (body: EventRequestPayload) =>
     apiClient.post<EventRequest>('/events/drafts', body).then((r) => r.data),
+
+  /** US-04 AC-2 — continue editing a draft (or a RETURNED request, US-08). */
+  updateDraft: (id: string, body: EventRequestPayload) =>
+    apiClient.patch<EventRequest>(`/events/${id}`, body).then((r) => r.data),
 
   /** US-04 — submit a draft that is now complete. */
   submitDraft: (id: string) =>

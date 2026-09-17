@@ -7,6 +7,7 @@ import { useAuth } from '@/features/auth/hooks/use-auth';
 import { LoginPage } from '@/pages/login-page';
 import { OrganiserDashboard } from '@/pages/organiser-dashboard';
 import { OrganiserNewRequest } from '@/pages/organiser-new-request';
+import { OrganiserRequestDetail } from '@/pages/organiser-request-detail';
 import { CoordinatorDashboard } from '@/pages/coordinator-dashboard';
 import { VenueDashboard } from '@/pages/venue-dashboard';
 import { EquipmentDashboard } from '@/pages/equipment-dashboard';
@@ -35,6 +36,8 @@ export function AppRoutes() {
           <Route element={<ProtectedRoute allow={['EVENT_ORGANISER']} />}>
             <Route path="/organiser" element={<OrganiserDashboard />} />
             <Route path="/organiser/new" element={<OrganiserNewRequest />} />
+            <Route path="/organiser/:id" element={<OrganiserRequestDetail />} />
+            <Route path="/organiser/:id/edit" element={<OrganiserNewRequest />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={['EVENT_COORDINATOR']} />}>

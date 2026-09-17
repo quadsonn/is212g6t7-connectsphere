@@ -45,3 +45,11 @@ export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
   'SUBMITTED',
   'UNDER_REVIEW',
 ];
+
+/**
+ * Statuses an Organiser can still edit as a draft (mirrors the backend's
+ * EDITABLE_STATUSES in events.service.ts). RETURNED is included alongside
+ * DRAFT — US-08 hands a request back precisely so it can be amended and
+ * resubmitted without demoting it to DRAFT first.
+ */
+export const EDITABLE_EVENT_STATUSES: EventStatus[] = ['DRAFT', 'RETURNED'];

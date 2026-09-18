@@ -156,11 +156,18 @@ export interface OrganiserRequestView extends EventRequest {
   clarificationRequested: boolean;
 }
 
-/** GET /events — the assigned Coordinator and their contact details. */
-export interface CoordinatorSummary {
+/** A user's contact details, resolved from an id (coordinator, organiser). */
+export interface ContactSummary {
   id: string;
   name: string;
   email: string;
+}
+
+/** GET /events/assigned and GET /events/assigned/:id — the Coordinator's view. */
+export interface CoordinatorRequestView extends OrganiserRequestView {
+  coordinator: ContactSummary | null;
+  organiser: ContactSummary;
+  clarifications: ClarificationMessage[];
 }
 
 /**
@@ -180,7 +187,7 @@ export interface PublicEventView {
   proposedEnd: string | null;
   status: EventStatus;
   registrationEnabled: boolean;
-  coordinator: CoordinatorSummary | null;
+  coordinator: ContactSummary | null;
 }
 
 /** Venue catalogue. Endpoint not built yet — served by a mock service. */

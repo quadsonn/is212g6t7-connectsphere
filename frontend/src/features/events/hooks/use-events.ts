@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
+  CoordinatorRequestView,
   EventRequest,
   EventRequestPayload,
   OrganiserRequestView,
@@ -12,6 +13,8 @@ export const eventKeys = {
   all: ['events'] as const,
   mine: ['events', 'mine'] as const,
   detail: (id: string) => ['events', id] as const,
+  assigned: ['events', 'assigned'] as const,
+  assignedDetail: (id: string) => ['events', 'assigned', id] as const,
 };
 
 /**
@@ -67,5 +70,22 @@ export function usePublicEvents() {
   return useQuery<PublicEventView[]>({
     queryKey: eventKeys.all,
     queryFn: eventsApi.listPublic,
+  });
+}
+
+/** The Coordinator's queue, in full detail. */
+export function useAssignedRequests() {
+  return useQuery<CoordinatorRequestView[]>({
+    queryKey: eventKeys.assigned,
+    queryFn: eventsApi.listAssigned,
+  });
+}
+
+/** One request from the Coordinator's queue, with every detail. */
+export function useAssignedRequest(id: string) {
+  return useQuery<CoordinatorRequestView>({
+    queryKey: eventKeys.assignedDetail(id),
+    queryFn: () => eventsApi.getAssignedById(id),
+    enabled: Boolean(id),
   });
 }

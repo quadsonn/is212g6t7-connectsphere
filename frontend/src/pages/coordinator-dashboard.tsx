@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
+import { LinkButton } from '@/components/ui/link-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
@@ -65,6 +66,9 @@ export function CoordinatorDashboard() {
 
                 {/* Placeholder — the review action is US-05. */}
                 <div className="flex shrink-0 flex-wrap gap-2">
+                  <LinkButton to={`/coordinator/events/${event.id}`} size="sm" variant="secondary">
+                    View details
+                  </LinkButton>
                   <Button size="sm" variant="secondary" disabled title="Not built yet">
                     Request clarification
                   </Button>

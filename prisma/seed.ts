@@ -25,6 +25,7 @@ const PASSWORD = '12345678';
 const USERS = [
   { email: 'organiser@connectsphere.local', name: 'Priya Organiser', role: Role.EVENT_ORGANISER },
   { email: 'coordinator@connectsphere.local', name: 'Marcus Coordinator', role: Role.EVENT_COORDINATOR },
+  { email: 'coordinator2@connectsphere.local', name: 'Nadia Coordinator', role: Role.EVENT_COORDINATOR },
   { email: 'venue@connectsphere.local', name: 'Aisha Venue', role: Role.VENUE_STAFF },
   { email: 'tech@connectsphere.local', name: 'Wei Technical', role: Role.TECHNICAL_SUPPORT_STAFF },
   { email: 'attendee@connectsphere.local', name: 'Sam Attendee', role: Role.ATTENDEE },

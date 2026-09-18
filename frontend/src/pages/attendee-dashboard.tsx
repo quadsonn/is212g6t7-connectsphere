@@ -60,6 +60,16 @@ export function AttendeeDashboard() {
                     {formatDateRange(event.proposedStart, event.proposedEnd)}
                   </p>
                   <p className="mt-1.5 max-w-2xl text-sm text-ink-600">{event.purpose}</p>
+                  <p className="mt-1.5 text-xs text-ink-500">
+                    Point of contact:{' '}
+                    {event.coordinator ? (
+                      <span className="text-ink-700">
+                        {event.coordinator.name} ({event.coordinator.email})
+                      </span>
+                    ) : (
+                      <span className="italic">not yet assigned</span>
+                    )}
+                  </p>
                 </div>
 
                 {/* Placeholder — registering is E7. */}

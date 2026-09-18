@@ -37,6 +37,7 @@ describe('AccessControlService (US-02)', () => {
       status: EventStatus.CONFIRMED,
       createdAt: new Date(),
       updatedAt: new Date(),
+      coordinator: { id: 'coordinator-1', name: 'Casey Coordinator', email: 'casey@example.com' },
       ...overrides,
     }) as never;
 
@@ -180,6 +181,25 @@ describe('AccessControlService (US-02)', () => {
         registrationEnabled: true,
         status: EventStatus.CONFIRMED,
       });
+    });
+
+    it('US-10 AC-3: still surfaces the assigned Coordinator, unqualified by role', () => {
+      const projected = service.projectEvent(userWith(Role.ATTENDEE), anEvent()) as Record<string, unknown>;
+
+      expect(projected).toMatchObject({
+        coordinator: { id: 'coordinator-1', name: 'Casey Coordinator', email: 'casey@example.com' },
+      });
+      // The relation object is kept, but the raw FK column is not.
+      expect(projected).not.toHaveProperty('coordinatorId');
+    });
+
+    it('US-10 AC-3: reports null, not undefined, when no Coordinator is assigned', () => {
+      const projected = service.projectEvent(
+        userWith(Role.ATTENDEE),
+        anEvent({ coordinator: null }),
+      ) as Record<string, unknown>;
+
+      expect(projected.coordinator).toBeNull();
     });
 
     it('leaves the full record intact for an Organiser', () => {

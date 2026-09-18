@@ -1,0 +1,299 @@
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Role, RoomLayout, VenueStatus } from '@prisma/client';
+
+import { VenueBookingLookup } from '../bookings/booking-impact';
+import { AccessControlService } from '../common/access/access-control.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Action, Resource, Scope } from '../common/access/permission.types';
+import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { PrismaService } from '../prisma/prisma.service';
+import { VenueDraftDto } from './dto/venue-draft.dto';
+import { VenuesService } from './venues.service';
+
+/** US-13 — venue drafts and publishing. */
+describe('VenuesService (US-13)', () => {
+  let prisma: {
+    venue: {
+      create: jest.Mock;
+      update: jest.Mock;
+      findMany: jest.Mock;
+      findFirst: jest.Mock;
+      findUnique: jest.Mock;
+    };
+  };
+  let access: { requireScope: jest.Mock };
+  let bookings: { findLiveBookingsForVenue: jest.Mock };
+  let notifications: { notify: jest.Mock; notifySafely: jest.Mock };
+  let service: VenuesService;
+
+  const staff: AuthenticatedUser = {
+    userId: 'staff-1',
+    role: Role.VENUE_STAFF,
+    jti: 'j1',
+  };
+  const coordinator: AuthenticatedUser = {
+    userId: 'coord-1',
+    role: Role.EVENT_COORDINATOR,
+    jti: 'j2',
+  };
+
+  const venue = (overrides: Record<string, unknown> = {}) => ({
+    id: 'venue-1',
+    name: 'Sandbox Auditorium',
+    location: 'School of Computing, Level 1',
+    capacity: 420,
+    facilities: [],
+    accessibilityFeatures: [],
+    supportedLayouts: [],
+    operatingInfo: null,
+    status: VenueStatus.DRAFT,
+    managedById: 'staff-1',
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    prisma = {
+      venue: {
+        create: jest.fn().mockImplementation(({ data }) =>
+          Promise.resolve(venue(data)),
+        ),
+        update: jest.fn().mockImplementation(({ data }) =>
+          Promise.resolve(venue(data)),
+        ),
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(venue()),
+        findUnique: jest.fn().mockResolvedValue(venue()),
+      },
+    };
+    access = { requireScope: jest.fn().mockReturnValue(Scope.OWN) };
+    // US-14 added the booking-impact check; a venue with no live bookings is
+    // the neutral case for US-13's tests.
+    bookings = { findLiveBookingsForVenue: jest.fn().mockResolvedValue([]) };
+    notifications = { notify: jest.fn(), notifySafely: jest.fn() };
+
+    service = new VenuesService(
+      prisma as unknown as PrismaService,
+      access as unknown as AccessControlService,
+      bookings as unknown as VenueBookingLookup,
+      notifications as unknown as NotificationsService,
+    );
+  });
+
+  describe('AC-1: the full set of venue details', () => {
+    it('accepts every detail field', async () => {
+      await service.saveDraft(staff, {
+        name: 'Campus Green',
+        location: 'Outdoor, adjacent to Library',
+        capacity: 800,
+        facilities: ['Power supply', 'Marquee points'],
+        accessibilityFeatures: ['Step-free access', 'Accessible toilets nearby'],
+        supportedLayouts: [RoomLayout.BANQUET, RoomLayout.THEATRE],
+        operatingInfo: 'Daily, subject to weather',
+      } as VenueDraftDto);
+
+      expect(prisma.venue.create.mock.calls[0][0].data).toMatchObject({
+        name: 'Campus Green',
+        location: 'Outdoor, adjacent to Library',
+        capacity: 800,
+        facilities: ['Power supply', 'Marquee points'],
+        supportedLayouts: [RoomLayout.BANQUET, RoomLayout.THEATRE],
+        operatingInfo: 'Daily, subject to weather',
+      });
+    });
+
+    it('uses the shared US-06 layout vocabulary', async () => {
+      await service.saveDraft(staff, {
+        supportedLayouts: [RoomLayout.BOARDROOM],
+      } as VenueDraftDto);
+
+      // Same values an event request uses for preferredLayout.
+      expect(prisma.venue.create.mock.calls[0][0].data.supportedLayouts).toEqual([
+        'BOARDROOM',
+      ]);
+    });
+  });
+
+  describe('AC-2: an incomplete venue saves as a draft', () => {
+    it('saves with no fields at all', async () => {
+      const result = await service.saveDraft(staff, {} as VenueDraftDto);
+
+      expect(result.status).toBe(VenueStatus.DRAFT);
+      expect(prisma.venue.create).toHaveBeenCalled();
+    });
+
+    it('never writes status on create — DRAFT is the schema default', async () => {
+      await service.saveDraft(staff, {} as VenueDraftDto);
+
+      expect(prisma.venue.create.mock.calls[0][0].data).not.toHaveProperty('status');
+    });
+
+    it('records the creator as the managing staff member', async () => {
+      await service.saveDraft(staff, {} as VenueDraftDto);
+
+      expect(prisma.venue.create.mock.calls[0][0].data.managedById).toBe('staff-1');
+    });
+
+    it('checks the CREATE grant before writing', async () => {
+      await service.saveDraft(staff, {} as VenueDraftDto);
+
+      expect(access.requireScope).toHaveBeenCalledWith(
+        staff,
+        Resource.VENUE,
+        Action.CREATE,
+      );
+    });
+
+    it('writes only the fields supplied on an edit', async () => {
+      await service.updateDraft(staff, 'venue-1', {
+        capacity: 500,
+      } as VenueDraftDto);
+
+      expect(prisma.venue.update.mock.calls[0][0].data).toEqual({ capacity: 500 });
+    });
+  });
+
+  describe('AC-3: publishing is blocked until complete', () => {
+    it('publishes a complete draft', async () => {
+      const result = await service.publish(staff, 'venue-1');
+
+      expect(result.status).toBe(VenueStatus.PUBLISHED);
+    });
+
+    it('blocks a draft with no name', async () => {
+      prisma.venue.findUnique.mockResolvedValue(venue({ name: null }));
+
+      await expect(service.publish(staff, 'venue-1')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prisma.venue.update).not.toHaveBeenCalled();
+    });
+
+    it('blocks a draft with no capacity', async () => {
+      prisma.venue.findUnique.mockResolvedValue(venue({ capacity: null }));
+
+      await expect(service.publish(staff, 'venue-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('names every missing field at once', async () => {
+      prisma.venue.findUnique.mockResolvedValue(
+        venue({ name: null, location: null, capacity: null }),
+      );
+
+      const error = await service
+        .publish(staff, 'venue-1')
+        .catch((e: BadRequestException) => e);
+
+      const messages = (
+        (error as BadRequestException).getResponse() as { message: string[] }
+      ).message.join(' | ');
+
+      expect(messages).toMatch(/name is required/);
+      expect(messages).toMatch(/location is required/);
+      expect(messages).toMatch(/capacity is required/);
+    });
+
+    it('does not require facilities, layouts or operating hours', async () => {
+      prisma.venue.findUnique.mockResolvedValue(
+        venue({ facilities: [], supportedLayouts: [], operatingInfo: null }),
+      );
+
+      await expect(service.publish(staff, 'venue-1')).resolves.toMatchObject({
+        status: VenueStatus.PUBLISHED,
+      });
+    });
+
+    it('is idempotent for an already published venue', async () => {
+      prisma.venue.findUnique.mockResolvedValue(
+        venue({ status: VenueStatus.PUBLISHED }),
+      );
+
+      const result = await service.publish(staff, 'venue-1');
+
+      expect(result.status).toBe(VenueStatus.PUBLISHED);
+      expect(prisma.venue.update).not.toHaveBeenCalled();
+    });
+
+    it('checks the PUBLISH grant, not UPDATE', async () => {
+      await service.publish(staff, 'venue-1');
+
+      expect(access.requireScope).toHaveBeenCalledWith(
+        staff,
+        Resource.VENUE,
+        Action.PUBLISH,
+      );
+    });
+  });
+
+  describe('AC-4: drafts are visible only to their manager', () => {
+    it('builds a filter admitting published entries and own drafts', () => {
+      expect(service.visibilityFilter(staff)).toEqual({
+        OR: [
+          { status: VenueStatus.PUBLISHED },
+          { status: VenueStatus.DRAFT, managedById: 'staff-1' },
+        ],
+      });
+    });
+
+    it('scopes a Coordinator to published entries plus their own (of which there are none)', () => {
+      expect(service.visibilityFilter(coordinator)).toEqual({
+        OR: [
+          { status: VenueStatus.PUBLISHED },
+          { status: VenueStatus.DRAFT, managedById: 'coord-1' },
+        ],
+      });
+    });
+
+    it('applies the filter to the list query rather than filtering after', async () => {
+      await service.findAllForUser(staff);
+
+      expect(prisma.venue.findMany.mock.calls[0][0].where).toEqual(
+        service.visibilityFilter(staff),
+      );
+    });
+
+    it('refuses a role with no venue read grant', () => {
+      access.requireScope.mockImplementation(() => {
+        throw new ForbiddenException();
+      });
+
+      expect(() => service.visibilityFilter(staff)).toThrow(ForbiddenException);
+    });
+
+    it('reports an invisible venue as not found', async () => {
+      prisma.venue.findFirst.mockResolvedValue(null);
+
+      await expect(service.findOneForUser(coordinator, 'venue-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('managing another staff member’s venue', () => {
+    it('refuses to edit it, as not found', async () => {
+      prisma.venue.findUnique.mockResolvedValue(venue({ managedById: 'staff-2' }));
+
+      await expect(
+        service.updateDraft(staff, 'venue-1', { capacity: 1 } as VenueDraftDto),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.venue.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses to publish it', async () => {
+      prisma.venue.findUnique.mockResolvedValue(venue({ managedById: 'staff-2' }));
+
+      await expect(service.publish(staff, 'venue-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('refuses a venue that does not exist', async () => {
+      prisma.venue.findUnique.mockResolvedValue(null);
+
+      await expect(service.publish(staff, 'missing')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+});

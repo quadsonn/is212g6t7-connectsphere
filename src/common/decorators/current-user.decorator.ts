@@ -1,0 +1,15 @@
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+
+import { AuthenticatedUser } from '../../auth/jwt.strategy';
+
+/**
+ * Injects the authenticated user established by JwtAuthGuard. Only meaningful
+ * on routes that guard actually protects.
+ */
+export const CurrentUser = createParamDecorator(
+  (data: keyof AuthenticatedUser | undefined, ctx: ExecutionContext) => {
+    const request = ctx.switchToHttp().getRequest();
+    const user = request.user as AuthenticatedUser;
+    return data ? user?.[data] : user;
+  },
+);

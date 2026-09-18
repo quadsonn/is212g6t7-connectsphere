@@ -1,0 +1,368 @@
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { NotificationType, Prisma, Venue, VenueStatus } from '@prisma/client';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+
+import { AccessControlService } from '../common/access/access-control.service';
+import { Action, Resource } from '../common/access/permission.types';
+import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { VenueBookingLookup } from '../bookings/booking-impact';
+import { NotificationsService } from '../notifications/notifications.service';
+import { PrismaService } from '../prisma/prisma.service';
+import {
+  BrowseVenuesDto,
+  SortOrder,
+  VenueSortField,
+} from './dto/browse-venues.dto';
+import { PublishableVenueDto } from './dto/publishable-venue.dto';
+import { VenueDraftDto } from './dto/venue-draft.dto';
+
+/**
+ * The staff-editable scalar columns, typed as the subset Prisma accepts for
+ * both create and update so one mapper serves saveDraft and updateDraft.
+ */
+/**
+ * US-14 AC-3 — a warning attached to an update, telling the staff member that
+ * existing bookings may no longer be valid.
+ */
+export interface VenueUpdateWarning {
+  code: 'BOOKINGS_MAY_NEED_REVIEW';
+  message: string;
+  /** What about the venue changed for the worse. */
+  reasons: string[];
+  affectedBookingIds: string[];
+}
+
+export type VenueWithWarnings = Venue & { warnings: VenueUpdateWarning[] };
+
+type VenueDraftFields = Partial<
+  Pick<
+    Prisma.VenueUncheckedCreateInput,
+    | 'name'
+    | 'location'
+    | 'capacity'
+    | 'facilities'
+    | 'accessibilityFeatures'
+    | 'supportedLayouts'
+    | 'operatingInfo'
+  >
+>;
+
+@Injectable()
+export class VenuesService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: AccessControlService,
+    private readonly bookings: VenueBookingLookup,
+    private readonly notifications: NotificationsService,
+  ) {}
+
+  /**
+   * US-13 AC-4 — what this caller may see of the catalogue.
+   *
+   * Published entries are visible to everyone with a VENUE/READ grant. Drafts
+   * are visible only to the Venue Staff member managing them, which is what
+   * keeps an unfinished entry out of a Coordinator's search results.
+   *
+   * Expressed as a Prisma filter rather than a post-fetch filter so a draft is
+   * never loaded for someone who may not see it, and counts stay correct.
+   */
+  visibilityFilter(user: AuthenticatedUser): Prisma.VenueWhereInput {
+    this.access.requireScope(user, Resource.VENUE, Action.READ);
+
+    return {
+      OR: [
+        { status: VenueStatus.PUBLISHED },
+        { status: VenueStatus.DRAFT, managedById: user.userId },
+      ],
+    };
+  }
+
+  /**
+   * US-13 AC-4/AC-6 and US-15 AC-1/AC-3/AC-4 — the catalogue, scoped to the
+   * caller and optionally searched or sorted.
+   *
+   * AC-4: read straight from the database on every call. Nothing is cached
+   * server-side, so a venue added or edited a moment ago is present in the
+   * next response.
+   *
+   * AMBIGUOUS: the list returns whole venue records rather than a trimmed
+   * summary. AC-1 asks for key details "at a glance", which those records
+   * satisfy; a narrower projection would be a payload optimisation, and would
+   * break clients already reading layouts from the list. See the summary.
+   */
+  async findAllForUser(
+    user: AuthenticatedUser,
+    query: BrowseVenuesDto = {},
+  ): Promise<Venue[]> {
+    const visibility = this.visibilityFilter(user);
+
+    const where: Prisma.VenueWhereInput = query.search
+      ? {
+          AND: [
+            visibility,
+            { name: { contains: query.search, mode: 'insensitive' } },
+          ],
+        }
+      : visibility;
+
+    return this.prisma.venue.findMany({
+      where,
+      orderBy: this.orderBy(query),
+    });
+  }
+
+  /**
+   * AC-3 — sorting. Defaults to name ascending, which is what a person
+   * scanning a catalogue expects.
+   *
+   * Drafts sort first so a Venue Staff member sees their unfinished work
+   * before the published list; nulls sort last, so a half-filled draft does
+   * not push a named venue down the page.
+   */
+  private orderBy(query: BrowseVenuesDto): Prisma.VenueOrderByWithRelationInput[] {
+    const field = query.sortBy ?? VenueSortField.NAME;
+    const order = query.sortOrder ?? SortOrder.ASC;
+
+    return [
+      { status: 'asc' },
+      { [field]: { sort: order, nulls: 'last' } } as Prisma.VenueOrderByWithRelationInput,
+    ];
+  }
+
+  /** A single entry, denied as not-found when outside the caller's view. */
+  async findOneForUser(user: AuthenticatedUser, id: string): Promise<Venue> {
+    const venue = await this.prisma.venue.findFirst({
+      where: { AND: [{ id }, this.visibilityFilter(user)] },
+    });
+
+    if (!venue) {
+      throw new NotFoundException('venue not found');
+    }
+
+    return venue;
+  }
+
+  /**
+   * US-13 AC-1/AC-2 — save a venue as a draft, however incomplete.
+   *
+   * The creator becomes the managing staff member, which is what AC-4's
+   * visibility rule keys off.
+   */
+  async saveDraft(user: AuthenticatedUser, dto: VenueDraftDto): Promise<Venue> {
+    this.access.requireScope(user, Resource.VENUE, Action.CREATE);
+
+    return this.prisma.venue.create({
+      data: {
+        ...this.draftFields(dto),
+        managedById: user.userId,
+        // status omitted — DRAFT is the schema default, and publishing is a
+        // transition rather than a field write.
+      },
+    });
+  }
+
+  /**
+   * US-13 AC-1/AC-2 and US-14 AC-1/AC-2/AC-4 — edit a venue.
+   *
+   * The same method serves a half-finished draft and a live catalogue entry;
+   * what differs is how strict it is. A draft may be left incomplete (US-13
+   * AC-2), a published venue may not (US-14 AC-4), so the completeness rules
+   * are applied only when the entry is published.
+   */
+  async updateDraft(
+    user: AuthenticatedUser,
+    id: string,
+    dto: VenueDraftDto,
+  ): Promise<VenueWithWarnings> {
+    const venue = await this.findManaged(user, id, Action.UPDATE);
+    const changes = this.draftFields(dto);
+
+    // AC-4: what the record would look like after this edit.
+    const merged = { ...venue, ...changes } as Venue;
+
+    if (venue.status === VenueStatus.PUBLISHED) {
+      await this.assertPublishable(merged);
+    }
+
+    // AC-3: assessed BEFORE writing, so the reasons compare the old record
+    // against the new one.
+    const warning = await this.assessBookingImpact(venue, merged);
+
+    const updated = await this.prisma.venue.update({
+      where: { id: venue.id },
+      data: changes,
+    });
+
+    if (warning) {
+      // Durable as well as immediate: the staff member sees the warning in the
+      // response, and it survives them navigating away.
+      await this.notifications.notifySafely({
+        recipientId: user.userId,
+        type: NotificationType.VENUE_CHANGED_BOOKINGS_AFFECTED,
+        message: warning.message,
+      });
+    }
+
+    return { ...updated, warnings: warning ? [warning] : [] };
+  }
+
+  /**
+   * US-14 AC-3 — does this edit put existing bookings at risk?
+   *
+   * AMBIGUOUS: "details that could affect suitability" is read as changes that
+   * make the venue *less* capable — capacity reduced, a supported layout
+   * withdrawn, an accessibility feature removed, or the venue relocated.
+   * Additions cannot invalidate a booking, so they raise nothing.
+   *
+   * Only the warning is US-14's job. Re-validating each booking against its
+   * event, and deciding what happens to one that no longer fits, belongs to
+   * E5 — see VenueBookingLookup.
+   */
+  private async assessBookingImpact(
+    before: Venue,
+    after: Venue,
+  ): Promise<VenueUpdateWarning | null> {
+    const reasons: string[] = [];
+
+    if (
+      after.capacity !== null &&
+      before.capacity !== null &&
+      after.capacity < before.capacity
+    ) {
+      reasons.push(
+        `capacity reduced from ${before.capacity} to ${after.capacity}`,
+      );
+    }
+
+    const withdrawnLayouts = before.supportedLayouts.filter(
+      (layout) => !after.supportedLayouts.includes(layout),
+    );
+    if (withdrawnLayouts.length > 0) {
+      reasons.push(`layouts no longer supported: ${withdrawnLayouts.join(', ')}`);
+    }
+
+    const removedAccess = before.accessibilityFeatures.filter(
+      (feature) => !after.accessibilityFeatures.includes(feature),
+    );
+    if (removedAccess.length > 0) {
+      reasons.push(`accessibility features removed: ${removedAccess.join(', ')}`);
+    }
+
+    if (before.location !== null && after.location !== before.location) {
+      reasons.push(
+        `location changed from "${before.location}" to "${after.location}"`,
+      );
+    }
+
+    if (reasons.length === 0) {
+      return null;
+    }
+
+    const live = await this.bookings.findLiveBookingsForVenue(before.id);
+
+    if (live.length === 0) {
+      return null;
+    }
+
+    return {
+      code: 'BOOKINGS_MAY_NEED_REVIEW',
+      message:
+        `${live.length} existing booking(s) on this venue may need review: ` +
+        reasons.join('; '),
+      reasons,
+      affectedBookingIds: live.map((booking) => booking.bookingId),
+    };
+  }
+
+  /**
+   * US-13 AC-3/AC-5 — publish, once the entry is complete.
+   *
+   * The completeness check validates the *stored* record against
+   * PublishableVenueDto, so a venue assembled over several edits is judged by
+   * the same rules as one filled in at once.
+   */
+  async publish(user: AuthenticatedUser, id: string): Promise<Venue> {
+    const venue = await this.findManaged(user, id, Action.PUBLISH);
+
+    if (venue.status === VenueStatus.PUBLISHED) {
+      // Idempotent: publishing twice is not an error.
+      return venue;
+    }
+
+    await this.assertPublishable(venue);
+
+    return this.prisma.venue.update({
+      where: { id: venue.id },
+      data: { status: VenueStatus.PUBLISHED },
+    });
+  }
+
+  /**
+   * Loads a venue this staff member manages.
+   *
+   * Reports a venue owned by someone else as 404 rather than 403, matching the
+   * decision made for events in US-02: a 403 would confirm the entry exists.
+   */
+  private async findManaged(
+    user: AuthenticatedUser,
+    id: string,
+    action: Action,
+  ): Promise<Venue> {
+    this.access.requireScope(user, Resource.VENUE, action);
+
+    const venue = await this.prisma.venue.findUnique({ where: { id } });
+
+    if (!venue) {
+      throw new NotFoundException('venue not found');
+    }
+
+    if (venue.managedById !== user.userId) {
+      throw new NotFoundException('venue not found');
+    }
+
+    return venue;
+  }
+
+  /** AC-3 — blocks publication and names every missing field at once. */
+  private async assertPublishable(venue: Venue): Promise<void> {
+    const candidate = plainToInstance(PublishableVenueDto, {
+      name: venue.name ?? undefined,
+      location: venue.location ?? undefined,
+      capacity: venue.capacity ?? undefined,
+    });
+
+    const errors = await validate(candidate, { whitelist: true });
+
+    if (errors.length > 0) {
+      throw new BadRequestException(
+        errors.flatMap((error) => Object.values(error.constraints ?? {})),
+      );
+    }
+  }
+
+  /** Only the keys the caller sent, so a partial edit blanks nothing. */
+  private draftFields(dto: VenueDraftDto): VenueDraftFields {
+    const fields: Record<string, unknown> = {};
+
+    for (const key of [
+      'name',
+      'location',
+      'capacity',
+      'facilities',
+      'accessibilityFeatures',
+      'supportedLayouts',
+      'operatingInfo',
+    ] as const) {
+      if (dto[key] !== undefined) {
+        fields[key] = dto[key];
+      }
+    }
+
+    return fields as VenueDraftFields;
+  }
+}

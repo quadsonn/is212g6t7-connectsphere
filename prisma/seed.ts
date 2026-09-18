@@ -74,6 +74,14 @@ async function main() {
     { name: 'Capstone Showcase', status: EventStatus.UNDER_REVIEW, start: '2026-11-02T09:00:00Z', end: '2026-11-02T17:00:00Z' },
     { name: 'Alumni Homecoming', status: EventStatus.APPROVED, start: '2026-11-20T10:00:00Z', end: '2026-11-20T16:00:00Z' },
     { name: 'Research Symposium (draft)', status: EventStatus.DRAFT, start: '2026-12-05T09:00:00Z', end: '2026-12-05T18:00:00Z' },
+    { name: 'Winter Formal (cancelled)', status: EventStatus.CANCELLED, start: '2026-12-15T18:00:00Z', end: '2026-12-15T22:00:00Z' },
+    {
+      name: 'Rooftop Fundraiser (rejected)',
+      status: EventStatus.REJECTED,
+      start: '2026-12-20T18:00:00Z',
+      end: '2026-12-20T21:00:00Z',
+      decisionReason: 'Rooftop venue has no fire-safety clearance for events over 100 guests.',
+    },
   ];
 
   for (const event of events) {
@@ -87,6 +95,7 @@ async function main() {
         status: event.status,
         proposedStart: new Date(event.start),
         proposedEnd: new Date(event.end),
+        decisionReason: 'decisionReason' in event ? event.decisionReason : null,
       },
     });
   }

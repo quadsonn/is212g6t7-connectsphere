@@ -15,7 +15,11 @@ import {
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-import { AccessControlService, PublicEventView } from '../common/access/access-control.service';
+import {
+  AccessControlService,
+  EventWithCoordinator,
+  PublicEventView,
+} from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -720,7 +724,7 @@ export class EventsService {
   /** AC-4 / US-02 AC-5,6 — scoped list; the server decides what is visible. */
   async findAllForUser(
     user: AuthenticatedUser,
-  ): Promise<(EventRequest | PublicEventView)[]> {
+  ): Promise<(EventWithCoordinator | PublicEventView)[]> {
     const events = await this.prisma.eventRequest.findMany({
       where: this.access.scopedEventFilter(user),
       orderBy: { createdAt: 'desc' },
@@ -737,7 +741,7 @@ export class EventsService {
   async findOneForUser(
     user: AuthenticatedUser,
     id: string,
-  ): Promise<EventRequest | PublicEventView> {
+  ): Promise<EventWithCoordinator | PublicEventView> {
     const event = await this.access.assertEventAccess(user, id, Action.READ);
     return this.access.projectEvent(user, event);
   }

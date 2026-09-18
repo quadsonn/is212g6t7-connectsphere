@@ -156,9 +156,20 @@ export interface OrganiserRequestView extends EventRequest {
   clarificationRequested: boolean;
 }
 
+/** GET /events — the assigned Coordinator and their contact details. */
+export interface CoordinatorSummary {
+  id: string;
+  name: string;
+  email: string;
+}
+
 /**
- * GET /events as returned to an Attendee — the backend projects internal
- * planning fields away (US-02 AC-7), so this is a genuinely different shape.
+ * GET /events — the Attendee's view. The backend projects internal planning
+ * fields away (US-02 AC-7), so this is a genuinely different shape from
+ * EventRequest.
+ *
+ * `coordinator` IS included here (US-10 AC-3): the assigned point of contact
+ * is visible to any authorised user, not just Organisers/Coordinators.
  */
 export interface PublicEventView {
   id: string;
@@ -169,6 +180,7 @@ export interface PublicEventView {
   proposedEnd: string | null;
   status: EventStatus;
   registrationEnabled: boolean;
+  coordinator: CoordinatorSummary | null;
 }
 
 /** Venue catalogue. Endpoint not built yet — served by a mock service. */

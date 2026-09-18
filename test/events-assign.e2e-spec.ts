@@ -327,7 +327,7 @@ describe('US-10 assign a Coordinator (e2e)', () => {
       expect(res.body.coordinator).toBeNull();
     });
 
-    it('still hides the Coordinator from an Attendee', async () => {
+    it('shows the Coordinator to an Attendee too, alongside the rest of the public view', async () => {
       await seedEvent({
         status: EventStatus.CONFIRMED,
         coordinatorId: ids.coordinatorA,
@@ -340,9 +340,15 @@ describe('US-10 assign a Coordinator (e2e)', () => {
         .expect(200);
 
       expect(res.body).toHaveLength(1);
-      expect(res.body[0]).not.toHaveProperty('coordinator');
+      // The AC says "visible to any authorised user viewing the event" with no
+      // role qualifier, so the public projection carries it too — the raw FK
+      // and every other internal planning field stay stripped.
+      expect(res.body[0].coordinator).toMatchObject({
+        id: ids.coordinatorA,
+        email: 'coord.a@example.com',
+      });
       expect(res.body[0]).not.toHaveProperty('coordinatorId');
-      expect(JSON.stringify(res.body)).not.toMatch(/coord\.a@example\.com/);
+      expect(res.body[0]).not.toHaveProperty('organiserId');
     });
   });
 });

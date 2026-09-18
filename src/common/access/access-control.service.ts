@@ -10,11 +10,22 @@ import { AuthenticatedUser } from '../../auth/jwt.strategy';
 import { permissionScope } from './permission-matrix';
 import { Action, Resource, Scope } from './permission.types';
 
+/** US-10 AC-3 — the assigned Coordinator, resolved to contact details. */
+export interface CoordinatorSummary {
+  id: string;
+  name: string;
+  email: string;
+}
+
 /**
  * The registration-facing view of an event (AC-7). Everything omitted here —
  * expected attendance, layout notes, accessibility and equipment needs, who
- * the organiser and coordinator are, internal timestamps — is planning
- * information an Attendee must not see.
+ * the organiser is, internal timestamps — is planning information an
+ * Attendee must not see.
+ *
+ * The assigned Coordinator IS included : "visible to any
+ * authorised user viewing the event" is not qualified by role, and an
+ * Attendee viewing the event is an authorised user of it.
  *
  * AMBIGUOUS: the split between "public" and "internal planning" is not
  * specified anywhere in the brief. This list is a starting point; treat it as
@@ -33,7 +44,13 @@ export interface PublicEventView {
   proposedEnd: Date | null;
   status: EventStatus;
   registrationEnabled: boolean;
+  coordinator: CoordinatorSummary | null;
 }
+
+/** An EventRequest read with the coordinator relation resolved alongside it. */
+export type EventWithCoordinator = EventRequest & {
+  coordinator: CoordinatorSummary | null;
+};
 
 @Injectable()
 export class AccessControlService {
@@ -108,7 +125,7 @@ export class AccessControlService {
     user: AuthenticatedUser,
     eventId: string,
     action: Action = Action.READ,
-  ): Promise<EventRequest> {
+  ): Promise<EventWithCoordinator> {
     const filter = this.scopedEventFilter(user, action);
 
     const event = await this.prisma.eventRequest.findFirst({
@@ -142,11 +159,15 @@ export class AccessControlService {
   /**
    * AC-7. Projects an event down to the registration-facing fields when the
    * caller's grant is PUBLIC; full record otherwise.
+   *
+   * The coordinator relation must already be resolved on `event` (as
+   * assertEventAccess() and the COORDINATOR_SELECT-including list reads do) —
+   * US-10 AC-3 requires it in the PUBLIC projection too, not just the full one.
    */
   projectEvent(
     user: AuthenticatedUser,
-    event: EventRequest,
-  ): EventRequest | PublicEventView {
+    event: EventWithCoordinator,
+  ): EventWithCoordinator | PublicEventView {
     const scope = permissionScope(user.role as Role, Resource.EVENT, Action.READ);
 
     if (scope !== Scope.PUBLIC) {
@@ -162,6 +183,7 @@ export class AccessControlService {
       proposedEnd: event.proposedEnd,
       status: event.status,
       registrationEnabled: event.registrationEnabled,
+      coordinator: event.coordinator,
     };
   }
 }

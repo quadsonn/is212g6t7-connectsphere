@@ -113,6 +113,7 @@ export interface EventRequest {
   clarificationRequest: string | null;
   createdAt: string;
   updatedAt: string;
+  clarifications?: ClarificationMessage[];
 }
 
 /** One entry in an event's clarification thread (US-09). */

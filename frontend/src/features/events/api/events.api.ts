@@ -17,6 +17,15 @@ import type {
 export const eventsApi = {
   list: () => apiClient.get<EventRequest[]>('/events').then((r) => r.data),
 
+  listAssigned: () =>
+    apiClient.get<EventRequest[]>('/events/assigned').then((r) => r.data),
+
+  getAssignedById: (id: string) =>
+    apiClient.get<EventRequest>(`/events/assigned/${id}`).then((r) => r.data),
+
+  getMineById: (id: string) =>
+    apiClient.get<OrganiserRequestView>(`/events/mine/${id}`).then((r) => r.data),
+
   listPublic: () =>
     apiClient.get<PublicEventView[]>('/events').then((r) => r.data),
 
@@ -38,4 +47,29 @@ export const eventsApi = {
   /** US-04 — submit a draft that is now complete. */
   submitDraft: (id: string) =>
     apiClient.post<EventRequest>(`/events/${id}/submit`).then((r) => r.data),
+
+  approve: (id: string) =>
+    apiClient.post<EventRequest>(`/events/${id}/approve`).then((r) => r.data),
+
+  requestClarification: (id: string, question: string) =>
+    apiClient
+      .post<EventRequest>(`/events/${id}/clarifications`, { question })
+      .then((r) => r.data),
+
+  reject: (id: string, reason: string) =>
+    apiClient
+      .post<EventRequest>(`/events/${id}/reject`, { reason })
+      .then((r) => r.data),
+
+  returnForAmendment: (id: string, reason: string) =>
+    apiClient
+      .post<EventRequest>(`/events/${id}/return`, { reason })
+      .then((r) => r.data),
+
+  respondToClarification: (id: string, response: string) =>
+    apiClient
+      .post<OrganiserRequestView>(`/events/${id}/clarifications/responses`, {
+        response,
+      })
+      .then((r) => r.data),
 };

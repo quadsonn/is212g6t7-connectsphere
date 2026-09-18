@@ -91,6 +91,13 @@ export function OrganiserDashboard() {
                     </td>
                     <td className="px-5 py-3.5">
                       <EventStatusBadge status={event.status} />
+                      {event.status === 'REJECTED' && event.statusView.decision ? (
+                        <p className="mt-1 max-w-xs text-xs text-ink-500">
+                          {event.statusView.decision.reason ?? (
+                            <span className="italic">No reason given</span>
+                          )}
+                        </p>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

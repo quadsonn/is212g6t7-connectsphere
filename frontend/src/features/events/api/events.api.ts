@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  CoordinatorRequestView,
   EventRequest,
   EventRequestPayload,
   OrganiserRequestView,
@@ -38,4 +39,12 @@ export const eventsApi = {
   /** US-04 — submit a draft that is now complete. */
   submitDraft: (id: string) =>
     apiClient.post<EventRequest>(`/events/${id}/submit`).then((r) => r.data),
+
+  /** The Coordinator's queue, in full detail. */
+  listAssigned: () =>
+    apiClient.get<CoordinatorRequestView[]>('/events/assigned').then((r) => r.data),
+
+  /** One request from the Coordinator's queue, with every detail. */
+  getAssignedById: (id: string) =>
+    apiClient.get<CoordinatorRequestView>(`/events/assigned/${id}`).then((r) => r.data),
 };

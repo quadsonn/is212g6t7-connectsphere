@@ -40,8 +40,16 @@ export const VENUE_STATUS_STYLES: Record<VenueStatus, StatusStyle> = {
   PUBLISHED: { label: 'Published', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
 };
 
-/** Statuses a Coordinator's review queue is waiting on. */
+/** Statuses shown in the Coordinator's retained request list. */
 export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
+  'DRAFT',
   'SUBMITTED',
   'UNDER_REVIEW',
+  'AWAITING_CLARIFICATION',
+  'APPROVED',
+  'CONFIRMED',
+  'COMPLETED',
+  'CANCELLED',
+  'REJECTED',
+  'RETURNED',
 ];

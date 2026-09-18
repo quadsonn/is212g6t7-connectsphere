@@ -1,13 +1,16 @@
+import { useState } from 'react';
+
 import { PageHeader } from '@/components/layout/app-shell';
-import { Button } from '@/components/ui/button';
 import { LinkButton } from '@/components/ui/link-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select } from '@/components/ui/form';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { useEvents } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
 import { COORDINATOR_QUEUE_STATUSES } from '@/lib/status';
 import { formatDateRange } from '@/lib/utils';
+import type { EventStatus } from '@/types/api';
 
 /**
  * REAL data — GET /events returns only events assigned to this coordinator
@@ -16,9 +19,12 @@ import { formatDateRange } from '@/lib/utils';
  */
 export function CoordinatorDashboard() {
   const { data: events, isPending, isError, error } = useEvents();
+  const [statusFilter, setStatusFilter] = useState<'ALL' | EventStatus>('ALL');
 
-  const queue = events?.filter((event) =>
-    COORDINATOR_QUEUE_STATUSES.includes(event.status),
+  const queue = events?.filter(
+    (event) =>
+      COORDINATOR_QUEUE_STATUSES.includes(event.status) &&
+      (statusFilter === 'ALL' || event.status === statusFilter),
   );
 
   return (
@@ -31,7 +37,24 @@ export function CoordinatorDashboard() {
       <Card>
         <CardHeader>
           <CardTitle>Awaiting review</CardTitle>
-          {queue ? <span className="text-sm text-ink-500">{queue.length} waiting</span> : null}
+          <div className="flex items-center gap-3">
+            {events ? (
+              <Select
+                aria-label="Filter event requests by status"
+                className="h-9 w-auto min-w-44"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as 'ALL' | EventStatus)}
+              >
+                <option value="ALL">All outcomes</option>
+                {COORDINATOR_QUEUE_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status.replaceAll('_', ' ')}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+            {queue ? <span className="text-sm text-ink-500">{queue.length} waiting</span> : null}
+          </div>
         </CardHeader>
 
         {isPending ? <TableSkeleton /> : null}
@@ -44,8 +67,12 @@ export function CoordinatorDashboard() {
 
         {queue && queue.length === 0 ? (
           <EmptyState
-            title="Nothing waiting"
-            description="Requests assigned to you appear here as soon as an organiser submits them."
+            title={statusFilter === 'ALL' ? 'Nothing waiting' : 'No requests found'}
+            description={
+              statusFilter === 'ALL'
+                ? 'Requests assigned to you appear here as soon as an organiser submits them.'
+                : 'No requests currently match this status filter.'
+            }
           />
         ) : null}
 
@@ -64,20 +91,10 @@ export function CoordinatorDashboard() {
                   </p>
                 </div>
 
-                {/* Placeholder — the review action is US-05. */}
                 <div className="flex shrink-0 flex-wrap gap-2">
                   <LinkButton to={`/coordinator/events/${event.id}`} size="sm" variant="secondary">
                     View details
                   </LinkButton>
-                  <Button size="sm" variant="secondary" disabled title="Not built yet">
-                    Request clarification
-                  </Button>
-                  <Button size="sm" variant="secondary" disabled title="Not built yet">
-                    Reject
-                  </Button>
-                  <Button size="sm" disabled title="Not built yet">
-                    Approve
-                  </Button>
                 </div>
               </li>
             ))}

@@ -530,29 +530,30 @@ export function OrganiserNewRequest() {
               />
             </Field>
 
-            <fieldset>
-              <legend className="mb-1.5 block text-sm font-medium text-ink-800">
-                Accessibility requirements
-              </legend>
-              <div className="grid gap-0.5 sm:grid-cols-2">
+            <Field
+              label="Accessibility requirements"
+              htmlFor="accessibilityRequirements"
+              errors={errors.accessibilityRequirements}
+            >
+              <Select
+                id="accessibilityRequirements"
+                value={form.accessibilityRequirements[0] ?? ''}
+                onChange={(e) =>
+                  set(
+                    'accessibilityRequirements',
+                    e.target.value ? [e.target.value as AccessibilityFeature] : [],
+                  )
+                }
+                aria-invalid={invalid('accessibilityRequirements')}
+              >
+                <option value="">None</option>
                 {ACCESSIBILITY_FEATURES.map((feature) => (
-                  <CheckboxRow
-                    key={feature}
-                    id={`access-${feature}`}
-                    label={humanise(feature)}
-                    checked={form.accessibilityRequirements.includes(feature)}
-                    onChange={(checked) =>
-                      set(
-                        'accessibilityRequirements',
-                        checked
-                          ? [...form.accessibilityRequirements, feature]
-                          : form.accessibilityRequirements.filter((f) => f !== feature),
-                      )
-                    }
-                  />
+                  <option key={feature} value={feature}>
+                    {humanise(feature)}
+                  </option>
                 ))}
-              </div>
-            </fieldset>
+              </Select>
+            </Field>
 
             <Field
               label="Accessibility notes"

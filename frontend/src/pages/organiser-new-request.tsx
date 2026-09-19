@@ -54,7 +54,7 @@ interface FormState {
   expectedAttendance: string;
   preferredLayout: string;
   layoutNotes: string;
-  accessibilityRequirements: AccessibilityFeature[];
+  accessibilityRequirements: string;
   accessibilityNotes: string;
   equipmentNeeds: string;
   registrationEnabled: boolean;
@@ -116,6 +116,9 @@ function isoToLocalParts(iso: string | null): { date: string; time: string } {
  */
 const OTHER_LAYOUT = 'OTHER';
 
+/** Same idea for accessibility: 'Other' is described in accessibilityNotes. */
+const OTHER_ACCESS = 'OTHER';
+
 const EMPTY: FormState = {
   name: '',
   purpose: '',
@@ -128,7 +131,7 @@ const EMPTY: FormState = {
   expectedAttendance: '',
   preferredLayout: '',
   layoutNotes: '',
-  accessibilityRequirements: [],
+  accessibilityRequirements: '',
   accessibilityNotes: '',
   equipmentNeeds: '',
   registrationEnabled: false,
@@ -152,7 +155,7 @@ function mapExistingToForm(existing: OrganiserRequestView): FormState {
       existing.expectedAttendance != null ? String(existing.expectedAttendance) : '',
     preferredLayout: existing.preferredLayout ?? '',
     layoutNotes: existing.layoutNotes ?? '',
-    accessibilityRequirements: existing.accessibilityRequirements,
+    accessibilityRequirements: existing.accessibilityRequirements[0] ?? '',
     accessibilityNotes: existing.accessibilityNotes ?? '',
     equipmentNeeds: existing.equipmentNeeds ?? '',
     registrationEnabled: existing.registrationEnabled,
@@ -189,9 +192,10 @@ function toPayload(form: FormState): EventRequestPayload {
         : ((text(form.preferredLayout) as RoomLayout) ?? undefined),
     layoutNotes: text(form.layoutNotes),
     accessibilityRequirements:
-      form.accessibilityRequirements.length > 0
-        ? form.accessibilityRequirements
-        : undefined,
+      form.accessibilityRequirements === '' ||
+      form.accessibilityRequirements === OTHER_ACCESS
+        ? undefined
+        : [form.accessibilityRequirements as AccessibilityFeature],
     accessibilityNotes: text(form.accessibilityNotes),
     equipmentNeeds: text(form.equipmentNeeds),
     registrationEnabled: form.registrationEnabled,
@@ -534,16 +538,16 @@ export function OrganiserNewRequest() {
               label="Accessibility requirements"
               htmlFor="accessibilityRequirements"
               errors={errors.accessibilityRequirements}
+              hint={
+                form.accessibilityRequirements === OTHER_ACCESS
+                  ? 'Please describe the accessibility requirements you need in the notes below.'
+                  : undefined
+              }
             >
               <Select
                 id="accessibilityRequirements"
-                value={form.accessibilityRequirements[0] ?? ''}
-                onChange={(e) =>
-                  set(
-                    'accessibilityRequirements',
-                    e.target.value ? [e.target.value as AccessibilityFeature] : [],
-                  )
-                }
+                value={form.accessibilityRequirements}
+                onChange={(e) => set('accessibilityRequirements', e.target.value)}
                 aria-invalid={invalid('accessibilityRequirements')}
               >
                 <option value="">None</option>
@@ -552,6 +556,7 @@ export function OrganiserNewRequest() {
                     {humanise(feature)}
                   </option>
                 ))}
+                <option value={OTHER_ACCESS}>Other</option>
               </Select>
             </Field>
 

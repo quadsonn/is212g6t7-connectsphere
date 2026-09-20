@@ -18,6 +18,7 @@ import { ATTENDANCE_BANDS } from '@/lib/attendance-bands';
 import { EDITABLE_EVENT_STATUSES } from '@/lib/status';
 import {
   ACCESSIBILITY_FEATURES,
+  ACCESSIBILITY_FEATURE_LABELS,
   ROOM_LAYOUTS,
   type AccessibilityFeature,
   type EventRequestPayload,
@@ -553,7 +554,7 @@ export function OrganiserNewRequest() {
                 <option value="">None</option>
                 {ACCESSIBILITY_FEATURES.map((feature) => (
                   <option key={feature} value={feature}>
-                    {humanise(feature)}
+                    {ACCESSIBILITY_FEATURE_LABELS[feature]}
                   </option>
                 ))}
                 <option value={OTHER_ACCESS}>Other</option>

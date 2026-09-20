@@ -12,6 +12,7 @@ import { apiErrorMessage } from '@/lib/api-client';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { EDITABLE_EVENT_STATUSES } from '@/lib/status';
 import { formatDate, humanise } from '@/lib/utils';
+import { ACCESSIBILITY_FEATURE_LABELS } from '@/types/api';
 
 /** A labelled value in the detail grid — dash when the field is still empty (a draft, US-04). */
 function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
@@ -164,7 +165,9 @@ export function OrganiserRequestDetail() {
                   label="Accessibility requirements"
                   value={
                     event.accessibilityRequirements.length > 0
-                      ? event.accessibilityRequirements.map(humanise).join(', ')
+                      ? event.accessibilityRequirements
+                          .map((f) => ACCESSIBILITY_FEATURE_LABELS[f])
+                          .join(', ')
                       : null
                   }
                 />

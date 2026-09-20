@@ -42,13 +42,28 @@ export const ROOM_LAYOUTS = [
 ] as const;
 export type RoomLayout = (typeof ROOM_LAYOUTS)[number];
 
-/** Mirrors the backend AccessibilityFeature enum (US-06). */
+/** Mirrors the backend AccessibilityFeature enum (US-06), in display order. */
 export const ACCESSIBILITY_FEATURES = [
   'STEP_FREE_ACCESS',
-  'HEARING_LOOP',
+  'WHEELCHAIR_ACCESSIBLE_LIFT',
+  'ACCESSIBLE_PARKING',
   'ACCESSIBLE_RESTROOMS',
+  'WHEELCHAIR_SEATING',
+  'HEARING_LOOP',
+  'NURSING_ROOM',
 ] as const;
 export type AccessibilityFeature = (typeof ACCESSIBILITY_FEATURES)[number];
+
+/** Labels that `humanise()` can't derive from the enum code. */
+export const ACCESSIBILITY_FEATURE_LABELS: Record<AccessibilityFeature, string> = {
+  STEP_FREE_ACCESS: 'Step-free access',
+  WHEELCHAIR_ACCESSIBLE_LIFT: 'Wheelchair-accessible lift',
+  ACCESSIBLE_PARKING: 'Accessible parking / drop-off',
+  ACCESSIBLE_RESTROOMS: 'Wheelchair-accessible restrooms',
+  WHEELCHAIR_SEATING: 'Wheelchair seating spaces',
+  HEARING_LOOP: 'Hearing loop',
+  NURSING_ROOM: 'Nursing room',
+};
 
 /** Mirrors the backend VenueStatus enum. */
 export type VenueStatus = 'DRAFT' | 'PUBLISHED';

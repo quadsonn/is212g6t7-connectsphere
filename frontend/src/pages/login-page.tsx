@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { Wordmark } from '@/components/ui/logo';
 import { ErrorState } from '@/components/ui/states';
+import { ParticleSphere } from '@/components/ui/particle-sphere';
 import { HOME_BY_ROLE } from '@/components/layout/nav-config';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { apiErrorMessage } from '@/lib/api-client';
@@ -34,9 +35,6 @@ export function LoginPage() {
       const from = (location.state as { from?: string } | null)?.from;
       navigate(from ?? HOME_BY_ROLE[session.role], { replace: true });
     } catch (caught) {
-      // The API returns one generic message for every credential failure
-      // (US-01 AC-2) and a helpline message when locked out (AC-5). Surface
-      // whatever it said rather than inventing our own wording.
       setError(apiErrorMessage(caught, 'Unable to sign in. Please try again.'));
     } finally {
       setSubmitting(false);
@@ -44,13 +42,15 @@ export function LoginPage() {
   };
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      <div className="flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm">
+    <div className="relative min-h-screen overflow-hidden bg-[#0B0A1E]">
+      <ParticleSphere className="absolute inset-0" pointCount={5000} />
+
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-10 px-6 py-12">
+        <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/10 p-8 shadow-2xl backdrop-blur-xl">
           <Wordmark className="mb-8" />
 
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-900">Sign in</h1>
-          <p className="mt-1.5 text-sm text-ink-500">
+          <h1 className="text-2xl font-semibold tracking-tight text-white">Sign in</h1>
+          <p className="mt-1.5 text-sm text-white/60">
             Access your ConnectSphere workspace.
           </p>
 
@@ -58,7 +58,9 @@ export function LoginPage() {
             {error ? <ErrorState message={error} /> : null}
 
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email address</Label>
+              <Label htmlFor="email" className="text-white/80">
+                Email address
+              </Label>
               <Input
                 id="email"
                 name="email"
@@ -73,7 +75,9 @@ export function LoginPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-white/80">
+                Password
+              </Label>
               <Input
                 id="password"
                 name="password"
@@ -95,18 +99,12 @@ export function LoginPage() {
             </p>
           </form>
         </div>
-      </div>
 
-      {/* Brand panel — decorative, hidden from assistive tech. */}
-      <div
-        aria-hidden="true"
-        className="hidden bg-brand-700 lg:flex lg:flex-col lg:justify-end lg:p-12"
-      >
-        <div className="max-w-md">
-          <p className="text-2xl font-semibold leading-snug text-white">
+        <div aria-hidden="true" className="max-w-md text-center">
+          <p className="text-xl font-semibold leading-snug text-white">
             Every event, from first request to final headcount.
           </p>
-          <p className="mt-3 text-sm leading-relaxed text-brand-200">
+          <p className="mt-2 text-sm leading-relaxed text-white/60">
             ConnectSphere brings organisers, coordinators, venue teams and
             attendees into one coordinated workflow.
           </p>

@@ -10,11 +10,14 @@ import { useVenues } from '@/features/venues/hooks/use-venues';
 import { apiErrorMessage } from '@/lib/api-client';
 import { VENUE_STATUS_STYLES } from '@/lib/status';
 import type { BrowseVenuesQuery } from '@/types/api';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 /** REAL data — GET /venues (US-13, US-15). */
 export function VenueDashboard() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<BrowseVenuesQuery['sortBy']>('name');
+  const navigate = useNavigate();
 
   const { data: venues, isPending, isError, error } = useVenues({
     // Sent to the server, which does the filtering — not a client-side filter
@@ -25,10 +28,13 @@ export function VenueDashboard() {
 
   return (
     <>
-      <PageHeader
-        title="Venue catalogue"
-        description="Spaces you maintain, and whether each is published for booking."
-      />
+      <div className="flex items-start justify-between gap-4">
+        <PageHeader
+          title="Venue catalogue"
+          description="Spaces you maintain, and whether each is published for booking."
+        />
+        <Button onClick={() => navigate('/venues/new')}>+ Add venue</Button>
+      </div>
 
       <Card>
         <CardHeader>

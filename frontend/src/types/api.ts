@@ -242,3 +242,26 @@ export interface ApiErrorBody {
   error?: string;
   loginUrl?: string;
 }
+
+/**
+ * US-13 (Add a new venue) AC-1/AC-2 and US-14 (Update a venue's details) AC-1:
+ * body for POST /venues/drafts and PATCH /venues/:id.
+ * Every field optional — US-13 AC-2 requires an incomplete venue to be saveable.
+ */
+export interface VenueDraftPayload {
+  name?: string | null;
+  location?: string | null;
+  capacity?: number | null;
+  facilities?: string[];
+  accessibilityFeatures?: string[];
+  supportedLayouts?: RoomLayout[];
+  operatingInfo?: string;
+}
+
+/**
+ * US-14 AC-3: "notified that existing bookings may need review" — the PATCH
+ * response carries that warning inline, on top of the updated venue.
+ */
+export interface VenueWithWarnings extends Venue {
+  warnings: VenueUpdateWarning[];
+}

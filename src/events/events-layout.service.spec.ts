@@ -149,6 +149,28 @@ describe('EventsService layout & accessibility (US-06)', () => {
       ]);
       expect(data.accessibilityNotes).toMatch(/same floor/);
     });
+
+    it('accepts every feature in the extended list, not just the original three', async () => {
+      const all = Object.values(AccessibilityFeature);
+      expect(all).toEqual([
+        AccessibilityFeature.STEP_FREE_ACCESS,
+        AccessibilityFeature.WHEELCHAIR_ACCESSIBLE_LIFT,
+        AccessibilityFeature.ACCESSIBLE_PARKING,
+        AccessibilityFeature.ACCESSIBLE_RESTROOMS,
+        AccessibilityFeature.WHEELCHAIR_SEATING,
+        AccessibilityFeature.HEARING_LOOP,
+        AccessibilityFeature.NURSING_ROOM,
+      ]);
+
+      await service.createAndSubmit(
+        organiser,
+        submission({ accessibilityRequirements: all }),
+      );
+
+      expect(
+        prisma.eventRequest.create.mock.calls[0][0].data.accessibilityRequirements,
+      ).toEqual(all);
+    });
   });
 
   describe('AC-4: values persist on a draft too', () => {

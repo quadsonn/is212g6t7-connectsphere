@@ -83,14 +83,16 @@ enum RoomLayout {
 
 // US-06: accessibility requirements an Organiser may record.
 //
-// AMBIGUOUS: the AC lists these three after "e.g.", so the real list is almost
-// certainly longer. Only the named three are here — extending it is a customer
-// conversation, and free-text accessibilityNotes covers anything missing in
-// the meantime.
+// The AC lists three after "e.g."; the list below is the agreed fuller set.
+// Anything not covered goes in free-text accessibilityNotes.
 enum AccessibilityFeature {
   STEP_FREE_ACCESS
-  HEARING_LOOP
+  WHEELCHAIR_ACCESSIBLE_LIFT
+  ACCESSIBLE_PARKING
   ACCESSIBLE_RESTROOMS
+  WHEELCHAIR_SEATING
+  HEARING_LOOP
+  NURSING_ROOM
 }
 
 // Venue catalogue lifecycle. Venue Staff draft a venue, then publish it so it

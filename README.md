@@ -65,6 +65,7 @@ All seeded accounts use the password `12345678`:
 |---|---|
 | `organiser@connectsphere.local` | Event Organiser |
 | `coordinator@connectsphere.local` | Event Coordinator |
+| `coordinator2@connectsphere.local` | Event Coordinator 2 |
 | `venue@connectsphere.local` | Venue Staff |
 | `tech@connectsphere.local` | Technical Support |
 | `attendee@connectsphere.local` | Attendee |

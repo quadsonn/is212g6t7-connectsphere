@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  CoordinatorRequestView,
   EventRequest,
   EventRequestPayload,
   OrganiserRequestView,
@@ -16,6 +17,9 @@ import type {
  */
 export const eventsApi = {
   list: () => apiClient.get<EventRequest[]>('/events').then((r) => r.data),
+
+  getMineById: (id: string) =>
+    apiClient.get<OrganiserRequestView>(`/events/mine/${id}`).then((r) => r.data),
 
   listPublic: () =>
     apiClient.get<PublicEventView[]>('/events').then((r) => r.data),
@@ -46,4 +50,43 @@ export const eventsApi = {
   /** US-04 — submit a draft that is now complete. */
   submitDraft: (id: string) =>
     apiClient.post<EventRequest>(`/events/${id}/submit`).then((r) => r.data),
+
+  /** The Coordinator's queue, in full detail. */
+  listAssigned: () =>
+    apiClient.get<CoordinatorRequestView[]>('/events/assigned').then((r) => r.data),
+
+  /** One request from the Coordinator's queue, with every detail. */
+  getAssignedById: (id: string) =>
+    apiClient.get<CoordinatorRequestView>(`/events/assigned/${id}`).then((r) => r.data),
+
+  /** US-10 — link a Coordinator to a request as its main point of contact. */
+  assignCoordinator: (id: string, coordinatorId: string) =>
+    apiClient
+      .patch<CoordinatorRequestView>(`/events/${id}/coordinator`, { coordinatorId })
+      .then((r) => r.data),
+
+  approve: (id: string) =>
+    apiClient.post<EventRequest>(`/events/${id}/approve`).then((r) => r.data),
+
+  requestClarification: (id: string, question: string) =>
+    apiClient
+      .post<EventRequest>(`/events/${id}/clarifications`, { question })
+      .then((r) => r.data),
+
+  reject: (id: string, reason: string) =>
+    apiClient
+      .post<EventRequest>(`/events/${id}/reject`, { reason })
+      .then((r) => r.data),
+
+  returnForAmendment: (id: string, reason: string) =>
+    apiClient
+      .post<EventRequest>(`/events/${id}/return`, { reason })
+      .then((r) => r.data),
+
+  respondToClarification: (id: string, response: string) =>
+    apiClient
+      .post<OrganiserRequestView>(`/events/${id}/clarifications/responses`, {
+        response,
+      })
+      .then((r) => r.data),
 };

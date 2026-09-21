@@ -128,6 +128,7 @@ export interface EventRequest {
   clarificationRequest: string | null;
   createdAt: string;
   updatedAt: string;
+  clarifications?: ClarificationMessage[];
 }
 
 /** One entry in an event's clarification thread (US-09). */
@@ -171,9 +172,27 @@ export interface OrganiserRequestView extends EventRequest {
   clarificationRequested: boolean;
 }
 
+/** A user's contact details, resolved from an id (coordinator, organiser). */
+export interface ContactSummary {
+  id: string;
+  name: string;
+  email: string;
+}
+
+/** GET /events/assigned and GET /events/assigned/:id — the Coordinator's view. */
+export interface CoordinatorRequestView extends OrganiserRequestView {
+  coordinator: ContactSummary | null;
+  organiser: ContactSummary;
+  clarifications: ClarificationMessage[];
+}
+
 /**
- * GET /events as returned to an Attendee — the backend projects internal
- * planning fields away (US-02 AC-7), so this is a genuinely different shape.
+ * GET /events — the Attendee's view. The backend projects internal planning
+ * fields away (US-02 AC-7), so this is a genuinely different shape from
+ * EventRequest.
+ *
+ * `coordinator` IS included here (US-10 AC-3): the assigned point of contact
+ * is visible to any authorised user, not just Organisers/Coordinators.
  */
 export interface PublicEventView {
   id: string;
@@ -184,6 +203,7 @@ export interface PublicEventView {
   proposedEnd: string | null;
   status: EventStatus;
   registrationEnabled: boolean;
+  coordinator: ContactSummary | null;
 }
 
 /** Venue catalogue. Endpoint not built yet — served by a mock service. */

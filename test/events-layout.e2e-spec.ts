@@ -159,6 +159,22 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       expect(res.body.accessibilityNotes).toMatch(/same floor/);
     });
 
+    it('accepts the newer features added to the list', async () => {
+      const added = [
+        'WHEELCHAIR_ACCESSIBLE_LIFT',
+        'ACCESSIBLE_PARKING',
+        'WHEELCHAIR_SEATING',
+        'NURSING_ROOM',
+      ];
+      const res = await http()
+        .post('/events')
+        .set('Authorization', as('organiser'))
+        .send({ ...completeFields, accessibilityRequirements: added })
+        .expect(201);
+
+      expect(res.body.accessibilityRequirements).toEqual(added);
+    });
+
     it('rejects an unrecognised requirement', async () => {
       const res = await http()
         .post('/events')

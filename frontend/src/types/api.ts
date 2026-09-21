@@ -42,13 +42,28 @@ export const ROOM_LAYOUTS = [
 ] as const;
 export type RoomLayout = (typeof ROOM_LAYOUTS)[number];
 
-/** Mirrors the backend AccessibilityFeature enum (US-06). */
+/** Mirrors the backend AccessibilityFeature enum (US-06), in display order. */
 export const ACCESSIBILITY_FEATURES = [
   'STEP_FREE_ACCESS',
-  'HEARING_LOOP',
+  'WHEELCHAIR_ACCESSIBLE_LIFT',
+  'ACCESSIBLE_PARKING',
   'ACCESSIBLE_RESTROOMS',
+  'WHEELCHAIR_SEATING',
+  'HEARING_LOOP',
+  'NURSING_ROOM',
 ] as const;
 export type AccessibilityFeature = (typeof ACCESSIBILITY_FEATURES)[number];
+
+/** Labels that `humanise()` can't derive from the enum code. */
+export const ACCESSIBILITY_FEATURE_LABELS: Record<AccessibilityFeature, string> = {
+  STEP_FREE_ACCESS: 'Step-free access',
+  WHEELCHAIR_ACCESSIBLE_LIFT: 'Wheelchair-accessible lift',
+  ACCESSIBLE_PARKING: 'Accessible parking / drop-off',
+  ACCESSIBLE_RESTROOMS: 'Wheelchair-accessible restrooms',
+  WHEELCHAIR_SEATING: 'Wheelchair seating spaces',
+  HEARING_LOOP: 'Hearing loop',
+  NURSING_ROOM: 'Nursing room',
+};
 
 /** Mirrors the backend VenueStatus enum. */
 export type VenueStatus = 'DRAFT' | 'PUBLISHED';
@@ -113,6 +128,7 @@ export interface EventRequest {
   clarificationRequest: string | null;
   createdAt: string;
   updatedAt: string;
+  clarifications?: ClarificationMessage[];
 }
 
 /** One entry in an event's clarification thread (US-09). */
@@ -156,9 +172,27 @@ export interface OrganiserRequestView extends EventRequest {
   clarificationRequested: boolean;
 }
 
+/** A user's contact details, resolved from an id (coordinator, organiser). */
+export interface ContactSummary {
+  id: string;
+  name: string;
+  email: string;
+}
+
+/** GET /events/assigned and GET /events/assigned/:id — the Coordinator's view. */
+export interface CoordinatorRequestView extends OrganiserRequestView {
+  coordinator: ContactSummary | null;
+  organiser: ContactSummary;
+  clarifications: ClarificationMessage[];
+}
+
 /**
- * GET /events as returned to an Attendee — the backend projects internal
- * planning fields away (US-02 AC-7), so this is a genuinely different shape.
+ * GET /events — the Attendee's view. The backend projects internal planning
+ * fields away (US-02 AC-7), so this is a genuinely different shape from
+ * EventRequest.
+ *
+ * `coordinator` IS included here (US-10 AC-3): the assigned point of contact
+ * is visible to any authorised user, not just Organisers/Coordinators.
  */
 export interface PublicEventView {
   id: string;
@@ -169,6 +203,7 @@ export interface PublicEventView {
   proposedEnd: string | null;
   status: EventStatus;
   registrationEnabled: boolean;
+  coordinator: ContactSummary | null;
 }
 
 /** Venue catalogue. Endpoint not built yet — served by a mock service. */
@@ -241,4 +276,27 @@ export interface ApiErrorBody {
   message: string | string[];
   error?: string;
   loginUrl?: string;
+}
+
+/**
+ * US-13 (Add a new venue) AC-1/AC-2 and US-14 (Update a venue's details) AC-1:
+ * body for POST /venues/drafts and PATCH /venues/:id.
+ * Every field optional — US-13 AC-2 requires an incomplete venue to be saveable.
+ */
+export interface VenueDraftPayload {
+  name?: string | null;
+  location?: string | null;
+  capacity?: number | null;
+  facilities?: string[];
+  accessibilityFeatures?: string[];
+  supportedLayouts?: RoomLayout[];
+  operatingInfo?: string;
+}
+
+/**
+ * US-14 AC-3: "notified that existing bookings may need review" — the PATCH
+ * response carries that warning inline, on top of the updated venue.
+ */
+export interface VenueWithWarnings extends Venue {
+  warnings: VenueUpdateWarning[];
 }

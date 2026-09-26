@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import {
 } from './dto/browse-venues.dto';
 import { PublishableVenueDto } from './dto/publishable-venue.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 /**
  * The staff-editable scalar columns, typed as the subset Prisma accepts for
@@ -59,6 +61,7 @@ export class VenuesService {
     private readonly access: AccessControlService,
     private readonly bookings: VenueBookingLookup,
     private readonly notifications: NotificationsService,
+    private readonly storage: SupabaseStorageService,
   ) {}
 
   /**
@@ -299,6 +302,70 @@ export class VenuesService {
     return this.prisma.venue.update({
       where: { id: venue.id },
       data: { status: VenueStatus.PUBLISHED },
+    });
+  }
+
+  /**
+   * Permanently deletes a venue. The database's Restrict constraint on
+   * VenueBooking blocks this while any booking still references it (P2003) —
+   * caught here and turned into a clear 409 instead of a raw Prisma error
+   * leaking through to the client.
+   */
+  async remove(user: AuthenticatedUser, id: string): Promise<void> {
+    const venue = await this.findManaged(user, id, Action.UPDATE);
+
+    try {
+      await this.prisma.venue.delete({ where: { id: venue.id } });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new ConflictException(
+          'This venue has existing bookings and cannot be deleted.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Uploads one image to Supabase Storage and appends its public URL to the
+   * venue's photo carousel. Ownership is checked the same way every other
+   * write is (findManaged) — the upload itself never runs for a venue this
+   * staff member doesn't manage.
+   */
+  async addImage(
+    user: AuthenticatedUser,
+    id: string,
+    file: Express.Multer.File,
+  ): Promise<Venue> {
+    const venue = await this.findManaged(user, id, Action.UPDATE);
+    const url = await this.storage.uploadVenueImage(venue.id, file);
+
+    return this.prisma.venue.update({
+      where: { id: venue.id },
+      data: { imageUrls: { push: url } },
+    });
+  }
+
+  /**
+   * Removes one image URL from the venue's photo carousel. Only drops the
+   * database reference — the file itself stays in Supabase Storage, which is
+   * an acceptable tradeoff here rather than adding a second failure mode
+   * (what happens if the DB update succeeds but the storage delete fails,
+   * or vice versa).
+   */
+  async removeImage(
+    user: AuthenticatedUser,
+    id: string,
+    imageUrl: string,
+  ): Promise<Venue> {
+    const venue = await this.findManaged(user, id, Action.UPDATE);
+
+    return this.prisma.venue.update({
+      where: { id: venue.id },
+      data: { imageUrls: venue.imageUrls.filter((u) => u !== imageUrl) },
     });
   }
 

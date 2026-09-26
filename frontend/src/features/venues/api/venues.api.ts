@@ -28,6 +28,25 @@ export const venuesApi = {
   // US-13 AC-3/AC-5: publish once all required fields are complete.
   publish: (id: string) =>
     apiClient.post<Venue>(`/venues/${id}/publish`).then((r) => r.data),
+
+  // US-13/US-14 — permanently remove a venue. The backend rejects this
+  // (Restrict constraint) if any bookings still reference it.
+  delete: (id: string) => apiClient.delete(`/venues/${id}`).then(() => undefined),
+
+  uploadImage: (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient
+      .post<Venue>(`/venues/${id}/images`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
+
+  removeImage: (id: string, imageUrl: string) =>
+    apiClient
+      .delete<Venue>(`/venues/${id}/images`, { data: { imageUrl } })
+      .then((r) => r.data),
 };
 
 /** Kept so the dashboard's mock banner disappears rather than being deleted twice. */

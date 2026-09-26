@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   HttpCode,
@@ -9,7 +10,9 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 
@@ -23,6 +26,7 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { BrowseVenuesDto } from './dto/browse-venues.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('venues')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -75,6 +79,34 @@ export class VenuesController {
   @HttpCode(HttpStatus.OK)
   publish(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.venuesService.publish(user, id);
+  }
+
+  @Delete(':id')
+  @Roles(Role.VENUE_STAFF)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.venuesService.remove(user, id);
+  }
+
+  @Post(':id/images')
+  @Roles(Role.VENUE_STAFF)
+  @UseInterceptors(FileInterceptor('file'))
+  addImage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.venuesService.addImage(user, id, file);
+  }
+
+  @Delete(':id/images')
+  @Roles(Role.VENUE_STAFF)
+  removeImage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body('imageUrl') imageUrl: string,
+  ) {
+    return this.venuesService.removeImage(user, id, imageUrl);
   }
 
   /** Declared after the literal routes above so "drafts" is not read as an id. */

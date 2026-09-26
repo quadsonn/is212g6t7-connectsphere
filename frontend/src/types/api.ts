@@ -39,6 +39,8 @@ export const ROOM_LAYOUTS = [
   'CLASSROOM',
   'BANQUET',
   'BOARDROOM',
+  'EVENT_HALL',
+  'U_SHAPE',
 ] as const;
 export type RoomLayout = (typeof ROOM_LAYOUTS)[number];
 
@@ -224,6 +226,7 @@ export interface Venue {
   managedById: string | null;
   createdAt: string;
   updatedAt: string;
+  imageUrls: string[];
 }
 
 /** US-14 — a warning returned alongside an edit that may invalidate bookings. */
@@ -290,7 +293,8 @@ export interface VenueDraftPayload {
   facilities?: string[];
   accessibilityFeatures?: string[];
   supportedLayouts?: RoomLayout[];
-  operatingInfo?: string;
+  layoutNotes?: string | null;
+  operatingInfo?: string | null;
 }
 
 /**

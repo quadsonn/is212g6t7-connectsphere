@@ -31,7 +31,11 @@ cp .env.example .env
 cp frontend/.env.example frontend/.env
 ```
 
-Then edit `.env` and set `DATABASE_URL` / `TEST_DATABASE_URL` for your machine.
+Then edit `.env` and set `DATABASE_URL` / `DIRECT_URL` / `TEST_DATABASE_URL` for
+your machine. Locally, `DATABASE_URL` and `DIRECT_URL` can be the same value —
+`DIRECT_URL` only needs to differ when the database is behind a connection
+pooler (e.g. a hosted database), which isn't the case for a local setup.
+
 **The username differs by install method** — Homebrew Postgres uses your macOS
 username with no password, Docker images usually use `postgres:postgres`:
 
@@ -39,6 +43,11 @@ username with no password, Docker images usually use `postgres:postgres`:
 # Homebrew: print the line to paste
 echo "postgresql://$(whoami)@localhost:5432/connectsphere?schema=public"
 ```
+
+**Optional:** venue photo uploads use Supabase Storage and need two more
+`.env` values, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (see
+`.env.example`). Without them, everything else works normally — only
+uploading a photo on a venue's edit page won't.
 
 ### 4. Create and populate the database
 
@@ -96,9 +105,34 @@ run, and runs serially (`maxWorkers: 1`) because the suites share that database.
 
 | Symptom | Cause |
 |---|---|
-| `Environment variable not found: DATABASE_URL` | No `.env` — see step 3 |
+| `Environment variable not found: DATABASE_URL` or `DIRECT_URL` | No `.env`, or missing a variable — see step 3 |
 | `password authentication failed` / `role does not exist` | `DATABASE_URL` username is wrong for your Postgres install |
 | `Property 'x' does not exist on type` after pulling | Schema changed — run `npx prisma generate` |
 | `Cannot reach the server` in the browser | API isn't running, or `VITE_API_URL` doesn't match |
 | Login rejects a correct password | US-01 lockout after 15 failures: `psql -d connectsphere -c 'update "User" set "lockedUntil"=null, "failedLoginAttempts"=0'` |
 | Everything fails after a reboot | Postgres isn't running (see step 1) |
+| "Bucket not found" when uploading a venue photo | Supabase Storage isn't configured — see the optional note in step 3 |
+
+---
+
+## Team setup notes (delete before submission)
+
+For teammates already running an older clone, migrating to the shared
+Supabase database and picking up the venue-photos feature:
+
+```bash
+git pull
+npm install
+npx prisma generate
+```
+
+Then update your own `.env`:
+- Replace `DATABASE_URL` with the shared Supabase pooled connection string.
+- Add `DIRECT_URL` — the matching Supabase direct connection string.
+- Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (needed for venue photo
+  uploads).
+
+Get the actual values from [teammate] — don't commit them anywhere.
+
+Then run `npx prisma migrate deploy` once to bring your local Prisma Client
+in sync with the shared database's schema, and restart your dev server.

@@ -4,6 +4,7 @@ import { BookingsModule } from '../bookings/bookings.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { VenuesController } from './venues.controller';
 import { VenuesService } from './venues.service';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 /**
  * E4 — catalogue, availability, search/filter, suitability.
@@ -12,7 +13,7 @@ import { VenuesService } from './venues.service';
 @Module({
   imports: [BookingsModule, NotificationsModule],
   controllers: [VenuesController],
-  providers: [VenuesService],
+  providers: [VenuesService, SupabaseStorageService],
   exports: [VenuesService],
 })
 export class VenuesModule {}

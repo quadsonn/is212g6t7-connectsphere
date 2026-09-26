@@ -13,6 +13,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +80,8 @@ enum RoomLayout {
   CLASSROOM
   BANQUET
   BOARDROOM
+  EVENT_HALL
+  U_SHAPE
 }
 
 // US-06: accessibility requirements an Organiser may record.
@@ -271,7 +274,13 @@ model Venue {
   // that happen to look alike.
   supportedLayouts RoomLayout[] @default([])
 
+  // Free-text qualification for a layout not in the fixed list, mirroring
+  // EventRequest.layoutNotes — kept separate from supportedLayouts since
+  // that's a Postgres enum array and can't hold arbitrary text.
+  layoutNotes String?
+
   operatingInfo String?
+  imageUrls String[] @default([])
 
   status VenueStatus @default(DRAFT)
 

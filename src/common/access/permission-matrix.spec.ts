@@ -21,7 +21,7 @@ describe('Permission matrix (US-02)', () => {
 
     it('denies a resource the role has no row for', () => {
       expect(permissionScope(Role.ATTENDEE, Resource.BOOKING, Action.READ)).toBeNull();
-      expect(permissionScope(Role.VENUE_STAFF, Resource.EVENT, Action.READ)).toBeNull();
+      expect(permissionScope(Role.VENUE_STAFF, Resource.REGISTRATION, Action.READ)).toBeNull();
     });
 
     it('denies every action on a resource no role was granted', () => {
@@ -133,9 +133,11 @@ describe('Permission matrix (US-02)', () => {
           Role.EVENT_ORGANISER,
           Role.EVENT_COORDINATOR,
           Role.ATTENDEE,
+          // US-25 AC-3, at RELATED scope only.
+          Role.VENUE_STAFF,
+          Role.TECHNICAL_SUPPORT_STAFF,
         ]),
       );
-      expect(roles).not.toContain(Role.VENUE_STAFF);
     });
 
     it('returns an empty list rather than every role when nobody is granted', () => {
@@ -238,7 +240,7 @@ describe('Permission matrix (US-02)', () => {
     it('does not let another role read at OWN scope', () => {
       expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.READ)).toBe(Scope.ASSIGNED);
       expect(permissionScope(Role.ATTENDEE, Resource.EVENT, Action.READ)).toBe(Scope.PUBLIC);
-      expect(isPermitted(Role.VENUE_STAFF, Resource.EVENT, Action.READ)).toBe(false);
+      expect(permissionScope(Role.VENUE_STAFF, Resource.EVENT, Action.READ)).toBe(Scope.RELATED);
     });
   });
 
@@ -289,8 +291,9 @@ describe('Permission matrix (US-02)', () => {
     });
 
     it('gives no other role sight of an assigned event’s full detail', () => {
-      expect(isPermitted(Role.VENUE_STAFF, Resource.EVENT, Action.READ)).toBe(false);
-      expect(isPermitted(Role.TECHNICAL_SUPPORT_STAFF, Resource.EVENT, Action.READ)).toBe(false);
+      // US-25 AC-3 opened RELATED reads to staff; ASSIGNED stays Coordinator-only.
+      expect(permissionScope(Role.VENUE_STAFF, Resource.EVENT, Action.READ)).toBe(Scope.RELATED);
+      expect(permissionScope(Role.TECHNICAL_SUPPORT_STAFF, Resource.EVENT, Action.READ)).toBe(Scope.RELATED);
       expect(permissionScope(Role.ATTENDEE, Resource.EVENT, Action.READ)).toBe(Scope.PUBLIC);
     });
   });
@@ -448,5 +451,31 @@ describe('Permission matrix (US-02)', () => {
 
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
+  });
+
+  describe('US-25 rows', () => {
+    it('lets Venue Staff and Technical Support read related events only', () => {
+      for (const role of [Role.VENUE_STAFF, Role.TECHNICAL_SUPPORT_STAFF]) {
+        expect(permissionScope(role, Resource.EVENT, Action.READ)).toBe(Scope.RELATED);
+      }
+    });
+
+    it('gives them no other event verb', () => {
+      for (const role of [Role.VENUE_STAFF, Role.TECHNICAL_SUPPORT_STAFF]) {
+        for (const action of Object.values(Action).filter((a) => a !== Action.READ)) {
+          expect(isPermitted(role, Resource.EVENT, action)).toBe(false);
+        }
+      }
+    });
+
+    it('covers the planning edit with the Coordinator’s existing UPDATE grant', () => {
+      expect(rolesWithPermission(Resource.EVENT, Action.UPDATE)).toEqual([
+        Role.EVENT_ORGANISER,
+        Role.EVENT_COORDINATOR,
+      ]);
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.UPDATE)).toBe(
+        Scope.ASSIGNED,
+      );
+    });
   });
 });

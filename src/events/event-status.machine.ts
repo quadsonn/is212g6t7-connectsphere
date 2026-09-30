@@ -114,6 +114,19 @@ export const EDITABLE_STATUSES: readonly EventStatus[] = [
 ];
 
 /**
+ * US-25 AC-1: "in planning" — approved, and still being arranged. The
+ * Coordinator refines the event's information while in these statuses.
+ *
+ * AMBIGUOUS: CONFIRMED is excluded. Once everything is confirmed, altering the
+ * event reads as a change request (E8), not a planning edit — see the US-25
+ * summary.
+ */
+export const PLANNING_STATUSES: readonly EventStatus[] = [
+  EventStatus.PLANNING,
+  EventStatus.AWAITING_ARRANGEMENTS,
+];
+
+/**
  * US-03 AC-2: unassigned requests any Coordinator may pick up. Without this,
  * a freshly submitted request would be invisible to every Coordinator and no
  * review could start.

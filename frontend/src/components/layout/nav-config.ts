@@ -34,10 +34,12 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   VENUE_STAFF: [
     { label: 'Venue catalogue', to: '/venues', icon: Building2 },
+    { label: 'Related events', to: '/venues/events', icon: CalendarCheck },
     { label: 'Booking requests', to: '/venues/bookings', icon: CalendarCheck, comingSoon: true },
   ],
   TECHNICAL_SUPPORT_STAFF: [
     { label: 'Equipment requests', to: '/equipment', icon: ClipboardList },
+    { label: 'Related events', to: '/equipment/events', icon: CalendarCheck },
     { label: 'Inventory', to: '/equipment/inventory', icon: Wrench, comingSoon: true },
   ],
   ATTENDEE: [

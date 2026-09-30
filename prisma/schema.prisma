@@ -11,8 +11,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -110,6 +110,23 @@ enum RegistrationStatus {
   WITHDRAWN
 }
 
+// Equipment catalogue: whether an item can currently be reserved. Added by
+// 20260928095631_add_equipment_catalogue_fields.
+enum EquipmentStatus {
+  OPERATIONAL
+  UNDER_MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+// US-25 AC-2: the kinds of already-confirmed arrangement a planning edit can
+// put at risk. "Confirmed" means an APPROVED VenueBooking or
+// EquipmentReservation — see ARRANGEMENT_SENSITIVE_FIELDS in
+// events/event-change.rules.ts for which fields affect which.
+enum ConfirmedArrangement {
+  VENUE_BOOKING
+  EQUIPMENT_RESERVATION
+}
+
 // AMBIGUOUS: §5 gives EquipmentReservation a `status` but never defines its
 // enum. Reusing BookingStatus would couple two independently-evolving
 // workflows, so this is a separate enum with the same starting values.
@@ -132,6 +149,8 @@ enum NotificationType {
   VENUE_CHANGED_BOOKINGS_AFFECTED
   VENUE_BOOKING_DECIDED
   EQUIPMENT_RESERVATION_DECIDED
+  // US-27 AC-3: sent to both the previous and the new Coordinator.
+  EVENT_REASSIGNED
   REGISTRATION_CONFIRMED
   REGISTRATION_WITHDRAWN
 }
@@ -160,6 +179,7 @@ model User {
   registrations         Registration[]
   notifications         Notification[]
   clarificationMessages ClarificationMessage[]
+  eventChanges          EventChange[]
   managedVenues         Venue[]                @relation("VenueManager")
 
   @@index([role])
@@ -181,6 +201,10 @@ model EventRequest {
   name        String?
   purpose     String?
   description String?
+
+  // US-25 AC-1: the running order, named by the story as a field the
+  // Coordinator refines during planning. Free text — no structure is specified.
+  programme String?
 
   // AC-1 (US-03) requires an event "type/category" at submission. The brief
   // lists no controlled vocabulary, so this is free text rather than an
@@ -207,6 +231,11 @@ model EventRequest {
   // Kept unstructured until the equipment story (E6) needs to query it.
   equipmentNeeds String?
 
+  // US-28 AC-2: the technical support the Coordinator has asked for (on-site
+  // assistance, hybrid/video-conferencing setup). Free text — the AC gives
+  // examples, not a fixed list.
+  technicalSupportNeeds String?
+
   registrationEnabled Boolean     @default(false)
   status              EventStatus @default(DRAFT)
 
@@ -228,6 +257,8 @@ model EventRequest {
   updatedAt DateTime @updatedAt
 
   clarifications        ClarificationMessage[]
+  changes               EventChange[]
+  equipmentRequirements EquipmentRequirement[]
   venueBookings         VenueBooking[]
   equipmentReservations EquipmentReservation[]
   registrations         Registration[]
@@ -280,7 +311,7 @@ model Venue {
   layoutNotes String?
 
   operatingInfo String?
-  imageUrls String[] @default([])
+  imageUrls     String[] @default([])
 
   status VenueStatus @default(DRAFT)
 
@@ -333,6 +364,10 @@ model Equipment {
 
   totalQuantity  Int
   technicalSpecs String?
+
+  description       String?
+  location          String?
+  operationalStatus EquipmentStatus @default(OPERATIONAL)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -450,4 +485,64 @@ model ClarificationMessage {
 
   @@index([eventId, createdAt])
   @@index([authorId])
+}
+
+/**
+ * US-26 — one edit to an event's information, as a single history entry.
+ * One row per save rather than per field: the Coordinator changes several
+ * fields at once and AC-2 asks "what was changed ... who ... when", which is a
+ * property of the save. `changes` holds each field's previous and new value.
+ * Append-only, like ClarificationMessage: rows are never edited or deleted,
+ * which is what makes this an audit trail.
+ */
+model EventChange {
+  id String @id @default(cuid())
+
+  eventId String
+  event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  changedById String
+  changedBy   User   @relation(fields: [changedById], references: [id], onDelete: Restrict)
+
+  // [{ field, previous, next }] — see FieldChange in events/event-change.rules.ts.
+  // JSON because the edited fields have different types (text, dates, enums,
+  // arrays) and the history only ever displays them.
+  changes Json
+
+  // US-25 AC-2: the edit touched a field that an already-confirmed arrangement
+  // depends on, so it needs review rather than being an ordinary edit.
+  requiresReview       Boolean                @default(false)
+  affectedArrangements ConfirmedArrangement[] @default([])
+
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt])
+  @@index([changedById])
+}
+
+/**
+ * US-28 AC-1 — one line of equipment the Coordinator says the event needs.
+ * Deliberately NOT an EquipmentReservation. This is the requirement ("two
+ * projectors"), recorded during planning for Technical Support to review; a
+ * reservation is what they then arrange against a specific catalogue item and
+ * time window (E6). Keeping them apart means a requirement can be recorded
+ * before, or without, anything in the catalogue matching it.
+ * `equipmentType` is free text for the same reason Equipment.type is.
+ */
+model EquipmentRequirement {
+  id String @id @default(cuid())
+
+  eventId String
+  event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  equipmentType String
+  // Positive — enforced by a CHECK constraint in the migration as well as
+  // the DTO.
+  quantity      Int
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
 }

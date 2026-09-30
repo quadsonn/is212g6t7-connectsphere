@@ -15,6 +15,7 @@ import { EquipmentDashboard } from '@/pages/equipment-dashboard';
 import { AttendeeDashboard } from '@/pages/attendee-dashboard';
 import { VenueNewRequest } from '@/pages/venue-new-request';
 import { VenueEditRequest } from '@/pages/venue-edit-request';
+import { RelatedEventDetail, RelatedEventsList } from '@/pages/related-events';
 
 /** Sends a signed-in user to their role's dashboard; everyone else to login. */
 function RoleHome() {
@@ -52,10 +53,23 @@ export function AppRoutes() {
             <Route path="/venues" element={<VenueDashboard />} />
             <Route path="/venues/new" element={<VenueNewRequest />} />
             <Route path="/venues/:id/edit" element={<VenueEditRequest />} />
+            <Route path="/venues/events" element={<RelatedEventsList basePath="/venues/events" />} />
+            <Route
+              path="/venues/events/:id"
+              element={<RelatedEventDetail basePath="/venues/events" />}
+            />
           </Route>
 
           <Route element={<ProtectedRoute allow={['TECHNICAL_SUPPORT_STAFF']} />}>
             <Route path="/equipment" element={<EquipmentDashboard />} />
+            <Route
+              path="/equipment/events"
+              element={<RelatedEventsList basePath="/equipment/events" />}
+            />
+            <Route
+              path="/equipment/events/:id"
+              element={<RelatedEventDetail basePath="/equipment/events" />}
+            />
           </Route>
 
           <Route element={<ProtectedRoute allow={['ATTENDEE']} />}>

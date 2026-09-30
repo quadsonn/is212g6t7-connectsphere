@@ -4,8 +4,12 @@ import type {
   CoordinatorRequestView,
   EventRequest,
   EventRequestPayload,
+  EventChangeHistory,
   OrganiserRequestView,
+  PlanningUpdatePayload,
   PublicEventView,
+  RelatedEventView,
+  TechnicalRequirementsPayload,
 } from '@/types/api';
 import { eventsApi } from '../api/events.api';
 
@@ -15,6 +19,9 @@ export const eventKeys = {
   detail: (id: string) => ['events', id] as const,
   assigned: ['events', 'assigned'] as const,
   assignedDetail: (id: string) => ['events', 'assigned', id] as const,
+  history: (id: string) => ['events', id, 'history'] as const,
+  related: ['events', 'related'] as const,
+  relatedDetail: (id: string) => ['events', 'related', id] as const,
 };
 
 /**
@@ -197,5 +204,96 @@ export function useAssignedRequest(id: string) {
     queryKey: eventKeys.assignedDetail(id),
     queryFn: () => eventsApi.getAssignedById(id),
     enabled: Boolean(id),
+  });
+}
+
+/** US-25 — move an approved event into planning. */
+export function useStartPlanning() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => eventsApi.startPlanning(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    },
+  });
+}
+
+/**
+ * US-25 — save planning edits. Invalidates everything under 'events' so the
+ * detail view, the queue and the change history all show the saved values.
+ */
+export function useUpdatePlanning(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: PlanningUpdatePayload) => eventsApi.updatePlanning(id, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    },
+  });
+}
+
+/** US-26 — the event's change history. */
+export function useEventHistory(id: string) {
+  return useQuery<EventChangeHistory>({
+    queryKey: eventKeys.history(id),
+    queryFn: () => eventsApi.getHistory(id),
+    enabled: Boolean(id),
+  });
+}
+
+/** US-25 AC-3 — events related to a Venue Staff / Technical Support user's work. */
+export function useRelatedEvents() {
+  return useQuery<RelatedEventView[]>({
+    queryKey: eventKeys.related,
+    queryFn: eventsApi.listRelated,
+  });
+}
+
+export function useRelatedEvent(id: string) {
+  return useQuery<RelatedEventView>({
+    queryKey: eventKeys.relatedDetail(id),
+    queryFn: () => eventsApi.getRelated(id),
+    enabled: Boolean(id),
+  });
+}
+
+/** US-27 AC-1 — only fetched once the Coordinator asks to reassign. */
+export function useReassignmentCandidates(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...eventKeys.detail(id), 'reassignment-candidates'],
+    queryFn: () => eventsApi.getReassignmentCandidates(id),
+    enabled: enabled && Boolean(id),
+  });
+}
+
+/**
+ * US-27 — hand the event on. The caller loses access to it on success, so
+ * only the lists are invalidated; refetching this event's detail would 404.
+ */
+export function useReassignEvent(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (coordinatorId: string) => eventsApi.reassign(id, coordinatorId),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: eventKeys.assignedDetail(id) });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all, exact: true });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.assigned, exact: true });
+    },
+  });
+}
+
+/** US-28 — save equipment and technical requirements; refreshes detail and history. */
+export function useSetTechnicalRequirements(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: TechnicalRequirementsPayload) =>
+      eventsApi.setTechnicalRequirements(id, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    },
   });
 }

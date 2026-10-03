@@ -11,6 +11,7 @@ import { VenueImageCarousel } from '@/features/venues/components/venue-image-car
 import { useVenue } from '@/features/venues/hooks/use-venues';
 import { apiErrorMessage } from '@/lib/api-client';
 import { humanise } from '@/lib/utils';
+import { ACCESSIBILITY_FEATURE_LABELS, FACILITY_LABELS } from '@/types/api';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -21,7 +22,21 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const listOrDash = (values: string[]) => (values.length > 0 ? values.join(', ') : '—');
+/** Vocabulary labels, then any free-text notes beyond the vocabulary (US-18). */
+function listWithNotes<T extends string>(
+  values: T[],
+  labels: Record<T, string>,
+  notes: string | null,
+) {
+  const listed = values.map((v) => labels[v]).join(', ');
+  if (!listed && !notes) return '—';
+  return (
+    <>
+      {listed}
+      {notes ? <span className="mt-1 block text-ink-600">{notes}</span> : null}
+    </>
+  );
+}
 
 /** US-15 AC-2 (venue detail) + US-17 (its availability), for a Coordinator. */
 export function CoordinatorVenueDetail() {
@@ -57,8 +72,16 @@ export function CoordinatorVenueDetail() {
                     ? venue.supportedLayouts.map(humanise).join(', ')
                     : '—'}
                 </Field>
-                <Field label="Facilities">{listOrDash(venue.facilities)}</Field>
-                <Field label="Accessibility">{listOrDash(venue.accessibilityFeatures)}</Field>
+                <Field label="Facilities">
+                  {listWithNotes(venue.facilities, FACILITY_LABELS, venue.facilityNotes)}
+                </Field>
+                <Field label="Accessibility">
+                  {listWithNotes(
+                    venue.accessibilityFeatures,
+                    ACCESSIBILITY_FEATURE_LABELS,
+                    venue.accessibilityNotes,
+                  )}
+                </Field>
                 <Field label="Operating hours">{venue.operatingInfo ?? '—'}</Field>
               </dl>
             </CardContent>

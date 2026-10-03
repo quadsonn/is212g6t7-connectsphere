@@ -7,6 +7,7 @@ import { Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { SortOrder, VenueSortField } from './dto/browse-venues.dto';
 import { VenuesService } from './venues.service';
 
@@ -41,6 +42,7 @@ describe('VenuesService browse (US-15)', () => {
       access as unknown as AccessControlService,
       { findLiveBookingsForVenue: jest.fn() } as unknown as VenueBookingLookup,
       { notify: jest.fn(), notifySafely: jest.fn() } as unknown as NotificationsService,
+      {} as unknown as SupabaseStorageService,
     );
   });
 

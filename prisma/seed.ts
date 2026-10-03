@@ -124,8 +124,8 @@ async function main() {
     await prisma.venue.create({
       data: {
         ...venue,
-        facilities: ['Power supply'],
-        accessibilityFeatures: ['Step-free access'],
+        facilities: ['POWER_OUTLETS'],
+        accessibilityFeatures: ['STEP_FREE_ACCESS'],
         supportedLayouts: [RoomLayout.THEATRE],
         operatingInfo: 'Mon–Fri, 08:00–22:00',
         // US-13: drafts are visible only to their manager.

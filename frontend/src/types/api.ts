@@ -67,6 +67,36 @@ export const ACCESSIBILITY_FEATURE_LABELS: Record<AccessibilityFeature, string> 
   NURSING_ROOM: 'Nursing room',
 };
 
+/** Mirrors the backend Facility enum (US-18), in display order. */
+export const FACILITIES = [
+  'PROJECTOR',
+  'SCREEN',
+  'SOUND_SYSTEM',
+  'MICROPHONE',
+  'STAGE',
+  'WIFI',
+  'VIDEO_CONFERENCING',
+  'WHITEBOARD',
+  'POWER_OUTLETS',
+  'CATERING_KITCHEN',
+  'AIR_CONDITIONING',
+] as const;
+export type Facility = (typeof FACILITIES)[number];
+
+export const FACILITY_LABELS: Record<Facility, string> = {
+  PROJECTOR: 'Projector',
+  SCREEN: 'Projection screen',
+  SOUND_SYSTEM: 'Sound system',
+  MICROPHONE: 'Microphones',
+  STAGE: 'Stage',
+  WIFI: 'Wi-Fi',
+  VIDEO_CONFERENCING: 'Video conferencing',
+  WHITEBOARD: 'Whiteboard',
+  POWER_OUTLETS: 'Power outlets',
+  CATERING_KITCHEN: 'Catering kitchen',
+  AIR_CONDITIONING: 'Air conditioning',
+};
+
 /** Mirrors the backend VenueStatus enum. */
 export type VenueStatus = 'DRAFT' | 'PUBLISHED';
 
@@ -215,9 +245,12 @@ export interface Venue {
   name: string | null;
   location: string | null;
   capacity: number | null;
-  facilities: string[];
-  /** Free text — deliberately not the AccessibilityFeature enum (US-13). */
-  accessibilityFeatures: string[];
+  /** US-18: controlled vocabularies, so search can match them exactly. */
+  facilities: Facility[];
+  facilityNotes: string | null;
+  /** The same enum an Organiser requests from (US-06). */
+  accessibilityFeatures: AccessibilityFeature[];
+  accessibilityNotes: string | null;
   /** The shared US-06 lookup, same values an event request uses. */
   supportedLayouts: RoomLayout[];
   operatingInfo: string | null;
@@ -248,6 +281,20 @@ export interface DayAvailability {
   /** ISO date in Singapore time, e.g. "2026-10-03". */
   date: string;
   status: DayStatus;
+}
+
+/**
+ * US-18 — GET /venues/search. Lists are sent comma-separated; from/to are ISO
+ * instants and go together.
+ */
+export interface VenueSearchQuery {
+  /** US-15 AC-3, restored: name fragment, case-insensitive. */
+  name?: string;
+  from?: string;
+  to?: string;
+  minCapacity?: number;
+  accessibility?: string;
+  facilities?: string;
 }
 
 /** US-15 — catalogue search and sort. */
@@ -303,8 +350,10 @@ export interface VenueDraftPayload {
   name?: string | null;
   location?: string | null;
   capacity?: number | null;
-  facilities?: string[];
-  accessibilityFeatures?: string[];
+  facilities?: Facility[];
+  facilityNotes?: string | null;
+  accessibilityFeatures?: AccessibilityFeature[];
+  accessibilityNotes?: string | null;
   supportedLayouts?: RoomLayout[];
   layoutNotes?: string | null;
   operatingInfo?: string | null;

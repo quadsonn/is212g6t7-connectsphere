@@ -12,6 +12,7 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { VenueBookingLookup } from '../bookings/booking-impact';
+import { confirmedOverlapping } from '../bookings/booking-overlap';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -30,6 +31,7 @@ import {
   resolveRange,
 } from './availability';
 import { VenueDraftDto } from './dto/venue-draft.dto';
+import { VenueSearchDto } from './dto/venue-search.dto';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 /**
@@ -57,7 +59,9 @@ type VenueDraftFields = Partial<
     | 'location'
     | 'capacity'
     | 'facilities'
+    | 'facilityNotes'
     | 'accessibilityFeatures'
+    | 'accessibilityNotes'
     | 'supportedLayouts'
     | 'operatingInfo'
   >
@@ -157,6 +161,64 @@ export class VenuesService {
     }
 
     return venue;
+  }
+
+  /**
+   * US-18 — published venues matching every active filter.
+   *
+   * One query, however many filters: the date filter is a relation filter
+   * (`bookings: none`), which Postgres answers with a single anti-join rather
+   * than an availability check per venue (AC-7). Containment filters use the
+   * GIN indexes on the two arrays.
+   *
+   * AC-6: no match is an empty array, not an error.
+   */
+  async search(user: AuthenticatedUser, query: VenueSearchDto): Promise<Venue[]> {
+    // The date filter reveals booking state, so this is the US-17 grant rather
+    // than plain VENUE/READ.
+    this.access.requireScope(user, Resource.VENUE, Action.CHECK_AVAILABILITY);
+
+    if (Boolean(query.from) !== Boolean(query.to)) {
+      throw new BadRequestException('from and to must be given together');
+    }
+
+    const where: Prisma.VenueWhereInput = {
+      // Drafts are never bookable, whatever else matches.
+      status: VenueStatus.PUBLISHED,
+    };
+
+    if (query.name) {
+      // US-15 AC-3, restored: same matching as the catalogue's name lookup.
+      where.name = { contains: query.name, mode: 'insensitive' };
+    }
+
+    if (query.minCapacity !== undefined) {
+      // AC-2. A null capacity never satisfies gte, so it is excluded rather
+      // than compared (and the US-13 CHECK forbids it on a published venue).
+      where.capacity = { gte: query.minCapacity };
+    }
+
+    if (query.accessibility?.length) {
+      // AC-3: every selected feature, not any.
+      where.accessibilityFeatures = { hasEvery: query.accessibility };
+    }
+
+    if (query.facilities?.length) {
+      // AC-4: likewise.
+      where.facilities = { hasEvery: query.facilities };
+    }
+
+    if (query.from && query.to) {
+      // AC-1: free of *confirmed* bookings in the slot.
+      where.bookings = {
+        none: confirmedOverlapping(new Date(query.from), new Date(query.to)),
+      };
+    }
+
+    return this.prisma.venue.findMany({
+      where,
+      orderBy: [{ name: 'asc' }],
+    });
   }
 
   /**
@@ -468,7 +530,9 @@ export class VenuesService {
       'location',
       'capacity',
       'facilities',
+      'facilityNotes',
       'accessibilityFeatures',
+      'accessibilityNotes',
       'supportedLayouts',
       'operatingInfo',
     ] as const) {

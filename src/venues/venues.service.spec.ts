@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
 
@@ -76,6 +77,7 @@ describe('VenuesService (US-13)', () => {
       access as unknown as AccessControlService,
       bookings as unknown as VenueBookingLookup,
       notifications as unknown as NotificationsService,
+      {} as unknown as SupabaseStorageService,
     );
   });
 
@@ -85,8 +87,10 @@ describe('VenuesService (US-13)', () => {
         name: 'Campus Green',
         location: 'Outdoor, adjacent to Library',
         capacity: 800,
-        facilities: ['Power supply', 'Marquee points'],
-        accessibilityFeatures: ['Step-free access', 'Accessible toilets nearby'],
+        facilities: ['POWER_OUTLETS'],
+        facilityNotes: 'Marquee points',
+        accessibilityFeatures: ['STEP_FREE_ACCESS', 'ACCESSIBLE_RESTROOMS'],
+        accessibilityNotes: 'Braille signage at entrances',
         supportedLayouts: [RoomLayout.BANQUET, RoomLayout.THEATRE],
         operatingInfo: 'Daily, subject to weather',
       } as VenueDraftDto);
@@ -95,7 +99,10 @@ describe('VenuesService (US-13)', () => {
         name: 'Campus Green',
         location: 'Outdoor, adjacent to Library',
         capacity: 800,
-        facilities: ['Power supply', 'Marquee points'],
+        facilities: ['POWER_OUTLETS'],
+        // US-18: what the vocabulary does not cover survives as notes.
+        facilityNotes: 'Marquee points',
+        accessibilityNotes: 'Braille signage at entrances',
         supportedLayouts: [RoomLayout.BANQUET, RoomLayout.THEATRE],
         operatingInfo: 'Daily, subject to weather',
       });

@@ -113,3 +113,45 @@ export function CheckboxRow({
     </label>
   );
 }
+
+/**
+ * A multi-select over a fixed vocabulary, as a column of checkboxes. Shared by
+ * the venue form and venue search (US-18) so both offer exactly the same
+ * values in the same order.
+ */
+export function CheckboxGroup<T extends string>({
+  idPrefix,
+  options,
+  labels,
+  values,
+  onChange,
+  className,
+}: {
+  idPrefix: string;
+  options: readonly T[];
+  labels: Record<T, string>;
+  values: readonly T[];
+  onChange: (next: T[]) => void;
+  className?: string;
+}) {
+  return (
+    <div className={cn('space-y-1', className)}>
+      {options.map((option) => (
+        <CheckboxRow
+          key={option}
+          id={`${idPrefix}-${option}`}
+          label={labels[option]}
+          checked={values.includes(option)}
+          onChange={(checked) =>
+            onChange(
+              checked
+                ? // Kept in vocabulary order, whatever order they were ticked.
+                  options.filter((o) => o === option || values.includes(o))
+                : values.filter((v) => v !== option),
+            )
+          }
+        />
+      ))}
+    </div>
+  );
+}

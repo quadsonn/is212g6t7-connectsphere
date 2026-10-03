@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BookingStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { overlapping } from './booking-overlap';
 import {
   VenueBookingImpact,
   VenueBookingLookup,
@@ -58,8 +59,7 @@ export class BookingsService implements VenueBookingLookup {
   /**
    * US-17 — the slots behind a venue's availability calendar.
    *
-   * Overlap is half-open: a booking ending exactly at `from` does not touch
-   * the range. Selects only the three columns the calendar needs, so the
+   * Overlap is the shared half-open rule in booking-overlap.ts. Selects only the three columns the calendar needs, so the
    * identifying fields are never loaded, let alone returned.
    */
   async findBookingSlotsForVenue(
@@ -70,8 +70,7 @@ export class BookingsService implements VenueBookingLookup {
     return this.prisma.venueBooking.findMany({
       where: {
         venueId,
-        start: { lt: to },
-        end: { gt: from },
+        ...overlapping(from, to),
         status: { in: LIVE_STATUSES },
       },
       select: { start: true, end: true, status: true },

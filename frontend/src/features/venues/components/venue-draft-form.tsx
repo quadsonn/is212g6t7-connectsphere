@@ -2,10 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
-import { CheckboxRow, Field } from '@/components/ui/form';
+import { CheckboxGroup, CheckboxRow, Field, Textarea } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { fieldErrors, apiErrorMessage } from '@/lib/api-client';
 import {
+    ACCESSIBILITY_FEATURES,
+    ACCESSIBILITY_FEATURE_LABELS,
+    FACILITIES,
+    FACILITY_LABELS,
     ROOM_LAYOUTS,
     type RoomLayout,
     type VenueDraftPayload,
@@ -19,7 +23,9 @@ const DRAFT_FIELDS = [
     'location',
     'capacity',
     'facilities',
+    'facilityNotes',
     'accessibilityFeatures',
+    'accessibilityNotes',
     'supportedLayouts',
     'operatingInfo',
 ] as const;
@@ -102,79 +108,6 @@ function parseOperatingInfo(
     return { start: '', end: '', is24: false };
 }
 
-function TagListInput({
-    values,
-    onChange,
-    placeholder,
-}: {
-    values: string[];
-    onChange: (next: string[]) => void;
-    placeholder: string;
-}) {
-    const [draft, setDraft] = useState('');
-
-    const add = () => {
-        const value = draft.trim();
-        if (value && !values.includes(value)) {
-            onChange([...values, value]);
-        }
-        setDraft('');
-    };
-
-    return (
-        <div className="space-y-2">
-            <div className="flex gap-2">
-                <Input
-                    value={draft}
-                    placeholder={placeholder}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            e.preventDefault();
-                            add();
-                        }
-                    }}
-                />
-                <Button type="button" onClick={add}>
-                    Add
-                </Button>
-            </div>
-            {values.length > 0 ? (
-                <ul className="flex flex-wrap gap-2">
-                    {values.map((value) => (
-                        <li
-                            key={value}
-                            className="flex items-center gap-1.5 rounded-full bg-ink-100 px-3 py-1 text-xs text-ink-800"
-                        >
-                            {value}
-                            <button
-                                type="button"
-                                onClick={() => onChange(values.filter((v) => v !== value))}
-                                aria-label={`Remove ${value}`}
-                                className="text-ink-500 hover:text-ink-800"
-                            >
-                                ×
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            ) : null}
-        </div>
-    );
-}
-
-/**
- * US-13 "Add a new venue" and US-14 "Update a venue's details" — the same
- * form serves both. Pass `venueId` + `initialValues` to edit an existing
- * venue; omit them to create a new one.
- *
- * Save and Publish are independent actions, not a forced two-step flow:
- * - "Save draft" persists whatever's filled in, complete or not (US-13 AC-2).
- * - "Publish" is enabled purely by whether the required fields (name,
- *   location, capacity — matching the backend's completeness check) are
- *   filled in RIGHT NOW. It does not require having saved first — clicking
- *   it creates (or updates) the venue and publishes it in one action.
- */
 export function VenueDraftForm({
     venueId,
     initialValues,
@@ -333,11 +266,26 @@ export function VenueDraftForm({
                 />
             </Field>
 
+            {/* US-18: fixed vocabularies so Coordinators can search on them.
+                Anything outside the list goes in the notes beneath. */}
             <Field label="Facilities" htmlFor="venue-facilities" errors={errors.facilities}>
-                <TagListInput
+                <CheckboxGroup
+                    idPrefix="facility"
+                    options={FACILITIES}
+                    labels={FACILITY_LABELS}
                     values={form.facilities ?? []}
                     onChange={(next) => update_('facilities', next)}
-                    placeholder="e.g. projector, stage"
+                    className="grid sm:grid-cols-2 sm:space-y-0"
+                />
+            </Field>
+
+            <Field label="Other facilities" htmlFor="venue-facility-notes" errors={errors.facilityNotes}>
+                <Textarea
+                    id="venue-facility-notes"
+                    rows={2}
+                    placeholder="Anything not in the list above, e.g. marquee anchor points"
+                    value={form.facilityNotes ?? ''}
+                    onChange={(e) => update_('facilityNotes', e.target.value)}
                 />
             </Field>
 
@@ -346,10 +294,27 @@ export function VenueDraftForm({
                 htmlFor="venue-accessibility"
                 errors={errors.accessibilityFeatures}
             >
-                <TagListInput
+                <CheckboxGroup
+                    idPrefix="accessibility"
+                    options={ACCESSIBILITY_FEATURES}
+                    labels={ACCESSIBILITY_FEATURE_LABELS}
                     values={form.accessibilityFeatures ?? []}
                     onChange={(next) => update_('accessibilityFeatures', next)}
-                    placeholder="e.g. step-free access"
+                    className="grid sm:grid-cols-2 sm:space-y-0"
+                />
+            </Field>
+
+            <Field
+                label="Other accessibility provision"
+                htmlFor="venue-accessibility-notes"
+                errors={errors.accessibilityNotes}
+            >
+                <Textarea
+                    id="venue-accessibility-notes"
+                    rows={2}
+                    placeholder="e.g. braille signage, quiet room"
+                    value={form.accessibilityNotes ?? ''}
+                    onChange={(e) => update_('accessibilityNotes', e.target.value)}
                 />
             </Field>
 

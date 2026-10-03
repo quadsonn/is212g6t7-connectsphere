@@ -2,12 +2,19 @@ import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { addMonths } from '@/lib/calendar';
-import type { BrowseVenuesQuery, DayAvailability, Venue, VenueDraftPayload } from '@/types/api';
+import type {
+  BrowseVenuesQuery,
+  DayAvailability,
+  Venue,
+  VenueDraftPayload,
+  VenueSearchQuery,
+} from '@/types/api';
 import { venuesApi } from '../api/venues.api';
 
 export const venueKeys = {
   all: ['venues'] as const,
   list: (query: BrowseVenuesQuery) => ['venues', 'list', query] as const,
+  search: (query: VenueSearchQuery) => ['venues', 'search', query] as const,
   detail: (id: string) => ['venues', 'detail', id] as const,
   availability: (id: string, month: string) =>
     ['venues', 'availability', id, month] as const,
@@ -19,6 +26,19 @@ export function useVenues(query: BrowseVenuesQuery = {}) {
     queryKey: venueKeys.list(query),
     queryFn: () => venuesApi.list(query),
     staleTime: 0,
+  });
+}
+
+/**
+ * US-18 — venue search. Takes the *applied* filters, not the ones being
+ * edited, so a request goes out only when the Coordinator presses Search.
+ */
+export function useVenueSearch(query: VenueSearchQuery) {
+  return useQuery<Venue[]>({
+    queryKey: venueKeys.search(query),
+    queryFn: () => venuesApi.search(query),
+    staleTime: 0,
+    placeholderData: (previous) => previous,
   });
 }
 

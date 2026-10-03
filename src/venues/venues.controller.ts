@@ -25,6 +25,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { BrowseVenuesDto } from './dto/browse-venues.dto';
 import { VenueAvailabilityQueryDto } from './dto/venue-availability.dto';
+import { VenueSearchDto } from './dto/venue-search.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -50,6 +51,20 @@ export class VenuesController {
     @Query() query: BrowseVenuesDto,
   ) {
     return this.venuesService.findAllForUser(user, query);
+  }
+
+  /**
+   * US-18 — search published venues by date, capacity, accessibility and
+   * facilities. Declared before ':id' so "search" is not read as an id.
+   */
+  @Get('search')
+  @RequirePermission(Resource.VENUE, Action.CHECK_AVAILABILITY)
+  @Header('Cache-Control', 'no-store')
+  search(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: VenueSearchDto,
+  ) {
+    return this.venuesService.search(user, query);
   }
 
   /** AC-2 — create a draft, however incomplete. */

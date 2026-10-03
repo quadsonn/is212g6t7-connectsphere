@@ -60,8 +60,9 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
       ],
       [Resource.VENUE]: [
         g(Action.READ, Scope.ANY),
-        // US-17. PUBLIC, not ANY: every published venue, but only a per-day
-        // free/tentative/booked projection — never which event holds a slot.
+        // US-17 (calendar) and US-18 (search by date). PUBLIC, not ANY: every
+        // published venue, but only whether it is free — never which event
+        // holds a slot. Both reveal booking state, so Organisers do not get it.
         g(Action.CHECK_AVAILABILITY, Scope.PUBLIC),
       ],
       [Resource.BOOKING]: [

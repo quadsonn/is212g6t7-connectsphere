@@ -98,6 +98,26 @@ enum AccessibilityFeature {
   NURSING_ROOM
 }
 
+// US-18: what a venue offers, as a controlled vocabulary so search can match
+// it exactly. A starter set agreed with the team; additive changes
+// (ALTER TYPE ... ADD VALUE) are cheap, so extend it as the customer refines.
+//
+// Step-free / ramp access is deliberately absent: it is STEP_FREE_ACCESS in
+// AccessibilityFeature, and one concept must not live in two vocabularies.
+enum Facility {
+  PROJECTOR
+  SCREEN
+  SOUND_SYSTEM
+  MICROPHONE
+  STAGE
+  WIFI
+  VIDEO_CONFERENCING
+  WHITEBOARD
+  POWER_OUTLETS
+  CATERING_KITCHEN
+  AIR_CONDITIONING
+}
+
 // Venue catalogue lifecycle. Venue Staff draft a venue, then publish it so it
 // becomes bookable and visible to coordinators.
 enum VenueStatus {
@@ -257,17 +277,17 @@ model Venue {
   managedById String?
   managedBy   User?   @relation("VenueManager", fields: [managedById], references: [id], onDelete: SetNull)
 
-  // AMBIGUOUS: modelled as string arrays rather than lookup tables. Adequate
-  // for the filtering §1 describes; promote to their own tables if venues ever
-  // need to be searched or managed by individual facility.
-  facilities String[]
+  // US-18: controlled vocabularies, so search can AND-match them reliably.
+  //
+  // accessibilityFeatures is the same AccessibilityFeature enum an Organiser
+  // requests from (US-06), so a venue's offer and an event's need are directly
+  // comparable. This reverses US-13's free-text choice; anything a venue offers
+  // beyond the vocabulary (braille signage, quiet rooms) goes in the notes.
+  facilities    Facility[] @default([])
+  facilityNotes String?
 
-  // AMBIGUOUS: deliberately NOT the US-06 AccessibilityFeature enum. That enum
-  // holds the three things an Organiser may *request*; a venue advertises many
-  // more (braille signage, assistance-animal access, quiet rooms). Forcing
-  // venues into the request vocabulary would discard information. Suitability
-  // matching will need a mapping, or an expanded enum — see the US-13 summary.
-  accessibilityFeatures String[]
+  accessibilityFeatures AccessibilityFeature[] @default([])
+  accessibilityNotes    String?
 
   // US-13: the shared US-06 lookup, so a layout a venue supports and a layout
   // an event requests are literally the same value rather than two strings
@@ -290,6 +310,11 @@ model Venue {
   bookings VenueBooking[]
 
   @@index([capacity])
+  // US-18 AC-7: search filters on published venues by capacity and by array
+  // containment; GIN is the index type Postgres uses for @> on arrays.
+  @@index([status, capacity])
+  @@index([facilities], type: Gin)
+  @@index([accessibilityFeatures], type: Gin)
 }
 
 model VenueBooking {

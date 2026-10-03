@@ -4,6 +4,7 @@ import type {
   DayAvailability,
   Venue,
   VenueDraftPayload,
+  VenueSearchQuery,
   VenueWithWarnings,
 } from '@/types/api';
 
@@ -22,6 +23,10 @@ export const venuesApi = {
   // US-15 AC-2: full detail view of one venue.
   getById: (id: string) =>
     apiClient.get<Venue>(`/venues/${id}`).then((r) => r.data),
+
+  // US-18: published venues matching every active filter. Coordinators only.
+  search: (query: VenueSearchQuery) =>
+    apiClient.get<Venue[]>('/venues/search', { params: query }).then((r) => r.data),
 
   // US-17 AC-1/AC-2: one month of free/tentative/booked days ("YYYY-MM").
   // Coordinators only — the server answers 403 for every other role.

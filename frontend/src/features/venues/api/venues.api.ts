@@ -1,5 +1,11 @@
 import { apiClient } from '@/lib/api-client';
-import type { BrowseVenuesQuery, Venue, VenueDraftPayload, VenueWithWarnings } from '@/types/api';
+import type {
+  BrowseVenuesQuery,
+  DayAvailability,
+  Venue,
+  VenueDraftPayload,
+  VenueWithWarnings,
+} from '@/types/api';
 
 /**
  * REAL — GET /venues and GET /venues/:id exist (US-13, US-15).
@@ -16,6 +22,13 @@ export const venuesApi = {
   // US-15 AC-2: full detail view of one venue.
   getById: (id: string) =>
     apiClient.get<Venue>(`/venues/${id}`).then((r) => r.data),
+
+  // US-17 AC-1/AC-2: one month of free/tentative/booked days ("YYYY-MM").
+  // Coordinators only — the server answers 403 for every other role.
+  availability: (id: string, month: string) =>
+    apiClient
+      .get<DayAvailability[]>(`/venues/${id}/availability`, { params: { month } })
+      .then((r) => r.data),
 
   // US-13 AC-1/AC-2: save a new venue, complete or not.
   createDraft: (payload: VenueDraftPayload) =>

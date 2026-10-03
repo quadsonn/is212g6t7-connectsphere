@@ -10,6 +10,8 @@ import { OrganiserNewRequest } from '@/pages/organiser-new-request';
 import { OrganiserRequestDetail } from '@/pages/organiser-request-detail';
 import { CoordinatorDashboard } from '@/pages/coordinator-dashboard';
 import { CoordinatorEventDetail } from '@/pages/coordinator-event-detail';
+import { CoordinatorVenues } from '@/pages/coordinator-venues';
+import { CoordinatorVenueDetail } from '@/pages/coordinator-venue-detail';
 import { VenueDashboard } from '@/pages/venue-dashboard';
 import { EquipmentDashboard } from '@/pages/equipment-dashboard';
 import { AttendeeDashboard } from '@/pages/attendee-dashboard';
@@ -46,6 +48,8 @@ export function AppRoutes() {
           <Route element={<ProtectedRoute allow={['EVENT_COORDINATOR']} />}>
             <Route path="/coordinator" element={<CoordinatorDashboard />} />
             <Route path="/coordinator/events/:id" element={<CoordinatorEventDetail />} />
+            <Route path="/coordinator/venues" element={<CoordinatorVenues />} />
+            <Route path="/coordinator/venues/:id" element={<CoordinatorVenueDetail />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={['VENUE_STAFF']} />}>

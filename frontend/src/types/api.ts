@@ -237,6 +237,19 @@ export interface VenueUpdateWarning {
   affectedBookingIds: string[];
 }
 
+/** US-17 — one day of a venue's availability calendar. */
+export type DayStatus = 'free' | 'tentative' | 'booked';
+
+/**
+ * GET /venues/:id/availability returns an array of these and nothing else —
+ * deliberately no event, organiser or booking id (US-17 AC-3).
+ */
+export interface DayAvailability {
+  /** ISO date in Singapore time, e.g. "2026-10-03". */
+  date: string;
+  status: DayStatus;
+}
+
 /** US-15 — catalogue search and sort. */
 export interface BrowseVenuesQuery {
   search?: string;

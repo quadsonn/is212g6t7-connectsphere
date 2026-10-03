@@ -449,4 +449,15 @@ describe('Permission matrix (US-02)', () => {
   it('is frozen, so grants cannot be added at runtime', () => {
     expect(Object.isFrozen(PERMISSIONS)).toBe(true);
   });
+
+  describe('US-17: venue availability', () => {
+    it('grants it to Coordinators only, as the public projection', () => {
+      expect(rolesWithPermission(Resource.VENUE, Action.CHECK_AVAILABILITY)).toEqual([
+        Role.EVENT_COORDINATOR,
+      ]);
+      expect(
+        permissionScope(Role.EVENT_COORDINATOR, Resource.VENUE, Action.CHECK_AVAILABILITY),
+      ).toBe(Scope.PUBLIC);
+    });
+  });
 });

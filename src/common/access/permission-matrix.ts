@@ -58,7 +58,12 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         // answer and needs a customer decision.
         g(Action.ASSIGN, Scope.ANY),
       ],
-      [Resource.VENUE]: [g(Action.READ, Scope.ANY)],
+      [Resource.VENUE]: [
+        g(Action.READ, Scope.ANY),
+        // US-17. PUBLIC, not ANY: every published venue, but only a per-day
+        // free/tentative/booked projection — never which event holds a slot.
+        g(Action.CHECK_AVAILABILITY, Scope.PUBLIC),
+      ],
       [Resource.BOOKING]: [
         g(Action.CREATE, Scope.ASSIGNED),
         g(Action.READ, Scope.ASSIGNED),

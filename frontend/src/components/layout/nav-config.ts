@@ -31,6 +31,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   EVENT_COORDINATOR: [
     { label: 'Review queue', to: '/coordinator', icon: ClipboardList },
     { label: 'All events', to: '/coordinator/events', icon: CalendarCheck, comingSoon: true },
+    { label: 'Venues', to: '/coordinator/venues', icon: Building2 },
   ],
   VENUE_STAFF: [
     { label: 'Venue catalogue', to: '/venues', icon: Building2 },

@@ -24,6 +24,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { BrowseVenuesDto } from './dto/browse-venues.dto';
+import { VenueAvailabilityQueryDto } from './dto/venue-availability.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -107,6 +108,22 @@ export class VenuesController {
     @Body('imageUrl') imageUrl: string,
   ) {
     return this.venuesService.removeImage(user, id, imageUrl);
+  }
+
+  /**
+   * US-17 — free / tentative / booked per day, for a Coordinator deciding
+   * whether to request this venue. Never says which event holds a day.
+   */
+  @Get(':id/availability')
+  @RequirePermission(Resource.VENUE, Action.CHECK_AVAILABILITY)
+  // A stale calendar would show a taken day as free.
+  @Header('Cache-Control', 'no-store')
+  getAvailability(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query() query: VenueAvailabilityQueryDto,
+  ) {
+    return this.venuesService.getAvailability(user, id, query);
   }
 
   /** Declared after the literal routes above so "drafts" is not read as an id. */

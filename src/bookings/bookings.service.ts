@@ -2,7 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { BookingStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { VenueBookingImpact, VenueBookingLookup } from './booking-impact';
+import {
+  VenueBookingImpact,
+  VenueBookingLookup,
+  VenueBookingSlot,
+} from './booking-impact';
+
+/**
+ * Statuses that still hold a venue. REJECTED bookings hold nothing — nothing
+ * depends on them (US-14) and they block no date (US-17).
+ */
+const LIVE_STATUSES: BookingStatus[] = [
+  BookingStatus.REQUESTED,
+  BookingStatus.APPROVED,
+];
 
 /**
  * E5 — venue booking requests, approval, conflict detection.
@@ -28,7 +41,7 @@ export class BookingsService implements VenueBookingLookup {
       where: {
         venueId,
         end: { gte: now },
-        status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
+        status: { in: LIVE_STATUSES },
       },
       orderBy: { start: 'asc' },
     });
@@ -40,5 +53,29 @@ export class BookingsService implements VenueBookingLookup {
       end: booking.end,
       status: booking.status,
     }));
+  }
+
+  /**
+   * US-17 — the slots behind a venue's availability calendar.
+   *
+   * Overlap is half-open: a booking ending exactly at `from` does not touch
+   * the range. Selects only the three columns the calendar needs, so the
+   * identifying fields are never loaded, let alone returned.
+   */
+  async findBookingSlotsForVenue(
+    venueId: string,
+    from: Date,
+    to: Date,
+  ): Promise<VenueBookingSlot[]> {
+    return this.prisma.venueBooking.findMany({
+      where: {
+        venueId,
+        start: { lt: to },
+        end: { gt: from },
+        status: { in: LIVE_STATUSES },
+      },
+      select: { start: true, end: true, status: true },
+      orderBy: { start: 'asc' },
+    });
   }
 }

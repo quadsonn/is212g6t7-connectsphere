@@ -1,4 +1,4 @@
-import type { EventStatus, VenueStatus } from '@/types/api';
+import type { DayStatus, EventStatus, VenueStatus } from '@/types/api';
 
 /**
  * The status colour language, defined once.
@@ -61,3 +61,16 @@ export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
  * resubmitted without demoting it to DRAFT first.
  */
 export const EDITABLE_EVENT_STATUSES: EventStatus[] = ['DRAFT', 'RETURNED'];
+
+/**
+ * US-17 — availability calendar days. Each also carries an icon and label in
+ * the calendar itself, so the three states survive greyscale.
+ */
+export const DAY_STATUS_STYLES: Record<DayStatus, StatusStyle> = {
+  free: { label: 'Free', className: 'bg-white text-ink-800 ring-ink-200' },
+  tentative: {
+    label: 'Tentatively held',
+    className: 'bg-amber-50 text-amber-900 ring-amber-300',
+  },
+  booked: { label: 'Booked', className: 'bg-ink-200 text-ink-700 ring-ink-300' },
+};

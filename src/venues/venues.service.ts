@@ -20,6 +20,15 @@ import {
   VenueSortField,
 } from './dto/browse-venues.dto';
 import { PublishableVenueDto } from './dto/publishable-venue.dto';
+import {
+  DayAvailabilityDto,
+  VenueAvailabilityQueryDto,
+} from './dto/venue-availability.dto';
+import {
+  aggregateAvailability,
+  rangeBounds,
+  resolveRange,
+} from './availability';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
@@ -148,6 +157,44 @@ export class VenuesService {
     }
 
     return venue;
+  }
+
+  /**
+   * US-17 — a venue's calendar as one free/tentative/booked status per day.
+   *
+   * The CHECK_AVAILABILITY grant is PUBLIC-scoped: published venues only, so
+   * a draft answers 404 exactly as it does on GET /venues/:id, and its
+   * existence is not confirmed.
+   *
+   * AC-3: nothing identifying a booking crosses this boundary. The lookup
+   * returns anonymous slots, and the result is serialised through
+   * DayAvailabilityDto, which drops any property it does not declare.
+   */
+  async getAvailability(
+    user: AuthenticatedUser,
+    id: string,
+    query: VenueAvailabilityQueryDto,
+    now: Date = new Date(),
+  ): Promise<DayAvailabilityDto[]> {
+    this.access.requireScope(user, Resource.VENUE, Action.CHECK_AVAILABILITY);
+
+    const venue = await this.prisma.venue.findFirst({
+      where: { id, status: VenueStatus.PUBLISHED },
+      select: { id: true },
+    });
+    if (!venue) {
+      throw new NotFoundException('venue not found');
+    }
+
+    const range = resolveRange(query, now);
+    const { from, to } = rangeBounds(range);
+    const slots = await this.bookings.findBookingSlotsForVenue(id, from, to);
+
+    return plainToInstance(
+      DayAvailabilityDto,
+      aggregateAvailability(range, slots),
+      { excludeExtraneousValues: true },
+    );
   }
 
   /**

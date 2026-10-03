@@ -29,6 +29,12 @@ export enum Action {
   CLARIFY = 'CLARIFY',
   /** US-13: make a draft catalogue entry visible to everyone else. */
   PUBLISH = 'PUBLISH',
+  /**
+   * US-17: see whether a venue is free, tentatively held or booked on each
+   * day. Separate from READ because it exposes booking state, and READ is
+   * held by roles (Organiser) the story does not cover.
+   */
+  CHECK_AVAILABILITY = 'CHECK_AVAILABILITY',
   DECIDE = 'DECIDE',
   REGISTER = 'REGISTER',
   WITHDRAW = 'WITHDRAW',

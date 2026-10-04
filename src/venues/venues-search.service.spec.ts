@@ -7,6 +7,7 @@ import { VenueBookingLookup } from '../bookings/booking-impact';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
@@ -41,6 +42,7 @@ describe('US-18 VenuesService.search', () => {
       {} as unknown as VenueBookingLookup,
       {} as unknown as NotificationsService,
       {} as unknown as SupabaseStorageService,
+      {} as unknown as EventsService,
     );
   });
 

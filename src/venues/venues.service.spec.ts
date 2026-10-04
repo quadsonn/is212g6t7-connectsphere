@@ -3,6 +3,7 @@ import { Role, RoomLayout, VenueStatus } from '@prisma/client';
 
 import { VenueBookingLookup } from '../bookings/booking-impact';
 import { AccessControlService } from '../common/access/access-control.service';
+import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
@@ -78,6 +79,7 @@ describe('VenuesService (US-13)', () => {
       bookings as unknown as VenueBookingLookup,
       notifications as unknown as NotificationsService,
       {} as unknown as SupabaseStorageService,
+      {} as unknown as EventsService,
     );
   });
 

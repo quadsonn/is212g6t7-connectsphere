@@ -26,6 +26,7 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { BrowseVenuesDto } from './dto/browse-venues.dto';
 import { VenueAvailabilityQueryDto } from './dto/venue-availability.dto';
 import { VenueSearchDto } from './dto/venue-search.dto';
+import { VenueSuitabilityQueryDto } from './dto/venue-suitability.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -139,6 +140,22 @@ export class VenuesController {
     @Query() query: VenueAvailabilityQueryDto,
   ) {
     return this.venuesService.getAvailability(user, id, query);
+  }
+
+  /**
+   * US-20 — per-requirement suitability flags for one venue against one of
+   * the Coordinator's events. Advisory only: never a precondition for
+   * requesting the venue (AC-5).
+   */
+  @Get(':id/suitability')
+  @RequirePermission(Resource.VENUE, Action.CHECK_AVAILABILITY)
+  @Header('Cache-Control', 'no-store')
+  getSuitability(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query() query: VenueSuitabilityQueryDto,
+  ) {
+    return this.venuesService.getSuitability(user, id, query.eventId);
   }
 
   /** Declared after the literal routes above so "drafts" is not read as an id. */

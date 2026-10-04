@@ -13,6 +13,7 @@ import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { VenueBookingLookup } from '../bookings/booking-impact';
 import { confirmedOverlapping } from '../bookings/booking-overlap';
+import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -32,6 +33,7 @@ import {
 } from './availability';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenueSearchDto } from './dto/venue-search.dto';
+import { assessSuitability, VenueSuitability } from './suitability';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 /**
@@ -75,6 +77,7 @@ export class VenuesService {
     private readonly bookings: VenueBookingLookup,
     private readonly notifications: NotificationsService,
     private readonly storage: SupabaseStorageService,
+    private readonly events: EventsService,
   ) {}
 
   /**
@@ -219,6 +222,38 @@ export class VenuesService {
       where,
       orderBy: [{ name: 'asc' }],
     });
+  }
+
+  /**
+   * US-20 — does this venue appear suitable for this event?
+   *
+   * Read-only and advisory (AC-5): it reports, it never gates. Nothing in the
+   * booking flow may call this as a precondition.
+   *
+   * AC-6: two indexed lookups by primary key, run in parallel — one venue and
+   * one event — then a pure comparison. Deliberately not US-18's search query,
+   * which filters across every venue.
+   */
+  async getSuitability(
+    user: AuthenticatedUser,
+    venueId: string,
+    eventId: string,
+  ): Promise<VenueSuitability> {
+    this.access.requireScope(user, Resource.VENUE, Action.CHECK_AVAILABILITY);
+
+    const [venue, event] = await Promise.all([
+      this.prisma.venue.findFirst({
+        where: { id: venueId, status: VenueStatus.PUBLISHED },
+        select: { capacity: true, accessibilityFeatures: true, supportedLayouts: true },
+      }),
+      this.events.findSuitabilityRequirements(user, eventId),
+    ]);
+
+    if (!venue) {
+      throw new NotFoundException('venue not found');
+    }
+
+    return assessSuitability(venue, event);
   }
 
   /**

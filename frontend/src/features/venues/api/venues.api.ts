@@ -5,6 +5,7 @@ import type {
   Venue,
   VenueDraftPayload,
   VenueSearchQuery,
+  VenueSuitability,
   VenueWithWarnings,
 } from '@/types/api';
 
@@ -27,6 +28,12 @@ export const venuesApi = {
   // US-18: published venues matching every active filter. Coordinators only.
   search: (query: VenueSearchQuery) =>
     apiClient.get<Venue[]>('/venues/search', { params: query }).then((r) => r.data),
+
+  // US-20: advisory suitability flags against one of my events.
+  suitability: (id: string, eventId: string) =>
+    apiClient
+      .get<VenueSuitability>(`/venues/${id}/suitability`, { params: { eventId } })
+      .then((r) => r.data),
 
   // US-17 AC-1/AC-2: one month of free/tentative/booked days ("YYYY-MM").
   // Coordinators only — the server answers 403 for every other role.

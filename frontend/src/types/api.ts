@@ -297,6 +297,32 @@ export interface VenueSearchQuery {
   facilities?: string;
 }
 
+/** US-20 — the outcome of one suitability check. */
+export type SuitabilityCheckStatus = 'MET' | 'UNMET' | 'NOT_REQUIRED' | 'NOT_RECORDED';
+
+/**
+ * GET /venues/:id/suitability?eventId= — advisory flags for one venue against
+ * one event. `facilities` and `equipment` are null until those checks exist;
+ * `notChecked` says why, so the UI never implies they passed.
+ */
+export interface VenueSuitability {
+  overall: 'SUITABLE' | 'NOT_SUITABLE' | 'INCOMPLETE';
+  overallSuitable: boolean;
+  capacity: {
+    status: SuitabilityCheckStatus;
+    venueCapacity: number | null;
+    expectedAttendance: number | null;
+  };
+  accessibility: {
+    status: SuitabilityCheckStatus;
+    items: { requirement: AccessibilityFeature; met: boolean }[];
+  };
+  layout: { status: SuitabilityCheckStatus; requirement: RoomLayout | null };
+  facilities: { requirement: Facility; met: boolean }[] | null;
+  equipment: { item: string; available: boolean }[] | null;
+  notChecked: { check: 'facilities' | 'equipment'; reason: string }[];
+}
+
 /** US-15 — catalogue search and sort. */
 export interface BrowseVenuesQuery {
   search?: string;

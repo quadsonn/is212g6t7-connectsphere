@@ -5,6 +5,7 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { VenueBookingLookup } from '../bookings/booking-impact';
 import { Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
@@ -67,6 +68,7 @@ describe('VenuesService update (US-14)', () => {
       bookings as unknown as VenueBookingLookup,
       notifications as unknown as NotificationsService,
       {} as unknown as SupabaseStorageService,
+      {} as unknown as EventsService,
     );
   });
 

@@ -39,6 +39,18 @@ import {
   EventStatusView,
 } from './event-status.machine';
 
+
+/**
+ * US-20 — statuses in which an event has no use for a venue: not yet a
+ * request, turned down, or over.
+ */
+const INACTIVE_FOR_BOOKING: EventStatus[] = [
+  EventStatus.DRAFT,
+  EventStatus.REJECTED,
+  EventStatus.CANCELLED,
+  EventStatus.COMPLETED,
+];
+
 /**
  * US-10 AC-3 — the assigned Coordinator, exposed on every read so the main
  * point of contact is identifiable rather than an opaque id.
@@ -328,6 +340,42 @@ export class EventsService {
     });
 
     return events.map((event) => this.toOrganiserView(event));
+  }
+
+  /**
+   * US-20 — the requirements a venue is checked against, for an event this
+   * Coordinator is assigned to and could still book a venue for.
+   *
+   * Narrower than the ASSIGNED read scope on purpose: that scope includes the
+   * unassigned review pool, but booking arrangements belong to the event's own
+   * Coordinator (CLAUDE.md §1). Anything outside that answers 404, so the
+   * event's existence is not confirmed to someone who may not plan it.
+   */
+  async findSuitabilityRequirements(user: AuthenticatedUser, id: string) {
+    const event = await this.prisma.eventRequest.findFirst({
+      where: {
+        AND: [
+          this.access.scopedEventFilter(user, Action.READ),
+          {
+            id,
+            coordinatorId: user.userId,
+            status: { notIn: INACTIVE_FOR_BOOKING },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        expectedAttendance: true,
+        accessibilityRequirements: true,
+        preferredLayout: true,
+      },
+    });
+
+    if (!event) {
+      throw new NotFoundException('event not found');
+    }
+
+    return event;
   }
 
   /**

@@ -24,6 +24,35 @@ export function AppShell() {
         </div>
       </header>
 
+      {/*
+        Below md the side nav is hidden, so the same items scroll horizontally
+        under the header — otherwise no screen past the role's home page is
+        reachable on a phone (US-16 AC-7, the responsive design requirement).
+      */}
+      <nav aria-label="Main" className="overflow-x-auto border-b border-ink-200 bg-white md:hidden">
+        <ul className="flex gap-1 px-4 py-2">
+          {items
+            .filter((item) => !item.comingSoon)
+            .map((item) => (
+              <li key={item.to} className="shrink-0">
+                <NavLink
+                  to={item.to}
+                  end
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap',
+                      isActive ? 'bg-brand-50 text-brand-800' : 'text-ink-700 hover:bg-ink-100',
+                    )
+                  }
+                >
+                  <item.icon className="size-4 shrink-0" aria-hidden="true" />
+                  {item.label}
+                </NavLink>
+              </li>
+            ))}
+        </ul>
+      </nav>
+
       <div className="mx-auto flex max-w-[90rem] gap-6 px-4 py-6 sm:px-6">
         <nav aria-label="Main" className="hidden w-56 shrink-0 md:block">
           <ul className="space-y-1">

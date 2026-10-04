@@ -9,6 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SortOrder, VenueSortField } from './dto/browse-venues.dto';
 import { VenuesService } from './venues.service';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 /** US-15 — browsing the catalogue. */
 describe('VenuesService browse (US-15)', () => {
@@ -41,6 +42,7 @@ describe('VenuesService browse (US-15)', () => {
       access as unknown as AccessControlService,
       { findLiveBookingsForVenue: jest.fn() } as unknown as VenueBookingLookup,
       { notify: jest.fn(), notifySafely: jest.fn() } as unknown as NotificationsService,
+      {} as unknown as SupabaseStorageService,
     );
   });
 

@@ -9,6 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 /** US-14 — updating an existing venue. */
 describe('VenuesService update (US-14)', () => {
@@ -65,6 +66,7 @@ describe('VenuesService update (US-14)', () => {
       access as unknown as AccessControlService,
       bookings as unknown as VenueBookingLookup,
       notifications as unknown as NotificationsService,
+      {} as unknown as SupabaseStorageService,
     );
   });
 

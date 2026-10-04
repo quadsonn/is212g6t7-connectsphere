@@ -10,6 +10,9 @@ import { Field as FormField, Select, Textarea } from '@/components/ui/form';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
+import { BookingRequestForm } from '@/features/bookings/components/booking-request-form';
+import { EventBookingsList } from '@/features/bookings/components/event-bookings-list';
+import { useEventBookings } from '@/features/bookings/hooks/use-bookings';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import {
   useAssignCoordinator,
@@ -18,6 +21,10 @@ import {
 } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
 import { formatDateRange, humanise } from '@/lib/utils';
+import type { EventStatus } from '@/types/api';
+
+/** Mirrors BOOKABLE_EVENT_STATUSES in the backend's booking.types.ts (US-21). */
+const BOOKABLE_EVENT_STATUSES: EventStatus[] = ['APPROVED', 'PLANNING', 'AWAITING_ARRANGEMENTS'];
 
 type Decision = 'clarify' | 'return' | 'reject' | 'approve' | '';
 
@@ -36,6 +43,7 @@ export function CoordinatorEventDetail() {
   const { data: event, isPending, isError, error } = useAssignedRequest(id ?? '');
   const { approve, requestClarification, reject, returnForAmendment } = useReviewEvent();
   const assignCoordinator = useAssignCoordinator();
+  const { data: eventBookings = [] } = useEventBookings(id);
   const [decision, setDecision] = useState<Decision>('');
   const [decisionText, setDecisionText] = useState('');
 
@@ -47,6 +55,10 @@ export function CoordinatorEventDetail() {
   const canDecide = event
     ? (event.status === 'SUBMITTED' || event.status === 'UNDER_REVIEW') &&
       event.coordinator !== null
+    : false;
+  // US-21: only the assigned Coordinator books, and only once approved.
+  const canBook = event
+    ? BOOKABLE_EVENT_STATUSES.includes(event.status) && event.coordinator?.id === session?.userId
     : false;
 
   function assignToMe() {
@@ -239,6 +251,23 @@ export function CoordinatorEventDetail() {
               )}
             </CardContent>
           </Card>
+
+          {canBook || eventBookings.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Venue booking</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {eventBookings.length > 0 ? (
+                  <EventBookingsList
+                    bookings={eventBookings}
+                    detailPath={(bookingId) => `/coordinator/bookings/${bookingId}`}
+                  />
+                ) : null}
+                {canBook ? <BookingRequestForm event={event} /> : null}
+              </CardContent>
+            </Card>
+          ) : null}
 
           {canDecide ? (
             <Card>

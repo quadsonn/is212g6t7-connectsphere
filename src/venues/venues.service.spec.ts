@@ -9,6 +9,7 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 /** US-13 — venue drafts and publishing. */
 describe('VenuesService (US-13)', () => {
@@ -76,6 +77,7 @@ describe('VenuesService (US-13)', () => {
       access as unknown as AccessControlService,
       bookings as unknown as VenueBookingLookup,
       notifications as unknown as NotificationsService,
+      {} as unknown as SupabaseStorageService,
     );
   });
 

@@ -383,18 +383,48 @@ export interface ItemAvailability {
   shortfall: number;
 }
 
+/** US-31 — one equipment line the Coordinator recorded (US-28). */
+export interface CoordinatorRequirement {
+  id: string;
+  equipmentType: string;
+  quantity: number;
+  notes: string | null;
+}
+
 /** US-31 — GET /equipment/requirements[/:eventId]. */
 export interface EventRequirements {
   eventId: string;
   name: string | null;
+  description: string | null;
   status: EventStatus;
   proposedStart: string | null;
   proposedEnd: string | null;
   /** AC-1/AC-2: the Organiser's free-text equipment needs, in full. */
   organiserEquipmentNeeds: string | null;
-  /** AC-3: false when nothing is recorded; `message` says so. */
+  /** AC-1/AC-2: the Coordinator's requirement rows. */
+  coordinatorRequirements: CoordinatorRequirement[];
+  /** AC-1/AC-2: the Coordinator's technical support notes. */
+  technicalSupportNeeds: string | null;
+  /** AC-3: false when none of the three is recorded; `message` says so. */
   hasRequirements: boolean;
   message: string | null;
+}
+
+/** US-31 — GET /equipment/requirements/:eventId/details ("View more details"). */
+export interface EventRequirementDetails {
+  eventId: string;
+  name: string | null;
+  description: string | null;
+  status: EventStatus;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  expectedAttendance: number | null;
+  preferredLayout: RoomLayout | null;
+  layoutNotes: string | null;
+  accessibilityRequirements: AccessibilityFeature[];
+  accessibilityNotes: string | null;
+  programme: string | null;
+  coordinator: { name: string; email: string } | null;
 }
 
 export type ReservationStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'RELEASED';

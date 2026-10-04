@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, CalendarClock, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, CalendarClock, CheckCircle2, FileText } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
+import { RequirementsView } from '@/features/equipment/components/requirements-view';
 import {
   useCommitReservation,
   useEquipmentCatalogue,
@@ -45,7 +46,8 @@ export function EquipmentEventRequirements() {
     <>
       <PageHeader
         title={event?.name ?? 'Event requirements'}
-        description="What support this event expects, and committing equipment to it."
+        // US-31 wireframe: the event's own description under its name.
+        description={event?.description ?? (event ? 'No description provided.' : '')}
         action={
           <LinkButton to="/equipment" variant="secondary" size="sm">
             <ArrowLeft className="size-4" aria-hidden="true" />
@@ -60,6 +62,17 @@ export function EquipmentEventRequirements() {
         <ErrorState message={apiErrorMessage(error, 'Could not load this event’s requirements.')} />
       ) : null}
 
+      {/* "View more details" — the full event. Shown for every submitted
+          event, whether or not requirements are recorded. */}
+      {event ? (
+        <div className="-mt-2 mb-5">
+          <LinkButton to={`/equipment/requirements/${event.eventId}/details`} variant="secondary" size="sm">
+            <FileText className="size-4" aria-hidden="true" />
+            View more details
+          </LinkButton>
+        </div>
+      ) : null}
+
       {event ? (
         <>
           <Card>
@@ -72,25 +85,7 @@ export function EquipmentEventRequirements() {
                 {formatDateRange(event.proposedStart, event.proposedEnd)}
               </p>
 
-              {event.hasRequirements ? (
-                <div>
-                  <h3 className="text-xs font-medium uppercase tracking-wide text-ink-500">
-                    Equipment needs (from the Organiser)
-                  </h3>
-                  {/* US-31 AC-2: the request itself, in full. */}
-                  <p className="mt-1 whitespace-pre-line text-sm text-ink-900">
-                    {event.organiserEquipmentNeeds}
-                  </p>
-                </div>
-              ) : (
-                // US-31 AC-3: clearly indicated, not blank.
-                <p
-                  role="note"
-                  className="rounded-lg border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-700"
-                >
-                  {event.message}
-                </p>
-              )}
+              <RequirementsView requirements={event} />
             </CardContent>
           </Card>
 

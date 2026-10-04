@@ -16,8 +16,9 @@ import { EquipmentReservationsService } from '../src/equipment/equipment-reserva
 import { EventsService } from '../src/events/events.service';
 
 /**
- * US-31, US-32, US-33 e2e — and their interaction with US-30, since all four
- * read or write the same reservation data. One describe per acceptance
+ * US-32, US-33 e2e — and their interaction with US-30, since all three
+ * read or write the same reservation data. US-31 has its own suite
+ * (equipment-requirements.e2e-spec.ts). One describe per acceptance
  * criterion, named "US-xx AC-n" for traceability.
  *
  * US-33 is triggered by moving the event to CANCELLED through
@@ -25,7 +26,7 @@ import { EventsService } from '../src/events/events.service';
  * (events-status-audit.spec.ts). No cancel endpoint exists; #43 will add one
  * and call the same method.
  */
-describe('US-31/32/33 equipment requirements, commitment and release (e2e)', () => {
+describe('US-32/33 equipment commitment and release (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
   let events: EventsService;
@@ -168,115 +169,6 @@ describe('US-31/32/33 equipment requirements, commitment and release (e2e)', () 
         end: '2030-10-02T17:00:00.000Z',
       })
     ).id;
-  });
-
-  // -------------------------------------------------------------------------
-  // US-31 — view equipment and technical requirements described for an event
-  // -------------------------------------------------------------------------
-
-  describe('US-31 AC-1/AC-2: the recorded requirements are visible, including what was requested', () => {
-    it('lists events with the Organiser’s equipment needs text in full', async () => {
-      const res = await http()
-        .get('/equipment/requirements')
-        .set('Authorization', as('tech'))
-        .expect(200);
-
-      const view = res.body.find((e: { eventId: string }) => e.eventId === ids.event);
-      expect(view).toEqual({
-        eventId: ids.event,
-        name: 'Capstone Showcase',
-        status: 'PLANNING',
-        proposedStart: START,
-        proposedEnd: END,
-        organiserEquipmentNeeds: 'Six wireless microphones and a PA system.',
-        hasRequirements: true,
-        message: null,
-      });
-      expect(res.headers['cache-control']).toBe('no-store');
-    });
-
-    it('shows one event’s requirements by id', async () => {
-      const res = await http()
-        .get(`/equipment/requirements/${ids.event}`)
-        .set('Authorization', as('tech'))
-        .expect(200);
-
-      expect(res.body.organiserEquipmentNeeds).toBe('Six wireless microphones and a PA system.');
-    });
-
-    it('does not expose other planning fields of the event', async () => {
-      const res = await http()
-        .get(`/equipment/requirements/${ids.event}`)
-        .set('Authorization', as('tech'))
-        .expect(200);
-
-      expect(res.body).not.toHaveProperty('expectedAttendance');
-      expect(res.body).not.toHaveProperty('organiserId');
-    });
-  });
-
-  describe('US-31 AC-3: no requirements recorded is clearly indicated', () => {
-    it.each([
-      ['null', null],
-      ['whitespace-only', '   '],
-    ])('reports %s equipment needs as none recorded, with a message', async (_label, equipmentNeeds) => {
-      const bare = await seedEvent('Quiet Talk', { equipmentNeeds });
-
-      const res = await http()
-        .get(`/equipment/requirements/${bare.id}`)
-        .set('Authorization', as('tech'))
-        .expect(200);
-
-      expect(res.body).toMatchObject({
-        hasRequirements: false,
-        organiserEquipmentNeeds: null,
-        message: 'No equipment or technical requirements have been recorded for this event.',
-      });
-    });
-  });
-
-  describe('US-31 AC-4: only submitted events with requirements; drafts are not visible', () => {
-    it('leaves drafts and events without requirements out of the list', async () => {
-      const draft = await seedEvent('Draft Gala', { status: EventStatus.DRAFT });
-      const bare = await seedEvent('Quiet Talk', { equipmentNeeds: null });
-      const blank = await seedEvent('Blank Talk', { equipmentNeeds: '  ' });
-      const submitted = await seedEvent('Fresh Request', { status: EventStatus.SUBMITTED });
-
-      const res = await http()
-        .get('/equipment/requirements')
-        .set('Authorization', as('tech'))
-        .expect(200);
-
-      const listed = res.body.map((e: { eventId: string }) => e.eventId);
-      expect(listed).toContain(submitted.id);
-      expect(listed).not.toContain(draft.id);
-      expect(listed).not.toContain(bare.id);
-      expect(listed).not.toContain(blank.id);
-    });
-
-    it('404s for a draft event, even one with requirements', async () => {
-      const draft = await seedEvent('Draft Gala', { status: EventStatus.DRAFT });
-
-      await http()
-        .get(`/equipment/requirements/${draft.id}`)
-        .set('Authorization', as('tech'))
-        .expect(404);
-    });
-
-    it.each(['coordinator', 'organiser', 'attendee', 'venueStaff'])(
-      'is refused to %s — Technical Support only',
-      async (who) => {
-        await http().get('/equipment/requirements').set('Authorization', as(who)).expect(403);
-        await http()
-          .get(`/equipment/requirements/${ids.event}`)
-          .set('Authorization', as(who))
-          .expect(403);
-      },
-    );
-
-    it('is refused without a token', async () => {
-      await http().get('/equipment/requirements').expect(401);
-    });
   });
 
   // -------------------------------------------------------------------------

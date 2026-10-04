@@ -44,7 +44,6 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: 'Equipment catalogue', to: '/equipment/inventory', icon: Wrench },
     { label: 'Check availability', to: '/equipment/availability', icon: CalendarClock },
     { label: 'Released reservations', to: '/equipment/released', icon: CalendarX },
-    { label: 'Related events', to: '/equipment/events', icon: CalendarCheck },
   ],
   ATTENDEE: [
     { label: 'Browse events', to: '/events', icon: Ticket },

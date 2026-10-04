@@ -6,6 +6,7 @@ import type {
   CommittedReservation,
   Equipment,
   EquipmentListItem,
+  EventRequirementDetails,
   EventRequirements,
   ItemAvailability,
   ReleasedReservation,
@@ -18,6 +19,7 @@ export const equipmentKeys = {
   detail: (id: string) => ['equipment', 'detail', id] as const,
   requirements: ['equipment', 'requirements'] as const,
   eventRequirements: (eventId: string) => ['equipment', 'requirements', eventId] as const,
+  eventDetails: (eventId: string) => ['equipment', 'requirements', eventId, 'details'] as const,
   released: ['equipment', 'released'] as const,
 };
 
@@ -75,6 +77,16 @@ export function useEventRequirements(eventId: string) {
   return useQuery<EventRequirements>({
     queryKey: equipmentKeys.eventRequirements(eventId),
     queryFn: () => equipmentApi.getRequirements(eventId),
+    enabled: Boolean(eventId),
+    staleTime: 0,
+  });
+}
+
+/** US-31 — "View more details": the full event. */
+export function useEventRequirementDetails(eventId: string) {
+  return useQuery<EventRequirementDetails>({
+    queryKey: equipmentKeys.eventDetails(eventId),
+    queryFn: () => equipmentApi.getRequirementDetails(eventId),
     enabled: Boolean(eventId),
     staleTime: 0,
   });

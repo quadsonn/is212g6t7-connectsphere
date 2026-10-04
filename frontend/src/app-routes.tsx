@@ -16,6 +16,7 @@ import { EquipmentCatalogue } from '@/pages/equipment-catalogue';
 import { EquipmentDetail } from '@/pages/equipment-detail';
 import { EquipmentAvailability } from '@/pages/equipment-availability';
 import { EquipmentEventRequirements } from '@/pages/equipment-event-requirements';
+import { EquipmentEventDetails } from '@/pages/equipment-event-details';
 import { EquipmentReleased } from '@/pages/equipment-released';
 import { AttendeeDashboard } from '@/pages/attendee-dashboard';
 import { VenueNewRequest } from '@/pages/venue-new-request';
@@ -71,15 +72,8 @@ export function AppRoutes() {
             <Route path="/equipment/inventory/:id" element={<EquipmentDetail />} />
             <Route path="/equipment/availability" element={<EquipmentAvailability />} />
             <Route path="/equipment/requirements/:eventId" element={<EquipmentEventRequirements />} />
+            <Route path="/equipment/requirements/:eventId/details" element={<EquipmentEventDetails />} />
             <Route path="/equipment/released" element={<EquipmentReleased />} />
-            <Route
-              path="/equipment/events"
-              element={<RelatedEventsList basePath="/equipment/events" />}
-            />
-            <Route
-              path="/equipment/events/:id"
-              element={<RelatedEventDetail basePath="/equipment/events" />}
-            />
           </Route>
 
           <Route element={<ProtectedRoute allow={['ATTENDEE']} />}>

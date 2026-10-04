@@ -79,6 +79,20 @@ export class EquipmentController {
   }
 
   /**
+   * US-31 "View more details" — the full event, under the same rule as
+   * GET requirements/:eventId: any submitted event; drafts are 404.
+   */
+  @Get('requirements/:eventId/details')
+  @Roles(Role.TECHNICAL_SUPPORT_STAFF)
+  @Header('Cache-Control', 'no-store')
+  findEventDetails(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventId') eventId: string,
+  ) {
+    return this.requirementsService.findDetailsForEvent(user, eventId);
+  }
+
+  /**
    * US-32 — commit a quantity of an item to an event. 201 with the
    * reservation on success; 409 with the reason when the quantity is not free.
    */

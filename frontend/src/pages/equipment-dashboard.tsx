@@ -7,10 +7,33 @@ import { EventStatusBadge } from '@/features/events/components/event-status-badg
 import { useEventRequirementsList } from '@/features/equipment/hooks/use-equipment';
 import { apiErrorMessage } from '@/lib/api-client';
 import { formatDateRange } from '@/lib/utils';
+import type { EventRequirements } from '@/types/api';
+
+/** US-31 AC-1/AC-2 — a one-line preview of each source the event has. */
+function requirementSummary(event: EventRequirements): { label: string; text: string }[] {
+  const parts: { label: string; text: string }[] = [];
+  if (event.organiserEquipmentNeeds) {
+    parts.push({ label: 'Organiser', text: event.organiserEquipmentNeeds });
+  }
+  if (event.coordinatorRequirements.length > 0) {
+    parts.push({
+      label: 'Coordinator',
+      text: event.coordinatorRequirements
+        .map((row) => `${row.quantity} × ${row.equipmentType}`)
+        .join(', '),
+    });
+  }
+  if (event.technicalSupportNeeds) {
+    parts.push({ label: 'Technical support', text: event.technicalSupportNeeds });
+  }
+  return parts;
+}
 
 /**
- * US-31 — REAL data, GET /equipment/requirements. Submitted events that have
- * equipment or technical requirements (AC-4); drafts never appear.
+ * US-31 — REAL data, GET /equipment/requirements. Submitted events with at
+ * least one requirement source — the Organiser's equipment needs, or the
+ * Coordinator's requirement rows or technical support notes (AC-4); drafts
+ * never appear.
  */
 export function EquipmentDashboard() {
   const { data: events, isPending, isError, error } = useEventRequirementsList();
@@ -64,9 +87,14 @@ export function EquipmentDashboard() {
                     {formatDateRange(event.proposedStart, event.proposedEnd)}
                   </p>
                   {/* AC-2: what was requested, not just that something was. */}
-                  <p className="mt-2 line-clamp-2 whitespace-pre-line text-sm text-ink-700">
-                    {event.organiserEquipmentNeeds}
-                  </p>
+                  <dl className="mt-2 space-y-1 text-sm">
+                    {requirementSummary(event).map(({ label, text }) => (
+                      <div key={label} className="flex gap-2">
+                        <dt className="shrink-0 text-ink-500">{label}:</dt>
+                        <dd className="line-clamp-2 whitespace-pre-line text-ink-700">{text}</dd>
+                      </div>
+                    ))}
+                  </dl>
                 </button>
               </li>
             ))}

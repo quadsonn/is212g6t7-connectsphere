@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { EventStatus, Role } from '@prisma/client';
+import { EventStatus, Role, RoomLayout } from '@prisma/client';
 
 import { AccessControlService } from '../common/access/access-control.service';
 import { Scope } from '../common/access/permission.types';
@@ -7,8 +7,10 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   EquipmentRequirementsService,
+  hasAnySource,
   NO_REQUIREMENTS_MESSAGE,
   recordedText,
+  REQUIREMENTS_VISIBLE_WHERE,
   toRequirementsView,
 } from './equipment-requirements.service';
 
@@ -20,13 +22,19 @@ describe('EquipmentRequirementsService (US-31)', () => {
     jti: 'j1',
   };
 
-  const event = {
+  const row = { id: 'req-1', equipmentType: 'Wireless microphone', quantity: 6, notes: 'Lapel' };
+
+  /** An event with no requirement source; each test adds the ones it needs. */
+  const bare = {
     id: 'event-1',
     name: 'Capstone Showcase',
-    status: EventStatus.PLANNING,
+    description: 'Final-year project showcase.',
+    status: EventStatus.PLANNING as EventStatus,
     proposedStart: new Date('2030-10-01T09:00:00.000Z'),
     proposedEnd: new Date('2030-10-01T17:00:00.000Z'),
-    equipmentNeeds: 'Six wireless microphones, two projectors.',
+    equipmentNeeds: null as string | null,
+    technicalSupportNeeds: null as string | null,
+    equipmentRequirements: [] as (typeof row)[],
   };
 
   let prisma: { eventRequest: { findMany: jest.Mock; findFirst: jest.Mock } };
@@ -47,73 +55,138 @@ describe('EquipmentRequirementsService (US-31)', () => {
     );
   });
 
-  describe('US-31 AC-1/AC-2: what was requested is shown, not just that a request exists', () => {
-    it('returns the Organiser’s equipment needs text in full', () => {
-      expect(toRequirementsView(event)).toEqual({
+  describe('US-31 AC-1/AC-2: recorded requirements are shown, including what was requested', () => {
+    it('Organiser text only — returned in full', () => {
+      expect(toRequirementsView({ ...bare, equipmentNeeds: 'Six mics, two projectors.' })).toEqual({
         eventId: 'event-1',
         name: 'Capstone Showcase',
+        description: 'Final-year project showcase.',
         status: EventStatus.PLANNING,
-        proposedStart: event.proposedStart,
-        proposedEnd: event.proposedEnd,
-        organiserEquipmentNeeds: 'Six wireless microphones, two projectors.',
+        proposedStart: bare.proposedStart,
+        proposedEnd: bare.proposedEnd,
+        organiserEquipmentNeeds: 'Six mics, two projectors.',
+        coordinatorRequirements: [],
+        technicalSupportNeeds: null,
         hasRequirements: true,
         message: null,
       });
     });
 
-    it('returns one event’s requirements by id', async () => {
-      prisma.eventRequest.findFirst.mockResolvedValue(event);
+    it('Coordinator rows only — type, quantity and notes per line', () => {
+      const view = toRequirementsView({ ...bare, equipmentRequirements: [row] });
 
-      await expect(service.findForEvent(tech, 'event-1')).resolves.toMatchObject({
-        organiserEquipmentNeeds: 'Six wireless microphones, two projectors.',
+      expect(view.coordinatorRequirements).toEqual([row]);
+      expect(view).toMatchObject({ organiserEquipmentNeeds: null, hasRequirements: true });
+    });
+
+    it('technical support notes only — returned in full', () => {
+      const view = toRequirementsView({
+        ...bare,
+        technicalSupportNeeds: 'On-site AV technician all day.',
+      });
+
+      expect(view).toMatchObject({
+        technicalSupportNeeds: 'On-site AV technician all day.',
+        hasRequirements: true,
+        message: null,
       });
     });
 
-    it('trims surrounding whitespace but keeps the text otherwise intact', () => {
+    it('all three together', () => {
+      const view = toRequirementsView({
+        ...bare,
+        equipmentNeeds: 'Six mics.',
+        technicalSupportNeeds: 'Technician on call.',
+        equipmentRequirements: [row, { ...row, id: 'req-2', equipmentType: 'PA system', quantity: 1, notes: null }],
+      });
+
+      expect(view).toMatchObject({
+        organiserEquipmentNeeds: 'Six mics.',
+        technicalSupportNeeds: 'Technician on call.',
+        hasRequirements: true,
+      });
+      expect(view.coordinatorRequirements.map((r) => r.equipmentType)).toEqual([
+        'Wireless microphone',
+        'PA system',
+      ]);
+    });
+
+    it('includes the event description for the page header', () => {
+      expect(toRequirementsView({ ...bare, equipmentNeeds: 'x' }).description).toBe(
+        'Final-year project showcase.',
+      );
+    });
+
+    it('trims text but keeps it otherwise intact; blank row notes become null', () => {
       expect(recordedText('  2 mics\n1 projector  ')).toBe('2 mics\n1 projector');
+      expect(
+        toRequirementsView({ ...bare, equipmentRequirements: [{ ...row, notes: '  ' }] })
+          .coordinatorRequirements[0].notes,
+      ).toBeNull();
     });
   });
 
-  describe('US-31 AC-3: no requirements recorded is clearly indicated', () => {
+  describe('US-31 AC-3: none of the three recorded is clearly indicated', () => {
     it.each([
-      ['null', null],
-      ['empty', ''],
-      ['whitespace-only', '   \n '],
-    ])('treats %s equipment needs as nothing recorded', (_label, equipmentNeeds) => {
-      expect(toRequirementsView({ ...event, equipmentNeeds })).toMatchObject({
+      ['all null', null, null],
+      ['all empty', '', ''],
+      ['whitespace-only text', '   ', '\n '],
+    ])('%s → hasRequirements false with the message', (_label, equipmentNeeds, technicalSupportNeeds) => {
+      expect(toRequirementsView({ ...bare, equipmentNeeds, technicalSupportNeeds })).toMatchObject({
         organiserEquipmentNeeds: null,
+        coordinatorRequirements: [],
+        technicalSupportNeeds: null,
+        hasRequirements: false,
+        message: NO_REQUIREMENTS_MESSAGE,
+      });
+    });
+
+    it('a submitted event with none is still returned by id, with the message', async () => {
+      prisma.eventRequest.findFirst.mockResolvedValue(bare);
+
+      await expect(service.findForEvent(tech, 'event-1')).resolves.toMatchObject({
         hasRequirements: false,
         message: NO_REQUIREMENTS_MESSAGE,
       });
     });
   });
 
-  describe('US-31 AC-4: only submitted events that have requirements; never drafts', () => {
-    it('lists only non-draft events with recorded equipment needs', async () => {
-      await service.findEventsWithRequirements(tech);
+  describe('US-31 AC-4: only submitted events with a requirement source; drafts hidden', () => {
+    it('the visibility rule excludes drafts and needs at least one of the three sources', () => {
+      const where = REQUIREMENTS_VISIBLE_WHERE as { status: { in: EventStatus[] }; OR: unknown[] };
 
-      const { where } = prisma.eventRequest.findMany.mock.calls[0][0];
       expect(where.status.in).not.toContain(EventStatus.DRAFT);
       expect(where.status.in).toEqual(
         expect.arrayContaining([EventStatus.SUBMITTED, EventStatus.PLANNING]),
       );
-      expect(where.equipmentNeeds).toEqual({ not: null });
-      expect(where.NOT).toEqual({ equipmentNeeds: '' });
+      expect(where.OR).toEqual([
+        { AND: [{ equipmentNeeds: { not: null } }, { NOT: { equipmentNeeds: '' } }] },
+        { equipmentRequirements: { some: {} } },
+        {
+          AND: [{ technicalSupportNeeds: { not: null } }, { NOT: { technicalSupportNeeds: '' } }],
+        },
+      ]);
     });
 
-    it('drops events whose text is whitespace-only', async () => {
+    it('the list uses that rule', async () => {
+      await service.findEventsWithRequirements(tech);
+
+      expect(prisma.eventRequest.findMany.mock.calls[0][0].where).toBe(REQUIREMENTS_VISIBLE_WHERE);
+    });
+
+    it('the list drops events whose only text is whitespace', async () => {
       prisma.eventRequest.findMany.mockResolvedValue([
-        event,
-        { ...event, id: 'event-2', equipmentNeeds: '   ' },
+        { ...bare, equipmentNeeds: 'Six mics.' },
+        { ...bare, id: 'event-2', equipmentNeeds: '   ' },
       ]);
 
       const views = await service.findEventsWithRequirements(tech);
 
-      expect(views.map((view) => view.eventId)).toEqual(['event-1']);
+      expect(views.map((v) => v.eventId)).toEqual(['event-1']);
     });
 
     it('looks up a single event only among non-draft statuses', async () => {
-      prisma.eventRequest.findFirst.mockResolvedValue(event);
+      prisma.eventRequest.findFirst.mockResolvedValue({ ...bare, equipmentNeeds: 'x' });
 
       await service.findForEvent(tech, 'event-1');
 
@@ -123,22 +196,82 @@ describe('EquipmentRequirementsService (US-31)', () => {
     });
 
     it('404s for a draft or unknown event rather than revealing it', async () => {
-      prisma.eventRequest.findFirst.mockResolvedValue(null);
-
-      await expect(service.findForEvent(tech, 'draft-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findForEvent(tech, 'draft-1')).rejects.toThrow(NotFoundException);
     });
 
-    it('is refused to a role without the grant', async () => {
+    it('is refused to a role without the grant, before any query', async () => {
       access.requireScope.mockImplementation(() => {
         throw new ForbiddenException();
       });
 
-      await expect(service.findEventsWithRequirements(tech)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(service.findEventsWithRequirements(tech)).rejects.toThrow(ForbiddenException);
+      await expect(service.findDetailsForEvent(tech, 'event-1')).rejects.toThrow(ForbiddenException);
       expect(prisma.eventRequest.findMany).not.toHaveBeenCalled();
+      expect(prisma.eventRequest.findFirst).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['Organiser text', { equipmentNeeds: 'x', technicalSupportNeeds: null, requirementCount: 0 }, true],
+      ['a Coordinator row', { equipmentNeeds: null, technicalSupportNeeds: null, requirementCount: 1 }, true],
+      ['notes', { equipmentNeeds: null, technicalSupportNeeds: 'x', requirementCount: 0 }, true],
+      ['nothing', { equipmentNeeds: ' ', technicalSupportNeeds: '', requirementCount: 0 }, false],
+    ])('hasAnySource with %s → %s', (_label, input, expected) => {
+      expect(hasAnySource(input)).toBe(expected);
+    });
+  });
+
+  describe('US-31 AC-4: "View more details" opens any submitted event; drafts hidden', () => {
+    const detailsRow = {
+      id: 'event-1',
+      name: 'Capstone Showcase',
+      description: 'Final-year project showcase.',
+      status: EventStatus.PLANNING,
+      proposedStart: bare.proposedStart,
+      proposedEnd: bare.proposedEnd,
+      expectedAttendance: 250,
+      preferredLayout: RoomLayout.THEATRE,
+      layoutNotes: 'Stage at the front',
+      accessibilityRequirements: ['STEP_FREE_ACCESS'],
+      accessibilityNotes: null,
+      programme: '09:00 Welcome',
+      coordinator: { name: 'Casey', email: 'casey@example.com' },
+    };
+
+    it('returns the full event details', async () => {
+      prisma.eventRequest.findFirst.mockResolvedValue(detailsRow);
+
+      await expect(service.findDetailsForEvent(tech, 'event-1')).resolves.toEqual({
+        eventId: 'event-1',
+        name: 'Capstone Showcase',
+        description: 'Final-year project showcase.',
+        status: EventStatus.PLANNING,
+        proposedStart: bare.proposedStart,
+        proposedEnd: bare.proposedEnd,
+        expectedAttendance: 250,
+        preferredLayout: RoomLayout.THEATRE,
+        layoutNotes: 'Stage at the front',
+        accessibilityRequirements: ['STEP_FREE_ACCESS'],
+        accessibilityNotes: null,
+        programme: '09:00 Welcome',
+        coordinator: { name: 'Casey', email: 'casey@example.com' },
+      });
+    });
+
+    it('looks up only non-draft events, without requiring a requirement source', async () => {
+      prisma.eventRequest.findFirst.mockResolvedValue(detailsRow);
+
+      await service.findDetailsForEvent(tech, 'event-1');
+
+      const { where } = prisma.eventRequest.findFirst.mock.calls[0][0];
+      expect(where.id).toBe('event-1');
+      expect(where.status.in).not.toContain(EventStatus.DRAFT);
+      expect(where).not.toHaveProperty('OR');
+    });
+
+    it('404s for a draft or unknown event', async () => {
+      prisma.eventRequest.findFirst.mockResolvedValue(null);
+
+      await expect(service.findDetailsForEvent(tech, 'draft-1')).rejects.toThrow(NotFoundException);
     });
   });
 });

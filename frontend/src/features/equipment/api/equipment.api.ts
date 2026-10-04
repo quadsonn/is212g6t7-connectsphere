@@ -6,6 +6,7 @@ import type {
   CommittedReservation,
   Equipment,
   EquipmentListItem,
+  EventRequirementDetails,
   EventRequirements,
   ItemAvailability,
   ReleasedReservation,
@@ -34,6 +35,12 @@ export const equipmentApi = {
   getRequirements: (eventId: string) =>
     apiClient
       .get<EventRequirements>(`/equipment/requirements/${eventId}`)
+      .then((r) => r.data),
+
+  // US-31: "View more details" — the full event, under the same rule.
+  getRequirementDetails: (eventId: string) =>
+    apiClient
+      .get<EventRequirementDetails>(`/equipment/requirements/${eventId}/details`)
       .then((r) => r.data),
 
   // US-32: commit a quantity of an item to an event.

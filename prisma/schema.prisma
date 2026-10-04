@@ -247,6 +247,15 @@ model EventRequest {
   registrationEnabled Boolean     @default(false)
   status              EventStatus @default(DRAFT)
 
+  // US-34/US-36: when attendees may register, and the last moment they may
+  // withdraw. AMBIGUOUS: the brief gives no way to set these, so they are
+  // nullable and, when null, fall back to the event's own start
+  // (registration open immediately, closing and withdrawal cutoff at
+  // proposedStart) — see registration-rules.ts.
+  registrationOpensAt  DateTime?
+  registrationClosesAt DateTime?
+  withdrawalCutoffAt   DateTime?
+
   // US-05 AC-2: why a Coordinator rejected the request. Written by the review
   // story; US-05 only reads it.
   decisionReason String?
@@ -429,6 +438,14 @@ model Registration {
   attendee   User   @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
 
   status RegistrationStatus @default(REGISTERED)
+
+  // US-34 AC-2: the form's fields. Name and email come from the User record.
+  phone               String
+  dietaryRequirements String?
+  accessibilityNeeds  String?
+
+  // US-36: when the attendee withdrew; null while registered.
+  withdrawnAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

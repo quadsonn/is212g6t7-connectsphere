@@ -98,6 +98,16 @@ enum AccessibilityFeature {
   NURSING_ROOM
 }
 
+// US-29: an equipment item's condition, shown in its full detail view.
+// AMBIGUOUS: §5 lists no such enum — inferred from AC-2's "operational
+// status". Defaults to OPERATIONAL since that describes every item until
+// Technical Support records otherwise (no such endpoint exists yet).
+enum EquipmentStatus {
+  OPERATIONAL
+  UNDER_MAINTENANCE
+  OUT_OF_SERVICE
+}
+
 // Venue catalogue lifecycle. Venue Staff draft a venue, then publish it so it
 // becomes bookable and visible to coordinators.
 enum VenueStatus {
@@ -113,10 +123,16 @@ enum RegistrationStatus {
 // AMBIGUOUS: §5 gives EquipmentReservation a `status` but never defines its
 // enum. Reusing BookingStatus would couple two independently-evolving
 // workflows, so this is a separate enum with the same starting values.
+//
+// US-32: a commitment by Technical Support is created as APPROVED — the only
+// status that holds units (see holdingReservationsWhere in
+// equipment-availability.ts).
 enum ReservationStatus {
   REQUESTED
   APPROVED
   REJECTED
+  // US-33: given back because the event was cancelled. Holds nothing.
+  RELEASED
 }
 
 // AMBIGUOUS: §5 says Notification.type is an enum but lists no values. These
@@ -331,8 +347,17 @@ model Equipment {
   // AMBIGUOUS: free text — the brief lists no equipment catalogue to enumerate.
   type String
 
+  // US-29 AC-1: shown in the catalogue list "at a glance". Nullable because no
+  // endpoint creates or edits equipment yet (that story is separate, E6) — an
+  // item may simply not have these recorded.
+  description String?
+  location    String?
+
   totalQuantity  Int
   technicalSpecs String?
+
+  // US-29 AC-2: shown only in an item's full detail view.
+  operationalStatus EquipmentStatus @default(OPERATIONAL)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -356,6 +381,9 @@ model EquipmentReservation {
   end      DateTime
 
   status ReservationStatus @default(REQUESTED)
+
+  // US-33 AC-3: when the reservation was released. Null unless RELEASED.
+  releasedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

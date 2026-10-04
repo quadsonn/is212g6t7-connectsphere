@@ -244,27 +244,106 @@ export interface BrowseVenuesQuery {
   sortOrder?: 'asc' | 'desc';
 }
 
-/** Equipment inventory. Endpoint not built yet — served by a mock service. */
-export interface Equipment {
-  id: string;
-  type: string;
-  totalQuantity: number;
-  technicalSpecs: string | null;
-}
+/** US-29 — condition of an equipment item, shown in its full detail view. */
+export type EquipmentStatus = 'OPERATIONAL' | 'UNDER_MAINTENANCE' | 'OUT_OF_SERVICE';
 
 /**
- * An equipment request awaiting Technical Support review. Composed from
- * EquipmentReservation + Equipment; no endpoint exposes it yet.
+ * US-29 — a catalogue row: the four fields shown at a glance (AC-1).
+ * Operational status is only on the detail read (AC-2).
  */
-export interface EquipmentReservationSummary {
+export interface EquipmentListItem {
+  id: string;
+  type: string;
+  description: string | null;
+  location: string | null;
+  totalQuantity: number;
+}
+
+/** US-29 AC-2 — GET /equipment/:id, the full record. */
+export interface Equipment extends EquipmentListItem {
+  operationalStatus: EquipmentStatus;
+}
+
+/** US-29 AC-3 — catalogue search and sort. */
+export interface BrowseEquipmentQuery {
+  search?: string;
+  sortBy?: 'type' | 'location' | 'totalQuantity';
+  sortOrder?: 'asc' | 'desc';
+}
+
+/** US-30 — GET /equipment/:id/availability query. */
+export interface AvailabilityQuery {
+  start: string;
+  end: string;
+  quantity: number;
+}
+
+/** US-30 — one equipment type's availability for a date and time. */
+export interface ItemAvailability {
+  equipmentId: string;
+  type: string;
+  operationalStatus: EquipmentStatus;
+  start: string;
+  end: string;
+  requestedQuantity: number;
+  totalQuantity: number;
+  /** AC-3: units excluded because the item is damaged or under maintenance. */
+  unavailableQuantity: number;
+  /** AC-2: peak units committed to overlapping events in the window. */
+  reservedQuantity: number;
+  availableQuantity: number;
+  /** AC-4: false when the requested quantity is not fully available. */
+  fullyAvailable: boolean;
+  /** AC-4: how many more units were requested than are free; 0 if none. */
+  shortfall: number;
+}
+
+/** US-31 — GET /equipment/requirements[/:eventId]. */
+export interface EventRequirements {
+  eventId: string;
+  name: string | null;
+  status: EventStatus;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  /** AC-1/AC-2: the Organiser's free-text equipment needs, in full. */
+  organiserEquipmentNeeds: string | null;
+  /** AC-3: false when nothing is recorded; `message` says so. */
+  hasRequirements: boolean;
+  message: string | null;
+}
+
+export type ReservationStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'RELEASED';
+
+/** US-32 — POST /equipment/reservations. */
+export interface CommitReservationPayload {
+  eventId: string;
+  equipmentId: string;
+  quantity: number;
+}
+
+/** US-32 — a confirmed commitment. */
+export interface CommittedReservation {
   id: string;
   eventId: string;
-  eventName: string;
-  equipmentType: string;
+  equipmentId: string;
   quantity: number;
   start: string;
   end: string;
-  status: 'REQUESTED' | 'APPROVED' | 'REJECTED';
+  status: ReservationStatus;
+  createdAt: string;
+  equipment: { id: string; type: string };
+}
+
+/** US-33 AC-3 — GET /equipment/reservations/released. */
+export interface ReleasedReservation {
+  id: string;
+  quantity: number;
+  start: string;
+  end: string;
+  status: ReservationStatus;
+  releasedAt: string;
+  equipment: { id: string; type: string };
+  event: { id: string; name: string | null; status: EventStatus };
 }
 
 /** An attendee's registration state for an event. No endpoint yet. */

@@ -22,6 +22,7 @@ import {
 } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssignCoordinatorDto } from './dto/assign-coordinator.dto';
@@ -134,6 +135,7 @@ export class EventsService {
     private readonly prisma: PrismaService,
     private readonly access: AccessControlService,
     private readonly notifications: NotificationsService,
+    private readonly equipmentReservations: EquipmentReservationsService,
   ) {}
 
   /**
@@ -644,6 +646,12 @@ export class EventsService {
    *
    * Later stories (review, planning, cancellation) call this rather than
    * adding their own update statements.
+   *
+   * US-33 AC-1: reaching CANCELLED releases the event's equipment
+   * reservations in the same transaction as the status change — whichever
+   * path cancels the event (#43 will add one), and with no window in which
+   * the event is cancelled but its equipment still locked. If the release
+   * fails, the cancellation rolls back with it.
    */
   async setStatus(
     event: EventRequest,
@@ -660,12 +668,29 @@ export class EventsService {
       );
     }
 
+    // The status write and the release must commit together; open a
+    // transaction if the caller did not supply one.
+    if (next === EventStatus.CANCELLED && !tx) {
+      return this.prisma.$transaction((inner) =>
+        this.setStatus(event, next, inner),
+      );
+    }
+
     const client = tx ?? this.prisma;
 
-    return client.eventRequest.update({
+    const updated = await client.eventRequest.update({
       where: { id: event.id },
       data: { status: next },
     });
+
+    if (next === EventStatus.CANCELLED) {
+      await this.equipmentReservations.releaseForCancelledEvent(
+        event.id,
+        client,
+      );
+    }
+
+    return updated;
   }
 
   /**

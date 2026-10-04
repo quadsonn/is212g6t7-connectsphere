@@ -12,6 +12,11 @@ import { CoordinatorDashboard } from '@/pages/coordinator-dashboard';
 import { CoordinatorEventDetail } from '@/pages/coordinator-event-detail';
 import { VenueDashboard } from '@/pages/venue-dashboard';
 import { EquipmentDashboard } from '@/pages/equipment-dashboard';
+import { EquipmentCatalogue } from '@/pages/equipment-catalogue';
+import { EquipmentDetail } from '@/pages/equipment-detail';
+import { EquipmentAvailability } from '@/pages/equipment-availability';
+import { EquipmentEventRequirements } from '@/pages/equipment-event-requirements';
+import { EquipmentReleased } from '@/pages/equipment-released';
 import { AttendeeDashboard } from '@/pages/attendee-dashboard';
 import { VenueNewRequest } from '@/pages/venue-new-request';
 import { VenueEditRequest } from '@/pages/venue-edit-request';
@@ -56,6 +61,11 @@ export function AppRoutes() {
 
           <Route element={<ProtectedRoute allow={['TECHNICAL_SUPPORT_STAFF']} />}>
             <Route path="/equipment" element={<EquipmentDashboard />} />
+            <Route path="/equipment/inventory" element={<EquipmentCatalogue />} />
+            <Route path="/equipment/inventory/:id" element={<EquipmentDetail />} />
+            <Route path="/equipment/availability" element={<EquipmentAvailability />} />
+            <Route path="/equipment/events/:eventId" element={<EquipmentEventRequirements />} />
+            <Route path="/equipment/released" element={<EquipmentReleased />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={['ATTENDEE']} />}>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Ban, ChevronLeft, ChevronRight, CircleCheck, Clock, type LucideIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/states';
@@ -25,12 +25,6 @@ import {
 const VISIBLE_MONTHS = 2;
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const ICONS: Record<DayStatus, LucideIcon> = {
-  free: CircleCheck,
-  tentative: Clock,
-  booked: Ban,
-};
-
 /**
  * US-17 — a venue's availability, for a Coordinator deciding whether to
  * request it.
@@ -55,7 +49,7 @@ export function VenueAvailabilityCalendar({ venueId }: { venueId: string }) {
         <div className="flex items-center gap-2">
           {/* Past months hold nothing a Coordinator can request. */}
           <Button
-            variant="secondary"
+            variant="ghost"
             size="sm"
             onClick={() => setFirstMonth((m) => addMonths(m, -1))}
             disabled={firstMonth <= currentMonth}
@@ -64,7 +58,7 @@ export function VenueAvailabilityCalendar({ venueId }: { venueId: string }) {
             <ChevronLeft className="size-4" aria-hidden="true" />
           </Button>
           <Button
-            variant="secondary"
+            variant="ghost"
             size="sm"
             onClick={() => setFirstMonth((m) => addMonths(m, 1))}
             aria-label="Next month"
@@ -85,23 +79,22 @@ export function VenueAvailabilityCalendar({ venueId }: { venueId: string }) {
 
 function Legend() {
   return (
-    <ul className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-ink-600" aria-label="Legend">
-      {(Object.keys(DAY_STATUS_STYLES) as DayStatus[]).map((status) => {
-        const Icon = ICONS[status];
-        return (
-          <li key={status} className="flex items-center gap-1.5">
-            <span
-              className={cn(
-                'flex size-5 items-center justify-center rounded ring-1 ring-inset',
-                DAY_STATUS_STYLES[status].className,
-              )}
-            >
-              <Icon className="size-3" aria-hidden="true" />
-            </span>
-            {DAY_STATUS_STYLES[status].label}
-          </li>
-        );
-      })}
+    <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-600" aria-label="Legend">
+      {(Object.keys(DAY_STATUS_STYLES) as DayStatus[]).map((status) => (
+        <li key={status} className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              'flex size-5 items-center justify-center rounded text-[10px]',
+              DAY_STATUS_STYLES[status].className,
+            )}
+            aria-hidden="true"
+          >
+            {status === 'tentative' ? <Clock className="size-3" /> : '8'}
+          </span>
+          {DAY_STATUS_STYLES[status].label}
+        </li>
+      ))}
+      <li className="text-ink-400">Singapore time</li>
     </ul>
   );
 }
@@ -176,29 +169,30 @@ function DayCell({
   if (!status) {
     return (
       <td>
-        <div className="h-12 animate-pulse rounded-md bg-ink-100" aria-hidden="true" />
+        <div className="h-10 animate-pulse rounded-md bg-ink-100" aria-hidden="true" />
       </td>
     );
   }
 
   const style = DAY_STATUS_STYLES[status];
-  const Icon = ICONS[status];
 
   return (
     <td>
       <div
         className={cn(
-          'flex h-12 flex-col items-center justify-center gap-0.5 rounded-md ring-1 ring-inset',
+          'relative flex h-10 items-center justify-center rounded-md',
           style.className,
           // Past days keep their real status but recede: nothing to request there.
-          isPast && 'opacity-45',
+          isPast && 'opacity-40',
           isToday && 'ring-2 ring-brand-600',
         )}
       >
         <span className="text-xs font-medium tabular-nums" aria-hidden="true">
           {Number(day.slice(8))}
         </span>
-        <Icon className="size-3.5" aria-hidden="true" />
+        {status === 'tentative' ? (
+          <Clock className="absolute right-1 top-1 size-2.5" aria-hidden="true" />
+        ) : null}
         <span className="sr-only">
           {formatDay(day)}: {style.label}
           {isPast ? ' (past)' : ''}

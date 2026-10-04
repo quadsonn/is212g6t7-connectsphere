@@ -2,16 +2,16 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
-import { CheckboxGroup, CheckboxRow, Field, Textarea } from '@/components/ui/form';
+import { ChipGroup, Field } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { fieldErrors, apiErrorMessage } from '@/lib/api-client';
+import { humanise } from '@/lib/utils';
 import {
     ACCESSIBILITY_FEATURES,
     ACCESSIBILITY_FEATURE_LABELS,
     FACILITIES,
     FACILITY_LABELS,
     ROOM_LAYOUTS,
-    type RoomLayout,
     type VenueDraftPayload,
     type VenueStatus,
 } from '@/types/api';
@@ -29,6 +29,11 @@ const DRAFT_FIELDS = [
     'supportedLayouts',
     'operatingInfo',
 ] as const;
+
+/** "U_SHAPE" -> "U shape" — the layout codes read fine once de-underscored. */
+const LAYOUT_LABELS = Object.fromEntries(
+    ROOM_LAYOUTS.map((layout) => [layout, humanise(layout)]),
+) as Record<(typeof ROOM_LAYOUTS)[number], string>;
 
 /**
  * Operating-hours picker, in 30-minute increments.
@@ -267,90 +272,63 @@ export function VenueDraftForm({
             </Field>
 
             {/* US-18: fixed vocabularies so Coordinators can search on them.
-                Anything outside the list goes in the notes beneath. */}
-            <Field label="Facilities" htmlFor="venue-facilities" errors={errors.facilities}>
-                <CheckboxGroup
-                    idPrefix="facility"
-                    options={FACILITIES}
-                    labels={FACILITY_LABELS}
-                    values={form.facilities ?? []}
-                    onChange={(next) => update_('facilities', next)}
-                    className="grid sm:grid-cols-2 sm:space-y-0"
-                />
-            </Field>
-
-            <Field label="Other facilities" htmlFor="venue-facility-notes" errors={errors.facilityNotes}>
-                <Textarea
-                    id="venue-facility-notes"
-                    rows={2}
-                    placeholder="Anything not in the list above, e.g. marquee anchor points"
-                    value={form.facilityNotes ?? ''}
-                    onChange={(e) => update_('facilityNotes', e.target.value)}
-                />
-            </Field>
-
-            <Field
-                label="Accessibility features"
-                htmlFor="venue-accessibility"
-                errors={errors.accessibilityFeatures}
-            >
-                <CheckboxGroup
-                    idPrefix="accessibility"
-                    options={ACCESSIBILITY_FEATURES}
-                    labels={ACCESSIBILITY_FEATURE_LABELS}
-                    values={form.accessibilityFeatures ?? []}
-                    onChange={(next) => update_('accessibilityFeatures', next)}
-                    className="grid sm:grid-cols-2 sm:space-y-0"
-                />
-            </Field>
-
-            <Field
-                label="Other accessibility provision"
-                htmlFor="venue-accessibility-notes"
-                errors={errors.accessibilityNotes}
-            >
-                <Textarea
-                    id="venue-accessibility-notes"
-                    rows={2}
-                    placeholder="e.g. braille signage, quiet room"
-                    value={form.accessibilityNotes ?? ''}
-                    onChange={(e) => update_('accessibilityNotes', e.target.value)}
-                />
-            </Field>
-
-            <Field label="Supported layouts" htmlFor="venue-layouts" errors={errors.supportedLayouts}>
-                <div className="space-y-1">
-                    {ROOM_LAYOUTS.map((layout) => (
-                        <CheckboxRow
-                            key={layout}
-                            id={`layout-${layout}`}
-                            label={layout.replace(/_/g, ' ')}
-                            checked={(form.supportedLayouts ?? []).includes(layout)}
-                            onChange={(checked) => {
-                                const current = form.supportedLayouts ?? [];
-                                update_(
-                                    'supportedLayouts',
-                                    checked
-                                        ? [...current, layout]
-                                        : current.filter((l: RoomLayout) => l !== layout),
-                                );
-                            }}
-                        />
-                    ))}
-                    <CheckboxRow
-                        id="layout-other"
-                        label="Other"
-                        checked={form.layoutNotes !== null && form.layoutNotes !== undefined}
-                        onChange={(checked) => update_('layoutNotes', checked ? '' : null)}
+                Anything outside a list goes in the short "other" line beneath. */}
+            <Field label="Facilities" htmlFor="venue-facility-notes" errors={errors.facilities ?? errors.facilityNotes}>
+                <div className="space-y-2">
+                    <ChipGroup
+                        label="Facilities"
+                        options={FACILITIES}
+                        labels={FACILITY_LABELS}
+                        values={form.facilities ?? []}
+                        onChange={(next) => update_('facilities', next)}
                     />
-                    {form.layoutNotes !== null && form.layoutNotes !== undefined ? (
-                        <Input
-                            className="mt-2"
-                            placeholder="Describe the layout"
-                            value={form.layoutNotes ?? ''}
-                            onChange={(e) => update_('layoutNotes', e.target.value)}
-                        />
-                    ) : null}
+                    <Input
+                        id="venue-facility-notes"
+                        placeholder="Other facilities (optional)"
+                        value={form.facilityNotes ?? ''}
+                        onChange={(e) => update_('facilityNotes', e.target.value)}
+                    />
+                </div>
+            </Field>
+
+            <Field
+                label="Accessibility"
+                htmlFor="venue-accessibility-notes"
+                errors={errors.accessibilityFeatures ?? errors.accessibilityNotes}
+            >
+                <div className="space-y-2">
+                    <ChipGroup
+                        label="Accessibility features"
+                        options={ACCESSIBILITY_FEATURES}
+                        labels={ACCESSIBILITY_FEATURE_LABELS}
+                        values={form.accessibilityFeatures ?? []}
+                        onChange={(next) => update_('accessibilityFeatures', next)}
+                    />
+                    <Input
+                        id="venue-accessibility-notes"
+                        placeholder="Other accessibility provision (optional)"
+                        value={form.accessibilityNotes ?? ''}
+                        onChange={(e) => update_('accessibilityNotes', e.target.value)}
+                    />
+                </div>
+            </Field>
+
+            <Field label="Supported layouts" htmlFor="venue-layout-notes" errors={errors.supportedLayouts}>
+                <div className="space-y-2">
+                    <ChipGroup
+                        label="Supported layouts"
+                        options={ROOM_LAYOUTS}
+                        labels={LAYOUT_LABELS}
+                        values={form.supportedLayouts ?? []}
+                        onChange={(next) => update_('supportedLayouts', next)}
+                    />
+                    {/* Blank means no other layout (null), matching the old "Other" toggle. */}
+                    <Input
+                        id="venue-layout-notes"
+                        placeholder="Other layout (optional)"
+                        value={form.layoutNotes ?? ''}
+                        onChange={(e) => update_('layoutNotes', e.target.value || null)}
+                    />
                 </div>
             </Field>
 

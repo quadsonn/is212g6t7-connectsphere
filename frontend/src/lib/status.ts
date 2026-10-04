@@ -67,10 +67,8 @@ export const EDITABLE_EVENT_STATUSES: EventStatus[] = ['DRAFT', 'RETURNED'];
  * the calendar itself, so the three states survive greyscale.
  */
 export const DAY_STATUS_STYLES: Record<DayStatus, StatusStyle> = {
-  free: { label: 'Free', className: 'bg-white text-ink-800 ring-ink-200' },
-  tentative: {
-    label: 'Tentatively held',
-    className: 'bg-amber-50 text-amber-900 ring-amber-300',
-  },
-  booked: { label: 'Booked', className: 'bg-ink-200 text-ink-700 ring-ink-300' },
+  free: { label: 'Free', className: 'bg-ink-50 text-ink-800' },
+  tentative: { label: 'Tentatively held', className: 'bg-amber-100 text-amber-900' },
+  // Struck through as well as shaded, so "booked" survives greyscale.
+  booked: { label: 'Booked', className: 'bg-ink-200 text-ink-500 line-through' },
 };

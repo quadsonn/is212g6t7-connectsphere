@@ -115,43 +115,53 @@ export function CheckboxRow({
 }
 
 /**
- * A multi-select over a fixed vocabulary, as a column of checkboxes. Shared by
+ * A multi-select over a fixed vocabulary, as wrapping toggle chips. Shared by
  * the venue form and venue search (US-18) so both offer exactly the same
- * values in the same order.
+ * values in the same order. Each chip is a toggle button (aria-pressed), so
+ * the selection is announced and keyboard-operable without a checkbox column.
  */
-export function CheckboxGroup<T extends string>({
-  idPrefix,
+export function ChipGroup<T extends string>({
+  label,
   options,
   labels,
   values,
   onChange,
-  className,
 }: {
-  idPrefix: string;
+  label: string;
   options: readonly T[];
   labels: Record<T, string>;
   values: readonly T[];
   onChange: (next: T[]) => void;
-  className?: string;
 }) {
   return (
-    <div className={cn('space-y-1', className)}>
-      {options.map((option) => (
-        <CheckboxRow
-          key={option}
-          id={`${idPrefix}-${option}`}
-          label={labels[option]}
-          checked={values.includes(option)}
-          onChange={(checked) =>
-            onChange(
-              checked
-                ? // Kept in vocabulary order, whatever order they were ticked.
-                  options.filter((o) => o === option || values.includes(o))
-                : values.filter((v) => v !== option),
-            )
-          }
-        />
-      ))}
+    <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
+      {options.map((option) => {
+        const selected = values.includes(option);
+        return (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={selected}
+            onClick={() =>
+              onChange(
+                selected
+                  ? values.filter((v) => v !== option)
+                  : // Kept in vocabulary order, whatever order they were picked.
+                    options.filter((o) => o === option || values.includes(o)),
+              )
+            }
+            className={cn(
+              'rounded-full px-3 py-1 text-xs font-medium transition-colors',
+              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
+              selected
+                ? 'bg-brand-600 text-white hover:bg-brand-700'
+                : 'bg-ink-100 text-ink-700 hover:bg-ink-200',
+            )}
+          >
+            {labels[option]}
+          </button>
+        );
+      })}
     </div>
   );
 }

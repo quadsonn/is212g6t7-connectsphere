@@ -149,6 +149,32 @@ export const ASSIGNABLE_STATUSES: readonly EventStatus[] = [
 ];
 
 /**
+ * US-31 AC-4: statuses whose equipment requirements Technical Support may
+ * view — every submitted request, i.e. everything except DRAFT.
+ *
+ * Derived from the enum rather than listed, so a status added later is
+ * visible by default; only DRAFT is named as the exclusion.
+ */
+export const TECHNICAL_SUPPORT_VISIBLE_STATUSES: readonly EventStatus[] =
+  Object.values(EventStatus).filter((status) => status !== EventStatus.DRAFT);
+
+/**
+ * US-32: statuses an event may have for equipment to be committed to it.
+ *
+ * AMBIGUOUS: the AC does not say. Excluded are a DRAFT (not submitted, and
+ * invisible to Technical Support per US-31), a REJECTED request, and the two
+ * terminal statuses — committing to a CANCELLED event would lock units US-33
+ * exists to free, and a COMPLETED event is over.
+ */
+export const EQUIPMENT_COMMITTABLE_STATUSES: readonly EventStatus[] =
+  TECHNICAL_SUPPORT_VISIBLE_STATUSES.filter(
+    (status) =>
+      status !== EventStatus.REJECTED &&
+      status !== EventStatus.CANCELLED &&
+      status !== EventStatus.COMPLETED,
+  );
+
+/**
  * US-11 AC-2: statuses that represent a Coordinator decision the Organiser is
  * owed an explanation for.
  */

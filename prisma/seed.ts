@@ -10,6 +10,7 @@ import 'dotenv/config';
 
 import {
   AccessibilityFeature,
+  EquipmentStatus,
   EventStatus,
   PrismaClient,
   Role,
@@ -134,7 +135,53 @@ async function main() {
     });
   }
 
-  console.log(`Seeded ${USERS.length} users (password: ${PASSWORD}), ${events.length} events, ${venues.length} venues.`);
+  // US-29: the Technical Support catalogue.
+  const equipment = [
+    {
+      type: 'Wireless microphone',
+      description: 'Handheld UHF mic, 4-hour battery life.',
+      location: 'AV Store Room, Level 1',
+      totalQuantity: 24,
+      operationalStatus: EquipmentStatus.OPERATIONAL,
+    },
+    {
+      type: 'Portable PA system',
+      description: 'Battery-powered speaker with mixer input.',
+      location: 'AV Store Room, Level 1',
+      totalQuantity: 6,
+      operationalStatus: EquipmentStatus.OPERATIONAL,
+    },
+    {
+      type: 'Projector (4K)',
+      description: 'Ceiling-mountable, HDMI and USB-C input.',
+      location: 'AV Store Room, Level 2',
+      totalQuantity: 8,
+      operationalStatus: EquipmentStatus.UNDER_MAINTENANCE,
+    },
+    {
+      type: 'Folding table',
+      description: '6ft rectangular, seats 6.',
+      location: 'Furniture Store, Basement',
+      totalQuantity: 40,
+      operationalStatus: EquipmentStatus.OPERATIONAL,
+    },
+    {
+      type: 'Extension reel',
+      description: '10m, 4-socket.',
+      location: 'AV Store Room, Level 1',
+      totalQuantity: 15,
+      operationalStatus: EquipmentStatus.OUT_OF_SERVICE,
+    },
+  ];
+
+  for (const item of equipment) {
+    const existing = await prisma.equipment.findFirst({ where: { type: item.type } });
+    if (existing) continue;
+
+    await prisma.equipment.create({ data: item });
+  }
+
+  console.log(`Seeded ${USERS.length} users (password: ${PASSWORD}), ${events.length} events, ${venues.length} venues, ${equipment.length} equipment items.`);
 }
 
 main()

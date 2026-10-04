@@ -98,6 +98,8 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.UPDATE, Scope.ANY),
       ],
       [Resource.RESERVATION]: [
+        // US-32: "reserves equipment" — committing a quantity to an event.
+        g(Action.CREATE, Scope.ANY),
         g(Action.READ, Scope.ANY),
         g(Action.DECIDE, Scope.ANY),
       ],

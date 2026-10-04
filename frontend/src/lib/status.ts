@@ -1,4 +1,4 @@
-import type { EventStatus, VenueStatus } from '@/types/api';
+import type { EquipmentStatus, EventStatus, VenueStatus } from '@/types/api';
 
 /**
  * The status colour language, defined once.
@@ -38,6 +38,16 @@ export const EVENT_STATUS_STYLES: Record<EventStatus, StatusStyle> = {
 export const VENUE_STATUS_STYLES: Record<VenueStatus, StatusStyle> = {
   DRAFT: { label: 'Draft', className: 'bg-ink-100 text-ink-700 ring-ink-300' },
   PUBLISHED: { label: 'Published', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
+};
+
+/** US-29 AC-2 — an equipment item's operational status. */
+export const EQUIPMENT_STATUS_STYLES: Record<EquipmentStatus, StatusStyle> = {
+  OPERATIONAL: { label: 'Operational', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
+  UNDER_MAINTENANCE: {
+    label: 'Under maintenance',
+    className: 'bg-amber-50 text-amber-900 ring-amber-400',
+  },
+  OUT_OF_SERVICE: { label: 'Out of service', className: 'bg-red-50 text-red-800 ring-red-300' },
 };
 
 /** Statuses shown in the Coordinator's retained request list. */

@@ -68,6 +68,10 @@ describe('Permission matrix (US-02)', () => {
       expect(permissionScope(Role.TECHNICAL_SUPPORT_STAFF, Resource.RESERVATION, Action.DECIDE)).toBe(Scope.ANY);
     });
 
+    it('lets Technical Support commit equipment to an event (US-32)', () => {
+      expect(permissionScope(Role.TECHNICAL_SUPPORT_STAFF, Resource.RESERVATION, Action.CREATE)).toBe(Scope.ANY);
+    });
+
     it('lets an Attendee register and withdraw', () => {
       expect(permissionScope(Role.ATTENDEE, Resource.REGISTRATION, Action.REGISTER)).toBe(Scope.OWN);
       expect(permissionScope(Role.ATTENDEE, Resource.REGISTRATION, Action.WITHDRAW)).toBe(Scope.OWN);

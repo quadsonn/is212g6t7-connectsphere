@@ -6,17 +6,23 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  BookingStatus,
+  ConfirmedArrangement,
+  EventChange,
   EventRequest,
   EventStatus,
   NotificationType,
   Prisma,
+  ReservationStatus,
   Role,
+  User,
 } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import {
   AccessControlService,
+  CoordinatorSummary,
   EventWithCoordinator,
   PublicEventView,
 } from '../common/access/access-control.service';
@@ -32,12 +38,22 @@ import { RespondClarificationDto } from './dto/respond-clarification.dto';
 import { RejectRequestDto } from './dto/reject-request.dto';
 import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
+import { UpdatePlanningDto } from './dto/update-planning.dto';
+import { TechnicalRequirementsDto } from './dto/technical-requirements.dto';
+import {
+  affectedArrangements,
+  describeRequirement,
+  diffEventFields,
+  FieldChange,
+  sameValue,
+} from './event-change.rules';
 import {
   ASSIGNABLE_STATUSES,
   buildStatusView,
   canTransition,
   EDITABLE_STATUSES,
   EventStatusView,
+  PLANNING_STATUSES,
 } from './event-status.machine';
 
 /**
@@ -77,6 +93,20 @@ export const CLARIFICATION_THREAD_INCLUDE = {
   },
 } as const;
 
+/**
+ * US-28 — the event's equipment requirements, in the order they were listed.
+ * Rows of one save share a createdAt, so id (a cuid, time-ordered) breaks
+ * the tie.
+ */
+const REQUIREMENTS_ORDER: Prisma.EquipmentRequirementOrderByWithRelationInput[] = [
+  { createdAt: 'asc' },
+  { id: 'asc' },
+];
+
+export const REQUIREMENTS_INCLUDE = {
+  equipmentRequirements: { orderBy: REQUIREMENTS_ORDER },
+};
+
 export const EVENT_CONTACTS_INCLUDE = {
   coordinator: { select: { id: true, name: true, email: true } },
   organiser: { select: { id: true, name: true, email: true } },
@@ -105,6 +135,37 @@ export type OrganiserRequestView = EventRequest & {
  * reports. A client renders "Returned" when status is DRAFT and this is true.
  */
 export type CoordinatorRequestView = OrganiserRequestView;
+
+/** US-26 AC-2 — who made a change, resolved from the id. */
+const CHANGED_BY_SELECT = {
+  changedBy: { select: { id: true, name: true, email: true, role: true } },
+} as const;
+
+/** US-26 — one history entry as returned to the client. */
+export type EventChangeEntry = Omit<EventChange, 'changes'> & {
+  changes: FieldChange[];
+  changedBy: { id: string; name: string; email: string; role: Role };
+};
+
+/** US-26 AC-1/AC-3 — the history, plus an explicit "nothing recorded" signal. */
+export interface EventChangeHistory {
+  eventId: string;
+  entries: EventChangeEntry[];
+  /** AC-3: set only when there are no entries. */
+  message: string | null;
+}
+
+/**
+ * US-25 — the result of a planning edit: the saved event (AC-1, AC-3) plus
+ * what was recorded for it. `change` is null when the payload altered
+ * nothing, in which case no history entry is written.
+ */
+export type PlanningUpdateResult = CoordinatorRequestView & {
+  change: EventChangeEntry | null;
+};
+
+export const NO_CHANGES_MESSAGE =
+  'No changes have been recorded for this event since it was created.';
 
 /**
  * The Organiser-editable scalar columns. Typed as the subset Prisma accepts
@@ -209,6 +270,11 @@ export class EventsService {
    *
    * Only the keys present in the payload are written, so a partial edit cannot
    * silently blank fields the Organiser did not touch.
+   *
+   * US-26: once a request has been submitted and handed back (RETURNED), the
+   * Organiser's amendments are changes to a real event and go in its history.
+   * Edits to a never-submitted DRAFT are still authoring, and are not
+   * recorded — "no changes since creation" would otherwise never be true.
    */
   async updateDraft(
     user: AuthenticatedUser,
@@ -219,9 +285,27 @@ export class EventsService {
 
     this.assertIsEditable(event);
 
-    return this.prisma.eventRequest.update({
-      where: { id: event.id },
-      data: this.draftFields(dto),
+    const fields = this.draftFields(dto);
+
+    if (event.status === EventStatus.DRAFT) {
+      return this.prisma.eventRequest.update({
+        where: { id: event.id },
+        data: fields,
+      });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.eventRequest.update({
+        where: { id: event.id },
+        data: fields,
+      });
+
+      const changes = diffEventFields(event, fields);
+      if (changes.length > 0) {
+        await this.recordChange(tx, event.id, user.userId, changes, []);
+      }
+
+      return updated;
     });
   }
 
@@ -349,7 +433,11 @@ export class EventsService {
     // Re-read with the contact relations attached.
     const event = await this.prisma.eventRequest.findUniqueOrThrow({
       where: { id },
-      include: { ...EVENT_CONTACTS_INCLUDE, ...CLARIFICATION_THREAD_INCLUDE },
+      include: {
+        ...EVENT_CONTACTS_INCLUDE,
+        ...CLARIFICATION_THREAD_INCLUDE,
+        ...REQUIREMENTS_INCLUDE,
+      },
     });
 
     return this.toOrganiserView(event);
@@ -625,7 +713,7 @@ export class EventsService {
    * an event could be handed to an Attendee, who would then be unable to see
    * it at all.
    */
-  private async assertIsCoordinator(userId: string): Promise<void> {
+  private async assertIsCoordinator(userId: string): Promise<User> {
     const target = await this.prisma.user.findUnique({ where: { id: userId } });
 
     if (!target) {
@@ -637,6 +725,407 @@ export class EventsService {
         'the assigned user must have the EVENT_COORDINATOR role',
       );
     }
+
+    return target;
+  }
+
+  /**
+   * US-27 AC-1 — the Coordinators this event could be handed to: everyone
+   * with the role except the caller, who is the one stepping away.
+   */
+  async getReassignmentCandidates(
+    user: AuthenticatedUser,
+    id: string,
+  ): Promise<CoordinatorSummary[]> {
+    await this.assertCanRequestReassignment(user, id);
+
+    return this.prisma.user.findMany({
+      where: { role: Role.EVENT_COORDINATOR, id: { not: user.userId } },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
+   * US-27 — the responsible Coordinator hands their event to a colleague.
+   *
+   * Distinct from US-10's assignCoordinator(), which lets any Coordinator
+   * take any event and records nothing. This path is the owner stepping
+   * away, so it is limited to the currently assigned Coordinator (AC-1) and
+   * leaves a trail: the change goes in the event's history (AC-4) and both
+   * parties are notified (AC-3).
+   *
+   * AC-2 "confirmed" is the request itself: the client asks the Coordinator
+   * to confirm before sending it. AMBIGUOUS: the new Coordinator is not asked
+   * to accept — the story gives them no step. See the US-27 summary.
+   *
+   * Like assignCoordinator(), this is not a status change; setStatus() is not
+   * involved and the status is left exactly as found.
+   */
+  async reassign(
+    user: AuthenticatedUser,
+    id: string,
+    dto: AssignCoordinatorDto,
+  ): Promise<CoordinatorRequestView> {
+    const event = await this.assertCanRequestReassignment(user, id);
+
+    if (dto.coordinatorId === event.coordinatorId) {
+      throw new BadRequestException(
+        'choose a different coordinator — this event is already assigned to you',
+      );
+    }
+
+    const next = await this.assertIsCoordinator(dto.coordinatorId);
+    // assertCanRequestReassignment() guarantees the event has a coordinator.
+    const previous = event.coordinator!;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.eventRequest.update({
+        where: { id: event.id },
+        data: { coordinatorId: next.id },
+        include: EVENT_CONTACTS_INCLUDE,
+      });
+
+      await this.recordChange(
+        tx,
+        event.id,
+        user.userId,
+        [{ field: 'coordinator', previous: previous.name, next: next.name }],
+        [],
+      );
+
+      return row;
+    });
+
+    // AC-3: raised after commit, so a failed notification cannot undo the
+    // reassignment (see NotificationsService.notifySafely).
+    const eventName = event.name ?? 'an event';
+    await this.notifications.notifySafely({
+      recipientId: previous.id,
+      type: NotificationType.EVENT_REASSIGNED,
+      message: `"${eventName}" has been reassigned from you to ${next.name}.`,
+      relatedEventId: event.id,
+    });
+    await this.notifications.notifySafely({
+      recipientId: next.id,
+      type: NotificationType.EVENT_REASSIGNED,
+      message: `You are now the coordinator for "${eventName}", reassigned to you by ${previous.name}.`,
+      relatedEventId: event.id,
+    });
+
+    return this.toOrganiserView(updated);
+  }
+
+  /**
+   * US-27 AC-1 — only the Coordinator responsible for the event may hand it
+   * on, and only at a status where a Coordinator can be assigned at all.
+   *
+   * Loaded through EVENT/ASSIGN (ANY scope, as US-10) so that a Coordinator
+   * who is not responsible gets an explicit 403 rather than a 404.
+   */
+  private async assertCanRequestReassignment(
+    user: AuthenticatedUser,
+    id: string,
+  ): Promise<EventWithCoordinator> {
+    const event = await this.access.assertEventAccess(user, id, Action.ASSIGN);
+
+    if (!this.access.isAssignedCoordinator(user, event)) {
+      throw new ForbiddenException(
+        'only the coordinator responsible for this event may request its reassignment',
+      );
+    }
+
+    if (!ASSIGNABLE_STATUSES.includes(event.status)) {
+      throw new ConflictException(
+        `an event cannot be reassigned while it is ${event.status}`,
+      );
+    }
+
+    return event;
+  }
+
+  /**
+   * US-25 prerequisite — APPROVED -> PLANNING.
+   *
+   * The transition was already in the table, but no route reached it, so no
+   * event could ever be "in planning" for AC-1 to apply to. The assigned
+   * Coordinator starts planning once they begin arranging the event.
+   */
+  async startPlanning(
+    user: AuthenticatedUser,
+    id: string,
+  ): Promise<CoordinatorRequestView> {
+    const event = await this.access.assertEventAccess(user, id, Action.UPDATE);
+
+    this.assertIsAssignedTo(user, event);
+
+    return this.toOrganiserView(
+      await this.setStatus(event, EventStatus.PLANNING),
+    );
+  }
+
+  /**
+   * US-25 AC-1/AC-2 — the Coordinator updates an event during planning.
+   *
+   * AC-1: only the keys sent are written, and only when the event is in a
+   * PLANNING_STATUSES status and assigned to this Coordinator.
+   *
+   * AC-2: if a changed field feeds an arrangement that has already been
+   * approved (ARRANGEMENT_SENSITIVE_FIELDS), the history entry is flagged
+   * requiresReview with the arrangements affected. The change is still saved
+   * — AC-3 requires the latest information to be what everyone sees — but it
+   * is distinguishable from an ordinary edit, both in the response and in the
+   * US-26 history.
+   *
+   * AMBIGUOUS: AC-2 does not say who performs the review or how the flag is
+   * cleared. Neither is built; the booking/reservation stories (E5/E6) own
+   * re-deciding an arrangement. See the US-25 summary.
+   *
+   * AC-3 needs no extra machinery: every read path loads the row fresh, so
+   * the committed values are what any permitted user sees next.
+   */
+  async updateDuringPlanning(
+    user: AuthenticatedUser,
+    id: string,
+    dto: UpdatePlanningDto,
+  ): Promise<PlanningUpdateResult> {
+    const event = await this.access.assertEventAccess(user, id, Action.UPDATE);
+
+    this.assertIsAssignedTo(user, event);
+    this.assertInPlanning(event);
+    this.assertDatesInOrder(event, dto);
+
+    const changes = diffEventFields(event, dto);
+
+    if (changes.length === 0) {
+      return { ...(await this.findAssignedRequest(user, id)), change: null };
+    }
+
+    const affected = affectedArrangements(
+      changes,
+      await this.confirmedArrangements(event.id),
+    );
+
+    // Only the fields that actually changed are written.
+    const data = Object.fromEntries(
+      changes.map(({ field }) => [field, dto[field]]),
+    ) as Prisma.EventRequestUpdateInput;
+
+    const change = await this.prisma.$transaction(async (tx) => {
+      await tx.eventRequest.update({ where: { id: event.id }, data });
+
+      return this.recordChange(tx, event.id, user.userId, changes, affected);
+    });
+
+    return { ...(await this.findAssignedRequest(user, id)), change };
+  }
+
+  /**
+   * US-28 AC-1/AC-2 — record the equipment (type and quantity) and technical
+   * support an event in planning needs, for Technical Support to review.
+   *
+   * The equipment list is replaced wholesale: it is edited as one table, so
+   * "what was saved" is the list the Coordinator is looking at. Rows are
+   * only rewritten when the list actually differs.
+   *
+   * Both parts go through the US-26 history, and — like any planning edit —
+   * are flagged for review (US-25 AC-2) if an equipment reservation has
+   * already been approved against the previous requirements.
+   */
+  async setTechnicalRequirements(
+    user: AuthenticatedUser,
+    id: string,
+    dto: TechnicalRequirementsDto,
+  ): Promise<PlanningUpdateResult> {
+    const event = await this.access.assertEventAccess(user, id, Action.UPDATE);
+
+    this.assertIsAssignedTo(user, event);
+    this.assertInPlanning(event);
+
+    const incoming = dto.equipment?.map((item) => ({
+      equipmentType: item.equipmentType.trim(),
+      quantity: item.quantity,
+      notes: item.notes?.trim() || null,
+    }));
+
+    if (incoming) {
+      this.assertNoDuplicateTypes(incoming);
+    }
+
+    const changes: FieldChange[] = [];
+
+    if (incoming) {
+      const current = await this.prisma.equipmentRequirement.findMany({
+        where: { eventId: event.id },
+        orderBy: REQUIREMENTS_ORDER,
+      });
+      const previous = current.map(describeRequirement);
+      const next = incoming.map(describeRequirement);
+
+      if (!sameValue(previous, next)) {
+        changes.push({ field: 'equipmentRequirements', previous, next });
+      }
+    }
+
+    if (dto.technicalSupportNeeds !== undefined) {
+      const previous = event.technicalSupportNeeds;
+      const next = dto.technicalSupportNeeds?.trim() || null;
+
+      if (previous !== next) {
+        changes.push({ field: 'technicalSupportNeeds', previous, next });
+      }
+    }
+
+    if (changes.length === 0) {
+      return { ...(await this.findAssignedRequest(user, id)), change: null };
+    }
+
+    const affected = affectedArrangements(
+      changes,
+      await this.confirmedArrangements(event.id),
+    );
+
+    const change = await this.prisma.$transaction(async (tx) => {
+      if (incoming && changes.some((c) => c.field === 'equipmentRequirements')) {
+        await tx.equipmentRequirement.deleteMany({ where: { eventId: event.id } });
+        await tx.equipmentRequirement.createMany({
+          data: incoming.map((item) => ({ ...item, eventId: event.id })),
+        });
+      }
+
+      const support = changes.find((c) => c.field === 'technicalSupportNeeds');
+      if (support) {
+        await tx.eventRequest.update({
+          where: { id: event.id },
+          data: { technicalSupportNeeds: support.next as string | null },
+        });
+      }
+
+      return this.recordChange(tx, event.id, user.userId, changes, affected);
+    });
+
+    return { ...(await this.findAssignedRequest(user, id)), change };
+  }
+
+  /**
+   * One line per type: "2 × Projector" and "1 × projector" side by side would
+   * leave Technical Support guessing whether the event needs two or three.
+   */
+  private assertNoDuplicateTypes(items: { equipmentType: string }[]): void {
+    const seen = new Set<string>();
+
+    for (const { equipmentType } of items) {
+      const key = equipmentType.toLowerCase();
+      if (seen.has(key)) {
+        throw new BadRequestException([
+          `equipmentType "${equipmentType}" is listed more than once; combine the quantities`,
+        ]);
+      }
+      seen.add(key);
+    }
+  }
+
+  /** US-25/US-28 AC "is planning an event". */
+  private assertInPlanning(event: EventRequest): void {
+    if (!PLANNING_STATUSES.includes(event.status)) {
+      throw new ConflictException(
+        `event is ${event.status}; information can only be updated during planning`,
+      );
+    }
+  }
+
+  /**
+   * US-26 AC-1/AC-2/AC-3 — the event's change history, oldest first.
+   *
+   * Read access is the same EVENT/READ the Coordinator detail view uses, so
+   * the history is visible exactly where the event is.
+   */
+  async getChangeHistory(
+    user: AuthenticatedUser,
+    id: string,
+  ): Promise<EventChangeHistory> {
+    await this.access.assertEventAccess(user, id, Action.READ);
+
+    const rows = await this.prisma.eventChange.findMany({
+      where: { eventId: id },
+      // id breaks ties between two saves in the same millisecond.
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      include: CHANGED_BY_SELECT,
+    });
+
+    const entries = rows.map((row) => this.toChangeEntry(row));
+
+    return {
+      eventId: id,
+      entries,
+      message: entries.length === 0 ? NO_CHANGES_MESSAGE : null,
+    };
+  }
+
+  /**
+   * Arrangements this event has had approved. REQUESTED ones are not yet
+   * confirmed, and REJECTED ones depend on nothing (AC-2 "already confirmed").
+   */
+  private async confirmedArrangements(
+    eventId: string,
+  ): Promise<ConfirmedArrangement[]> {
+    const [bookings, reservations] = await Promise.all([
+      this.prisma.venueBooking.count({
+        where: { eventId, status: BookingStatus.APPROVED },
+      }),
+      this.prisma.equipmentReservation.count({
+        where: { eventId, status: ReservationStatus.APPROVED },
+      }),
+    ]);
+
+    return [
+      ...(bookings > 0 ? [ConfirmedArrangement.VENUE_BOOKING] : []),
+      ...(reservations > 0 ? [ConfirmedArrangement.EQUIPMENT_RESERVATION] : []),
+    ];
+  }
+
+  /**
+   * End must stay after start, judged against the stored value of whichever
+   * one was not sent. The DTO cannot do this alone: it never sees the stored
+   * row, so moving only the start past the existing end would slip through.
+   */
+  private assertDatesInOrder(event: EventRequest, dto: UpdatePlanningDto): void {
+    const start = dto.proposedStart ?? event.proposedStart;
+    const end = dto.proposedEnd ?? event.proposedEnd;
+
+    if (start && end && end.getTime() <= start.getTime()) {
+      throw new BadRequestException([
+        'proposedEnd must be later than proposedStart',
+      ]);
+    }
+  }
+
+  /** US-26 — appends one entry to the event's history. */
+  private async recordChange(
+    tx: Prisma.TransactionClient,
+    eventId: string,
+    changedById: string,
+    changes: FieldChange[],
+    affected: ConfirmedArrangement[],
+  ): Promise<EventChangeEntry> {
+    const row = await tx.eventChange.create({
+      data: {
+        eventId,
+        changedById,
+        changes: changes as unknown as Prisma.InputJsonValue,
+        requiresReview: affected.length > 0,
+        affectedArrangements: affected,
+      },
+      include: CHANGED_BY_SELECT,
+    });
+
+    return this.toChangeEntry(row);
+  }
+
+  private toChangeEntry(
+    row: EventChange & { changedBy: EventChangeEntry['changedBy'] },
+  ): EventChangeEntry {
+    return { ...row, changes: row.changes as unknown as FieldChange[] };
   }
 
   /**
@@ -768,7 +1257,17 @@ export class EventsService {
     id: string,
   ): Promise<EventWithCoordinator | PublicEventView> {
     const event = await this.access.assertEventAccess(user, id, Action.READ);
-    return this.access.projectEvent(user, event);
+
+    // US-28 AC-3: Technical Support (and every other full-record reader)
+    // sees the recorded requirements. The Attendee projection rebuilds the
+    // record from an explicit field list, so they are dropped there.
+    const equipmentRequirements = await this.prisma.equipmentRequirement.findMany({
+      where: { eventId: event.id },
+      orderBy: REQUIREMENTS_ORDER,
+    });
+
+    const withRequirements = { ...event, equipmentRequirements };
+    return this.access.projectEvent(user, withRequirements);
   }
 
   /** Loads an event for a status change, enforcing the caller's scope. */

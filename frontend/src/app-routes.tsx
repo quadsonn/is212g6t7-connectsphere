@@ -20,6 +20,7 @@ import { EquipmentReleased } from '@/pages/equipment-released';
 import { AttendeeDashboard } from '@/pages/attendee-dashboard';
 import { VenueNewRequest } from '@/pages/venue-new-request';
 import { VenueEditRequest } from '@/pages/venue-edit-request';
+import { RelatedEventDetail, RelatedEventsList } from '@/pages/related-events';
 
 /** Sends a signed-in user to their role's dashboard; everyone else to login. */
 function RoleHome() {
@@ -57,6 +58,11 @@ export function AppRoutes() {
             <Route path="/venues" element={<VenueDashboard />} />
             <Route path="/venues/new" element={<VenueNewRequest />} />
             <Route path="/venues/:id/edit" element={<VenueEditRequest />} />
+            <Route path="/venues/events" element={<RelatedEventsList basePath="/venues/events" />} />
+            <Route
+              path="/venues/events/:id"
+              element={<RelatedEventDetail basePath="/venues/events" />}
+            />
           </Route>
 
           <Route element={<ProtectedRoute allow={['TECHNICAL_SUPPORT_STAFF']} />}>
@@ -64,8 +70,16 @@ export function AppRoutes() {
             <Route path="/equipment/inventory" element={<EquipmentCatalogue />} />
             <Route path="/equipment/inventory/:id" element={<EquipmentDetail />} />
             <Route path="/equipment/availability" element={<EquipmentAvailability />} />
-            <Route path="/equipment/events/:eventId" element={<EquipmentEventRequirements />} />
+            <Route path="/equipment/requirements/:eventId" element={<EquipmentEventRequirements />} />
             <Route path="/equipment/released" element={<EquipmentReleased />} />
+            <Route
+              path="/equipment/events"
+              element={<RelatedEventsList basePath="/equipment/events" />}
+            />
+            <Route
+              path="/equipment/events/:id"
+              element={<RelatedEventDetail basePath="/equipment/events" />}
+            />
           </Route>
 
           <Route element={<ProtectedRoute allow={['ATTENDEE']} />}>

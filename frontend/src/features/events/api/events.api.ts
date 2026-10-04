@@ -1,10 +1,16 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  ContactSummary,
   CoordinatorRequestView,
   EventRequest,
   EventRequestPayload,
+  EventChangeHistory,
   OrganiserRequestView,
+  PlanningUpdatePayload,
+  PlanningUpdateResult,
   PublicEventView,
+  TechnicalRequirementsPayload,
+  RelatedEventView,
 } from '@/types/api';
 
 /**
@@ -82,6 +88,47 @@ export const eventsApi = {
     apiClient
       .post<EventRequest>(`/events/${id}/return`, { reason })
       .then((r) => r.data),
+
+  /** US-25 — APPROVED -> PLANNING. */
+  startPlanning: (id: string) =>
+    apiClient
+      .post<CoordinatorRequestView>(`/events/${id}/start-planning`)
+      .then((r) => r.data),
+
+  /** US-25 — update an event's information during planning. */
+  updatePlanning: (id: string, body: PlanningUpdatePayload) =>
+    apiClient
+      .patch<PlanningUpdateResult>(`/events/${id}/planning`, body)
+      .then((r) => r.data),
+
+  /** US-27 AC-1 — the Coordinators this event can be handed to. */
+  getReassignmentCandidates: (id: string) =>
+    apiClient
+      .get<ContactSummary[]>(`/events/${id}/reassignment-candidates`)
+      .then((r) => r.data),
+
+  /** US-27 — hand the event to another Coordinator. */
+  reassign: (id: string, coordinatorId: string) =>
+    apiClient
+      .post<CoordinatorRequestView>(`/events/${id}/reassign`, { coordinatorId })
+      .then((r) => r.data),
+
+  /** US-28 — record equipment and technical requirements during planning. */
+  setTechnicalRequirements: (id: string, body: TechnicalRequirementsPayload) =>
+    apiClient
+      .patch<PlanningUpdateResult>(`/events/${id}/technical-requirements`, body)
+      .then((r) => r.data),
+
+  /** US-26 — the event's change history, oldest first. */
+  getHistory: (id: string) =>
+    apiClient.get<EventChangeHistory>(`/events/${id}/history`).then((r) => r.data),
+
+  /** US-25 AC-3 — Venue Staff / Technical Support: events related to their work. */
+  listRelated: () =>
+    apiClient.get<RelatedEventView[]>('/events').then((r) => r.data),
+
+  getRelated: (id: string) =>
+    apiClient.get<RelatedEventView>(`/events/${id}`).then((r) => r.data),
 
   respondToClarification: (id: string, response: string) =>
     apiClient

@@ -135,8 +135,14 @@ describe('US-02 role-based and ownership access control (e2e)', () => {
       expect(after).toEqual(before);
     });
 
-    it('denies a role with no event grant at all', async () => {
-      await http().get('/events').set('Authorization', as('venueStaff')).expect(403);
+    it('denies an event action the role has no grant for', async () => {
+      // US-25 gave Venue Staff EVENT/READ at RELATED scope; they still hold
+      // nothing else on events.
+      await http()
+        .post('/events/drafts')
+        .set('Authorization', as('venueStaff'))
+        .send({ name: 'Not allowed' })
+        .expect(403);
     });
   });
 
@@ -157,9 +163,19 @@ describe('US-02 role-based and ownership access control (e2e)', () => {
   describe('AC-3: the server rejects, not the UI', () => {
     it('rejects a direct URL call for an ungranted role', async () => {
       const res = await http()
+        .patch(`/events/${ids.eventA}`)
+        .set('Authorization', as('venueStaff'))
+        .send({ name: 'Hijacked' })
+        .expect(403);
+
+      expect(res.body.name).toBeUndefined();
+    });
+
+    it('hides an event with no booking from Venue Staff (US-25 RELATED scope)', async () => {
+      const res = await http()
         .get(`/events/${ids.eventA}`)
         .set('Authorization', as('venueStaff'))
-        .expect(403);
+        .expect(404);
 
       expect(res.body.name).toBeUndefined();
     });
@@ -230,14 +246,16 @@ describe('US-02 role-based and ownership access control (e2e)', () => {
         .set('Authorization', as('venueStaff'))
         .expect(200);
 
-      const canReadEvents = staff.body.permissions.some(
+      const eventRead = staff.body.permissions.find(
         (p: { resource: string; action: string }) =>
           p.resource === 'EVENT' && p.action === 'READ',
       );
-      expect(canReadEvents).toBe(false);
+      expect(eventRead.scope).toBe('RELATED');
 
-      // The advertised absence and the enforced denial agree.
-      await http().get('/events').set('Authorization', as('venueStaff')).expect(403);
+      // The advertised RELATED scope and the enforced filter agree: none of
+      // the seeded events has a booking, so none is visible.
+      const res = await http().get('/events').set('Authorization', as('venueStaff')).expect(200);
+      expect(res.body).toEqual([]);
     });
 
     it('requires authentication', async () => {

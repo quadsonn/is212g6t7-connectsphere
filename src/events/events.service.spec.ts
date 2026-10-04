@@ -13,6 +13,7 @@ import { CreateEventRequestDto } from './dto/create-event-request.dto';
 describe('EventsService (US-03)', () => {
   let prisma: {
     eventRequest: { create: jest.Mock; update: jest.Mock; findMany: jest.Mock };
+    equipmentRequirement: { findMany: jest.Mock };
     $transaction: jest.Mock;
   };
   let access: {
@@ -56,6 +57,7 @@ describe('EventsService (US-03)', () => {
         update: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
       },
+      equipmentRequirement: { findMany: jest.fn().mockResolvedValue([]) },
       // Run the callback against the same mock client.
       $transaction: jest.fn((callback) => callback(prisma)),
     };
@@ -222,9 +224,11 @@ describe('EventsService (US-03)', () => {
       const event = draftRow({ status: EventStatus.SUBMITTED });
       access.assertEventAccess.mockResolvedValue(event);
 
-      await expect(service.findOneForUser(organiser, 'event-1')).resolves.toBe(
-        event,
-      );
+      // US-28 attaches the equipment requirements alongside the record.
+      await expect(service.findOneForUser(organiser, 'event-1')).resolves.toEqual({
+        ...event,
+        equipmentRequirements: [],
+      });
     });
 
     it('scopes the list query rather than filtering after the fact', async () => {

@@ -11,8 +11,10 @@ import 'dotenv/config';
 import {
   AccessibilityFeature,
   EquipmentStatus,
+  BookingStatus,
   EventStatus,
   PrismaClient,
+  ReservationStatus,
   Role,
   RoomLayout,
   VenueStatus,
@@ -181,7 +183,90 @@ async function main() {
     await prisma.equipment.create({ data: item });
   }
 
-  console.log(`Seeded ${USERS.length} users (password: ${PASSWORD}), ${events.length} events, ${venues.length} venues, ${equipment.length} equipment items.`);
+  // US-25/US-26: two events in planning, so the planning edit and change
+  // history can be tried locally.
+  //  - "Engineering Open House" has an APPROVED venue booking and equipment
+  //    reservation: date, attendance, layout, accessibility or equipment
+  //    edits are flagged for review.
+  //  - "Hackathon Kickoff" has only REQUESTED arrangements: every edit is an
+  //    ordinary edit.
+  // Both are visible to Venue Staff and Technical Support (US-25 AC-3).
+  // "Alumni Homecoming" above is APPROVED, to try "Start planning" on.
+  const auditorium = await prisma.venue.findFirstOrThrow({ where: { name: 'Sandbox Auditorium' } });
+  const projector =
+    (await prisma.equipment.findFirst({ where: { type: 'Laser projector' } })) ??
+    (await prisma.equipment.create({
+      data: { type: 'Laser projector', totalQuantity: 6 },
+    }));
+
+  const planningEvents = [
+    {
+      name: 'Engineering Open House',
+      start: '2026-11-12T09:00:00Z',
+      end: '2026-11-12T16:00:00Z',
+      booking: BookingStatus.APPROVED,
+      reservation: ReservationStatus.APPROVED,
+    },
+    {
+      name: 'Hackathon Kickoff',
+      start: '2026-11-26T18:00:00Z',
+      end: '2026-11-26T22:00:00Z',
+      booking: BookingStatus.REQUESTED,
+      reservation: ReservationStatus.REQUESTED,
+    },
+  ];
+
+  for (const event of planningEvents) {
+    const existing = await prisma.eventRequest.findFirst({ where: { name: event.name } });
+    if (existing) continue;
+
+    const start = new Date(event.start);
+    const end = new Date(event.end);
+
+    const created = await prisma.eventRequest.create({
+      data: {
+        ...base,
+        name: event.name,
+        status: EventStatus.PLANNING,
+        proposedStart: start,
+        proposedEnd: end,
+        programme: '09:00 Welcome\n10:00 Lab tours\n12:00 Lunch\n13:30 Project demos',
+      },
+    });
+
+    await prisma.venueBooking.create({
+      data: { eventId: created.id, venueId: auditorium.id, start, end, status: event.booking },
+    });
+    await prisma.equipmentReservation.create({
+      data: {
+        eventId: created.id,
+        equipmentId: projector.id,
+        quantity: 2,
+        start,
+        end,
+        status: event.reservation,
+      },
+    });
+
+    // US-28: requirements already recorded on the event with an approved
+    // reservation, so editing them shows the review flag.
+    if (event.reservation === ReservationStatus.APPROVED) {
+      await prisma.equipmentRequirement.createMany({
+        data: [
+          { eventId: created.id, equipmentType: 'Laser projector', quantity: 2 },
+          { eventId: created.id, equipmentType: 'Wireless microphone', quantity: 6, notes: 'Lapel' },
+        ],
+      });
+      await prisma.eventRequest.update({
+        where: { id: created.id },
+        data: { technicalSupportNeeds: 'On-site AV technician for the full day.' },
+      });
+    }
+  }
+
+  console.log(
+    `Seeded ${USERS.length} users (password: ${PASSWORD}), ${events.length + planningEvents.length} events, ${venues.length} venues.`,
+  );
 }
 
 main()

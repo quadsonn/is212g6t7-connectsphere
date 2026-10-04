@@ -36,6 +36,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   VENUE_STAFF: [
     { label: 'Venue catalogue', to: '/venues', icon: Building2 },
+    { label: 'Related events', to: '/venues/events', icon: CalendarCheck },
     { label: 'Booking requests', to: '/venues/bookings', icon: CalendarCheck, comingSoon: true },
   ],
   TECHNICAL_SUPPORT_STAFF: [
@@ -43,6 +44,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: 'Equipment catalogue', to: '/equipment/inventory', icon: Wrench },
     { label: 'Check availability', to: '/equipment/availability', icon: CalendarClock },
     { label: 'Released reservations', to: '/equipment/released', icon: CalendarX },
+    { label: 'Related events', to: '/equipment/events', icon: CalendarCheck },
   ],
   ATTENDEE: [
     { label: 'Browse events', to: '/events', icon: Ticket },

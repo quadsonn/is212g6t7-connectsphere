@@ -53,7 +53,7 @@ export function EquipmentDashboard() {
               <li key={event.eventId}>
                 <button
                   type="button"
-                  onClick={() => navigate(`/equipment/events/${event.eventId}`)}
+                  onClick={() => navigate(`/equipment/requirements/${event.eventId}`)}
                   className="block w-full px-5 py-4 text-left hover:bg-ink-50"
                 >
                   <div className="flex flex-wrap items-center gap-2.5">

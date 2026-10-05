@@ -52,7 +52,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   ATTENDEE: [
     { label: 'Browse events', to: '/events', icon: Ticket },
-    { label: 'My registrations', to: '/events/mine', icon: CalendarCheck, comingSoon: true },
+    { label: 'My registrations', to: '/events/mine', icon: CalendarCheck },
   ],
 };
 

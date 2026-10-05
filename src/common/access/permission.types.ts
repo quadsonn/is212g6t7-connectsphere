@@ -36,6 +36,8 @@ export enum Action {
    */
   CHECK_AVAILABILITY = 'CHECK_AVAILABILITY',
   DECIDE = 'DECIDE',
+  /** US-37: propose a change to an event that has already been submitted. */
+  REQUEST_CHANGE = 'REQUEST_CHANGE',
   REGISTER = 'REGISTER',
   WITHDRAW = 'WITHDRAW',
 }

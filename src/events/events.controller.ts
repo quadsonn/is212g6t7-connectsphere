@@ -27,6 +27,8 @@ import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
 import { UpdatePlanningDto } from './dto/update-planning.dto';
 import { TechnicalRequirementsDto } from './dto/technical-requirements.dto';
+import { CreateChangeRequestDto } from './dto/create-change-request.dto';
+import { EventsChangeRequestService } from './events-change-request.service';
 import { EventsService } from './events.service';
 
 /**
@@ -37,7 +39,10 @@ import { EventsService } from './events.service';
 @Controller('events')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class EventsController {
-  constructor(private readonly eventsService: EventsService) {}
+  constructor(
+    private readonly eventsService: EventsService,
+    private readonly changeRequests: EventsChangeRequestService,
+  ) {}
 
   /**
    * US-03 — submit a new event request (AC-1, AC-2, AC-5).
@@ -268,6 +273,21 @@ export class EventsController {
     @Body() dto: AssignCoordinatorDto,
   ) {
     return this.eventsService.reassign(user, id, dto);
+  }
+
+  /**
+   * US-37 — the Organiser proposes a change to one of their submitted events.
+   * Saved as PENDING beside the event; the event itself is not edited.
+   */
+  @Post(':id/change-requests')
+  @Roles(Role.EVENT_ORGANISER)
+  @HttpCode(HttpStatus.CREATED)
+  requestChange(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreateChangeRequestDto,
+  ) {
+    return this.changeRequests.request(user, id, dto);
   }
 
   /** US-04 AC-4 — DRAFT -> SUBMITTED, through setStatus(). */

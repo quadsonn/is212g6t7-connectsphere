@@ -190,6 +190,14 @@ enum NotificationType {
   REGISTRATION_WITHDRAWN
 }
 
+// US-37 (E8): where a change request stands. Only PENDING is written so far;
+// the review story will move it to APPROVED or REJECTED.
+enum ChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -215,6 +223,7 @@ model User {
   notifications         Notification[]
   clarificationMessages ClarificationMessage[]
   eventChanges          EventChange[]
+  changeRequests        EventChangeRequest[]
   managedVenues         Venue[]                @relation("VenueManager")
   requestedBookings     VenueBooking[]         @relation("BookingRequester")
   bookingDecisions      BookingDecision[]
@@ -305,8 +314,9 @@ model EventRequest {
 
   clarifications        ClarificationMessage[]
   changes               EventChange[]
+  changeRequests        EventChangeRequest[]
   equipmentRequirements EquipmentRequirement[]
-  venueBookings         VenueBooking[]
+  venueBookings        VenueBooking[]
   equipmentReservations EquipmentReservation[]
   registrations         Registration[]
   notifications         Notification[]
@@ -460,7 +470,9 @@ model Equipment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  reservations EquipmentReservation[]
+  reservations         EquipmentReservation[]
+  requirements         EquipmentRequirement[]
+  changeRequestLines   EventChangeRequestEquipment[]
 
   @@index([type])
 }
@@ -634,6 +646,13 @@ model EquipmentRequirement {
   eventId String
   event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
+  // US-37: the catalogue item this line refers to. Nullable because lines
+  // recorded before the link existed, or typed free-text, have none — those
+  // are left out of change-request comparisons rather than guessed at.
+  // `equipmentType` stays the display text either way.
+  equipmentId String?
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+
   equipmentType String
   // Positive — enforced by a CHECK constraint in the migration as well as
   // the DTO.
@@ -644,6 +663,66 @@ model EquipmentRequirement {
   updatedAt DateTime @updatedAt
 
   @@index([eventId])
+  @@index([equipmentId])
+}
+
+/**
+ * US-37 — an Organiser's proposal to change an event, awaiting review.
+ *
+ * A proposal, not an edit: the event row is never touched by this story, so
+ * the original details stay as they were (AC "original details still show").
+ *
+ * Each proposed* column is null when that field is NOT being changed; only
+ * fields that differ from the event are stored. Equipment cannot use null the
+ * same way (an empty list is a real proposal — remove everything), so
+ * `equipmentChanged` says whether `equipment` is part of the proposal, and
+ * when it is, `equipment` is the complete proposed list.
+ *
+ * A partial unique index in the migration allows one PENDING request per
+ * event; Prisma cannot express it.
+ */
+model EventChangeRequest {
+  id String @id @default(cuid())
+
+  eventId String
+  event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  requestedById String
+  requestedBy   User   @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+
+  status ChangeRequestStatus @default(PENDING)
+  reason String
+
+  proposedStart      DateTime?
+  proposedEnd        DateTime?
+  proposedAttendance Int?
+
+  equipmentChanged Boolean                       @default(false)
+  equipment        EventChangeRequestEquipment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId, status])
+  @@index([requestedById])
+}
+
+/** US-37 — one line of a proposed equipment list, from the catalogue. */
+model EventChangeRequestEquipment {
+  id String @id @default(cuid())
+
+  changeRequestId String
+  changeRequest   EventChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  equipmentId String
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+
+  // Positive — enforced by a CHECK constraint in the migration as well as
+  // the DTO.
+  quantity Int
+
+  @@unique([changeRequestId, equipmentId])
+  @@index([equipmentId])
 }
 
 /**

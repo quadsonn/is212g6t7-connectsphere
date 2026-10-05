@@ -14,6 +14,7 @@ describe('EventsService (US-03)', () => {
   let prisma: {
     eventRequest: { create: jest.Mock; update: jest.Mock; findMany: jest.Mock };
     equipmentRequirement: { findMany: jest.Mock };
+    eventChangeRequest: { findFirst: jest.Mock };
     registration: { groupBy: jest.Mock; findMany: jest.Mock };
     $transaction: jest.Mock;
   };
@@ -59,6 +60,8 @@ describe('EventsService (US-03)', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       equipmentRequirement: { findMany: jest.fn().mockResolvedValue([]) },
+      // US-37: an Organiser's event view looks for a pending change request.
+      eventChangeRequest: { findFirst: jest.fn().mockResolvedValue(null) },
       registration: {
         groupBy: jest.fn().mockResolvedValue([]),
         findMany: jest.fn().mockResolvedValue([]),
@@ -233,6 +236,7 @@ describe('EventsService (US-03)', () => {
       await expect(service.findOneForUser(organiser, 'event-1')).resolves.toEqual({
         ...event,
         equipmentRequirements: [],
+        pendingChangeRequest: null,
       });
     });
 

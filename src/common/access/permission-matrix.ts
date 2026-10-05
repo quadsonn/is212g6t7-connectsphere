@@ -33,6 +33,8 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.SUBMIT, Scope.OWN),
         // US-09: answering a clarification on their own request.
         g(Action.CLARIFY, Scope.OWN),
+        // US-37: "requests changes" — to their own events only.
+        g(Action.REQUEST_CHANGE, Scope.OWN),
       ],
       [Resource.VENUE]: [g(Action.READ, Scope.ANY)],
       // US-23 AC-5: "the decision and reason are visible to the relevant

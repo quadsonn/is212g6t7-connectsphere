@@ -14,6 +14,16 @@ import {
 
 /** US-28 AC-1 — one line of required equipment: type and quantity. */
 export class EquipmentRequirementDto {
+  /**
+   * US-37: the catalogue item this line is. Optional, so free-text lines still
+   * work; when given, `equipmentType` is replaced by the catalogue's name and
+   * the line takes part in change-request comparisons.
+   */
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  equipmentId?: string;
+
   @IsString()
   @IsNotEmpty({ message: 'equipmentType is required' })
   @MaxLength(100)

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   BookingStatus,
+  ChangeRequestStatus,
   ConfirmedArrangement,
   EventChange,
   EventRequest,
@@ -57,6 +58,7 @@ import {
   PLANNING_STATUSES,
 } from './event-status.machine';
 import { evaluateRegistration } from '../registrations/registration-rules';
+import { CHANGE_REQUEST_INCLUDE } from './events-change-request.service';
 
 /**
  * US-10 AC-3 — the assigned Coordinator, exposed on every read so the main
@@ -125,7 +127,22 @@ export type OrganiserRequestView = EventRequest & {
   /** US-11 — the consolidated view every story reads. */
   statusView: EventStatusView;
   clarificationRequested: boolean;
+  /**
+   * US-37 — the undecided change request, shown beside the original details
+   * (which are untouched). Set on single-event reads only.
+   */
+  pendingChangeRequest?: PendingChangeRequest | null;
 };
+
+/** US-37 — a change request with its equipment resolved to catalogue names. */
+export type PendingChangeRequest = Prisma.EventChangeRequestGetPayload<{
+  include: typeof CHANGE_REQUEST_INCLUDE;
+}>;
+
+/** What GET /events/:id returns: the event, or its public projection. */
+export type EventDetailView =
+  | (EventWithCoordinator & { pendingChangeRequest?: PendingChangeRequest | null })
+  | PublicEventView;
 
 /**
  * US-07 AC-1 lists a status called "returned" that EventStatus does not have,
@@ -944,10 +961,16 @@ export class EventsService {
     this.assertIsAssignedTo(user, event);
     this.assertInPlanning(event);
 
+    const catalogueTypes = await this.catalogueTypes(dto.equipment ?? []);
+
     const incoming = dto.equipment?.map((item) => ({
-      equipmentType: item.equipmentType.trim(),
+      // US-37: a catalogue-linked line is named by the catalogue.
+      equipmentType: item.equipmentId
+        ? (catalogueTypes.get(item.equipmentId) as string)
+        : item.equipmentType.trim(),
       quantity: item.quantity,
       notes: item.notes?.trim() || null,
+      ...(item.equipmentId ? { equipmentId: item.equipmentId } : {}),
     }));
 
     if (incoming) {
@@ -1007,6 +1030,33 @@ export class EventsService {
     });
 
     return { ...(await this.findAssignedRequest(user, id)), change };
+  }
+
+  /** US-37 — catalogue names for the lines that name an item; 400 on an unknown id. */
+  private async catalogueTypes(
+    items: { equipmentId?: string }[],
+  ): Promise<Map<string, string>> {
+    const ids = [
+      ...new Set(items.flatMap((item) => (item.equipmentId ? [item.equipmentId] : []))),
+    ];
+    if (ids.length === 0) {
+      return new Map();
+    }
+
+    const found = await this.prisma.equipment.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, type: true },
+    });
+    const types = new Map(found.map((row) => [row.id, row.type]));
+    const unknown = ids.filter((id) => !types.has(id));
+
+    if (unknown.length > 0) {
+      throw new BadRequestException(
+        unknown.map((id) => `equipment item ${id} is not in the catalogue`),
+      );
+    }
+
+    return types;
   }
 
   /**
@@ -1219,7 +1269,18 @@ export class EventsService {
       include: { ...EVENT_CONTACTS_INCLUDE, ...CLARIFICATION_THREAD_INCLUDE },
     });
 
-    return this.toOrganiserView(event);
+    return {
+      ...this.toOrganiserView(event),
+      pendingChangeRequest: await this.findPendingChangeRequest(id),
+    };
+  }
+
+  /** US-37 — the event's undecided change request, or null. */
+  private findPendingChangeRequest(eventId: string) {
+    return this.prisma.eventChangeRequest.findFirst({
+      where: { eventId, status: ChangeRequestStatus.PENDING },
+      include: CHANGE_REQUEST_INCLUDE,
+    });
   }
 
   /**
@@ -1311,7 +1372,7 @@ export class EventsService {
   async findOneForUser(
     user: AuthenticatedUser,
     id: string,
-  ): Promise<EventWithCoordinator | PublicEventView> {
+  ): Promise<EventDetailView> {
     const event = await this.access.assertEventAccess(user, id, Action.READ);
 
     // US-28 AC-3: Technical Support (and every other full-record reader)
@@ -1323,7 +1384,18 @@ export class EventsService {
     });
 
     const withRequirements = { ...event, equipmentRequirements };
-    return this.access.projectEvent(user, withRequirements);
+    const projected = this.access.projectEvent(user, withRequirements);
+
+    // US-37: the Organiser sees their pending change request beside the
+    // original details. Nobody else's view carries it.
+    if (user.role === Role.EVENT_ORGANISER) {
+      return {
+        ...(projected as EventWithCoordinator),
+        pendingChangeRequest: await this.findPendingChangeRequest(event.id),
+      };
+    }
+
+    return projected;
   }
 
   /** Loads an event for a status change, enforcing the caller's scope. */

@@ -30,6 +30,8 @@ export enum Action {
   /** US-13: make a draft catalogue entry visible to everyone else. */
   PUBLISH = 'PUBLISH',
   DECIDE = 'DECIDE',
+  /** US-37: propose a change to an event that has already been submitted. */
+  REQUEST_CHANGE = 'REQUEST_CHANGE',
   REGISTER = 'REGISTER',
   WITHDRAW = 'WITHDRAW',
 }

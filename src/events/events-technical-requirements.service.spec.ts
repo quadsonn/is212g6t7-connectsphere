@@ -23,6 +23,7 @@ describe('EventsService technical requirements (US-28)', () => {
       createMany: jest.Mock;
     };
     eventChange: { create: jest.Mock };
+    equipment: { findMany: jest.Mock };
     venueBooking: { count: jest.Mock };
     equipmentReservation: { count: jest.Mock };
     $transaction: jest.Mock;
@@ -80,6 +81,9 @@ describe('EventsService technical requirements (US-28)', () => {
         create: jest.fn().mockImplementation(({ data }) =>
           Promise.resolve({ id: 'change-1', createdAt: new Date(), changedBy: {}, ...data }),
         ),
+      },
+      equipment: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'cat-projector', type: 'Laser projector' }]),
       },
       venueBooking: { count: jest.fn().mockResolvedValue(0) },
       equipmentReservation: { count: jest.fn().mockResolvedValue(0) },
@@ -147,6 +151,44 @@ describe('EventsService technical requirements (US-28)', () => {
       });
 
       expect(prisma.equipmentRequirement.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('US-37: lines can be linked to the equipment catalogue', () => {
+    it('stores the catalogue link and names the line from the catalogue', async () => {
+      await service.setTechnicalRequirements(coordinator, 'event-1', {
+        equipment: [{ equipmentId: 'cat-projector', equipmentType: 'typed by hand', quantity: 2 }],
+      });
+
+      expect(prisma.equipmentRequirement.createMany).toHaveBeenCalledWith({
+        data: [
+          {
+            equipmentId: 'cat-projector',
+            equipmentType: 'Laser projector',
+            quantity: 2,
+            notes: null,
+            eventId: 'event-1',
+          },
+        ],
+      });
+    });
+
+    it('rejects an equipmentId that is not in the catalogue', async () => {
+      await expect(
+        service.setTechnicalRequirements(coordinator, 'event-1', {
+          equipment: [{ equipmentId: 'ghost', equipmentType: 'x', quantity: 1 }],
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.equipmentRequirement.createMany).not.toHaveBeenCalled();
+    });
+
+    it('leaves free-text lines unlinked and skips the catalogue lookup', async () => {
+      await service.setTechnicalRequirements(coordinator, 'event-1', { equipment: [projectors] });
+
+      expect(prisma.equipment.findMany).not.toHaveBeenCalled();
+      expect(prisma.equipmentRequirement.createMany.mock.calls[0][0].data[0]).not.toHaveProperty(
+        'equipmentId',
+      );
     });
   });
 

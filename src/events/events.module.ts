@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { EquipmentModule } from '../equipment/equipment.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { EventsChangeRequestService } from './events-change-request.service';
 import { EventsController } from './events.controller';
 import { EventsService } from './events.service';
 
@@ -13,7 +14,7 @@ import { EventsService } from './events.service';
   // EquipmentModule: US-33 releases an event's equipment on cancellation.
   imports: [NotificationsModule, EquipmentModule],
   controllers: [EventsController],
-  providers: [EventsService],
+  providers: [EventsService, EventsChangeRequestService],
   exports: [EventsService],
 })
 export class EventsModule {}

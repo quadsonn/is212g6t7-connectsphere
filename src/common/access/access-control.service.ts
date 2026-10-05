@@ -47,6 +47,28 @@ export interface PublicEventView {
   coordinator: CoordinatorSummary | null;
 }
 
+/**
+ * US-25 AC-3 — what "related" means per role. A role granted RELATED scope
+ * with no entry here sees nothing (fail closed), rather than everything.
+ *
+ * AMBIGUOUS: any booking or reservation counts, whatever its status, and for
+ * any venue — Venue Staff already read every booking (BOOKING/READ is ANY), so
+ * narrowing events further would hide events behind bookings they can see.
+ */
+const RELATED_EVENT_FILTERS: Partial<Record<Role, Prisma.EventRequestWhereInput>> = {
+  [Role.VENUE_STAFF]: { venueBookings: { some: {} } },
+  // US-28 AC-3: requirements are recorded precisely so Technical Support can
+  // review them, which happens before any reservation exists — so recorded
+  // requirements make an event related too.
+  [Role.TECHNICAL_SUPPORT_STAFF]: {
+    OR: [
+      { equipmentReservations: { some: {} } },
+      { equipmentRequirements: { some: {} } },
+      { technicalSupportNeeds: { not: null } },
+    ],
+  },
+};
+
 /** An EventRequest read with the coordinator relation resolved alongside it. */
 export type EventWithCoordinator = EventRequest & {
   coordinator: CoordinatorSummary | null;
@@ -109,6 +131,8 @@ export class AccessControlService {
         };
       case Scope.PUBLIC:
         return { status: { in: [...ATTENDEE_VISIBLE_STATUSES] } };
+      case Scope.RELATED:
+        return RELATED_EVENT_FILTERS[user.role as Role] ?? { id: { in: [] } };
     }
   }
 

@@ -8,6 +8,7 @@ import { EventStatus, Role } from '@prisma/client';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
@@ -88,6 +89,7 @@ describe('EventsService reject / return (US-08)', () => {
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
+      { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
     );
   });
 

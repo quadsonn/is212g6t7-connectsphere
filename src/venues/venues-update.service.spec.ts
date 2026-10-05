@@ -67,7 +67,7 @@ describe('VenuesService update (US-14)', () => {
       access as unknown as AccessControlService,
       bookings as unknown as VenueBookingLookup,
       notifications as unknown as NotificationsService,
-      {} as unknown as SupabaseStorageService,
+      { uploadVenueImage: jest.fn() } as unknown as SupabaseStorageService,
       {} as unknown as EventsService,
     );
   });

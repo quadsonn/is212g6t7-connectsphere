@@ -1,4 +1,4 @@
-import type { DayStatus, EventStatus, VenueStatus } from '@/types/api';
+import type { DayStatus, EquipmentStatus, EventStatus, VenueStatus } from '@/types/api';
 
 /**
  * The status colour language, defined once.
@@ -40,6 +40,16 @@ export const VENUE_STATUS_STYLES: Record<VenueStatus, StatusStyle> = {
   PUBLISHED: { label: 'Published', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
 };
 
+/** US-29 AC-2 — an equipment item's operational status. */
+export const EQUIPMENT_STATUS_STYLES: Record<EquipmentStatus, StatusStyle> = {
+  OPERATIONAL: { label: 'Operational', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
+  UNDER_MAINTENANCE: {
+    label: 'Under maintenance',
+    className: 'bg-amber-50 text-amber-900 ring-amber-400',
+  },
+  OUT_OF_SERVICE: { label: 'Out of service', className: 'bg-red-50 text-red-800 ring-red-300' },
+};
+
 /** Statuses shown in the Coordinator's retained request list. */
 export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
   'DRAFT',
@@ -47,6 +57,8 @@ export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
   'UNDER_REVIEW',
   'AWAITING_CLARIFICATION',
   'APPROVED',
+  'PLANNING',
+  'AWAITING_ARRANGEMENTS',
   'CONFIRMED',
   'COMPLETED',
   'CANCELLED',
@@ -72,3 +84,24 @@ export const DAY_STATUS_STYLES: Record<DayStatus, StatusStyle> = {
   // Struck through as well as shaded, so "booked" survives greyscale.
   booked: { label: 'Booked', className: 'bg-ink-200 text-ink-500 line-through' },
 };
+
+/**
+ * US-25 — statuses in which the Coordinator may update the event's
+ * information. Mirrors PLANNING_STATUSES in event-status.machine.ts.
+ */
+export const PLANNING_EVENT_STATUSES: EventStatus[] = ['PLANNING', 'AWAITING_ARRANGEMENTS'];
+
+/**
+ * US-10/US-27 — statuses at which a Coordinator may be assigned or the event
+ * reassigned. Mirrors ASSIGNABLE_STATUSES in event-status.machine.ts.
+ */
+export const ASSIGNABLE_EVENT_STATUSES: EventStatus[] = [
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'AWAITING_CLARIFICATION',
+  'RETURNED',
+  'APPROVED',
+  'PLANNING',
+  'AWAITING_ARRANGEMENTS',
+  'CONFIRMED',
+];

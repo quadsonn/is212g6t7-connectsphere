@@ -43,7 +43,7 @@ describe('VenuesService browse (US-15)', () => {
       access as unknown as AccessControlService,
       { findLiveBookingsForVenue: jest.fn() } as unknown as VenueBookingLookup,
       { notify: jest.fn(), notifySafely: jest.fn() } as unknown as NotificationsService,
-      {} as unknown as SupabaseStorageService,
+      { uploadVenueImage: jest.fn() } as unknown as SupabaseStorageService,
       {} as unknown as EventsService,
     );
   });

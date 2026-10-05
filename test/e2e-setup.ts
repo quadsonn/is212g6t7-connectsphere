@@ -23,9 +23,10 @@ export default function globalSetup(): void {
     // Already exists — the migration below is the real check.
   }
 
+  // DIRECT_URL must be overridden too: schema.prisma routes migrations through
+  // `directUrl`, so leaving it as the Supabase URL from .env would apply the
+  // test run's migrations to the shared team database instead of this one.
   execSync('npx prisma migrate deploy', {
-    // DIRECT_URL too: schema.prisma's directUrl is what migrations use, and
-    // left alone it points at the shared Supabase database.
     env: { ...process.env, DATABASE_URL: url, DIRECT_URL: url },
     stdio: 'inherit',
   });

@@ -1,3 +1,5 @@
+import { ChevronDown } from 'lucide-react';
+
 import { cn } from '@/lib/utils';
 
 /** A labelled field with inline validation messaging. */
@@ -74,15 +76,20 @@ export function Select({
   ...props
 }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select
-      className={cn(
-        'h-10 w-full rounded-lg border border-ink-300 bg-white px-3 text-sm text-ink-900',
-        'focus:border-brand-600 focus:outline-2 focus:outline-offset-0 focus:outline-brand-600',
-        'aria-[invalid=true]:border-red-500',
-        className,
-      )}
-      {...props}
-    />
+    <div className={cn('relative h-10 w-full', className)}>
+      <select
+        className={cn(
+          'absolute inset-0 h-full w-full appearance-none rounded-lg border border-ink-300 bg-white pl-3 pr-9 text-sm text-ink-900',
+          'focus:border-brand-600 focus:outline-2 focus:outline-offset-0 focus:outline-brand-600',
+          'aria-[invalid=true]:border-red-500',
+        )}
+        {...props}
+      />
+      <ChevronDown
+        className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-ink-400"
+        aria-hidden="true"
+      />
+    </div>
   );
 }
 

@@ -4,6 +4,7 @@ import { EventStatus, Role } from '@prisma/client';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Resource, Action, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
@@ -12,6 +13,7 @@ import { CreateEventRequestDto } from './dto/create-event-request.dto';
 describe('EventsService (US-03)', () => {
   let prisma: {
     eventRequest: { create: jest.Mock; update: jest.Mock; findMany: jest.Mock };
+    equipmentRequirement: { findMany: jest.Mock };
     $transaction: jest.Mock;
   };
   let access: {
@@ -55,6 +57,7 @@ describe('EventsService (US-03)', () => {
         update: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
       },
+      equipmentRequirement: { findMany: jest.fn().mockResolvedValue([]) },
       // Run the callback against the same mock client.
       $transaction: jest.fn((callback) => callback(prisma)),
     };
@@ -70,6 +73,7 @@ describe('EventsService (US-03)', () => {
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
+      { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
     );
   });
 
@@ -220,9 +224,11 @@ describe('EventsService (US-03)', () => {
       const event = draftRow({ status: EventStatus.SUBMITTED });
       access.assertEventAccess.mockResolvedValue(event);
 
-      await expect(service.findOneForUser(organiser, 'event-1')).resolves.toBe(
-        event,
-      );
+      // US-28 attaches the equipment requirements alongside the record.
+      await expect(service.findOneForUser(organiser, 'event-1')).resolves.toEqual({
+        ...event,
+        equipmentRequirements: [],
+      });
     });
 
     it('scopes the list query rather than filtering after the fact', async () => {

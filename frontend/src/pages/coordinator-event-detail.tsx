@@ -1,4 +1,4 @@
-import { ArrowLeft } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 
@@ -9,14 +9,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field as FormField, Select, Textarea } from '@/components/ui/form';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import { ChangeHistory } from '@/features/events/components/change-history';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
+import { PlanningEditForm } from '@/features/events/components/planning-edit-form';
+import { ReassignEvent } from '@/features/events/components/reassign-event';
+import { TechnicalRequirementsCard } from '@/features/events/components/technical-requirements';
+import { ARRANGEMENT_LABELS } from '@/features/events/lib/change-format';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import {
   useAssignCoordinator,
   useAssignedRequest,
   useReviewEvent,
+  useStartPlanning,
 } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
+import { ASSIGNABLE_EVENT_STATUSES, PLANNING_EVENT_STATUSES } from '@/lib/status';
+import type { PlanningUpdateResult } from '@/types/api';
 import { formatDateRange, humanise } from '@/lib/utils';
 
 type Decision = 'clarify' | 'return' | 'reject' | 'approve' | '';
@@ -38,12 +46,26 @@ export function CoordinatorEventDetail() {
   const assignCoordinator = useAssignCoordinator();
   const [decision, setDecision] = useState<Decision>('');
   const [decisionText, setDecisionText] = useState('');
+  const startPlanning = useStartPlanning();
+  const [editing, setEditing] = useState(false);
+  // US-25: what the last save did — shown until the next edit begins.
+  const [lastSave, setLastSave] = useState<PlanningUpdateResult['change'] | 'unchanged' | null>(
+    null,
+  );
 
   const isReviewing =
     approve.isPending ||
     requestClarification.isPending ||
     reject.isPending ||
     returnForAmendment.isPending;
+  const isAssignedToMe = Boolean(event && session && event.coordinatorId === session.userId);
+  const inPlanning = event ? PLANNING_EVENT_STATUSES.includes(event.status) : false;
+
+  function handleSaved(result: PlanningUpdateResult) {
+    setLastSave(result.change ?? 'unchanged');
+    setEditing(false);
+  }
+
   const canDecide = event
     ? (event.status === 'SUBMITTED' || event.status === 'UNDER_REVIEW') &&
       event.coordinator !== null
@@ -124,8 +146,104 @@ export function CoordinatorEventDetail() {
               <div className="sm:col-span-2">
                 <Field label="Description">{event.description ?? '—'}</Field>
               </div>
+              <div className="sm:col-span-2">
+                <Field label="Programme">
+                  <span className="whitespace-pre-line">{event.programme ?? '—'}</span>
+                </Field>
+              </div>
             </CardContent>
           </Card>
+
+          {event.status === 'APPROVED' && isAssignedToMe ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Planning</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-ink-500">
+                  This event is approved. Start planning to refine its details and arrange the
+                  venue and equipment.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={startPlanning.isPending}
+                  onClick={() => startPlanning.mutate(event.id)}
+                >
+                  Start planning
+                </Button>
+                {startPlanning.error ? (
+                  <p className="w-full text-sm text-red-700">
+                    {apiErrorMessage(startPlanning.error, 'Could not start planning.')}
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {inPlanning && isAssignedToMe ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Update event information</CardTitle>
+                {!editing ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setLastSave(null);
+                      setEditing(true);
+                    }}
+                  >
+                    <Pencil className="size-4" aria-hidden="true" />
+                    Edit details
+                  </Button>
+                ) : null}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {lastSave && lastSave !== 'unchanged' && lastSave.requiresReview ? (
+                  <div
+                    role="status"
+                    className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                  >
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                    <span>
+                      Saved, and <strong>flagged for review</strong>: this change affects
+                      arrangements that are already confirmed (
+                      {lastSave.affectedArrangements.map((a) => ARRANGEMENT_LABELS[a]).join(', ')}).
+                    </span>
+                  </div>
+                ) : null}
+                {lastSave && lastSave !== 'unchanged' && !lastSave.requiresReview ? (
+                  <div
+                    role="status"
+                    className="flex items-center gap-3 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+                  >
+                    <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
+                    Changes saved.
+                  </div>
+                ) : null}
+                {lastSave === 'unchanged' ? (
+                  <p role="status" className="text-sm text-ink-500">
+                    Nothing changed, so nothing was saved.
+                  </p>
+                ) : null}
+
+                {editing ? (
+                  <PlanningEditForm
+                    event={event}
+                    onSaved={handleSaved}
+                    onCancel={() => setEditing(false)}
+                  />
+                ) : (
+                  <p className="text-sm text-ink-500">
+                    Changes to the dates, attendance, layout, accessibility or equipment of an event
+                    with confirmed arrangements are flagged for review.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader>
@@ -161,14 +279,13 @@ export function CoordinatorEventDetail() {
             </CardContent>
           </Card>
 
+          <TechnicalRequirementsCard event={event} editable={inPlanning && isAssignedToMe} />
+
           <Card>
             <CardHeader>
-              <CardTitle>Equipment and registration</CardTitle>
+              <CardTitle>Registration</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <Field label="Equipment needs">{event.equipmentNeeds ?? 'None recorded.'}</Field>
-              </div>
               <Field label="Registration">
                 {event.registrationEnabled ? 'Open to attendees' : 'Not open for registration'}
               </Field>
@@ -191,10 +308,15 @@ export function CoordinatorEventDetail() {
             </CardHeader>
             <CardContent className="space-y-3">
               {event.coordinator ? (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Assigned to">{event.coordinator.name}</Field>
-                  <Field label="Email">{event.coordinator.email}</Field>
-                </div>
+                <>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="Assigned to">{event.coordinator.name}</Field>
+                    <Field label="Email">{event.coordinator.email}</Field>
+                  </div>
+                  {isAssignedToMe && ASSIGNABLE_EVENT_STATUSES.includes(event.status) ? (
+                    <ReassignEvent eventId={event.id} eventName={event.name ?? 'This event'} />
+                  ) : null}
+                </>
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-sm text-ink-500">
@@ -239,6 +361,8 @@ export function CoordinatorEventDetail() {
               )}
             </CardContent>
           </Card>
+
+          <ChangeHistory eventId={event.id} />
 
           {canDecide ? (
             <Card>

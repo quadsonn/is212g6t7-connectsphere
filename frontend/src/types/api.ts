@@ -121,7 +121,7 @@ export interface CurrentUser {
 export interface PermittedAction {
   resource: string;
   action: string;
-  scope: 'ANY' | 'OWN' | 'ASSIGNED' | 'PUBLIC';
+  scope: 'ANY' | 'OWN' | 'ASSIGNED' | 'PUBLIC' | 'RELATED';
 }
 export interface PermissionsResponse {
   role: Role;
@@ -144,6 +144,8 @@ export interface EventRequest {
   purpose: string | null;
   description: string | null;
   category: string | null;
+  /** US-25: the running order, refined by the Coordinator during planning. */
+  programme: string | null;
   proposedStart: string | null;
   proposedEnd: string | null;
   expectedAttendance: number | null;
@@ -152,6 +154,8 @@ export interface EventRequest {
   accessibilityRequirements: AccessibilityFeature[];
   accessibilityNotes: string | null;
   equipmentNeeds: string | null;
+  /** US-28 AC-2: technical support the Coordinator has asked for. */
+  technicalSupportNeeds: string | null;
   registrationEnabled: boolean;
   status: EventStatus;
   /** US-05: why a Coordinator rejected the request. */
@@ -161,6 +165,22 @@ export interface EventRequest {
   createdAt: string;
   updatedAt: string;
   clarifications?: ClarificationMessage[];
+  /** US-28 AC-1: present on the Coordinator and staff views. */
+  equipmentRequirements?: EquipmentRequirement[];
+}
+
+/** US-28 AC-1 — one line of equipment an event needs. */
+export interface EquipmentRequirement {
+  id: string;
+  equipmentType: string;
+  quantity: number;
+  notes: string | null;
+}
+
+/** PATCH /events/:id/technical-requirements. Omit a key to leave it as is. */
+export interface TechnicalRequirementsPayload {
+  equipment?: { equipmentType: string; quantity: number; notes?: string | null }[];
+  technicalSupportNeeds?: string | null;
 }
 
 /** One entry in an event's clarification thread (US-09). */
@@ -186,6 +206,57 @@ export interface EventRequestPayload {
   accessibilityNotes?: string;
   equipmentNeeds?: string;
   registrationEnabled?: boolean;
+}
+
+/** US-25 — the fields a Coordinator may change during planning. */
+export interface PlanningUpdatePayload {
+  name?: string;
+  purpose?: string;
+  description?: string;
+  category?: string;
+  programme?: string | null;
+  proposedStart?: string;
+  proposedEnd?: string;
+  expectedAttendance?: number;
+  preferredLayout?: RoomLayout | null;
+  layoutNotes?: string | null;
+  accessibilityRequirements?: AccessibilityFeature[];
+  accessibilityNotes?: string | null;
+  equipmentNeeds?: string | null;
+  registrationEnabled?: boolean;
+}
+
+/** US-25 AC-2 — an already-confirmed arrangement an edit can put at risk. */
+export type ConfirmedArrangement = 'VENUE_BOOKING' | 'EQUIPMENT_RESERVATION';
+
+/** US-26 — one field's before/after in a history entry. Dates are ISO strings. */
+export interface FieldChange {
+  /** 'coordinator' records a reassignment (US-27 AC-4), by name. */
+  field:
+    | keyof PlanningUpdatePayload
+    | 'coordinator'
+    | 'equipmentRequirements'
+    | 'technicalSupportNeeds';
+  previous: string | number | boolean | string[] | null;
+  next: string | number | boolean | string[] | null;
+}
+
+/** US-26 AC-2 — what changed, previous/new values, who, and when. */
+export interface EventChangeEntry {
+  id: string;
+  eventId: string;
+  changes: FieldChange[];
+  requiresReview: boolean;
+  affectedArrangements: ConfirmedArrangement[];
+  createdAt: string;
+  changedBy: { id: string; name: string; email: string; role: Role };
+}
+
+/** GET /events/:id/history. `message` is set only when there are no entries. */
+export interface EventChangeHistory {
+  eventId: string;
+  entries: EventChangeEntry[];
+  message: string | null;
 }
 
 /** US-11 — the consolidated status view the API attaches to every request. */
@@ -216,6 +287,20 @@ export interface CoordinatorRequestView extends OrganiserRequestView {
   coordinator: ContactSummary | null;
   organiser: ContactSummary;
   clarifications: ClarificationMessage[];
+}
+
+/** PATCH /events/:id/planning — the saved event, plus what was recorded. */
+export interface PlanningUpdateResult extends CoordinatorRequestView {
+  /** Null when the save changed nothing. */
+  change: EventChangeEntry | null;
+}
+
+/**
+ * GET /events/:id as Venue Staff / Technical Support (US-25 AC-3): the full
+ * record, with the assigned Coordinator resolved.
+ */
+export interface RelatedEventView extends EventRequest {
+  coordinator: ContactSummary | null;
 }
 
 /**
@@ -330,27 +415,136 @@ export interface BrowseVenuesQuery {
   sortOrder?: 'asc' | 'desc';
 }
 
-/** Equipment inventory. Endpoint not built yet — served by a mock service. */
-export interface Equipment {
-  id: string;
-  type: string;
-  totalQuantity: number;
-  technicalSpecs: string | null;
-}
+/** US-29 — condition of an equipment item, shown in its full detail view. */
+export type EquipmentStatus = 'OPERATIONAL' | 'UNDER_MAINTENANCE' | 'OUT_OF_SERVICE';
 
 /**
- * An equipment request awaiting Technical Support review. Composed from
- * EquipmentReservation + Equipment; no endpoint exposes it yet.
+ * US-29 — a catalogue row: the four fields shown at a glance (AC-1).
+ * Operational status is only on the detail read (AC-2).
  */
-export interface EquipmentReservationSummary {
+export interface EquipmentListItem {
+  id: string;
+  type: string;
+  description: string | null;
+  location: string | null;
+  totalQuantity: number;
+}
+
+/** US-29 AC-2 — GET /equipment/:id, the full record. */
+export interface Equipment extends EquipmentListItem {
+  operationalStatus: EquipmentStatus;
+}
+
+/** US-29 AC-3 — catalogue search and sort. */
+export interface BrowseEquipmentQuery {
+  search?: string;
+  sortBy?: 'type' | 'location' | 'totalQuantity';
+  sortOrder?: 'asc' | 'desc';
+}
+
+/** US-30 — GET /equipment/:id/availability query. */
+export interface AvailabilityQuery {
+  start: string;
+  end: string;
+  quantity: number;
+}
+
+/** US-30 — one equipment type's availability for a date and time. */
+export interface ItemAvailability {
+  equipmentId: string;
+  type: string;
+  operationalStatus: EquipmentStatus;
+  start: string;
+  end: string;
+  requestedQuantity: number;
+  totalQuantity: number;
+  /** AC-3: units excluded because the item is damaged or under maintenance. */
+  unavailableQuantity: number;
+  /** AC-2: peak units committed to overlapping events in the window. */
+  reservedQuantity: number;
+  availableQuantity: number;
+  /** AC-4: false when the requested quantity is not fully available. */
+  fullyAvailable: boolean;
+  /** AC-4: how many more units were requested than are free; 0 if none. */
+  shortfall: number;
+}
+
+/** US-31 — one equipment line the Coordinator recorded (US-28). */
+export interface CoordinatorRequirement {
+  id: string;
+  equipmentType: string;
+  quantity: number;
+  notes: string | null;
+}
+
+/** US-31 — GET /equipment/requirements[/:eventId]. */
+export interface EventRequirements {
+  eventId: string;
+  name: string | null;
+  description: string | null;
+  status: EventStatus;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  /** AC-1/AC-2: the Organiser's free-text equipment needs, in full. */
+  organiserEquipmentNeeds: string | null;
+  /** AC-1/AC-2: the Coordinator's requirement rows. */
+  coordinatorRequirements: CoordinatorRequirement[];
+  /** AC-1/AC-2: the Coordinator's technical support notes. */
+  technicalSupportNeeds: string | null;
+  /** AC-3: false when none of the three is recorded; `message` says so. */
+  hasRequirements: boolean;
+  message: string | null;
+}
+
+/** US-31 — GET /equipment/requirements/:eventId/details ("View more details"). */
+export interface EventRequirementDetails {
+  eventId: string;
+  name: string | null;
+  description: string | null;
+  status: EventStatus;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  expectedAttendance: number | null;
+  preferredLayout: RoomLayout | null;
+  layoutNotes: string | null;
+  accessibilityRequirements: AccessibilityFeature[];
+  accessibilityNotes: string | null;
+  programme: string | null;
+  coordinator: { name: string; email: string } | null;
+}
+
+export type ReservationStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'RELEASED';
+
+/** US-32 — POST /equipment/reservations. */
+export interface CommitReservationPayload {
+  eventId: string;
+  equipmentId: string;
+  quantity: number;
+}
+
+/** US-32 — a confirmed commitment. */
+export interface CommittedReservation {
   id: string;
   eventId: string;
-  eventName: string;
-  equipmentType: string;
+  equipmentId: string;
   quantity: number;
   start: string;
   end: string;
-  status: 'REQUESTED' | 'APPROVED' | 'REJECTED';
+  status: ReservationStatus;
+  createdAt: string;
+  equipment: { id: string; type: string };
+}
+
+/** US-33 AC-3 — GET /equipment/reservations/released. */
+export interface ReleasedReservation {
+  id: string;
+  quantity: number;
+  start: string;
+  end: string;
+  status: ReservationStatus;
+  releasedAt: string;
+  equipment: { id: string; type: string };
+  event: { id: string; name: string | null; status: EventStatus };
 }
 
 /** An attendee's registration state for an event. No endpoint yet. */

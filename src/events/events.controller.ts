@@ -25,6 +25,8 @@ import { RespondClarificationDto } from './dto/respond-clarification.dto';
 import { RejectRequestDto } from './dto/reject-request.dto';
 import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
+import { UpdatePlanningDto } from './dto/update-planning.dto';
+import { TechnicalRequirementsDto } from './dto/technical-requirements.dto';
 import { EventsService } from './events.service';
 
 /**
@@ -179,6 +181,93 @@ export class EventsController {
     @Body() dto: AssignCoordinatorDto,
   ) {
     return this.eventsService.assignCoordinator(user, id, dto);
+  }
+
+  /**
+   * US-25 prerequisite — APPROVED -> PLANNING, through setStatus(). Without
+   * it no event could reach the status the story edits.
+   */
+  @Post(':id/start-planning')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  startPlanning(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.eventsService.startPlanning(user, id);
+  }
+
+  /**
+   * US-25 — update an event's information during planning.
+   *
+   * A separate route from PATCH /events/:id: that one is the Organiser's
+   * draft edit, with a different role, a different set of editable statuses,
+   * and no review flag. Sharing it would mean branching on role in the
+   * service.
+   */
+  @Patch(':id/planning')
+  @Roles(Role.EVENT_COORDINATOR)
+  updateDuringPlanning(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdatePlanningDto,
+  ) {
+    return this.eventsService.updateDuringPlanning(user, id, dto);
+  }
+
+  /**
+   * US-28 — record the equipment and technical support an event in planning
+   * needs. Its own route rather than part of PATCH :id/planning: the
+   * equipment is a list of rows, not a field on the event.
+   */
+  @Patch(':id/technical-requirements')
+  @Roles(Role.EVENT_COORDINATOR)
+  setTechnicalRequirements(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: TechnicalRequirementsDto,
+  ) {
+    return this.eventsService.setTechnicalRequirements(user, id, dto);
+  }
+
+  /** US-26 — the event's change history, oldest first. */
+  @Get(':id/history')
+  @Roles(Role.EVENT_COORDINATOR)
+  getChangeHistory(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.eventsService.getChangeHistory(user, id);
+  }
+
+  /**
+   * US-27 AC-1 — who the responsible Coordinator may hand this event to.
+   * Scoped to the event so the same ownership check guards both routes.
+   */
+  @Get(':id/reassignment-candidates')
+  @Roles(Role.EVENT_COORDINATOR)
+  getReassignmentCandidates(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.eventsService.getReassignmentCandidates(user, id);
+  }
+
+  /**
+   * US-27 — the responsible Coordinator confirms handing the event to a
+   * colleague. A separate route from US-10's PATCH /events/:id/coordinator:
+   * that one lets any Coordinator claim any event silently, this one is
+   * limited to the current owner and notifies and records the change.
+   */
+  @Post(':id/reassign')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  reassign(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: AssignCoordinatorDto,
+  ) {
+    return this.eventsService.reassign(user, id, dto);
   }
 
   /** US-04 AC-4 — DRAFT -> SUBMITTED, through setStatus(). */

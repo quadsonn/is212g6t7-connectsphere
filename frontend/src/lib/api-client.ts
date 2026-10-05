@@ -6,9 +6,15 @@ import { tokenStore } from './token';
 /**
  * The single axios instance every request goes through. Base URL is
  * configuration — never hardcode a host.
+ *
+ * In dev (`npm run dev`) requests go to the same origin under /api and Vite
+ * proxies them to VITE_API_URL, so the browser never makes a cross-origin call
+ * and CORS does not apply. A production build (including `vite preview`) has
+ * no dev-server proxy and calls VITE_API_URL directly, which is where CORS on
+ * the API still matters.
  */
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000',
+  baseURL: import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL ?? 'http://localhost:3000'),
   headers: { 'Content-Type': 'application/json' },
 });
 

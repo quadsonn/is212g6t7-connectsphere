@@ -1,4 +1,6 @@
+import { CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { LinkButton } from '@/components/ui/link-button';
@@ -20,6 +22,8 @@ import type { EventStatus } from '@/types/api';
 export function CoordinatorDashboard() {
   const { data: events, isPending, isError, error } = useEvents();
   const [statusFilter, setStatusFilter] = useState<'ALL' | EventStatus>('ALL');
+  // US-27: set when the Coordinator arrives here after reassigning an event.
+  const notice = (useLocation().state as { notice?: string } | null)?.notice;
 
   const queue = events?.filter(
     (event) =>
@@ -33,6 +37,16 @@ export function CoordinatorDashboard() {
         title="Review queue"
         description="Requests assigned to you that are waiting on a decision."
       />
+
+      {notice ? (
+        <div
+          role="status"
+          className="mb-4 flex items-center gap-3 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+        >
+          <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
+          {notice}
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>

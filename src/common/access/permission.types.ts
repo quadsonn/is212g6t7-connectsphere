@@ -48,12 +48,17 @@ export enum Action {
  * - OWN       — records the user created or belongs to (Organiser, Attendee).
  * - ASSIGNED  — records the user has been assigned to (Coordinator).
  * - PUBLIC    — every record, but projected down to non-internal fields.
+ * - RELATED   — records the user's own work depends on (US-25 AC-3): for
+ *               Venue Staff, events with a venue booking; for Technical
+ *               Support, events with an equipment reservation or recorded
+ *               equipment/technical requirements (US-28).
  */
 export enum Scope {
   ANY = 'ANY',
   OWN = 'OWN',
   ASSIGNED = 'ASSIGNED',
   PUBLIC = 'PUBLIC',
+  RELATED = 'RELATED',
 }
 
 export interface Grant {

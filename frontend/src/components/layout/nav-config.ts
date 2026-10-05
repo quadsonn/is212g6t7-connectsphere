@@ -1,5 +1,7 @@
 import {
   CalendarCheck,
+  CalendarClock,
+  CalendarX,
   ClipboardList,
   LayoutDashboard,
   Building2,
@@ -35,11 +37,14 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   VENUE_STAFF: [
     { label: 'Venue catalogue', to: '/venues', icon: Building2 },
+    { label: 'Related events', to: '/venues/events', icon: CalendarCheck },
     { label: 'Booking requests', to: '/venues/bookings', icon: CalendarCheck, comingSoon: true },
   ],
   TECHNICAL_SUPPORT_STAFF: [
-    { label: 'Equipment requests', to: '/equipment', icon: ClipboardList },
-    { label: 'Inventory', to: '/equipment/inventory', icon: Wrench, comingSoon: true },
+    { label: 'Event requirements', to: '/equipment', icon: ClipboardList },
+    { label: 'Equipment catalogue', to: '/equipment/inventory', icon: Wrench },
+    { label: 'Check availability', to: '/equipment/availability', icon: CalendarClock },
+    { label: 'Released reservations', to: '/equipment/released', icon: CalendarX },
   ],
   ATTENDEE: [
     { label: 'Browse events', to: '/events', icon: Ticket },

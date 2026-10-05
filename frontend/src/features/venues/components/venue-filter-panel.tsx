@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { ChipGroup } from '@/components/ui/form';
+import { DatePicker } from '@/components/ui/date-picker';
+import { ChipGroup, Select } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { ErrorState } from '@/components/ui/states';
+import { todayInVenueTime } from '@/lib/calendar';
 import { cn } from '@/lib/utils';
 import {
   ACCESSIBILITY_FEATURE_LABELS,
@@ -43,6 +45,18 @@ const COMMON_FACILITIES: Facility[] = [
   'WHITEBOARD',
   'CATERING_KITCHEN',
 ];
+
+/** Every half hour of the day, as "HH:MM" (the format search-filters expects). */
+const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
+  const minutes = i * 30;
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+});
+
+/** "13:30" -> "1:30 PM". */
+function formatSlot(slot: string): string {
+  const [h, m] = slot.split(':').map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
 
 /**
  * US-18 — the venue search filters. Rendered in AppShell's sidebar on wide
@@ -90,44 +104,29 @@ export function VenueFilterPanel({
             <SectionHeading id="filter-availability" aside="Singapore time">
               Availability
             </SectionHeading>
-            <Input
-              type="date"
-              aria-label="Date"
+            <DatePicker
+              label="Date"
               value={filters.date}
-              onChange={(e) => onChange('date', e.target.value)}
+              onChange={(value) => onChange('date', value)}
+              // Past days hold nothing a Coordinator can book.
+              min={todayInVenueTime()}
             />
             <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-              <div>
-                <label
-                  htmlFor="filter-from"
-                  className="mb-1 block text-xs text-ink-500"
-                >
-                  From
-                </label>
-                <Input
-                  id="filter-from"
-                  type="time"
-                  value={filters.startTime}
-                  onChange={(e) => onChange('startTime', e.target.value)}
-                />
-              </div>
+              <TimeSelect
+                id="filter-from"
+                label="From"
+                value={filters.startTime}
+                onChange={(value) => onChange('startTime', value)}
+              />
               <span className="pb-2.5 text-ink-400" aria-hidden="true">
                 –
               </span>
-              <div>
-                <label
-                  htmlFor="filter-to"
-                  className="mb-1 block text-xs text-ink-500"
-                >
-                  To
-                </label>
-                <Input
-                  id="filter-to"
-                  type="time"
-                  value={filters.endTime}
-                  onChange={(e) => onChange('endTime', e.target.value)}
-                />
-              </div>
+              <TimeSelect
+                id="filter-to"
+                label="To"
+                value={filters.endTime}
+                onChange={(value) => onChange('endTime', value)}
+              />
             </div>
           </div>
 
@@ -194,6 +193,43 @@ export function VenueFilterPanel({
         </div>
       </div>
     </form>
+  );
+}
+
+/**
+ * A themed half-hour time picker. Blank means "no time": with both blank the
+ * search covers the whole day (see toSearchQuery).
+ */
+function TimeSelect({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1 block text-xs text-ink-500">
+        {label}
+      </label>
+      <Select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn('tabular-nums', !value && 'text-ink-400')}
+      >
+        <option value="">Any time</option>
+        {TIME_SLOTS.map((slot) => (
+          <option key={slot} value={slot} className="text-ink-900">
+            {formatSlot(slot)}
+          </option>
+        ))}
+      </Select>
+    </div>
   );
 }
 

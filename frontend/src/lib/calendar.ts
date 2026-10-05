@@ -54,3 +54,28 @@ export function formatMonth(month: string): string {
 export function formatDay(day: string): string {
   return dayFormatter.format(new Date(`${day}T00:00:00Z`));
 }
+
+/** "YYYY-MM-DD" shifted by whole days, in UTC so no timezone can move it. */
+export function addDays(day: string, delta: number): string {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + delta);
+  return date.toISOString().slice(0, 10);
+}
+
+/** 0 for Monday … 6 for Sunday, for any "YYYY-MM-DD". */
+export function weekdayOf(day: string): number {
+  return (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7;
+}
+
+const shortDayFormatter = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
+/** "Mon 5 Oct 2026" — compact enough for a form field. */
+export function formatShortDay(day: string): string {
+  return shortDayFormatter.format(new Date(`${day}T00:00:00Z`));
+}

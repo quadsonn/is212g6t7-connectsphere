@@ -65,6 +65,8 @@ export function OrganiserRequestDetail() {
 
   const isEditable = EDITABLE_EVENT_STATUSES.includes(event.status);
   const pendingChange = event.pendingChangeRequest ?? null;
+  // US-38 AC-5: the outcome of the last request, until a new one is pending.
+  const latestDecision = pendingChange ? null : (event.latestChangeDecision ?? null);
   // US-37: one pending request at a time, and only while the event is live.
   const canRequestChange = CHANGEABLE_EVENT_STATUSES.includes(event.status) && !pendingChange;
 
@@ -132,6 +134,25 @@ export function OrganiserRequestDetail() {
         ) : null}
 
         {pendingChange ? <PendingChangeRequest event={event} request={pendingChange} /> : null}
+
+        {latestDecision?.status === 'REJECTED' ? (
+          <ErrorState
+            message={`Your change request was rejected${
+              latestDecision.decidedAt ? ` on ${formatDate(latestDecision.decidedAt)}` : ''
+            }: ${latestDecision.decisionReason ?? 'No reason given.'}`}
+          />
+        ) : null}
+
+        {latestDecision?.status === 'APPROVED' ? (
+          <div
+            role="status"
+            className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+          >
+            Your change request was approved
+            {latestDecision.decidedAt ? ` on ${formatDate(latestDecision.decidedAt)}` : ''}. The
+            details below are the updated ones.
+          </div>
+        ) : null}
 
         <Card>
           <CardHeader>

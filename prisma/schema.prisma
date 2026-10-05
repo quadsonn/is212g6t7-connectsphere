@@ -224,6 +224,7 @@ model User {
   clarificationMessages ClarificationMessage[]
   eventChanges          EventChange[]
   changeRequests        EventChangeRequest[]
+  decidedChangeRequests EventChangeRequest[]   @relation("ChangeRequestDecider")
   managedVenues         Venue[]                @relation("VenueManager")
   requestedBookings     VenueBooking[]         @relation("BookingRequester")
   bookingDecisions      BookingDecision[]
@@ -693,6 +694,13 @@ model EventChangeRequest {
   status ChangeRequestStatus @default(PENDING)
   reason String
 
+  // US-38: the Coordinator's decision. All null while PENDING; a REJECTED
+  // request always has a reason (CHECK constraint in the migration).
+  decidedById    String?
+  decidedBy      User?     @relation("ChangeRequestDecider", fields: [decidedById], references: [id], onDelete: Restrict)
+  decidedAt      DateTime?
+  decisionReason String?
+
   proposedStart      DateTime?
   proposedEnd        DateTime?
   proposedAttendance Int?
@@ -705,6 +713,7 @@ model EventChangeRequest {
 
   @@index([eventId, status])
   @@index([requestedById])
+  @@index([decidedById])
 }
 
 /** US-37 — one line of a proposed equipment list, from the catalogue. */

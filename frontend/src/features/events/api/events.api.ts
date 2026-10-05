@@ -2,7 +2,10 @@ import { apiClient } from '@/lib/api-client';
 import type {
   CatalogueOption,
   ChangeRequest,
+  ChangeRequestApproval,
   ChangeRequestPayload,
+  ChangeRequestReview,
+  PendingChangeRequestSummary,
   ContactSummary,
   CoordinatorRequestView,
   EventRequest,
@@ -63,6 +66,30 @@ export const eventsApi = {
   /** US-37 — propose a change to one of the Organiser's submitted events. */
   requestChange: (id: string, body: ChangeRequestPayload) =>
     apiClient.post<ChangeRequest>(`/events/${id}/change-requests`, body).then((r) => r.data),
+
+  /** US-38 AC-1 — pending change requests on the Coordinator's own events. */
+  listPendingChangeRequests: () =>
+    apiClient
+      .get<PendingChangeRequestSummary[]>('/events/change-requests/pending')
+      .then((r) => r.data),
+
+  /** US-38 AC-2 / AC-6 — one request, beside the event, with any warnings. */
+  getChangeRequestForReview: (requestId: string) =>
+    apiClient
+      .get<ChangeRequestReview>(`/events/change-requests/${requestId}`)
+      .then((r) => r.data),
+
+  /** US-38 AC-4 — approve: the event takes the proposed values. */
+  approveChangeRequest: (requestId: string) =>
+    apiClient
+      .post<ChangeRequestApproval>(`/events/change-requests/${requestId}/approve`)
+      .then((r) => r.data),
+
+  /** US-38 AC-3 — reject, with a reason. */
+  rejectChangeRequest: (requestId: string, reason: string) =>
+    apiClient
+      .post<ChangeRequest>(`/events/change-requests/${requestId}/reject`, { reason })
+      .then((r) => r.data),
 
   /** US-37 — the equipment catalogue, for the change request picker. */
   listEquipmentCatalogue: () =>

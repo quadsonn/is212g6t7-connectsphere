@@ -277,6 +277,8 @@ export interface OrganiserRequestView extends EventRequest {
   clarificationRequested: boolean;
   /** US-37: the undecided change request, shown beside the original details. */
   pendingChangeRequest?: ChangeRequest | null;
+  /** US-38 AC-5: the latest decided request, so a rejection's reason shows. */
+  latestChangeDecision?: ChangeRequest | null;
 }
 
 export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -305,6 +307,114 @@ export interface ChangeRequest {
   equipmentChanged: boolean;
   equipment: ChangeRequestEquipmentLine[];
   createdAt: string;
+  /** US-38: set once a Coordinator has decided. */
+  decidedAt?: string | null;
+  decisionReason?: string | null;
+}
+
+/** US-38 AC-1 — a pending request in the Coordinator's queue. */
+export interface PendingChangeRequestSummary extends ChangeRequest {
+  requestedBy: ContactSummary;
+  event: {
+    id: string;
+    name: string | null;
+    status: EventStatus;
+    proposedStart: string | null;
+    proposedEnd: string | null;
+    expectedAttendance: number | null;
+  };
+}
+
+/** US-38 AC-6 — shown before the Coordinator decides. */
+export interface CapacityWarning {
+  type: 'CAPACITY_EXCEEDED';
+  bookingId: string;
+  bookingStatus: string;
+  venueId: string;
+  venueName: string | null;
+  capacity: number;
+  proposedAttendance: number;
+  message: string;
+}
+
+/** A clash found at the proposed new time (venue or equipment). */
+export interface ImpactWarning {
+  type: 'VENUE_CONFLICT' | 'VENUE_BLOCKED' | 'EQUIPMENT_UNAVAILABLE';
+  message: string;
+}
+
+export type ReviewWarning = CapacityWarning | ImpactWarning;
+
+export interface TimeWindowIso {
+  start: string;
+  end: string;
+}
+
+/**
+ * What approving a date or time change would do to the event's existing
+ * arrangements: bookings move and wait for Venue Staff again, equipment
+ * reservations are released for Technical Support to commit again.
+ */
+export interface RescheduleImpact {
+  newWindow: TimeWindowIso | null;
+  venueBookings: {
+    bookingId: string;
+    venueName: string | null;
+    status: string;
+    from: TimeWindowIso;
+    to: TimeWindowIso;
+  }[];
+  equipmentReservations: {
+    reservationId: string;
+    equipmentType: string;
+    quantity: number;
+    status: string;
+  }[];
+}
+
+/** What an approval actually moved and released. */
+export interface ReschedulingResult {
+  venueBookings: {
+    bookingId: string;
+    venueName: string | null;
+    previousStatus: string;
+    from: TimeWindowIso;
+    to: TimeWindowIso;
+  }[];
+  equipmentReservations: {
+    reservationId: string;
+    equipmentType: string;
+    quantity: number;
+    previousStatus: string;
+  }[];
+}
+
+/** US-38 AC-2 — a request beside the event as it is now. */
+export interface ChangeRequestReview {
+  request: ChangeRequest & { requestedBy: ContactSummary };
+  event: {
+    id: string;
+    name: string | null;
+    status: EventStatus;
+    proposedStart: string | null;
+    proposedEnd: string | null;
+    expectedAttendance: number | null;
+    equipmentRequirements: {
+      id: string;
+      equipmentId: string | null;
+      equipmentType: string;
+      quantity: number;
+    }[];
+  };
+  warnings: ReviewWarning[];
+  impact: RescheduleImpact;
+}
+
+/** US-38 AC-4 — the decided request, and the history entry an approval wrote. */
+export interface ChangeRequestApproval {
+  request: ChangeRequest;
+  change: EventChangeEntry | null;
+  arrangements: ReschedulingResult;
 }
 
 /** POST /events/:id/change-requests. Send only what should change. */

@@ -30,6 +30,8 @@ import { RelatedEventDetail, RelatedEventsList } from '@/pages/related-events';
 import { VenueBookingQueue } from '@/pages/venue-booking-queue';
 import { VenueBookingDetail } from '@/pages/venue-booking-detail';
 import { VenueCalendar } from '@/pages/venue-calendar';
+import { CoordinatorChangeRequests } from '@/pages/coordinator-change-requests';
+import { CoordinatorChangeRequestDetail } from '@/pages/coordinator-change-request-detail';
 
 /** Sends a signed-in user to their role's dashboard; everyone else to login. */
 function RoleHome() {
@@ -61,6 +63,11 @@ export function AppRoutes() {
           <Route element={<ProtectedRoute allow={['EVENT_COORDINATOR']} />}>
             <Route path="/coordinator" element={<CoordinatorDashboard />} />
             <Route path="/coordinator/events/:id" element={<CoordinatorEventDetail />} />
+            <Route path="/coordinator/change-requests" element={<CoordinatorChangeRequests />} />
+            <Route
+              path="/coordinator/change-requests/:id"
+              element={<CoordinatorChangeRequestDetail />}
+            />
             <Route path="/coordinator/venues" element={<CoordinatorVenues />} />
             <Route path="/coordinator/venues/:id" element={<CoordinatorVenueDetail />} />
             <Route path="/coordinator/bookings" element={<CoordinatorBookings />} />

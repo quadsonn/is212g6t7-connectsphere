@@ -17,6 +17,7 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { overlapping } from './booking-overlap';
+import { rescheduleWindow, TimeWindow } from './booking-reschedule';
 import {
   VenueBookingImpact,
   VenueBookingLookup,
@@ -55,6 +56,20 @@ import {
 import { CreateBookingRequestDto } from './dto/create-booking-request.dto';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Shown beside a booking that was moved with its event (US-38). */
+const RESCHEDULED_NOTE =
+  'The event was rescheduled; this booking moved to the new dates and needs to be approved again.';
+
+/** US-38 — a booking that was moved, and where it was and is now. */
+export interface RescheduledBooking {
+  bookingId: string;
+  venueId: string;
+  venueName: string | null;
+  previousStatus: BookingStatus;
+  from: TimeWindow;
+  to: TimeWindow;
+}
 
 /**
  * E5 — venue booking requests, approval, conflict detection.
@@ -511,6 +526,67 @@ export class BookingsService implements VenueBookingLookup {
       end: block.end,
       status: 'BLOCKED',
     }));
+  }
+
+  /**
+   * US-38 — an event's dates changed, so move its live bookings with it.
+   *
+   * Each REQUESTED or APPROVED booking is shifted by the same amount the event
+   * moved and put back to REQUESTED: the slot was approved for the old dates,
+   * and Venue Staff must decide again for the new ones. That decision re-checks
+   * conflicts (recordDecision), so a clash at the new time surfaces there
+   * rather than being assumed away here. Rejected bookings hold nothing and are
+   * left alone.
+   *
+   * Runs inside the caller's transaction, so the event's dates and its bookings
+   * change together or not at all.
+   */
+  async rescheduleForEventChange(
+    tx: Prisma.TransactionClient,
+    eventId: string,
+    from: TimeWindow,
+    to: TimeWindow,
+  ): Promise<RescheduledBooking[]> {
+    const live = await tx.venueBooking.findMany({
+      where: { eventId, status: { in: LIVE_STATUSES } },
+      orderBy: [{ start: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true,
+        venueId: true,
+        status: true,
+        start: true,
+        end: true,
+        venue: { select: { name: true } },
+      },
+    });
+
+    const moved: RescheduledBooking[] = [];
+
+    for (const booking of live) {
+      await this.lockVenue(tx, booking.venueId);
+
+      const next = rescheduleWindow(booking, from, to);
+      await tx.venueBooking.update({
+        where: { id: booking.id },
+        data: {
+          start: next.start,
+          end: next.end,
+          status: BookingStatus.REQUESTED,
+          decisionReason: RESCHEDULED_NOTE,
+        },
+      });
+
+      moved.push({
+        bookingId: booking.id,
+        venueId: booking.venueId,
+        venueName: booking.venue.name,
+        previousStatus: booking.status,
+        from: { start: booking.start, end: booking.end },
+        to: next,
+      });
+    }
+
+    return moved;
   }
 
   /**

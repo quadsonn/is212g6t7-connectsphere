@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Building2,
   MapPin,
+  Repeat2,
   Wrench,
   Ticket,
 } from 'lucide-react';
@@ -34,6 +35,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   EVENT_COORDINATOR: [
     { label: 'Review queue', to: '/coordinator', icon: ClipboardList },
+    { label: 'Change requests', to: '/coordinator/change-requests', icon: Repeat2 },
     { label: 'My venue requests', to: '/coordinator/bookings', icon: MapPin },
     { label: 'All events', to: '/coordinator/events', icon: CalendarCheck, comingSoon: true },
     { label: 'Venues', to: '/coordinator/venues', icon: Building2 },

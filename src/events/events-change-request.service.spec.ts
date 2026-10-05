@@ -444,11 +444,29 @@ describe('EventsService viewing an event with a pending change request (US-37)',
     equipment: [],
   };
 
-  const build = (pendingRow: unknown, user: AuthenticatedUser = organiser) => {
+  const rejected = {
+    id: 'cr-0',
+    eventId: 'event-1',
+    status: ChangeRequestStatus.REJECTED,
+    reason: 'Earlier ask',
+    decisionReason: 'The venue is booked solid',
+    equipment: [],
+  };
+
+  const build = (
+    pendingRow: unknown,
+    user: AuthenticatedUser = organiser,
+    decidedRow: unknown = null,
+  ) => {
     const prisma = {
       eventRequest: { findUniqueOrThrow: jest.fn().mockResolvedValue(original) },
       equipmentRequirement: { findMany: jest.fn().mockResolvedValue([]) },
-      eventChangeRequest: { findFirst: jest.fn().mockResolvedValue(pendingRow) },
+      eventChangeRequest: {
+        // One lookup for the pending request, one for the latest decision.
+        findFirst: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve(where.status === ChangeRequestStatus.PENDING ? pendingRow : decidedRow),
+        ),
+      },
     };
     const access = {
       assertEventAccess: jest.fn().mockResolvedValue(original),
@@ -497,6 +515,29 @@ describe('EventsService viewing an event with a pending change request (US-37)',
       }),
     );
   });
+
+  it.each(['findMyRequest', 'findOneForUser'] as const)(
+    '%s shows the Organiser the latest decision, including a rejection reason (US-38 AC-5)',
+    async (method) => {
+      const { prisma, service } = build(null, organiser, rejected);
+
+      const view = (await service[method](organiser, 'event-1')) as unknown as Record<
+        string,
+        unknown
+      >;
+
+      expect(view.latestChangeDecision).toEqual(rejected);
+      expect(prisma.eventChangeRequest.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            eventId: 'event-1',
+            status: { in: [ChangeRequestStatus.APPROVED, ChangeRequestStatus.REJECTED] },
+          },
+          orderBy: { decidedAt: 'desc' },
+        }),
+      );
+    },
+  );
 
   it('reports null when nothing is pending', async () => {
     const { service } = build(null);

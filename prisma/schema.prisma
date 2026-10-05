@@ -439,11 +439,13 @@ model VenueBooking {
   @@index([requestedById])
   // Supports the (venueId, time range) conflict lookup in §5.
   //
-  // NOTE: this index makes the check fast but does NOT make it correct under
-  // concurrency. A true guarantee needs a Postgres EXCLUDE constraint with
-  // btree_gist, which Prisma's schema language cannot express — it would have
-  // to be added via a hand-edited migration. Until then, overlap prevention
-  // lives in the bookings service (CLAUDE.md §3.4).
+  // Overlap prevention has two layers (US-24):
+  //  - BookingsService re-checks at request and approval time under a
+  //    per-venue lock, and reports hard/soft conflicts (booking-overlap.ts).
+  //  - The database refuses two overlapping APPROVED bookings on one venue:
+  //    EXCLUDE constraint "VenueBooking_no_overlapping_approved" (btree_gist,
+  //    tsrange [start, end)), added by a hand-written migration because
+  //    Prisma's schema language cannot express it. Prisma ignores it in diffs.
   @@index([venueId, start, end])
   @@index([eventId])
   @@index([status])

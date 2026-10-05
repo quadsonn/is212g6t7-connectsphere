@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
+  BookingConflictReport,
   BookingQueueEntry,
   BookingQueueQuery,
   BookingRequestPayload,
@@ -14,7 +15,24 @@ export const bookingKeys = {
   detail: (id: string) => ['bookings', 'detail', id] as const,
   queue: (query: BookingQueueQuery) => ['bookings', 'queue', query] as const,
   forEvent: (eventId: string) => ['bookings', 'event', eventId] as const,
+  conflicts: (id: string, start: string, end: string) =>
+    ['bookings', 'conflicts', id, start, end] as const,
 };
+
+/**
+ * US-24 — the overlap report for one pending request. Never cached
+ * (staleTime 0) and keyed on the request's times, so a change to the slot
+ * (AC-7) is a different query and is fetched fresh. Refetched on window
+ * focus, and explicitly by the decision panel just before an approval.
+ */
+export function useBookingConflicts(booking: { id: string; start: string; end: string }, enabled = true) {
+  return useQuery<BookingConflictReport>({
+    queryKey: bookingKeys.conflicts(booking.id, booking.start, booking.end),
+    queryFn: () => bookingsApi.conflicts(booking.id),
+    enabled,
+    staleTime: 0,
+  });
+}
 
 /** US-23 AC-5 — the booking requests on one event, with their decisions. */
 export function useEventBookings(eventId: string | undefined) {

@@ -695,10 +695,42 @@ export interface BookingRequestResult extends VenueBooking {
   warnings: BookingWarning[];
 }
 
-/** POST /bookings 409 body (US-21 AC-4). */
+/** US-24 — an overlapping booking, named for Venue Staff (AC-4). */
+export interface OverlappingBooking {
+  bookingId: string;
+  eventName: string | null;
+  start: string;
+  end: string;
+}
+
+/** US-24 — a blocked-out period (US-16) overlapping the request. */
+export interface OverlappingBlock {
+  blockId: string;
+  reason: string;
+  start: string;
+  end: string;
+}
+
+/**
+ * GET /bookings/:id/conflicts — US-24. Hard: approved bookings and blocks,
+ * which refuse approval. Soft: pending requests, a warning only.
+ */
+export interface BookingConflictReport {
+  hardConflicts: OverlappingBooking[];
+  softConflicts: OverlappingBooking[];
+  blocks: OverlappingBlock[];
+  hasHardConflict: boolean;
+}
+
+/** POST /bookings 409 body (US-21 AC-4); approve 409 adds code + report (US-24). */
 export interface BookingConflictErrorBody extends ApiErrorBody {
   conflicts?: BookingConflict[];
+  code?: 'BOOKING_HARD_CONFLICT';
+  report?: BookingConflictReport;
 }
+
+/** POST /bookings/:id/approve|reject|reverse — US-24 adds soft-conflict warnings. */
+export type BookingDecisionResult = VenueBooking & { warnings: BookingWarning[] };
 
 /** GET /bookings/queue — US-22. */
 export interface BookingQueueQuery {

@@ -33,9 +33,20 @@ export interface RegistrationOptions {
   closesAt: Date | null;
 }
 
+/** Default: registration opens this many months before the event starts. */
+export const REGISTRATION_OPENS_MONTHS_BEFORE = 2;
+/** Default: registration closes this many days before the event starts. */
+export const REGISTRATION_CLOSES_DAYS_BEFORE = 3;
+/** Default: withdrawals stop this many hours before the event starts. */
+export const WITHDRAWAL_CUTOFF_HOURS_BEFORE = 24;
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
 /**
- * US-34 AC-6 / US-36 AC-5: the stored times, or the event's own start where
- * none was set (open immediately; close and withdrawal cutoff at the start).
+ * US-34 AC-6 / US-36 AC-5: the stored times, or, where none was set, defaults
+ * counted back from the event's start: registration opens 2 months before,
+ * closes 3 days before, and withdrawals stop 24 hours before.
  */
 export function resolveWindow(
   event: Pick<
@@ -46,10 +57,28 @@ export function resolveWindow(
     | 'withdrawalCutoffAt'
   >,
 ) {
+  const start = event.proposedStart;
+
+  let defaultOpensAt: Date | null = null;
+  if (start) {
+    defaultOpensAt = new Date(start);
+    defaultOpensAt.setUTCMonth(
+      defaultOpensAt.getUTCMonth() - REGISTRATION_OPENS_MONTHS_BEFORE,
+    );
+  }
+
   return {
-    opensAt: event.registrationOpensAt,
-    closesAt: event.registrationClosesAt ?? event.proposedStart,
-    withdrawalCutoffAt: event.withdrawalCutoffAt ?? event.proposedStart,
+    opensAt: event.registrationOpensAt ?? defaultOpensAt,
+    closesAt:
+      event.registrationClosesAt ??
+      (start
+        ? new Date(start.getTime() - REGISTRATION_CLOSES_DAYS_BEFORE * DAY_MS)
+        : null),
+    withdrawalCutoffAt:
+      event.withdrawalCutoffAt ??
+      (start
+        ? new Date(start.getTime() - WITHDRAWAL_CUTOFF_HOURS_BEFORE * HOUR_MS)
+        : null),
   };
 }
 

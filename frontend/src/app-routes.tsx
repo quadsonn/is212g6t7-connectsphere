@@ -18,6 +18,7 @@ import { EquipmentAvailability } from '@/pages/equipment-availability';
 import { EquipmentEventRequirements } from '@/pages/equipment-event-requirements';
 import { EquipmentReleased } from '@/pages/equipment-released';
 import { AttendeeDashboard } from '@/pages/attendee-dashboard';
+import { AttendeeRegistrations } from '@/pages/attendee-registrations';
 import { VenueNewRequest } from '@/pages/venue-new-request';
 import { VenueEditRequest } from '@/pages/venue-edit-request';
 import { RelatedEventDetail, RelatedEventsList } from '@/pages/related-events';
@@ -84,6 +85,7 @@ export function AppRoutes() {
 
           <Route element={<ProtectedRoute allow={['ATTENDEE']} />}>
             <Route path="/events" element={<AttendeeDashboard />} />
+            <Route path="/events/mine" element={<AttendeeRegistrations />} />
           </Route>
         </Route>
       </Route>

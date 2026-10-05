@@ -431,10 +431,44 @@ export interface ReleasedReservation {
   event: { id: string; name: string | null; status: EventStatus };
 }
 
-/** An attendee's registration state for an event. No endpoint yet. */
-export interface RegistrationSummary {
+export type RegistrationStatus = 'REGISTERED' | 'WITHDRAWN';
+
+/** US-34 AC-2 — the registration form. Name and email come from the account. */
+export interface RegisterPayload {
   eventId: string;
-  status: 'REGISTERED' | 'WITHDRAWN' | null;
+  phone: string;
+  dietaryRequirements?: string;
+  accessibilityNeeds?: string;
+}
+
+/** US-35/US-36 — one of the caller's registrations, with the event's current details. */
+export interface RegistrationView {
+  id: string;
+  status: RegistrationStatus;
+  registeredAt: string;
+  withdrawnAt: string | null;
+  phone: string;
+  dietaryRequirements: string | null;
+  accessibilityNeeds: string | null;
+  event: {
+    id: string;
+    name: string | null;
+    status: EventStatus;
+    start: string | null;
+    end: string | null;
+    venue: { id: string; name: string | null; location: string | null } | null;
+  };
+  withdrawal: {
+    canWithdraw: boolean;
+    reason: string | null;
+    withdrawalCutoffAt: string | null;
+  };
+}
+
+/** GET /registrations/me. `message` is set when the list is empty (US-35 AC-3). */
+export interface MyRegistrations {
+  registrations: RegistrationView[];
+  message: string | null;
 }
 
 /** Nest's error envelope, plus the loginUrl our UnauthorizedFilter adds. */

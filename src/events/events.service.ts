@@ -13,6 +13,7 @@ import {
   EventStatus,
   NotificationType,
   Prisma,
+  RegistrationStatus,
   ReservationStatus,
   Role,
   User,
@@ -55,6 +56,7 @@ import {
   EventStatusView,
   PLANNING_STATUSES,
 } from './event-status.machine';
+import { evaluateRegistration } from '../registrations/registration-rules';
 
 /**
  * US-10 AC-3 — the assigned Coordinator, exposed on every read so the main
@@ -1245,7 +1247,61 @@ export class EventsService {
       include: COORDINATOR_SELECT,
     });
 
-    return events.map((event) => this.access.projectEvent(user, event));
+    const visible =
+      user.role === Role.ATTENDEE
+        ? await this.onlyRegistrable(user, events)
+        : events;
+
+    return visible.map((event) => this.access.projectEvent(user, event));
+  }
+
+  /**
+   * An Attendee's list is the events they could register for right now:
+   * CONFIRMED, registration enabled, inside the registration window and not
+   * full (the same rules the Register endpoint enforces), and not already
+   * registered by them. Everything else is hidden rather than shown disabled.
+   */
+  private async onlyRegistrable<T extends EventWithCoordinator>(
+    user: AuthenticatedUser,
+    events: T[],
+  ): Promise<T[]> {
+    const candidates = events.filter(
+      (event) =>
+        event.status === EventStatus.CONFIRMED && event.registrationEnabled,
+    );
+    if (candidates.length === 0) {
+      return [];
+    }
+
+    const ids = candidates.map((event) => event.id);
+    const [counts, mine] = await Promise.all([
+      this.prisma.registration.groupBy({
+        by: ['eventId'],
+        where: { eventId: { in: ids }, status: RegistrationStatus.REGISTERED },
+        _count: { _all: true },
+      }),
+      this.prisma.registration.findMany({
+        where: {
+          eventId: { in: ids },
+          attendeeId: user.userId,
+          status: RegistrationStatus.REGISTERED,
+        },
+        select: { eventId: true },
+      }),
+    ]);
+
+    const registeredCount = new Map(
+      counts.map((row) => [row.eventId, row._count._all]),
+    );
+    const alreadyMine = new Set(mine.map((row) => row.eventId));
+    const now = new Date();
+
+    return candidates.filter(
+      (event) =>
+        !alreadyMine.has(event.id) &&
+        evaluateRegistration(event, registeredCount.get(event.id) ?? 0, now)
+          .canRegister,
+    );
   }
 
   /**

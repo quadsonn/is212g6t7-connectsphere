@@ -28,8 +28,10 @@ describe('RegistrationsService', () => {
     jti: 'j1',
   };
 
-  const start = new Date('2999-10-10T09:00:00.000Z');
-  const end = new Date('2999-10-10T17:00:00.000Z');
+  // 30 days out: inside the default window (opens 2 months before, closes
+  // 3 days before), so the happy paths stay open whenever the suite runs.
+  const start = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const end = new Date(start.getTime() + 8 * 60 * 60 * 1000);
 
   const eventFacts = {
     id: 'event-1',

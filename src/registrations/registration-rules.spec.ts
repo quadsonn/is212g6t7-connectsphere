@@ -81,12 +81,27 @@ describe('registration rules', () => {
       ).toBe('CLOSED');
     });
 
-    it('US-34 AC-6: with no closing time set, registration closes at the event start', () => {
-      expect(evaluateRegistration(event(), 0, start).block).toBe('CLOSED');
+    it('US-34 AC-6: with no closing time set, registration closes 3 days before the start', () => {
+      const closes = new Date('2030-10-07T09:00:00.000Z');
+      const at = evaluateRegistration(event(), 0, closes);
+      expect(at.block).toBe('CLOSED');
+      expect(at.closesAt).toEqual(closes);
       expect(
-        evaluateRegistration(event(), 0, new Date(start.getTime() - 1))
+        evaluateRegistration(event(), 0, new Date(closes.getTime() - 1))
           .canRegister,
       ).toBe(true);
+    });
+
+    it('US-34 AC-6: with no opening time set, registration opens 2 months before the start', () => {
+      const opens = new Date('2030-08-10T09:00:00.000Z');
+      const before = evaluateRegistration(
+        event(),
+        0,
+        new Date(opens.getTime() - 1),
+      );
+      expect(before.block).toBe('NOT_YET_OPEN');
+      expect(before.opensAt).toEqual(opens);
+      expect(evaluateRegistration(event(), 0, opens).canRegister).toBe(true);
     });
 
     it('US-34 AC-7: rejects with a "full" message at capacity', () => {
@@ -112,7 +127,9 @@ describe('registration rules', () => {
     it('US-36 AC-1: allows withdrawing an active registration before the cutoff', () => {
       const result = evaluateWithdrawal('REGISTERED', event(), now);
       expect(result.canWithdraw).toBe(true);
-      expect(result.withdrawalCutoffAt).toEqual(start);
+      expect(result.withdrawalCutoffAt).toEqual(
+        new Date('2030-10-09T09:00:00.000Z'),
+      );
     });
 
     it('US-36 AC-5: after the cutoff, refuses and shows the cutoff', () => {
@@ -128,10 +145,15 @@ describe('registration rules', () => {
       expect(result.reason).toContain(cutoff.toISOString());
     });
 
-    it('US-36 AC-5: with no cutoff set, the cutoff is the event start', () => {
-      expect(evaluateWithdrawal('REGISTERED', event(), start).canWithdraw).toBe(
+    it('US-36 AC-5: with no cutoff set, withdrawals stop 24 hours before the start', () => {
+      const cutoff = new Date('2030-10-09T09:00:00.000Z');
+      expect(evaluateWithdrawal('REGISTERED', event(), cutoff).canWithdraw).toBe(
         false,
       );
+      expect(
+        evaluateWithdrawal('REGISTERED', event(), new Date(cutoff.getTime() - 1))
+          .canWithdraw,
+      ).toBe(true);
     });
 
     it('US-36 AC-6: a withdrawn registration cannot be withdrawn again', () => {

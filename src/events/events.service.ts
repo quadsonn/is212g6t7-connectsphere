@@ -1314,7 +1314,13 @@ export class EventsService {
     // Re-read with contacts and the clarification thread (US-09 AC-5).
     const event = await this.prisma.eventRequest.findUniqueOrThrow({
       where: { id },
-      include: { ...EVENT_CONTACTS_INCLUDE, ...CLARIFICATION_THREAD_INCLUDE },
+      // US-37: the equipment lines travel with the view so the change request
+      // form can show what the event currently has.
+      include: {
+        ...EVENT_CONTACTS_INCLUDE,
+        ...CLARIFICATION_THREAD_INCLUDE,
+        ...REQUIREMENTS_INCLUDE,
+      },
     });
 
     return {

@@ -1,5 +1,8 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  CatalogueOption,
+  ChangeRequest,
+  ChangeRequestPayload,
   ContactSummary,
   CoordinatorRequestView,
   EventRequest,
@@ -56,6 +59,14 @@ export const eventsApi = {
   /** US-04 — submit a draft that is now complete. */
   submitDraft: (id: string) =>
     apiClient.post<EventRequest>(`/events/${id}/submit`).then((r) => r.data),
+
+  /** US-37 — propose a change to one of the Organiser's submitted events. */
+  requestChange: (id: string, body: ChangeRequestPayload) =>
+    apiClient.post<ChangeRequest>(`/events/${id}/change-requests`, body).then((r) => r.data),
+
+  /** US-37 — the equipment catalogue, for the change request picker. */
+  listEquipmentCatalogue: () =>
+    apiClient.get<CatalogueOption[]>('/events/equipment-catalogue').then((r) => r.data),
 
   /** The Coordinator's queue, in full detail. */
   listAssigned: () =>

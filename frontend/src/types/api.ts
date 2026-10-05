@@ -172,6 +172,8 @@ export interface EventRequest {
 /** US-28 AC-1 — one line of equipment an event needs. */
 export interface EquipmentRequirement {
   id: string;
+  /** US-37: the catalogue item this line is, or null for a free-text line. */
+  equipmentId?: string | null;
   equipmentType: string;
   quantity: number;
   notes: string | null;
@@ -273,6 +275,53 @@ export interface OrganiserRequestView extends EventRequest {
   statusView: EventStatusView;
   /** Derived server-side from clarificationRequest; never stored. */
   clarificationRequested: boolean;
+  /** US-37: the undecided change request, shown beside the original details. */
+  pendingChangeRequest?: ChangeRequest | null;
+}
+
+export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+/** US-37 — one line of a proposed equipment list. */
+export interface ChangeRequestEquipmentLine {
+  id: string;
+  equipmentId: string;
+  quantity: number;
+  equipment: { id: string; type: string };
+}
+
+/**
+ * US-37 — an Organiser's proposed change. A null proposed* field means that
+ * field is not being changed; `equipment` is the complete proposed list when
+ * `equipmentChanged` is true.
+ */
+export interface ChangeRequest {
+  id: string;
+  eventId: string;
+  status: ChangeRequestStatus;
+  reason: string;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  proposedAttendance: number | null;
+  equipmentChanged: boolean;
+  equipment: ChangeRequestEquipmentLine[];
+  createdAt: string;
+}
+
+/** POST /events/:id/change-requests. Send only what should change. */
+export interface ChangeRequestPayload {
+  reason: string;
+  proposedStart?: string;
+  proposedEnd?: string;
+  proposedAttendance?: number;
+  equipment?: { equipmentId: string; quantity: number }[];
+}
+
+/** GET /events/equipment-catalogue — what the change request picker offers. */
+export interface CatalogueOption {
+  id: string;
+  type: string;
+  description: string | null;
+  location: string | null;
 }
 
 /** A user's contact details, resolved from an id (coordinator, organiser). */

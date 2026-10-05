@@ -1,4 +1,5 @@
-import { Pencil } from 'lucide-react';
+import { Pencil, Repeat2 } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
@@ -6,13 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LinkButton } from '@/components/ui/link-button';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import { ChangeRequestForm } from '@/features/events/components/change-request-form';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
+import { PendingChangeRequest } from '@/features/events/components/pending-change-request';
 import { useMyRequest } from '@/features/events/hooks/use-events';
 import { EventBookingsList } from '@/features/bookings/components/event-bookings-list';
 import { useEventBookings } from '@/features/bookings/hooks/use-bookings';
 import { apiErrorMessage } from '@/lib/api-client';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
-import { EDITABLE_EVENT_STATUSES } from '@/lib/status';
+import { CHANGEABLE_EVENT_STATUSES, EDITABLE_EVENT_STATUSES } from '@/lib/status';
 import { formatDate, humanise } from '@/lib/utils';
 import { ACCESSIBILITY_FEATURE_LABELS } from '@/types/api';
 
@@ -39,6 +42,8 @@ export function OrganiserRequestDetail() {
   const { data: event, isPending, isError, error } = useMyRequest(id);
   // Declared before the early returns below, per the rules of hooks.
   const { data: venueBookings } = useEventBookings(id);
+  // US-37: whether the change request form is open.
+  const [changing, setChanging] = useState(false);
 
   if (isPending) {
     return (
@@ -59,6 +64,9 @@ export function OrganiserRequestDetail() {
   }
 
   const isEditable = EDITABLE_EVENT_STATUSES.includes(event.status);
+  const pendingChange = event.pendingChangeRequest ?? null;
+  // US-37: one pending request at a time, and only while the event is live.
+  const canRequestChange = CHANGEABLE_EVENT_STATUSES.includes(event.status) && !pendingChange;
 
   return (
     <>
@@ -68,6 +76,12 @@ export function OrganiserRequestDetail() {
         action={
           <div className="flex items-center gap-3">
             <EventStatusBadge status={event.status} />
+            {canRequestChange && !changing ? (
+              <Button type="button" variant="secondary" onClick={() => setChanging(true)}>
+                <Repeat2 className="size-4" aria-hidden="true" />
+                Request a change
+              </Button>
+            ) : null}
             {isEditable ? (
               <LinkButton to={`/organiser/${event.id}/edit`}>
                 <Pencil className="size-4" aria-hidden="true" />
@@ -100,6 +114,24 @@ export function OrganiserRequestDetail() {
             <p className="mt-1">{event.clarificationRequest}</p>
           </div>
         ) : null}
+
+        {/* US-37: the original details stay below; the request sits alongside them. */}
+        {changing && canRequestChange ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Request a change</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChangeRequestForm
+                event={event}
+                onDone={() => setChanging(false)}
+                onCancel={() => setChanging(false)}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {pendingChange ? <PendingChangeRequest event={event} request={pendingChange} /> : null}
 
         <Card>
           <CardHeader>

@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
+  CatalogueOption,
+  ChangeRequest,
+  ChangeRequestPayload,
   CoordinatorRequestView,
   EventRequest,
   EventRequestPayload,
@@ -21,6 +24,7 @@ export const eventKeys = {
   assignedDetail: (id: string) => ['events', 'assigned', id] as const,
   history: (id: string) => ['events', id, 'history'] as const,
   related: ['events', 'related'] as const,
+  equipmentCatalogue: ['events', 'equipment-catalogue'] as const,
   relatedDetail: (id: string) => ['events', 'related', id] as const,
 };
 
@@ -294,6 +298,30 @@ export function useSetTechnicalRequirements(id: string) {
       eventsApi.setTechnicalRequirements(id, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    },
+  });
+}
+
+/** US-37 — the equipment catalogue the change request picker offers. */
+export function useEquipmentCatalogueOptions() {
+  return useQuery<CatalogueOption[]>({
+    queryKey: eventKeys.equipmentCatalogue,
+    queryFn: eventsApi.listEquipmentCatalogue,
+  });
+}
+
+/**
+ * US-37 — submit a change request. Refreshes the event so the pending request
+ * appears beside the original details straight away.
+ */
+export function useRequestChange(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<ChangeRequest, unknown, ChangeRequestPayload>({
+    mutationFn: (body) => eventsApi.requestChange(id, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.detail(id) });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.mine });
     },
   });
 }

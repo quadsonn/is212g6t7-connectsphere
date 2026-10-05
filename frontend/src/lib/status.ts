@@ -91,6 +91,22 @@ export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
 export const EDITABLE_EVENT_STATUSES: EventStatus[] = ['DRAFT', 'RETURNED'];
 
 /**
+ * US-37 — the statuses an Organiser may request a change in. Mirrors
+ * CHANGEABLE_STATUSES in the backend (events/change-request.rules.ts), which
+ * is what actually enforces it; this only decides whether to offer the button.
+ */
+export const CHANGEABLE_EVENT_STATUSES: EventStatus[] = [
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'APPROVED',
+  'RETURNED',
+  'AWAITING_CLARIFICATION',
+  'PLANNING',
+  'AWAITING_ARRANGEMENTS',
+  'CONFIRMED',
+];
+
+/**
  * US-17 — availability calendar days. Each also carries an icon and label in
  * the calendar itself, so the three states survive greyscale.
  */

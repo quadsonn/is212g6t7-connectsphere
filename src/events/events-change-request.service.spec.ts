@@ -370,6 +370,22 @@ describe('EventsChangeRequestService (US-37)', () => {
     });
   });
 
+  describe('AC: equipment items are selected from the catalogue', () => {
+    it('lists the catalogue for the picker with only id, type, description and location', async () => {
+      prisma.equipment.findMany.mockResolvedValue([
+        { id: 'projector', type: 'Projector', description: null, location: 'Store room A' },
+      ]);
+
+      await expect(service.listCatalogue()).resolves.toEqual([
+        { id: 'projector', type: 'Projector', description: null, location: 'Store room A' },
+      ]);
+      expect(prisma.equipment.findMany).toHaveBeenCalledWith({
+        select: { id: true, type: true, description: true, location: true },
+        orderBy: { type: 'asc' },
+      });
+    });
+  });
+
   describe('one pending request per event', () => {
     it('refuses a second while one is pending', async () => {
       prisma.eventChangeRequest.findFirst.mockResolvedValue({ id: 'cr-0' });
@@ -467,6 +483,20 @@ describe('EventsService viewing an event with a pending change request (US-37)',
       );
     },
   );
+
+  it('asks for the equipment lines with the Organiser view, for the form', async () => {
+    const { prisma, service } = build(null);
+
+    await service.findMyRequest(organiser, 'event-1');
+
+    expect(prisma.eventRequest.findUniqueOrThrow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          equipmentRequirements: expect.anything(),
+        }),
+      }),
+    );
+  });
 
   it('reports null when nothing is pending', async () => {
     const { service } = build(null);

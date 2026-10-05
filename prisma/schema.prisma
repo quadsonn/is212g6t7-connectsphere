@@ -67,6 +67,13 @@ enum BookingStatus {
   REJECTED
 }
 
+// US-23: what kind of entry a BookingDecision is. A REVERSAL overturns an
+// earlier DECISION; it is a new row, never an edit of the old one (AC-6).
+enum BookingDecisionKind {
+  DECISION
+  REVERSAL
+}
+
 // US-06: the predefined room layouts an Organiser may choose from.
 //
 // Shared deliberately — the venue suitability story reuses this rather than
@@ -209,6 +216,9 @@ model User {
   clarificationMessages ClarificationMessage[]
   eventChanges          EventChange[]
   managedVenues         Venue[]                @relation("VenueManager")
+  requestedBookings     VenueBooking[]         @relation("BookingRequester")
+  bookingDecisions      BookingDecision[]
+  venueBlocks           VenueBlock[]
 
   @@index([role])
 }
@@ -301,7 +311,7 @@ model Venue {
   id String @id @default(cuid())
 
   // US-13 AC-2: nullable so an incomplete venue can be saved as a draft.
-  // Completeness is enforced at publish, and by a CHECK constraint that only
+  // Completeness is enforced at publish, and by a kCHECK constraint that only
   // permits nulls while the venue is a DRAFT.
   name     String?
   location String?
@@ -347,6 +357,7 @@ model Venue {
   updatedAt DateTime @updatedAt
 
   bookings VenueBooking[]
+  blocks   VenueBlock[]
 
   @@index([capacity])
   // US-18 AC-7: search filters on published venues by capacity and by array
@@ -371,12 +382,42 @@ model VenueBooking {
   start DateTime
   end   DateTime
 
+  // US-21 AC-3: REQUESTED is the "pending" status the AC names — a request
+  // that is not a confirmed booking until Venue Staff approve it (US-23).
   status         BookingStatus @default(REQUESTED)
+  // US-23: the reason or note from the latest decision, kept here so lists
+  // can show it without reading the history. BookingDecision is the record;
+  // this is always written in the same transaction as the decision row.
   decisionReason String?
+
+  // US-21 AC-6: whose request history this appears in. Nullable only because
+  // rows created before US-21 had no requester recorded; the migration
+  // backfills it from the event's coordinator where one exists.
+  requestedById String?
+  requestedBy   User?   @relation("BookingRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+
+  // US-21 AC-1: required by the request DTO. Nullable for pre-US-21 rows.
+  expectedAttendance Int?
+
+  // US-21 AC-2: the event's requirements, copied onto the request when it is
+  // submitted so Venue Staff see them without cross-referencing the event.
+  //
+  // AMBIGUOUS: a snapshot, not a live join. If the Organiser later edits the
+  // event, an existing booking request keeps the requirements it was
+  // submitted with — that is what Venue Staff reviewed and decided on.
+  preferredLayout           RoomLayout?
+  layoutNotes               String?
+  accessibilityRequirements AccessibilityFeature[] @default([])
+  accessibilityNotes        String?
+  equipmentNeeds            String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // US-23 AC-4/AC-6: every decision ever made on this request, oldest first.
+  decisions BookingDecision[]
+
+  @@index([requestedById])
   // Supports the (venueId, time range) conflict lookup in §5.
   //
   // NOTE: this index makes the check fast but does NOT make it correct under
@@ -586,4 +627,67 @@ model EquipmentRequirement {
   updatedAt DateTime @updatedAt
 
   @@index([eventId])
+}
+
+/**
+ * US-23 — one recorded decision on a venue booking request.
+ * Append-only, like ClarificationMessage: rows are never updated or deleted
+ * by the application, which is what makes the history accountable (AC-4) and
+ * a reversal a new action rather than an overwrite (AC-6).
+ * AMBIGUOUS: deleted with its booking (Cascade). Bookings are only removed when
+ * their event is, so this matches how the rest of an event's history goes.
+ */
+model BookingDecision {
+  id String @id @default(cuid())
+
+  bookingId String
+  booking   VenueBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  // AC-4: attributed to the Venue Staff member who made it.
+  decidedById String
+  decidedBy   User   @relation(fields: [decidedById], references: [id], onDelete: Restrict)
+
+  kind BookingDecisionKind @default(DECISION)
+
+  // The status the booking moved to: APPROVED or REJECTED.
+  outcome BookingStatus
+
+  // AC-2: required on rejection and reversal. AC-3: optional on approval.
+  reason String?
+
+  // AC-4: timestamped.
+  createdAt DateTime @default(now())
+
+  @@index([bookingId, createdAt])
+  @@index([decidedById])
+}
+
+/**
+ * US-16 AC-6 — a period a Venue Staff member has blocked out on a venue
+ * (maintenance, a public holiday), shown on the calendar apart from bookings.
+ *
+ * AMBIGUOUS: a block also makes the slot unbookable — a new request or an
+ * approval that overlaps one is refused. The story only asks for blocks to be
+ * visible, but a "blocked" slot that can still be booked would defeat the
+ * story's aim of not double-committing space. Confirm with the customer.
+ */
+model VenueBlock {
+  id String @id @default(cuid())
+
+  venueId String
+  venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  start DateTime
+  end   DateTime
+
+  // e.g. "Annual maintenance". Required so the calendar can say why.
+  reason String
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([venueId, start, end])
+  @@index([createdById])
 }

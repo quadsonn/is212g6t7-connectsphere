@@ -586,3 +586,146 @@ export interface VenueDraftPayload {
 export interface VenueWithWarnings extends Venue {
   warnings: VenueUpdateWarning[];
 }
+/** Mirrors the backend BookingStatus enum. REQUESTED is "pending" (US-21 AC-3). */
+export type BookingStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED';
+
+/**
+ * US-21 AC-4/AC-5 — something occupying a requested slot: an existing
+ * booking, or (US-16) a period Venue Staff have blocked out.
+ */
+export interface BookingConflict {
+  kind: 'BOOKING' | 'BLOCK';
+  bookingId: string | null;
+  blockId?: string;
+  eventName: string | null;
+  /** Why the time is blocked, for kind BLOCK. */
+  reason?: string;
+  start: string;
+  end: string;
+  status: BookingStatus | 'BLOCKED';
+}
+
+/** US-21 AC-5 — submitted, but another pending request overlaps. */
+export interface BookingWarning {
+  code: 'OVERLAPS_PENDING_REQUEST';
+  message: string;
+  conflicts: BookingConflict[];
+}
+
+/** A venue booking request with its venue, event and requester resolved. */
+export interface VenueBooking {
+  id: string;
+  eventId: string;
+  venueId: string;
+  start: string;
+  end: string;
+  status: BookingStatus;
+  decisionReason: string | null;
+  expectedAttendance: number | null;
+  /** US-21 AC-2: the event's requirements as they were when submitted. */
+  preferredLayout: RoomLayout | null;
+  layoutNotes: string | null;
+  accessibilityRequirements: AccessibilityFeature[];
+  accessibilityNotes: string | null;
+  equipmentNeeds: string | null;
+  createdAt: string;
+  updatedAt: string;
+  venue: { id: string; name: string | null; location: string | null; capacity: number | null };
+  event: { id: string; name: string | null; status: EventStatus; organiser: ContactSummary };
+  requestedBy: ContactSummary | null;
+  /** US-23 AC-4/AC-6: every decision and reversal, oldest first. */
+  decisions: BookingDecision[];
+}
+
+/** US-23 — one recorded decision. Append-only: never edited after the fact. */
+export interface BookingDecision {
+  id: string;
+  kind: 'DECISION' | 'REVERSAL';
+  outcome: BookingStatus;
+  reason: string | null;
+  createdAt: string;
+  decidedBy: ContactSummary & { role: Role };
+}
+
+/** POST /bookings */
+export interface BookingRequestPayload {
+  eventId: string;
+  venueId: string;
+  start: string;
+  end: string;
+  expectedAttendance: number;
+}
+
+/** POST /bookings response (US-21). */
+export interface BookingRequestResult extends VenueBooking {
+  warnings: BookingWarning[];
+}
+
+/** POST /bookings 409 body (US-21 AC-4). */
+export interface BookingConflictErrorBody extends ApiErrorBody {
+  conflicts?: BookingConflict[];
+}
+
+/** GET /bookings/queue — US-22. */
+export interface BookingQueueQuery {
+  view?: 'pending' | 'decided';
+  venueId?: string;
+  status?: BookingStatus;
+  from?: string;
+  to?: string;
+  sortBy?: 'eventDate' | 'submitted';
+  sortOrder?: 'asc' | 'desc';
+}
+
+/** One queue entry: the full request plus its urgency (US-22 AC-5). */
+export interface BookingQueueEntry extends VenueBooking {
+  urgent: boolean;
+  daysUntilStart: number;
+}
+
+/** US-16 — what occupies a calendar slot. Anything else is available. */
+export type CalendarEntryKind = 'TENTATIVE' | 'CONFIRMED' | 'BLOCKED';
+
+export interface CalendarEntry {
+  /** Booking id, or block id when kind is BLOCKED. */
+  id: string;
+  kind: CalendarEntryKind;
+  venueId: string;
+  start: string;
+  end: string;
+  eventName: string | null;
+  organiserName: string | null;
+  expectedAttendance: number | null;
+  reason: string | null;
+  createdByName: string | null;
+}
+
+/** GET /calendar */
+export interface CalendarView {
+  venues: { id: string; name: string | null; location: string | null; capacity: number | null }[];
+  entries: CalendarEntry[];
+}
+
+export interface CalendarQuery {
+  from: string;
+  to: string;
+  venueId?: string;
+}
+
+/** POST /calendar/blocks */
+export interface VenueBlockPayload {
+  venueId: string;
+  start: string;
+  end: string;
+  reason: string;
+}
+
+export interface VenueBlockResult {
+  id: string;
+  venueId: string;
+  start: string;
+  end: string;
+  reason: string;
+  /** Live bookings already inside the new block. */
+  overlappingBookings: BookingConflict[];
+}

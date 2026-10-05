@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { useMyRequest } from '@/features/events/hooks/use-events';
+import { EventBookingsList } from '@/features/bookings/components/event-bookings-list';
+import { useEventBookings } from '@/features/bookings/hooks/use-bookings';
 import { apiErrorMessage } from '@/lib/api-client';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { EDITABLE_EVENT_STATUSES } from '@/lib/status';
@@ -35,6 +37,8 @@ export function OrganiserRequestDetail() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data: event, isPending, isError, error } = useMyRequest(id);
+  // Declared before the early returns below, per the rules of hooks.
+  const { data: venueBookings } = useEventBookings(id);
 
   if (isPending) {
     return (
@@ -181,6 +185,18 @@ export function OrganiserRequestDetail() {
             </dl>
           </CardContent>
         </Card>
+
+        {/* US-23 AC-5: venue decisions and their reasons, visible to the Organiser. */}
+        {venueBookings && venueBookings.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Venue bookings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EventBookingsList bookings={venueBookings} />
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Button type="button" variant="ghost" onClick={() => navigate('/organiser')}>
           Back to my requests

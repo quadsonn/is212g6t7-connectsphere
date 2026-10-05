@@ -2,9 +2,11 @@ import {
   CalendarCheck,
   CalendarClock,
   CalendarX,
+  CalendarDays,
   ClipboardList,
   LayoutDashboard,
   Building2,
+  MapPin,
   Wrench,
   Ticket,
 } from 'lucide-react';
@@ -32,13 +34,15 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   EVENT_COORDINATOR: [
     { label: 'Review queue', to: '/coordinator', icon: ClipboardList },
+    { label: 'My venue requests', to: '/coordinator/bookings', icon: MapPin },
     { label: 'All events', to: '/coordinator/events', icon: CalendarCheck, comingSoon: true },
     { label: 'Venues', to: '/coordinator/venues', icon: Building2 },
   ],
   VENUE_STAFF: [
     { label: 'Venue catalogue', to: '/venues', icon: Building2 },
     { label: 'Related events', to: '/venues/events', icon: CalendarCheck },
-    { label: 'Booking requests', to: '/venues/bookings', icon: CalendarCheck, comingSoon: true },
+    { label: 'Booking requests', to: '/venues/bookings', icon: CalendarCheck },
+    { label: 'Availability calendar', to: '/venues/calendar', icon: CalendarDays },
   ],
   TECHNICAL_SUPPORT_STAFF: [
     { label: 'Event requirements', to: '/equipment', icon: ClipboardList },

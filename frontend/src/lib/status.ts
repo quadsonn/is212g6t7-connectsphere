@@ -1,4 +1,10 @@
-import type { DayStatus, EquipmentStatus, EventStatus, VenueStatus } from '@/types/api';
+import type {
+  BookingStatus,
+  DayStatus,
+  EquipmentStatus,
+  EventStatus,
+  VenueStatus,
+} from '@/types/api';
 
 /**
  * The status colour language, defined once.
@@ -48,6 +54,16 @@ export const EQUIPMENT_STATUS_STYLES: Record<EquipmentStatus, StatusStyle> = {
     className: 'bg-amber-50 text-amber-900 ring-amber-400',
   },
   OUT_OF_SERVICE: { label: 'Out of service', className: 'bg-red-50 text-red-800 ring-red-300' },
+};
+
+/**
+ * Venue booking requests. REQUESTED is presented as "Pending" — the word
+ * US-21 AC-3 uses — while the API keeps the enum value.
+ */
+export const BOOKING_STATUS_STYLES: Record<BookingStatus, StatusStyle> = {
+  REQUESTED: { label: 'Pending', className: 'bg-amber-50 text-amber-900 ring-amber-400' },
+  APPROVED: { label: 'Approved', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
+  REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-800 ring-red-300' },
 };
 
 /** Statuses shown in the Coordinator's retained request list. */

@@ -35,6 +35,9 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.CLARIFY, Scope.OWN),
       ],
       [Resource.VENUE]: [g(Action.READ, Scope.ANY)],
+      // US-23 AC-5: "the decision and reason are visible to the relevant
+      // Event Coordinator/Organiser" — bookings on the Organiser's own events.
+      [Resource.BOOKING]: [g(Action.READ, Scope.OWN)],
       [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
     },
 

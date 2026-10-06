@@ -144,6 +144,11 @@ export type OrganiserRequestView = EventRequest & {
    * (which are untouched). Set on single-event reads only.
    */
   pendingChangeRequest?: PendingChangeRequest | null;
+  /**
+   * US-38 AC-5 — the most recent decided change request, so a rejection's
+   * reason is visible to the Organiser.
+   */
+  latestChangeDecision?: PendingChangeRequest | null;
 };
 
 /** US-37 — a change request with its equipment resolved to catalogue names. */
@@ -153,7 +158,10 @@ export type PendingChangeRequest = Prisma.EventChangeRequestGetPayload<{
 
 /** What GET /events/:id returns: the event, or its public projection. */
 export type EventDetailView =
-  | (EventWithCoordinator & { pendingChangeRequest?: PendingChangeRequest | null })
+  | (EventWithCoordinator & {
+      pendingChangeRequest?: PendingChangeRequest | null;
+      latestChangeDecision?: PendingChangeRequest | null;
+    })
   | PublicEventView;
 
 /**
@@ -1166,7 +1174,7 @@ export class EventsService {
    * Arrangements this event has had approved. REQUESTED ones are not yet
    * confirmed, and REJECTED ones depend on nothing (AC-2 "already confirmed").
    */
-  private async confirmedArrangements(
+  async confirmedArrangements(
     eventId: string,
   ): Promise<ConfirmedArrangement[]> {
     const [bookings, reservations] = await Promise.all([
@@ -1200,8 +1208,11 @@ export class EventsService {
     }
   }
 
-  /** US-26 — appends one entry to the event's history. */
-  private async recordChange(
+  /**
+   * US-26 — appends one entry to the event's history. Public so the change
+   * request review (US-38) records an approval through the same path.
+   */
+  async recordChange(
     tx: Prisma.TransactionClient,
     eventId: string,
     changedById: string,
@@ -1314,13 +1325,32 @@ export class EventsService {
     // Re-read with contacts and the clarification thread (US-09 AC-5).
     const event = await this.prisma.eventRequest.findUniqueOrThrow({
       where: { id },
-      include: { ...EVENT_CONTACTS_INCLUDE, ...CLARIFICATION_THREAD_INCLUDE },
+      // US-37: the equipment lines travel with the view so the change request
+      // form can show what the event currently has.
+      include: {
+        ...EVENT_CONTACTS_INCLUDE,
+        ...CLARIFICATION_THREAD_INCLUDE,
+        ...REQUIREMENTS_INCLUDE,
+      },
     });
 
     return {
       ...this.toOrganiserView(event),
       pendingChangeRequest: await this.findPendingChangeRequest(id),
+      latestChangeDecision: await this.findLatestChangeDecision(id),
     };
+  }
+
+  /** US-38 AC-5 — the event's most recently decided change request, or null. */
+  private findLatestChangeDecision(eventId: string) {
+    return this.prisma.eventChangeRequest.findFirst({
+      where: {
+        eventId,
+        status: { in: [ChangeRequestStatus.APPROVED, ChangeRequestStatus.REJECTED] },
+      },
+      orderBy: { decidedAt: 'desc' },
+      include: CHANGE_REQUEST_INCLUDE,
+    });
   }
 
   /** US-37 — the event's undecided change request, or null. */
@@ -1440,6 +1470,7 @@ export class EventsService {
       return {
         ...(projected as EventWithCoordinator),
         pendingChangeRequest: await this.findPendingChangeRequest(event.id),
+        latestChangeDecision: await this.findLatestChangeDecision(event.id),
       };
     }
 

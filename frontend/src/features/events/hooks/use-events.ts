@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
+  CatalogueOption,
+  ChangeRequest,
+  ChangeRequestApproval,
+  ChangeRequestPayload,
+  ChangeRequestReview,
+  PendingChangeRequestSummary,
   CoordinatorRequestView,
   EventRequest,
   EventRequestPayload,
@@ -21,6 +27,9 @@ export const eventKeys = {
   assignedDetail: (id: string) => ['events', 'assigned', id] as const,
   history: (id: string) => ['events', id, 'history'] as const,
   related: ['events', 'related'] as const,
+  equipmentCatalogue: ['events', 'equipment-catalogue'] as const,
+  pendingChangeRequests: ['events', 'change-requests', 'pending'] as const,
+  changeRequestReview: (id: string) => ['events', 'change-requests', id] as const,
   relatedDetail: (id: string) => ['events', 'related', id] as const,
 };
 
@@ -296,4 +305,69 @@ export function useSetTechnicalRequirements(id: string) {
       void queryClient.invalidateQueries({ queryKey: eventKeys.all });
     },
   });
+}
+
+/** US-37 — the equipment catalogue the change request picker offers. */
+export function useEquipmentCatalogueOptions() {
+  return useQuery<CatalogueOption[]>({
+    queryKey: eventKeys.equipmentCatalogue,
+    queryFn: eventsApi.listEquipmentCatalogue,
+  });
+}
+
+/**
+ * US-37 — submit a change request. Refreshes the event so the pending request
+ * appears beside the original details straight away.
+ */
+export function useRequestChange(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<ChangeRequest, unknown, ChangeRequestPayload>({
+    mutationFn: (body) => eventsApi.requestChange(id, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.detail(id) });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.mine });
+    },
+  });
+}
+
+/** US-38 AC-1 — pending change requests on the Coordinator's own events. */
+export function usePendingChangeRequests() {
+  return useQuery<PendingChangeRequestSummary[]>({
+    queryKey: eventKeys.pendingChangeRequests,
+    queryFn: eventsApi.listPendingChangeRequests,
+  });
+}
+
+/** US-38 AC-2 / AC-6 — one request, beside the event, with any warnings. */
+export function useChangeRequestReview(requestId: string | undefined) {
+  return useQuery<ChangeRequestReview>({
+    queryKey: eventKeys.changeRequestReview(requestId ?? ''),
+    queryFn: () => eventsApi.getChangeRequestForReview(requestId!),
+    enabled: Boolean(requestId),
+  });
+}
+
+/**
+ * US-38 — approve or reject. Both refresh everything under 'events': the queue,
+ * this request, and (for an approval) the event itself and its history.
+ */
+export function useDecideChangeRequest(requestId: string) {
+  const queryClient = useQueryClient();
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+  };
+
+  const approve = useMutation<ChangeRequestApproval>({
+    mutationFn: () => eventsApi.approveChangeRequest(requestId),
+    onSuccess: refresh,
+  });
+
+  const reject = useMutation<ChangeRequest, unknown, string>({
+    mutationFn: (reason) => eventsApi.rejectChangeRequest(requestId, reason),
+    onSuccess: refresh,
+  });
+
+  return { approve, reject };
 }

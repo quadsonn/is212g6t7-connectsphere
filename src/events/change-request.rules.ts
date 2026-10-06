@@ -159,3 +159,92 @@ export function evaluateChangeRequest(
 
   return { errors, changed };
 }
+
+/**
+ * US-38 AC-4 — whether an approved request can still be applied.
+ *
+ * The request was valid when it was submitted; the event may have moved on
+ * since (the date has passed, or a Coordinator edited the event's times). These
+ * are checked again at approval so an approval can never leave the event with
+ * a start in the past or an end before its start. The Coordinator's remedy is
+ * to reject the request, with a reason.
+ *
+ * `current` is the event as it is now; `proposal` is what the request would set
+ * (null = leave alone).
+ */
+export function applicabilityErrors(
+  current: { proposedStart: Date | null; proposedEnd: Date | null },
+  proposal: { proposedStart: Date | null; proposedEnd: Date | null },
+  now: Date,
+): string[] {
+  const errors: string[] = [];
+
+  if (proposal.proposedStart && proposal.proposedStart.getTime() <= now.getTime()) {
+    errors.push('the proposed start is now in the past');
+  }
+  if (proposal.proposedEnd && proposal.proposedEnd.getTime() <= now.getTime()) {
+    errors.push('the proposed end is now in the past');
+  }
+
+  const start = proposal.proposedStart ?? current.proposedStart;
+  const end = proposal.proposedEnd ?? current.proposedEnd;
+  if (
+    (proposal.proposedStart || proposal.proposedEnd) &&
+    start &&
+    end &&
+    end.getTime() <= start.getTime()
+  ) {
+    errors.push('the proposed end would not be after the start');
+  }
+
+  return errors;
+}
+
+/** US-38 AC-6 — a venue booking the proposed attendance would not fit in. */
+export interface CapacityWarning {
+  type: 'CAPACITY_EXCEEDED';
+  bookingId: string;
+  bookingStatus: string;
+  venueId: string;
+  venueName: string | null;
+  capacity: number;
+  proposedAttendance: number;
+  message: string;
+}
+
+/**
+ * US-38 AC-6 — warn for each live booking whose venue holds fewer people than
+ * the request proposes. A venue with no recorded capacity cannot be compared,
+ * so it produces no warning rather than a guess. Only the proposed attendance
+ * is checked: a request that does not change attendance raises no capacity
+ * question.
+ */
+export function capacityWarnings(
+  proposedAttendance: number | null,
+  bookings: readonly {
+    id: string;
+    status: string;
+    venue: { id: string; name: string | null; capacity: number | null };
+  }[],
+): CapacityWarning[] {
+  if (proposedAttendance === null) return [];
+
+  return bookings.flatMap((booking) => {
+    const { capacity } = booking.venue;
+    if (capacity === null || proposedAttendance <= capacity) return [];
+
+    const venue = booking.venue.name ?? 'the booked venue';
+    return [
+      {
+        type: 'CAPACITY_EXCEEDED' as const,
+        bookingId: booking.id,
+        bookingStatus: booking.status,
+        venueId: booking.venue.id,
+        venueName: booking.venue.name,
+        capacity,
+        proposedAttendance,
+        message: `The proposed attendance of ${proposedAttendance} exceeds the capacity of ${venue} (${capacity}).`,
+      },
+    ];
+  });
+}

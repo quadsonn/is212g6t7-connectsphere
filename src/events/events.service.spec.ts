@@ -237,6 +237,7 @@ describe('EventsService (US-03)', () => {
         ...event,
         equipmentRequirements: [],
         pendingChangeRequest: null,
+        latestChangeDecision: null,
       });
     });
 

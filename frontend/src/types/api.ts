@@ -172,6 +172,8 @@ export interface EventRequest {
 /** US-28 AC-1 — one line of equipment an event needs. */
 export interface EquipmentRequirement {
   id: string;
+  /** US-37: the catalogue item this line is, or null for a free-text line. */
+  equipmentId?: string | null;
   equipmentType: string;
   quantity: number;
   notes: string | null;
@@ -273,6 +275,163 @@ export interface OrganiserRequestView extends EventRequest {
   statusView: EventStatusView;
   /** Derived server-side from clarificationRequest; never stored. */
   clarificationRequested: boolean;
+  /** US-37: the undecided change request, shown beside the original details. */
+  pendingChangeRequest?: ChangeRequest | null;
+  /** US-38 AC-5: the latest decided request, so a rejection's reason shows. */
+  latestChangeDecision?: ChangeRequest | null;
+}
+
+export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+/** US-37 — one line of a proposed equipment list. */
+export interface ChangeRequestEquipmentLine {
+  id: string;
+  equipmentId: string;
+  quantity: number;
+  equipment: { id: string; type: string };
+}
+
+/**
+ * US-37 — an Organiser's proposed change. A null proposed* field means that
+ * field is not being changed; `equipment` is the complete proposed list when
+ * `equipmentChanged` is true.
+ */
+export interface ChangeRequest {
+  id: string;
+  eventId: string;
+  status: ChangeRequestStatus;
+  reason: string;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  proposedAttendance: number | null;
+  equipmentChanged: boolean;
+  equipment: ChangeRequestEquipmentLine[];
+  createdAt: string;
+  /** US-38: set once a Coordinator has decided. */
+  decidedAt?: string | null;
+  decisionReason?: string | null;
+}
+
+/** US-38 AC-1 — a pending request in the Coordinator's queue. */
+export interface PendingChangeRequestSummary extends ChangeRequest {
+  requestedBy: ContactSummary;
+  event: {
+    id: string;
+    name: string | null;
+    status: EventStatus;
+    proposedStart: string | null;
+    proposedEnd: string | null;
+    expectedAttendance: number | null;
+  };
+}
+
+/** US-38 AC-6 — shown before the Coordinator decides. */
+export interface CapacityWarning {
+  type: 'CAPACITY_EXCEEDED';
+  bookingId: string;
+  bookingStatus: string;
+  venueId: string;
+  venueName: string | null;
+  capacity: number;
+  proposedAttendance: number;
+  message: string;
+}
+
+/** A clash found at the proposed new time (venue or equipment). */
+export interface ImpactWarning {
+  type: 'VENUE_CONFLICT' | 'VENUE_BLOCKED' | 'EQUIPMENT_UNAVAILABLE';
+  message: string;
+}
+
+export type ReviewWarning = CapacityWarning | ImpactWarning;
+
+export interface TimeWindowIso {
+  start: string;
+  end: string;
+}
+
+/**
+ * What approving a date or time change would do to the event's existing
+ * arrangements: bookings move and wait for Venue Staff again, equipment
+ * reservations are released for Technical Support to commit again.
+ */
+export interface RescheduleImpact {
+  newWindow: TimeWindowIso | null;
+  venueBookings: {
+    bookingId: string;
+    venueName: string | null;
+    status: string;
+    from: TimeWindowIso;
+    to: TimeWindowIso;
+  }[];
+  equipmentReservations: {
+    reservationId: string;
+    equipmentType: string;
+    quantity: number;
+    status: string;
+  }[];
+}
+
+/** What an approval actually moved and released. */
+export interface ReschedulingResult {
+  venueBookings: {
+    bookingId: string;
+    venueName: string | null;
+    previousStatus: string;
+    from: TimeWindowIso;
+    to: TimeWindowIso;
+  }[];
+  equipmentReservations: {
+    reservationId: string;
+    equipmentType: string;
+    quantity: number;
+    previousStatus: string;
+  }[];
+}
+
+/** US-38 AC-2 — a request beside the event as it is now. */
+export interface ChangeRequestReview {
+  request: ChangeRequest & { requestedBy: ContactSummary };
+  event: {
+    id: string;
+    name: string | null;
+    status: EventStatus;
+    proposedStart: string | null;
+    proposedEnd: string | null;
+    expectedAttendance: number | null;
+    equipmentRequirements: {
+      id: string;
+      equipmentId: string | null;
+      equipmentType: string;
+      quantity: number;
+    }[];
+  };
+  warnings: ReviewWarning[];
+  impact: RescheduleImpact;
+}
+
+/** US-38 AC-4 — the decided request, and the history entry an approval wrote. */
+export interface ChangeRequestApproval {
+  request: ChangeRequest;
+  change: EventChangeEntry | null;
+  arrangements: ReschedulingResult;
+}
+
+/** POST /events/:id/change-requests. Send only what should change. */
+export interface ChangeRequestPayload {
+  reason: string;
+  proposedStart?: string;
+  proposedEnd?: string;
+  proposedAttendance?: number;
+  equipment?: { equipmentId: string; quantity: number }[];
+}
+
+/** GET /events/equipment-catalogue — what the change request picker offers. */
+export interface CatalogueOption {
+  id: string;
+  type: string;
+  description: string | null;
+  location: string | null;
 }
 
 /** A user's contact details, resolved from an id (coordinator, organiser). */

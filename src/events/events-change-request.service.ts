@@ -128,6 +128,19 @@ export class EventsChangeRequestService {
     }
   }
 
+  /**
+   * AC "equipment items are selected from the equipment catalogue" — the
+   * choices the form offers. Every equipment route is Technical Support only,
+   * so an Organiser has no other way to see the catalogue. Only what a picker
+   * needs is returned: no stock levels or status.
+   */
+  listCatalogue() {
+    return this.prisma.equipment.findMany({
+      select: { id: true, type: true, description: true, location: true },
+      orderBy: { type: 'asc' },
+    });
+  }
+
   /** The event's undecided change request, or null. */
   findPending(eventId: string) {
     return this.prisma.eventChangeRequest.findFirst({

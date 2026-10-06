@@ -28,6 +28,8 @@ import { DraftEventRequestDto } from './dto/draft-event-request.dto';
 import { UpdatePlanningDto } from './dto/update-planning.dto';
 import { TechnicalRequirementsDto } from './dto/technical-requirements.dto';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
+import { RejectChangeRequestDto } from './dto/reject-change-request.dto';
+import { EventsChangeReviewService } from './events-change-review.service';
 import { EventsChangeRequestService } from './events-change-request.service';
 import { EventsService } from './events.service';
 
@@ -42,6 +44,7 @@ export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly changeRequests: EventsChangeRequestService,
+    private readonly changeReviews: EventsChangeReviewService,
   ) {}
 
   /**
@@ -321,6 +324,62 @@ export class EventsController {
   @Roles(Role.EVENT_ORGANISER)
   findMine(@CurrentUser() user: AuthenticatedUser) {
     return this.eventsService.findMyRequests(user);
+  }
+
+  /**
+   * US-38 AC-1 — pending change requests on the Coordinator's own events.
+   * Declared before the :id routes; "change-requests" is a literal segment.
+   */
+  @Get('change-requests/pending')
+  @Roles(Role.EVENT_COORDINATOR)
+  listPendingChangeRequests(@CurrentUser() user: AuthenticatedUser) {
+    return this.changeReviews.listPending(user);
+  }
+
+  /** US-38 AC-2 / AC-6 — one request: current vs proposed, reason, warnings. */
+  @Get('change-requests/:requestId')
+  @Roles(Role.EVENT_COORDINATOR)
+  getChangeRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.changeReviews.getForReview(user, requestId);
+  }
+
+  /** US-38 AC-4 — approve: the event takes the proposed values. */
+  @Post('change-requests/:requestId/approve')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  approveChangeRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.changeReviews.approve(user, requestId);
+  }
+
+  /** US-38 AC-3 / AC-5 — reject, with a reason; the event is unchanged. */
+  @Post('change-requests/:requestId/reject')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  rejectChangeRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId') requestId: string,
+    @Body() dto: RejectChangeRequestDto,
+  ) {
+    return this.changeReviews.reject(user, requestId, dto);
+  }
+
+  /**
+   * US-37 — the equipment catalogue, as the change request form's picker.
+   *
+   * MUST be declared before @Get(':id'). A dedicated Organiser route because
+   * GET /equipment is Technical Support only; this returns just id, type,
+   * description and location.
+   */
+  @Get('equipment-catalogue')
+  @Roles(Role.EVENT_ORGANISER)
+  listEquipmentCatalogue() {
+    return this.changeRequests.listCatalogue();
   }
 
   /**

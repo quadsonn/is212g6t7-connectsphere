@@ -4,12 +4,15 @@ import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Field, Select } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState } from '@/components/ui/states';
 import { useVenues } from '@/features/venues/hooks/use-venues';
 import { apiErrorMessage, fieldErrors } from '@/lib/api-client';
+import { todayInVenueTime } from '@/lib/calendar';
+import { START_TIME_SLOTS, TIME_SLOTS, slotsIncluding } from '@/lib/date-time';
 import { formatDateRange, humanise } from '@/lib/utils';
 import {
   ACCESSIBILITY_FEATURE_LABELS,
@@ -156,28 +159,41 @@ export function BookingRequestForm({ event }: { event: CoordinatorRequestView })
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Field label="Event date" htmlFor="booking-date" required errors={errors.byField.start}>
-          <Input
+          {/* The platform's themed calendar; a venue cannot be booked in the past. */}
+          <DatePicker
             id="booking-date"
-            type="date"
+            label="Event date"
+            placeholder="Select a date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={setDate}
+            min={todayInVenueTime()}
+            invalid={(errors.byField.start?.length ?? 0) > 0}
           />
         </Field>
         <Field label="Start time" htmlFor="booking-start" required>
-          <Input
-            id="booking-start"
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-          />
+          <Select id="booking-start" value={startTime} onChange={(e) => setStartTime(e.target.value)}>
+            <option value="">Select a time</option>
+            {slotsIncluding(START_TIME_SLOTS, startTime).map((slot) => (
+              <option key={slot.value} value={slot.value}>
+                {slot.label}
+              </option>
+            ))}
+          </Select>
         </Field>
         <Field label="End time" htmlFor="booking-end" required errors={errors.byField.end}>
-          <Input
+          <Select
             id="booking-end"
-            type="time"
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
-          />
+            aria-invalid={(errors.byField.end?.length ?? 0) > 0}
+          >
+            <option value="">Select a time</option>
+            {slotsIncluding(TIME_SLOTS, endTime).map((slot) => (
+              <option key={slot.value} value={slot.value}>
+                {slot.label}
+              </option>
+            ))}
+          </Select>
         </Field>
       </div>
 

@@ -45,6 +45,9 @@ export function DatePicker({
   min,
   placeholder = 'Any date',
   label,
+  id,
+  invalid = false,
+  describedBy,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -53,6 +56,12 @@ export function DatePicker({
   placeholder?: string;
   /** Accessible name for the field. */
   label: string;
+  /** Lets a <Field htmlFor> label point at the picker, like any input. */
+  id?: string;
+  /** Shows the error state, as Input does with aria-invalid. */
+  invalid?: boolean;
+  /** Ids of hint/error text describing the field. */
+  describedBy?: string;
 }) {
   const today = todayInVenueTime();
   const [open, setOpen] = useState(false);
@@ -143,7 +152,10 @@ export function DatePicker({
     <div ref={rootRef} className="relative">
       <button
         ref={triggerRef}
+        id={id}
         type="button"
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         aria-label={`${label}: ${value ? formatDay(value) : placeholder}`}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -153,6 +165,7 @@ export function DatePicker({
           'flex h-10 w-full items-center gap-2 rounded-lg border border-ink-300 bg-white px-3 text-left text-sm',
           'focus:border-brand-600 focus:outline-2 focus:outline-offset-0 focus:outline-brand-600',
           open && 'border-brand-600',
+          invalid && 'border-red-500 outline-red-500',
         )}
       >
         <CalendarDays

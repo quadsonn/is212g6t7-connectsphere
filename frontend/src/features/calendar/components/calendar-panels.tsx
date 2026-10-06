@@ -3,12 +3,16 @@ import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Field, Select } from '@/components/ui/form';
+import { DatePicker } from '@/components/ui/date-picker';
+import { DateTimeField } from '@/components/ui/date-time-field';
+import { CheckboxRow, Field, Select } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState } from '@/components/ui/states';
 import { ConflictList } from '@/features/bookings/components/conflict-list';
 import { apiErrorMessage, fieldErrors } from '@/lib/api-client';
+import { addDays, todayInVenueTime } from '@/lib/calendar';
+import { FULL_DAY_TIME_SLOTS } from '@/lib/date-time';
 import { cn, formatDateRange } from '@/lib/utils';
 import type { CalendarEntry, CalendarView, VenueBlockResult } from '@/types/api';
 import { ENTRY_STYLES } from '../calendar-utils';
@@ -129,20 +133,31 @@ export function BlockForm({
   const [venueId, setVenueId] = useState(venues.length === 1 ? venues[0].id : '');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
+  // "All day": whole days, midnight at the start of the first to midnight
+  // after the last (e.g. a public holiday), picked as dates only.
+  const [allDay, setAllDay] = useState(false);
+  const [fromDay, setFromDay] = useState('');
+  const [untilDay, setUntilDay] = useState('');
   const [reason, setReason] = useState('');
   const [result, setResult] = useState<VenueBlockResult | null>(null);
 
+  const blockStart = allDay ? (fromDay ? `${fromDay}T00:00` : '') : start;
+  const blockEnd = allDay ? (untilDay ? `${addDays(untilDay, 1)}T00:00` : '') : end;
+
+  const today = todayInVenueTime();
   const errors = fieldErrors(create.error, BLOCK_FIELDS);
   // Checked as the user types, so an end before the start is flagged at once
   // rather than after a round trip. The server enforces the same rule.
-  const endBeforeStart = Boolean(start && end && new Date(end) <= new Date(start));
-  const complete = Boolean(venueId && start && end && reason.trim()) && !endBeforeStart;
+  const endBeforeStart = Boolean(
+    blockStart && blockEnd && new Date(blockEnd) <= new Date(blockStart),
+  );
+  const complete = Boolean(venueId && blockStart && blockEnd && reason.trim()) && !endBeforeStart;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!complete) return;
     create.mutate(
-      { venueId, start: toIso(start), end: toIso(end), reason: reason.trim() },
+      { venueId, start: toIso(blockStart), end: toIso(blockEnd), reason: reason.trim() },
       {
         onSuccess: (created) => {
           if (created.overlappingBookings.length > 0) {
@@ -193,29 +208,71 @@ export function BlockForm({
         <Field label="Reason" htmlFor="block-reason" required errors={errors.byField.reason} hint="e.g. Maintenance, public holiday">
           <Input id="block-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
         </Field>
+        <div className="sm:col-span-2">
+          <CheckboxRow
+            id="block-all-day"
+            label="All day (midnight to midnight)"
+            checked={allDay}
+            onChange={setAllDay}
+          />
+        </div>
+        {/* Themed calendar; a block covers the whole day, so times run
+            12:00 AM–11:30 PM rather than venue opening hours. */}
         <Field label="From" htmlFor="block-start" required errors={errors.byField.start}>
-          <Input id="block-start" type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
+          {allDay ? (
+            <DatePicker
+              id="block-start"
+              label="From"
+              placeholder="Select a date"
+              value={fromDay}
+              onChange={setFromDay}
+              min={today}
+            />
+          ) : (
+            <DateTimeField
+              id="block-start"
+              label="From"
+              value={start}
+              onChange={setStart}
+              slots={FULL_DAY_TIME_SLOTS}
+              min={today}
+            />
+          )}
         </Field>
         <Field
           label="Until"
           htmlFor="block-end"
           required
+          hint={allDay ? 'Blocked through the end of this day.' : undefined}
           errors={
             endBeforeStart
               ? ['The end must be after the start. Pick a later date or time.']
               : errors.byField.end
           }
         >
-          <Input
-            id="block-end"
-            type="datetime-local"
-            value={end}
-            // Greys out earlier dates in the browser's picker as well.
-            min={start || undefined}
-            aria-invalid={endBeforeStart}
-            aria-describedby={endBeforeStart ? 'block-end-error' : undefined}
-            onChange={(e) => setEnd(e.target.value)}
-          />
+          {allDay ? (
+            <DatePicker
+              id="block-end"
+              label="Until"
+              placeholder="Select a date"
+              value={untilDay}
+              onChange={setUntilDay}
+              min={fromDay || today}
+              invalid={endBeforeStart}
+              describedBy={endBeforeStart ? 'block-end-error' : undefined}
+            />
+          ) : (
+            <DateTimeField
+              id="block-end"
+              label="Until"
+              value={end}
+              onChange={setEnd}
+              slots={FULL_DAY_TIME_SLOTS}
+              min={start.slice(0, 10) || today}
+              invalid={endBeforeStart}
+              describedBy={endBeforeStart ? 'block-end-error' : undefined}
+            />
+          )}
         </Field>
       </div>
 

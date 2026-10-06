@@ -1,10 +1,13 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { DateTimeField } from '@/components/ui/date-time-field';
 import { CheckboxRow, Field, Select, Textarea } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useUpdatePlanning } from '@/features/events/hooks/use-events';
 import { apiErrorMessage, fieldErrors } from '@/lib/api-client';
+import { todayInVenueTime } from '@/lib/calendar';
+import { START_TIME_SLOTS, TIME_SLOTS } from '@/lib/date-time';
 import { humanise } from '@/lib/utils';
 import {
   ACCESSIBILITY_FEATURES,
@@ -175,23 +178,33 @@ export function PlanningEditForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* Themed calendar + venue-hours time slots, like every other event form. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Start" htmlFor="plan-start" errors={byField.proposedStart} required>
-          <Input
+          <DateTimeField
             id="plan-start"
-            type="datetime-local"
+            label="Start"
             value={form.proposedStart}
-            onChange={(e) => set('proposedStart', e.target.value)}
+            onChange={(value) => set('proposedStart', value)}
+            slots={START_TIME_SLOTS}
+            min={todayInVenueTime()}
+            invalid={Boolean(byField.proposedStart?.length)}
           />
         </Field>
         <Field label="End" htmlFor="plan-end" errors={byField.proposedEnd} required>
-          <Input
+          <DateTimeField
             id="plan-end"
-            type="datetime-local"
+            label="End"
             value={form.proposedEnd}
-            onChange={(e) => set('proposedEnd', e.target.value)}
+            onChange={(value) => set('proposedEnd', value)}
+            slots={TIME_SLOTS}
+            min={form.proposedStart.slice(0, 10) || todayInVenueTime()}
+            invalid={Boolean(byField.proposedEnd?.length)}
           />
         </Field>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Field
           label="Expected attendance"
           htmlFor="plan-attendance"

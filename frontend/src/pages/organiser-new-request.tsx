@@ -4,6 +4,7 @@ import { Save, Send } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckboxRow, Field, Select, Textarea } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -26,6 +27,7 @@ import {
   type RoomLayout,
 } from '@/types/api';
 import { humanise } from '@/lib/utils';
+import { todayInVenueTime } from '@/lib/calendar';
 
 /** Every field the server may return an error against (US-03 AC-3). */
 const FIELDS = [
@@ -397,14 +399,17 @@ export function OrganiserNewRequest() {
               hint="Venues can be booked 6:00 AM – 11:30 PM. Last start time is 11:00 PM."
             >
               <div className="flex gap-2">
-                <Input
-                  id="proposedStartDate"
-                  type="date"
-                  className="flex-1"
-                  value={form.proposedStartDate}
-                  onChange={(e) => set('proposedStartDate', e.target.value)}
-                  aria-invalid={invalid('proposedStart')}
-                />
+                <div className="flex-1">
+                  <DatePicker
+                    id="proposedStartDate"
+                    label="Start date"
+                    placeholder="Select a date"
+                    value={form.proposedStartDate}
+                    onChange={(value) => set('proposedStartDate', value)}
+                    min={todayInVenueTime()}
+                    invalid={invalid('proposedStart')}
+                  />
+                </div>
                 <Select
                   id="proposedStartTime"
                   aria-label="Start time"
@@ -431,14 +436,17 @@ export function OrganiserNewRequest() {
               hint="Venues can be booked 6:00 AM – 11:30 PM."
             >
               <div className="flex gap-2">
-                <Input
-                  id="proposedEndDate"
-                  type="date"
-                  className="flex-1"
-                  value={form.proposedEndDate}
-                  onChange={(e) => set('proposedEndDate', e.target.value)}
-                  aria-invalid={invalid('proposedEnd')}
-                />
+                <div className="flex-1">
+                  <DatePicker
+                    id="proposedEndDate"
+                    label="End date"
+                    placeholder="Select a date"
+                    value={form.proposedEndDate}
+                    onChange={(value) => set('proposedEndDate', value)}
+                    min={form.proposedStartDate || todayInVenueTime()}
+                    invalid={invalid('proposedEnd')}
+                  />
+                </div>
                 <Select
                   id="proposedEndTime"
                   aria-label="End time"

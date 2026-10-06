@@ -64,8 +64,10 @@ describe('US-02 role-based and ownership access control (e2e)', () => {
       purpose: 'Purpose',
       category: 'Conference',
       description: 'Description',
-      proposedStart: new Date('2026-10-01T09:00:00Z'),
-      proposedEnd: new Date('2026-10-01T17:00:00Z'),
+      // 30 days out: inside the default registration window, so the CONFIRMED
+      // fixtures stay visible to the Attendee list whenever the suite runs.
+      proposedStart: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      proposedEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000),
       expectedAttendance: 200,
       preferredLayout: 'THEATRE' as const,
       layoutNotes: 'INTERNAL staging notes',
@@ -348,8 +350,18 @@ describe('US-02 role-based and ownership access control (e2e)', () => {
       expect(names).not.toContain('Unreviewed draft');
     });
 
+    it('lists confirmed events that are open for registration', async () => {
+      const res = await http().get('/events').set('Authorization', as('attendee')).expect(200);
+
+      const names = res.body.map((e: { name: string }) => e.name);
+      expect(names).toEqual(
+        expect.arrayContaining(['Event owned by A', 'Event owned by B']),
+      );
+    });
+
     it('strips internal fields from the list view too', async () => {
       const res = await http().get('/events').set('Authorization', as('attendee')).expect(200);
+      expect(res.body.length).toBeGreaterThan(0);
 
       expect(JSON.stringify(res.body)).not.toMatch(/INTERNAL/);
     });

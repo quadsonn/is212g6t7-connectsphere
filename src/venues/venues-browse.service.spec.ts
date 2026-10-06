@@ -5,6 +5,7 @@ import { VenueBookingLookup } from '../bookings/booking-impact';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
@@ -43,6 +44,7 @@ describe('VenuesService browse (US-15)', () => {
       { findLiveBookingsForVenue: jest.fn() } as unknown as VenueBookingLookup,
       { notify: jest.fn(), notifySafely: jest.fn() } as unknown as NotificationsService,
       { uploadVenueImage: jest.fn() } as unknown as SupabaseStorageService,
+      {} as unknown as EventsService,
     );
   });
 

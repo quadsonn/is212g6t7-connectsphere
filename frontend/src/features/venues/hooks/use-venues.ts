@@ -1,12 +1,26 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import type { BrowseVenuesQuery, Venue, VenueDraftPayload } from '@/types/api';
+import { addMonths } from '@/lib/calendar';
+import type {
+  BrowseVenuesQuery,
+  DayAvailability,
+  Venue,
+  VenueDraftPayload,
+  VenueSearchQuery,
+  VenueSuitability,
+} from '@/types/api';
 import { venuesApi } from '../api/venues.api';
 
 export const venueKeys = {
   all: ['venues'] as const,
   list: (query: BrowseVenuesQuery) => ['venues', 'list', query] as const,
+  search: (query: VenueSearchQuery) => ['venues', 'search', query] as const,
+  suitability: (id: string, eventId: string) =>
+    ['venues', 'suitability', id, eventId] as const,
   detail: (id: string) => ['venues', 'detail', id] as const,
+  availability: (id: string, month: string) =>
+    ['venues', 'availability', id, month] as const,
 };
 
 /** US-15 — the catalogue, optionally searched and sorted server-side. */
@@ -18,6 +32,29 @@ export function useVenues(query: BrowseVenuesQuery = {}) {
   });
 }
 
+/**
+ * US-18 — venue search. Takes the *applied* filters, not the ones being
+ * edited, so a request goes out only when the Coordinator presses Search.
+ */
+export function useVenueSearch(query: VenueSearchQuery) {
+  return useQuery<Venue[]>({
+    queryKey: venueKeys.search(query),
+    queryFn: () => venuesApi.search(query),
+    staleTime: 0,
+    placeholderData: (previous) => previous,
+  });
+}
+
+/** US-20 — suitability of this venue for the selected event. */
+export function useVenueSuitability(id: string, eventId: string) {
+  return useQuery<VenueSuitability>({
+    queryKey: venueKeys.suitability(id, eventId),
+    queryFn: () => venuesApi.suitability(id, eventId),
+    enabled: Boolean(id && eventId),
+    staleTime: 0,
+  });
+}
+
 /** US-14 — a single venue, for the edit screen. */
 export function useVenue(id: string) {
   return useQuery<Venue>({
@@ -25,6 +62,44 @@ export function useVenue(id: string) {
     queryFn: () => venuesApi.getById(id),
     enabled: Boolean(id),
   });
+}
+
+/**
+ * US-17 AC-2 — one month of a venue's availability.
+ *
+ * Each month is its own query so navigating loads only what is new. The
+ * months either side of the visible pair are prefetched, so a prev/next click
+ * is usually served from cache rather than waiting on the network.
+ */
+export function useVenueAvailability(id: string, month: string) {
+  return useQuery<DayAvailability[]>({
+    queryKey: venueKeys.availability(id, month),
+    queryFn: () => venuesApi.availability(id, month),
+    enabled: Boolean(id),
+    // Short-lived: a day taken a minute ago must not still show as free.
+    staleTime: 30_000,
+  });
+}
+
+export function usePrefetchVenueAvailability(id: string, months: string[]) {
+  const queryClient = useQueryClient();
+  const key = months.join(',');
+
+  useEffect(() => {
+    if (!id) return;
+    for (const month of key.split(',')) {
+      void queryClient.prefetchQuery({
+        queryKey: venueKeys.availability(id, month),
+        queryFn: () => venuesApi.availability(id, month),
+        staleTime: 30_000,
+      });
+    }
+  }, [id, key, queryClient]);
+}
+
+/** The months just outside a visible window, for prefetching. */
+export function adjacentMonths(first: string, visibleCount: number): string[] {
+  return [addMonths(first, -1), addMonths(first, visibleCount)];
 }
 
 export function useDeleteVenue() {

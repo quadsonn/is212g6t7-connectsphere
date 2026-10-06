@@ -2,12 +2,16 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
-import { CheckboxRow, Field } from '@/components/ui/form';
+import { ChipGroup, Field } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { fieldErrors, apiErrorMessage } from '@/lib/api-client';
+import { humanise } from '@/lib/utils';
 import {
+    ACCESSIBILITY_FEATURES,
+    ACCESSIBILITY_FEATURE_LABELS,
+    FACILITIES,
+    FACILITY_LABELS,
     ROOM_LAYOUTS,
-    type RoomLayout,
     type VenueDraftPayload,
     type VenueStatus,
 } from '@/types/api';
@@ -19,10 +23,17 @@ const DRAFT_FIELDS = [
     'location',
     'capacity',
     'facilities',
+    'facilityNotes',
     'accessibilityFeatures',
+    'accessibilityNotes',
     'supportedLayouts',
     'operatingInfo',
 ] as const;
+
+/** "U_SHAPE" -> "U shape" — the layout codes read fine once de-underscored. */
+const LAYOUT_LABELS = Object.fromEntries(
+    ROOM_LAYOUTS.map((layout) => [layout, humanise(layout)]),
+) as Record<(typeof ROOM_LAYOUTS)[number], string>;
 
 /**
  * Operating-hours picker, in 30-minute increments.
@@ -102,79 +113,6 @@ function parseOperatingInfo(
     return { start: '', end: '', is24: false };
 }
 
-function TagListInput({
-    values,
-    onChange,
-    placeholder,
-}: {
-    values: string[];
-    onChange: (next: string[]) => void;
-    placeholder: string;
-}) {
-    const [draft, setDraft] = useState('');
-
-    const add = () => {
-        const value = draft.trim();
-        if (value && !values.includes(value)) {
-            onChange([...values, value]);
-        }
-        setDraft('');
-    };
-
-    return (
-        <div className="space-y-2">
-            <div className="flex gap-2">
-                <Input
-                    value={draft}
-                    placeholder={placeholder}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            e.preventDefault();
-                            add();
-                        }
-                    }}
-                />
-                <Button type="button" onClick={add}>
-                    Add
-                </Button>
-            </div>
-            {values.length > 0 ? (
-                <ul className="flex flex-wrap gap-2">
-                    {values.map((value) => (
-                        <li
-                            key={value}
-                            className="flex items-center gap-1.5 rounded-full bg-ink-100 px-3 py-1 text-xs text-ink-800"
-                        >
-                            {value}
-                            <button
-                                type="button"
-                                onClick={() => onChange(values.filter((v) => v !== value))}
-                                aria-label={`Remove ${value}`}
-                                className="text-ink-500 hover:text-ink-800"
-                            >
-                                ×
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            ) : null}
-        </div>
-    );
-}
-
-/**
- * US-13 "Add a new venue" and US-14 "Update a venue's details" — the same
- * form serves both. Pass `venueId` + `initialValues` to edit an existing
- * venue; omit them to create a new one.
- *
- * Save and Publish are independent actions, not a forced two-step flow:
- * - "Save draft" persists whatever's filled in, complete or not (US-13 AC-2).
- * - "Publish" is enabled purely by whether the required fields (name,
- *   location, capacity — matching the backend's completeness check) are
- *   filled in RIGHT NOW. It does not require having saved first — clicking
- *   it creates (or updates) the venue and publishes it in one action.
- */
 export function VenueDraftForm({
     venueId,
     initialValues,
@@ -333,59 +271,64 @@ export function VenueDraftForm({
                 />
             </Field>
 
-            <Field label="Facilities" htmlFor="venue-facilities" errors={errors.facilities}>
-                <TagListInput
-                    values={form.facilities ?? []}
-                    onChange={(next) => update_('facilities', next)}
-                    placeholder="e.g. projector, stage"
-                />
+            {/* US-18: fixed vocabularies so Coordinators can search on them.
+                Anything outside a list goes in the short "other" line beneath. */}
+            <Field label="Facilities" htmlFor="venue-facility-notes" errors={errors.facilities ?? errors.facilityNotes}>
+                <div className="space-y-2">
+                    <ChipGroup
+                        label="Facilities"
+                        options={FACILITIES}
+                        labels={FACILITY_LABELS}
+                        values={form.facilities ?? []}
+                        onChange={(next) => update_('facilities', next)}
+                    />
+                    <Input
+                        id="venue-facility-notes"
+                        placeholder="Other facilities (optional)"
+                        value={form.facilityNotes ?? ''}
+                        onChange={(e) => update_('facilityNotes', e.target.value)}
+                    />
+                </div>
             </Field>
 
             <Field
-                label="Accessibility features"
-                htmlFor="venue-accessibility"
-                errors={errors.accessibilityFeatures}
+                label="Accessibility"
+                htmlFor="venue-accessibility-notes"
+                errors={errors.accessibilityFeatures ?? errors.accessibilityNotes}
             >
-                <TagListInput
-                    values={form.accessibilityFeatures ?? []}
-                    onChange={(next) => update_('accessibilityFeatures', next)}
-                    placeholder="e.g. step-free access"
-                />
+                <div className="space-y-2">
+                    <ChipGroup
+                        label="Accessibility features"
+                        options={ACCESSIBILITY_FEATURES}
+                        labels={ACCESSIBILITY_FEATURE_LABELS}
+                        values={form.accessibilityFeatures ?? []}
+                        onChange={(next) => update_('accessibilityFeatures', next)}
+                    />
+                    <Input
+                        id="venue-accessibility-notes"
+                        placeholder="Other accessibility provision (optional)"
+                        value={form.accessibilityNotes ?? ''}
+                        onChange={(e) => update_('accessibilityNotes', e.target.value)}
+                    />
+                </div>
             </Field>
 
-            <Field label="Supported layouts" htmlFor="venue-layouts" errors={errors.supportedLayouts}>
-                <div className="space-y-1">
-                    {ROOM_LAYOUTS.map((layout) => (
-                        <CheckboxRow
-                            key={layout}
-                            id={`layout-${layout}`}
-                            label={layout.replace(/_/g, ' ')}
-                            checked={(form.supportedLayouts ?? []).includes(layout)}
-                            onChange={(checked) => {
-                                const current = form.supportedLayouts ?? [];
-                                update_(
-                                    'supportedLayouts',
-                                    checked
-                                        ? [...current, layout]
-                                        : current.filter((l: RoomLayout) => l !== layout),
-                                );
-                            }}
-                        />
-                    ))}
-                    <CheckboxRow
-                        id="layout-other"
-                        label="Other"
-                        checked={form.layoutNotes !== null && form.layoutNotes !== undefined}
-                        onChange={(checked) => update_('layoutNotes', checked ? '' : null)}
+            <Field label="Supported layouts" htmlFor="venue-layout-notes" errors={errors.supportedLayouts}>
+                <div className="space-y-2">
+                    <ChipGroup
+                        label="Supported layouts"
+                        options={ROOM_LAYOUTS}
+                        labels={LAYOUT_LABELS}
+                        values={form.supportedLayouts ?? []}
+                        onChange={(next) => update_('supportedLayouts', next)}
                     />
-                    {form.layoutNotes !== null && form.layoutNotes !== undefined ? (
-                        <Input
-                            className="mt-2"
-                            placeholder="Describe the layout"
-                            value={form.layoutNotes ?? ''}
-                            onChange={(e) => update_('layoutNotes', e.target.value)}
-                        />
-                    ) : null}
+                    {/* Blank means no other layout (null), matching the old "Other" toggle. */}
+                    <Input
+                        id="venue-layout-notes"
+                        placeholder="Other layout (optional)"
+                        value={form.layoutNotes ?? ''}
+                        onChange={(e) => update_('layoutNotes', e.target.value || null)}
+                    />
                 </div>
             </Field>
 

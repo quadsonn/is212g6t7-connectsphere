@@ -67,6 +67,13 @@ enum BookingStatus {
   REJECTED
 }
 
+// US-23: what kind of entry a BookingDecision is. A REVERSAL overturns an
+// earlier DECISION; it is a new row, never an edit of the old one (AC-6).
+enum BookingDecisionKind {
+  DECISION
+  REVERSAL
+}
+
 // US-06: the predefined room layouts an Organiser may choose from.
 //
 // Shared deliberately — the venue suitability story reuses this rather than
@@ -96,6 +103,26 @@ enum AccessibilityFeature {
   WHEELCHAIR_SEATING
   HEARING_LOOP
   NURSING_ROOM
+}
+
+// US-18: what a venue offers, as a controlled vocabulary so search can match
+// it exactly. A starter set agreed with the team; additive changes
+// (ALTER TYPE ... ADD VALUE) are cheap, so extend it as the customer refines.
+//
+// Step-free / ramp access is deliberately absent: it is STEP_FREE_ACCESS in
+// AccessibilityFeature, and one concept must not live in two vocabularies.
+enum Facility {
+  PROJECTOR
+  SCREEN
+  SOUND_SYSTEM
+  MICROPHONE
+  STAGE
+  WIFI
+  VIDEO_CONFERENCING
+  WHITEBOARD
+  POWER_OUTLETS
+  CATERING_KITCHEN
+  AIR_CONDITIONING
 }
 
 // US-29: an equipment item's condition, shown in its full detail view.
@@ -163,6 +190,14 @@ enum NotificationType {
   REGISTRATION_WITHDRAWN
 }
 
+// US-37 (E8): where a change request stands. Only PENDING is written so far;
+// the review story will move it to APPROVED or REJECTED.
+enum ChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -188,7 +223,12 @@ model User {
   notifications         Notification[]
   clarificationMessages ClarificationMessage[]
   eventChanges          EventChange[]
+  changeRequests        EventChangeRequest[]
+  decidedChangeRequests EventChangeRequest[]   @relation("ChangeRequestDecider")
   managedVenues         Venue[]                @relation("VenueManager")
+  requestedBookings     VenueBooking[]         @relation("BookingRequester")
+  bookingDecisions      BookingDecision[]
+  venueBlocks           VenueBlock[]
 
   @@index([role])
 }
@@ -247,6 +287,15 @@ model EventRequest {
   registrationEnabled Boolean     @default(false)
   status              EventStatus @default(DRAFT)
 
+  // US-34/US-36: when attendees may register, and the last moment they may
+  // withdraw. AMBIGUOUS: the brief gives no way to set these, so they are
+  // nullable and, when null, fall back to the event's own start
+  // (registration open immediately, closing and withdrawal cutoff at
+  // proposedStart) — see registration-rules.ts.
+  registrationOpensAt  DateTime?
+  registrationClosesAt DateTime?
+  withdrawalCutoffAt   DateTime?
+
   // US-05 AC-2: why a Coordinator rejected the request. Written by the review
   // story; US-05 only reads it.
   decisionReason String?
@@ -266,8 +315,9 @@ model EventRequest {
 
   clarifications        ClarificationMessage[]
   changes               EventChange[]
+  changeRequests        EventChangeRequest[]
   equipmentRequirements EquipmentRequirement[]
-  venueBookings         VenueBooking[]
+  venueBookings        VenueBooking[]
   equipmentReservations EquipmentReservation[]
   registrations         Registration[]
   notifications         Notification[]
@@ -281,7 +331,7 @@ model Venue {
   id String @id @default(cuid())
 
   // US-13 AC-2: nullable so an incomplete venue can be saved as a draft.
-  // Completeness is enforced at publish, and by a CHECK constraint that only
+  // Completeness is enforced at publish, and by a kCHECK constraint that only
   // permits nulls while the venue is a DRAFT.
   name     String?
   location String?
@@ -296,17 +346,17 @@ model Venue {
   managedById String?
   managedBy   User?   @relation("VenueManager", fields: [managedById], references: [id], onDelete: SetNull)
 
-  // AMBIGUOUS: modelled as string arrays rather than lookup tables. Adequate
-  // for the filtering §1 describes; promote to their own tables if venues ever
-  // need to be searched or managed by individual facility.
-  facilities String[]
+  // US-18: controlled vocabularies, so search can AND-match them reliably.
+  //
+  // accessibilityFeatures is the same AccessibilityFeature enum an Organiser
+  // requests from (US-06), so a venue's offer and an event's need are directly
+  // comparable. This reverses US-13's free-text choice; anything a venue offers
+  // beyond the vocabulary (braille signage, quiet rooms) goes in the notes.
+  facilities    Facility[] @default([])
+  facilityNotes String?
 
-  // AMBIGUOUS: deliberately NOT the US-06 AccessibilityFeature enum. That enum
-  // holds the three things an Organiser may *request*; a venue advertises many
-  // more (braille signage, assistance-animal access, quiet rooms). Forcing
-  // venues into the request vocabulary would discard information. Suitability
-  // matching will need a mapping, or an expanded enum — see the US-13 summary.
-  accessibilityFeatures String[]
+  accessibilityFeatures AccessibilityFeature[] @default([])
+  accessibilityNotes    String?
 
   // US-13: the shared US-06 lookup, so a layout a venue supports and a layout
   // an event requests are literally the same value rather than two strings
@@ -327,8 +377,14 @@ model Venue {
   updatedAt DateTime @updatedAt
 
   bookings VenueBooking[]
+  blocks   VenueBlock[]
 
   @@index([capacity])
+  // US-18 AC-7: search filters on published venues by capacity and by array
+  // containment; GIN is the index type Postgres uses for @> on arrays.
+  @@index([status, capacity])
+  @@index([facilities], type: Gin)
+  @@index([accessibilityFeatures], type: Gin)
 }
 
 model VenueBooking {
@@ -346,12 +402,42 @@ model VenueBooking {
   start DateTime
   end   DateTime
 
+  // US-21 AC-3: REQUESTED is the "pending" status the AC names — a request
+  // that is not a confirmed booking until Venue Staff approve it (US-23).
   status         BookingStatus @default(REQUESTED)
+  // US-23: the reason or note from the latest decision, kept here so lists
+  // can show it without reading the history. BookingDecision is the record;
+  // this is always written in the same transaction as the decision row.
   decisionReason String?
+
+  // US-21 AC-6: whose request history this appears in. Nullable only because
+  // rows created before US-21 had no requester recorded; the migration
+  // backfills it from the event's coordinator where one exists.
+  requestedById String?
+  requestedBy   User?   @relation("BookingRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+
+  // US-21 AC-1: required by the request DTO. Nullable for pre-US-21 rows.
+  expectedAttendance Int?
+
+  // US-21 AC-2: the event's requirements, copied onto the request when it is
+  // submitted so Venue Staff see them without cross-referencing the event.
+  //
+  // AMBIGUOUS: a snapshot, not a live join. If the Organiser later edits the
+  // event, an existing booking request keeps the requirements it was
+  // submitted with — that is what Venue Staff reviewed and decided on.
+  preferredLayout           RoomLayout?
+  layoutNotes               String?
+  accessibilityRequirements AccessibilityFeature[] @default([])
+  accessibilityNotes        String?
+  equipmentNeeds            String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // US-23 AC-4/AC-6: every decision ever made on this request, oldest first.
+  decisions BookingDecision[]
+
+  @@index([requestedById])
   // Supports the (venueId, time range) conflict lookup in §5.
   //
   // NOTE: this index makes the check fast but does NOT make it correct under
@@ -385,7 +471,9 @@ model Equipment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  reservations EquipmentReservation[]
+  reservations         EquipmentReservation[]
+  requirements         EquipmentRequirement[]
+  changeRequestLines   EventChangeRequestEquipment[]
 
   @@index([type])
 }
@@ -429,6 +517,14 @@ model Registration {
   attendee   User   @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
 
   status RegistrationStatus @default(REGISTERED)
+
+  // US-34 AC-2: the form's fields. Name and email come from the User record.
+  phone               String
+  dietaryRequirements String?
+  accessibilityNeeds  String?
+
+  // US-36: when the attendee withdrew; null while registered.
+  withdrawnAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -551,6 +647,13 @@ model EquipmentRequirement {
   eventId String
   event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
+  // US-37: the catalogue item this line refers to. Nullable because lines
+  // recorded before the link existed, or typed free-text, have none — those
+  // are left out of change-request comparisons rather than guessed at.
+  // `equipmentType` stays the display text either way.
+  equipmentId String?
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+
   equipmentType String
   // Positive — enforced by a CHECK constraint in the migration as well as
   // the DTO.
@@ -561,4 +664,135 @@ model EquipmentRequirement {
   updatedAt DateTime @updatedAt
 
   @@index([eventId])
+  @@index([equipmentId])
+}
+
+/**
+ * US-37 — an Organiser's proposal to change an event, awaiting review.
+ *
+ * A proposal, not an edit: the event row is never touched by this story, so
+ * the original details stay as they were (AC "original details still show").
+ *
+ * Each proposed* column is null when that field is NOT being changed; only
+ * fields that differ from the event are stored. Equipment cannot use null the
+ * same way (an empty list is a real proposal — remove everything), so
+ * `equipmentChanged` says whether `equipment` is part of the proposal, and
+ * when it is, `equipment` is the complete proposed list.
+ *
+ * A partial unique index in the migration allows one PENDING request per
+ * event; Prisma cannot express it.
+ */
+model EventChangeRequest {
+  id String @id @default(cuid())
+
+  eventId String
+  event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  requestedById String
+  requestedBy   User   @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+
+  status ChangeRequestStatus @default(PENDING)
+  reason String
+
+  // US-38: the Coordinator's decision. All null while PENDING; a REJECTED
+  // request always has a reason (CHECK constraint in the migration).
+  decidedById    String?
+  decidedBy      User?     @relation("ChangeRequestDecider", fields: [decidedById], references: [id], onDelete: Restrict)
+  decidedAt      DateTime?
+  decisionReason String?
+
+  proposedStart      DateTime?
+  proposedEnd        DateTime?
+  proposedAttendance Int?
+
+  equipmentChanged Boolean                       @default(false)
+  equipment        EventChangeRequestEquipment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId, status])
+  @@index([requestedById])
+  @@index([decidedById])
+}
+
+/** US-37 — one line of a proposed equipment list, from the catalogue. */
+model EventChangeRequestEquipment {
+  id String @id @default(cuid())
+
+  changeRequestId String
+  changeRequest   EventChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  equipmentId String
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+
+  // Positive — enforced by a CHECK constraint in the migration as well as
+  // the DTO.
+  quantity Int
+
+  @@unique([changeRequestId, equipmentId])
+  @@index([equipmentId])
+}
+
+/**
+ * US-23 — one recorded decision on a venue booking request.
+ * Append-only, like ClarificationMessage: rows are never updated or deleted
+ * by the application, which is what makes the history accountable (AC-4) and
+ * a reversal a new action rather than an overwrite (AC-6).
+ * AMBIGUOUS: deleted with its booking (Cascade). Bookings are only removed when
+ * their event is, so this matches how the rest of an event's history goes.
+ */
+model BookingDecision {
+  id String @id @default(cuid())
+
+  bookingId String
+  booking   VenueBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  // AC-4: attributed to the Venue Staff member who made it.
+  decidedById String
+  decidedBy   User   @relation(fields: [decidedById], references: [id], onDelete: Restrict)
+
+  kind BookingDecisionKind @default(DECISION)
+
+  // The status the booking moved to: APPROVED or REJECTED.
+  outcome BookingStatus
+
+  // AC-2: required on rejection and reversal. AC-3: optional on approval.
+  reason String?
+
+  // AC-4: timestamped.
+  createdAt DateTime @default(now())
+
+  @@index([bookingId, createdAt])
+  @@index([decidedById])
+}
+
+/**
+ * US-16 AC-6 — a period a Venue Staff member has blocked out on a venue
+ * (maintenance, a public holiday), shown on the calendar apart from bookings.
+ *
+ * AMBIGUOUS: a block also makes the slot unbookable — a new request or an
+ * approval that overlaps one is refused. The story only asks for blocks to be
+ * visible, but a "blocked" slot that can still be booked would defeat the
+ * story's aim of not double-committing space. Confirm with the customer.
+ */
+model VenueBlock {
+  id String @id @default(cuid())
+
+  venueId String
+  venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  start DateTime
+  end   DateTime
+
+  // e.g. "Annual maintenance". Required so the calendar can say why.
+  reason String
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([venueId, start, end])
+  @@index([createdById])
 }

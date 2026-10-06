@@ -5,6 +5,7 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { VenueBookingLookup } from '../bookings/booking-impact';
 import { Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
@@ -30,8 +31,8 @@ describe('VenuesService update (US-14)', () => {
     name: 'Sandbox Auditorium',
     location: 'School of Computing, Level 1',
     capacity: 420,
-    facilities: ['Stage'],
-    accessibilityFeatures: ['Step-free access', 'Hearing loop'],
+    facilities: ['STAGE'],
+    accessibilityFeatures: ['STEP_FREE_ACCESS', 'HEARING_LOOP'],
     supportedLayouts: [RoomLayout.THEATRE, RoomLayout.CLASSROOM],
     operatingInfo: 'Mon-Fri',
     status: VenueStatus.PUBLISHED,
@@ -67,14 +68,15 @@ describe('VenuesService update (US-14)', () => {
       bookings as unknown as VenueBookingLookup,
       notifications as unknown as NotificationsService,
       { uploadVenueImage: jest.fn() } as unknown as SupabaseStorageService,
+      {} as unknown as EventsService,
     );
   });
 
   describe('AC-1: any detail can be edited', () => {
     it.each([
       ['capacity', { capacity: 500 }],
-      ['facilities', { facilities: ['Stage', 'PA system'] }],
-      ['accessibility', { accessibilityFeatures: ['Step-free access', 'Hearing loop', 'Braille signage'] }],
+      ['facilities', { facilities: ['STAGE', 'SOUND_SYSTEM'] }],
+      ['accessibility', { accessibilityFeatures: ['STEP_FREE_ACCESS', 'HEARING_LOOP', 'ACCESSIBLE_RESTROOMS'] }],
       ['layouts', { supportedLayouts: [RoomLayout.THEATRE, RoomLayout.CLASSROOM, RoomLayout.BANQUET] }],
       ['operating hours', { operatingInfo: 'Mon-Sun, 07:00-23:00' }],
     ])('edits %s', async (_label, patch) => {
@@ -138,10 +140,10 @@ describe('VenuesService update (US-14)', () => {
       bookings.findLiveBookingsForVenue.mockResolvedValue([aBooking()]);
 
       const result = await service.updateDraft(staff, 'venue-1', {
-        accessibilityFeatures: ['Step-free access'],
+        accessibilityFeatures: ['STEP_FREE_ACCESS'],
       } as VenueDraftDto);
 
-      expect(result.warnings[0].reasons.join(' ')).toMatch(/Hearing loop/);
+      expect(result.warnings[0].reasons.join(' ')).toMatch(/HEARING_LOOP/);
     });
 
     it('warns when the venue is relocated', async () => {

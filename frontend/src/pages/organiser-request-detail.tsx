@@ -1,4 +1,5 @@
-import { Pencil } from 'lucide-react';
+import { Pencil, Repeat2 } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
@@ -6,11 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LinkButton } from '@/components/ui/link-button';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import { ChangeRequestForm } from '@/features/events/components/change-request-form';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
+import { PendingChangeRequest } from '@/features/events/components/pending-change-request';
 import { useMyRequest } from '@/features/events/hooks/use-events';
+import { EventBookingsList } from '@/features/bookings/components/event-bookings-list';
+import { useEventBookings } from '@/features/bookings/hooks/use-bookings';
 import { apiErrorMessage } from '@/lib/api-client';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
-import { EDITABLE_EVENT_STATUSES } from '@/lib/status';
+import { CHANGEABLE_EVENT_STATUSES, EDITABLE_EVENT_STATUSES } from '@/lib/status';
 import { formatDate, humanise } from '@/lib/utils';
 import { ACCESSIBILITY_FEATURE_LABELS } from '@/types/api';
 
@@ -35,6 +40,10 @@ export function OrganiserRequestDetail() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data: event, isPending, isError, error } = useMyRequest(id);
+  // Declared before the early returns below, per the rules of hooks.
+  const { data: venueBookings } = useEventBookings(id);
+  // US-37: whether the change request form is open.
+  const [changing, setChanging] = useState(false);
 
   if (isPending) {
     return (
@@ -55,6 +64,11 @@ export function OrganiserRequestDetail() {
   }
 
   const isEditable = EDITABLE_EVENT_STATUSES.includes(event.status);
+  const pendingChange = event.pendingChangeRequest ?? null;
+  // US-38 AC-5: the outcome of the last request, until a new one is pending.
+  const latestDecision = pendingChange ? null : (event.latestChangeDecision ?? null);
+  // US-37: one pending request at a time, and only while the event is live.
+  const canRequestChange = CHANGEABLE_EVENT_STATUSES.includes(event.status) && !pendingChange;
 
   return (
     <>
@@ -64,6 +78,12 @@ export function OrganiserRequestDetail() {
         action={
           <div className="flex items-center gap-3">
             <EventStatusBadge status={event.status} />
+            {canRequestChange && !changing ? (
+              <Button type="button" variant="secondary" onClick={() => setChanging(true)}>
+                <Repeat2 className="size-4" aria-hidden="true" />
+                Request a change
+              </Button>
+            ) : null}
             {isEditable ? (
               <LinkButton to={`/organiser/${event.id}/edit`}>
                 <Pencil className="size-4" aria-hidden="true" />
@@ -94,6 +114,43 @@ export function OrganiserRequestDetail() {
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <p className="font-medium">The coordinator asked for clarification</p>
             <p className="mt-1">{event.clarificationRequest}</p>
+          </div>
+        ) : null}
+
+        {/* US-37: the original details stay below; the request sits alongside them. */}
+        {changing && canRequestChange ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Request a change</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChangeRequestForm
+                event={event}
+                onDone={() => setChanging(false)}
+                onCancel={() => setChanging(false)}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {pendingChange ? <PendingChangeRequest event={event} request={pendingChange} /> : null}
+
+        {latestDecision?.status === 'REJECTED' ? (
+          <ErrorState
+            message={`Your change request was rejected${
+              latestDecision.decidedAt ? ` on ${formatDate(latestDecision.decidedAt)}` : ''
+            }: ${latestDecision.decisionReason ?? 'No reason given.'}`}
+          />
+        ) : null}
+
+        {latestDecision?.status === 'APPROVED' ? (
+          <div
+            role="status"
+            className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+          >
+            Your change request was approved
+            {latestDecision.decidedAt ? ` on ${formatDate(latestDecision.decidedAt)}` : ''}. The
+            details below are the updated ones.
           </div>
         ) : null}
 
@@ -181,6 +238,18 @@ export function OrganiserRequestDetail() {
             </dl>
           </CardContent>
         </Card>
+
+        {/* US-23 AC-5: venue decisions and their reasons, visible to the Organiser. */}
+        {venueBookings && venueBookings.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Venue bookings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EventBookingsList bookings={venueBookings} />
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Button type="button" variant="ghost" onClick={() => navigate('/organiser')}>
           Back to my requests

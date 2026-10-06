@@ -34,6 +34,14 @@ export const RELEASABLE_STATUSES: readonly ReservationStatus[] = [
   ReservationStatus.APPROVED,
 ];
 
+/** US-38 — an equipment reservation released because its event was rescheduled. */
+export interface ReleasedForReschedule {
+  reservationId: string;
+  equipmentType: string;
+  quantity: number;
+  previousStatus: ReservationStatus;
+}
+
 /**
  * US-32 — limits for the commit transaction. A commit may legitimately wait
  * on the equipment row lock while another commit of the same item finishes,
@@ -216,6 +224,49 @@ export class EquipmentReservationsService {
     });
 
     return result.count;
+  }
+
+  /**
+   * US-38 — the event moved to new dates, so release what it holds.
+   *
+   * A reservation commits units for one window, and availability for the new
+   * window is unknown, so each is released and Technical Support commits again
+   * (commit() re-checks availability against the event's new dates). The
+   * event's equipment requirements are untouched, so they know what to book.
+   *
+   * Runs in the caller's transaction, with the change to the event's dates.
+   * Returns what was released, for the Coordinator to see. Like the release for
+   * a cancelled event, it only moves reservations still holding or awaiting
+   * units, so repeating it is a no-op.
+   */
+  async releaseForRescheduledEvent(
+    eventId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<ReleasedForReschedule[]> {
+    const held = await tx.equipmentReservation.findMany({
+      where: { eventId, status: { in: [...RELEASABLE_STATUSES] } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true,
+        quantity: true,
+        status: true,
+        equipment: { select: { type: true } },
+      },
+    });
+
+    if (held.length > 0) {
+      await tx.equipmentReservation.updateMany({
+        where: { id: { in: held.map((row) => row.id) } },
+        data: { status: ReservationStatus.RELEASED, releasedAt: new Date() },
+      });
+    }
+
+    return held.map((row) => ({
+      reservationId: row.id,
+      equipmentType: row.equipment.type,
+      quantity: row.quantity,
+      previousStatus: row.status,
+    }));
   }
 
   /** US-33 AC-3 — which reservations were released, and for which event. */

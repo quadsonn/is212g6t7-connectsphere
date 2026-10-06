@@ -9,6 +9,7 @@ config();
 process.env.DATABASE_URL =
   process.env.TEST_DATABASE_URL ??
   'postgresql://postgres@localhost:5432/connectsphere_test?schema=public';
+// schema.prisma's directUrl — must never fall through to the shared database.
 process.env.DIRECT_URL = process.env.DATABASE_URL;
 
 process.env.JWT_SECRET ??= 'e2e-only-secret';

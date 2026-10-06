@@ -7,12 +7,14 @@ import {
 } from '@nestjs/common';
 import {
   BookingStatus,
+  ChangeRequestStatus,
   ConfirmedArrangement,
   EventChange,
   EventRequest,
   EventStatus,
   NotificationType,
   Prisma,
+  RegistrationStatus,
   ReservationStatus,
   Role,
   User,
@@ -55,6 +57,20 @@ import {
   EventStatusView,
   PLANNING_STATUSES,
 } from './event-status.machine';
+import { evaluateRegistration } from '../registrations/registration-rules';
+import { CHANGE_REQUEST_INCLUDE } from './events-change-request.service';
+
+
+/**
+ * US-20 — statuses in which an event has no use for a venue: not yet a
+ * request, turned down, or over.
+ */
+const INACTIVE_FOR_BOOKING: EventStatus[] = [
+  EventStatus.DRAFT,
+  EventStatus.REJECTED,
+  EventStatus.CANCELLED,
+  EventStatus.COMPLETED,
+];
 
 /**
  * US-10 AC-3 — the assigned Coordinator, exposed on every read so the main
@@ -123,7 +139,30 @@ export type OrganiserRequestView = EventRequest & {
   /** US-11 — the consolidated view every story reads. */
   statusView: EventStatusView;
   clarificationRequested: boolean;
+  /**
+   * US-37 — the undecided change request, shown beside the original details
+   * (which are untouched). Set on single-event reads only.
+   */
+  pendingChangeRequest?: PendingChangeRequest | null;
+  /**
+   * US-38 AC-5 — the most recent decided change request, so a rejection's
+   * reason is visible to the Organiser.
+   */
+  latestChangeDecision?: PendingChangeRequest | null;
 };
+
+/** US-37 — a change request with its equipment resolved to catalogue names. */
+export type PendingChangeRequest = Prisma.EventChangeRequestGetPayload<{
+  include: typeof CHANGE_REQUEST_INCLUDE;
+}>;
+
+/** What GET /events/:id returns: the event, or its public projection. */
+export type EventDetailView =
+  | (EventWithCoordinator & {
+      pendingChangeRequest?: PendingChangeRequest | null;
+      latestChangeDecision?: PendingChangeRequest | null;
+    })
+  | PublicEventView;
 
 /**
  * US-07 AC-1 lists a status called "returned" that EventStatus does not have,
@@ -414,6 +453,42 @@ export class EventsService {
     });
 
     return events.map((event) => this.toOrganiserView(event));
+  }
+
+  /**
+   * US-20 — the requirements a venue is checked against, for an event this
+   * Coordinator is assigned to and could still book a venue for.
+   *
+   * Narrower than the ASSIGNED read scope on purpose: that scope includes the
+   * unassigned review pool, but booking arrangements belong to the event's own
+   * Coordinator (CLAUDE.md §1). Anything outside that answers 404, so the
+   * event's existence is not confirmed to someone who may not plan it.
+   */
+  async findSuitabilityRequirements(user: AuthenticatedUser, id: string) {
+    const event = await this.prisma.eventRequest.findFirst({
+      where: {
+        AND: [
+          this.access.scopedEventFilter(user, Action.READ),
+          {
+            id,
+            coordinatorId: user.userId,
+            status: { notIn: INACTIVE_FOR_BOOKING },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        expectedAttendance: true,
+        accessibilityRequirements: true,
+        preferredLayout: true,
+      },
+    });
+
+    if (!event) {
+      throw new NotFoundException('event not found');
+    }
+
+    return event;
   }
 
   /**
@@ -942,10 +1017,16 @@ export class EventsService {
     this.assertIsAssignedTo(user, event);
     this.assertInPlanning(event);
 
+    const catalogueTypes = await this.catalogueTypes(dto.equipment ?? []);
+
     const incoming = dto.equipment?.map((item) => ({
-      equipmentType: item.equipmentType.trim(),
+      // US-37: a catalogue-linked line is named by the catalogue.
+      equipmentType: item.equipmentId
+        ? (catalogueTypes.get(item.equipmentId) as string)
+        : item.equipmentType.trim(),
       quantity: item.quantity,
       notes: item.notes?.trim() || null,
+      ...(item.equipmentId ? { equipmentId: item.equipmentId } : {}),
     }));
 
     if (incoming) {
@@ -1007,6 +1088,33 @@ export class EventsService {
     return { ...(await this.findAssignedRequest(user, id)), change };
   }
 
+  /** US-37 — catalogue names for the lines that name an item; 400 on an unknown id. */
+  private async catalogueTypes(
+    items: { equipmentId?: string }[],
+  ): Promise<Map<string, string>> {
+    const ids = [
+      ...new Set(items.flatMap((item) => (item.equipmentId ? [item.equipmentId] : []))),
+    ];
+    if (ids.length === 0) {
+      return new Map();
+    }
+
+    const found = await this.prisma.equipment.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, type: true },
+    });
+    const types = new Map(found.map((row) => [row.id, row.type]));
+    const unknown = ids.filter((id) => !types.has(id));
+
+    if (unknown.length > 0) {
+      throw new BadRequestException(
+        unknown.map((id) => `equipment item ${id} is not in the catalogue`),
+      );
+    }
+
+    return types;
+  }
+
   /**
    * One line per type: "2 × Projector" and "1 × projector" side by side would
    * leave Technical Support guessing whether the event needs two or three.
@@ -1066,7 +1174,7 @@ export class EventsService {
    * Arrangements this event has had approved. REQUESTED ones are not yet
    * confirmed, and REJECTED ones depend on nothing (AC-2 "already confirmed").
    */
-  private async confirmedArrangements(
+  async confirmedArrangements(
     eventId: string,
   ): Promise<ConfirmedArrangement[]> {
     const [bookings, reservations] = await Promise.all([
@@ -1100,8 +1208,11 @@ export class EventsService {
     }
   }
 
-  /** US-26 — appends one entry to the event's history. */
-  private async recordChange(
+  /**
+   * US-26 — appends one entry to the event's history. Public so the change
+   * request review (US-38) records an approval through the same path.
+   */
+  async recordChange(
     tx: Prisma.TransactionClient,
     eventId: string,
     changedById: string,
@@ -1214,10 +1325,40 @@ export class EventsService {
     // Re-read with contacts and the clarification thread (US-09 AC-5).
     const event = await this.prisma.eventRequest.findUniqueOrThrow({
       where: { id },
-      include: { ...EVENT_CONTACTS_INCLUDE, ...CLARIFICATION_THREAD_INCLUDE },
+      // US-37: the equipment lines travel with the view so the change request
+      // form can show what the event currently has.
+      include: {
+        ...EVENT_CONTACTS_INCLUDE,
+        ...CLARIFICATION_THREAD_INCLUDE,
+        ...REQUIREMENTS_INCLUDE,
+      },
     });
 
-    return this.toOrganiserView(event);
+    return {
+      ...this.toOrganiserView(event),
+      pendingChangeRequest: await this.findPendingChangeRequest(id),
+      latestChangeDecision: await this.findLatestChangeDecision(id),
+    };
+  }
+
+  /** US-38 AC-5 — the event's most recently decided change request, or null. */
+  private findLatestChangeDecision(eventId: string) {
+    return this.prisma.eventChangeRequest.findFirst({
+      where: {
+        eventId,
+        status: { in: [ChangeRequestStatus.APPROVED, ChangeRequestStatus.REJECTED] },
+      },
+      orderBy: { decidedAt: 'desc' },
+      include: CHANGE_REQUEST_INCLUDE,
+    });
+  }
+
+  /** US-37 — the event's undecided change request, or null. */
+  private findPendingChangeRequest(eventId: string) {
+    return this.prisma.eventChangeRequest.findFirst({
+      where: { eventId, status: ChangeRequestStatus.PENDING },
+      include: CHANGE_REQUEST_INCLUDE,
+    });
   }
 
   /**
@@ -1245,7 +1386,61 @@ export class EventsService {
       include: COORDINATOR_SELECT,
     });
 
-    return events.map((event) => this.access.projectEvent(user, event));
+    const visible =
+      user.role === Role.ATTENDEE
+        ? await this.onlyRegistrable(user, events)
+        : events;
+
+    return visible.map((event) => this.access.projectEvent(user, event));
+  }
+
+  /**
+   * An Attendee's list is the events they could register for right now:
+   * CONFIRMED, registration enabled, inside the registration window and not
+   * full (the same rules the Register endpoint enforces), and not already
+   * registered by them. Everything else is hidden rather than shown disabled.
+   */
+  private async onlyRegistrable<T extends EventWithCoordinator>(
+    user: AuthenticatedUser,
+    events: T[],
+  ): Promise<T[]> {
+    const candidates = events.filter(
+      (event) =>
+        event.status === EventStatus.CONFIRMED && event.registrationEnabled,
+    );
+    if (candidates.length === 0) {
+      return [];
+    }
+
+    const ids = candidates.map((event) => event.id);
+    const [counts, mine] = await Promise.all([
+      this.prisma.registration.groupBy({
+        by: ['eventId'],
+        where: { eventId: { in: ids }, status: RegistrationStatus.REGISTERED },
+        _count: { _all: true },
+      }),
+      this.prisma.registration.findMany({
+        where: {
+          eventId: { in: ids },
+          attendeeId: user.userId,
+          status: RegistrationStatus.REGISTERED,
+        },
+        select: { eventId: true },
+      }),
+    ]);
+
+    const registeredCount = new Map(
+      counts.map((row) => [row.eventId, row._count._all]),
+    );
+    const alreadyMine = new Set(mine.map((row) => row.eventId));
+    const now = new Date();
+
+    return candidates.filter(
+      (event) =>
+        !alreadyMine.has(event.id) &&
+        evaluateRegistration(event, registeredCount.get(event.id) ?? 0, now)
+          .canRegister,
+    );
   }
 
   /**
@@ -1255,7 +1450,7 @@ export class EventsService {
   async findOneForUser(
     user: AuthenticatedUser,
     id: string,
-  ): Promise<EventWithCoordinator | PublicEventView> {
+  ): Promise<EventDetailView> {
     const event = await this.access.assertEventAccess(user, id, Action.READ);
 
     // US-28 AC-3: Technical Support (and every other full-record reader)
@@ -1267,7 +1462,19 @@ export class EventsService {
     });
 
     const withRequirements = { ...event, equipmentRequirements };
-    return this.access.projectEvent(user, withRequirements);
+    const projected = this.access.projectEvent(user, withRequirements);
+
+    // US-37: the Organiser sees their pending change request beside the
+    // original details. Nobody else's view carries it.
+    if (user.role === Role.EVENT_ORGANISER) {
+      return {
+        ...(projected as EventWithCoordinator),
+        pendingChangeRequest: await this.findPendingChangeRequest(event.id),
+        latestChangeDecision: await this.findLatestChangeDecision(event.id),
+      };
+    }
+
+    return projected;
   }
 
   /** Loads an event for a status change, enforcing the caller's scope. */

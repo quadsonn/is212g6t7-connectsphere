@@ -33,8 +33,13 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.SUBMIT, Scope.OWN),
         // US-09: answering a clarification on their own request.
         g(Action.CLARIFY, Scope.OWN),
+        // US-37: "requests changes" — to their own events only.
+        g(Action.REQUEST_CHANGE, Scope.OWN),
       ],
       [Resource.VENUE]: [g(Action.READ, Scope.ANY)],
+      // US-23 AC-5: "the decision and reason are visible to the relevant
+      // Event Coordinator/Organiser" — bookings on the Organiser's own events.
+      [Resource.BOOKING]: [g(Action.READ, Scope.OWN)],
       [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
     },
 
@@ -58,7 +63,13 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         // answer and needs a customer decision.
         g(Action.ASSIGN, Scope.ANY),
       ],
-      [Resource.VENUE]: [g(Action.READ, Scope.ANY)],
+      [Resource.VENUE]: [
+        g(Action.READ, Scope.ANY),
+        // US-17 (calendar) and US-18 (search by date). PUBLIC, not ANY: every
+        // published venue, but only whether it is free — never which event
+        // holds a slot. Both reveal booking state, so Organisers do not get it.
+        g(Action.CHECK_AVAILABILITY, Scope.PUBLIC),
+      ],
       [Resource.BOOKING]: [
         g(Action.CREATE, Scope.ASSIGNED),
         g(Action.READ, Scope.ASSIGNED),

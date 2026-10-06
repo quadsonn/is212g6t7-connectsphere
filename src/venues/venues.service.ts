@@ -12,6 +12,8 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { VenueBookingLookup } from '../bookings/booking-impact';
+import { confirmedOverlapping } from '../bookings/booking-overlap';
+import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -20,7 +22,18 @@ import {
   VenueSortField,
 } from './dto/browse-venues.dto';
 import { PublishableVenueDto } from './dto/publishable-venue.dto';
+import {
+  DayAvailabilityDto,
+  VenueAvailabilityQueryDto,
+} from './dto/venue-availability.dto';
+import {
+  aggregateAvailability,
+  rangeBounds,
+  resolveRange,
+} from './availability';
 import { VenueDraftDto } from './dto/venue-draft.dto';
+import { VenueSearchDto } from './dto/venue-search.dto';
+import { assessSuitability, VenueSuitability } from './suitability';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 /**
@@ -48,7 +61,9 @@ type VenueDraftFields = Partial<
     | 'location'
     | 'capacity'
     | 'facilities'
+    | 'facilityNotes'
     | 'accessibilityFeatures'
+    | 'accessibilityNotes'
     | 'supportedLayouts'
     | 'operatingInfo'
   >
@@ -62,6 +77,7 @@ export class VenuesService {
     private readonly bookings: VenueBookingLookup,
     private readonly notifications: NotificationsService,
     private readonly storage: SupabaseStorageService,
+    private readonly events: EventsService,
   ) {}
 
   /**
@@ -148,6 +164,134 @@ export class VenuesService {
     }
 
     return venue;
+  }
+
+  /**
+   * US-18 — published venues matching every active filter.
+   *
+   * One query, however many filters: the date filter is a relation filter
+   * (`bookings: none`), which Postgres answers with a single anti-join rather
+   * than an availability check per venue (AC-7). Containment filters use the
+   * GIN indexes on the two arrays.
+   *
+   * AC-6: no match is an empty array, not an error.
+   */
+  async search(user: AuthenticatedUser, query: VenueSearchDto): Promise<Venue[]> {
+    // The date filter reveals booking state, so this is the US-17 grant rather
+    // than plain VENUE/READ.
+    this.access.requireScope(user, Resource.VENUE, Action.CHECK_AVAILABILITY);
+
+    if (Boolean(query.from) !== Boolean(query.to)) {
+      throw new BadRequestException('from and to must be given together');
+    }
+
+    const where: Prisma.VenueWhereInput = {
+      // Drafts are never bookable, whatever else matches.
+      status: VenueStatus.PUBLISHED,
+    };
+
+    if (query.name) {
+      // US-15 AC-3, restored: same matching as the catalogue's name lookup.
+      where.name = { contains: query.name, mode: 'insensitive' };
+    }
+
+    if (query.minCapacity !== undefined) {
+      // AC-2. A null capacity never satisfies gte, so it is excluded rather
+      // than compared (and the US-13 CHECK forbids it on a published venue).
+      where.capacity = { gte: query.minCapacity };
+    }
+
+    if (query.accessibility?.length) {
+      // AC-3: every selected feature, not any.
+      where.accessibilityFeatures = { hasEvery: query.accessibility };
+    }
+
+    if (query.facilities?.length) {
+      // AC-4: likewise.
+      where.facilities = { hasEvery: query.facilities };
+    }
+
+    if (query.from && query.to) {
+      // AC-1: free of *confirmed* bookings in the slot.
+      where.bookings = {
+        none: confirmedOverlapping(new Date(query.from), new Date(query.to)),
+      };
+    }
+
+    return this.prisma.venue.findMany({
+      where,
+      orderBy: [{ name: 'asc' }],
+    });
+  }
+
+  /**
+   * US-20 — does this venue appear suitable for this event?
+   *
+   * Read-only and advisory (AC-5): it reports, it never gates. Nothing in the
+   * booking flow may call this as a precondition.
+   *
+   * AC-6: two indexed lookups by primary key, run in parallel — one venue and
+   * one event — then a pure comparison. Deliberately not US-18's search query,
+   * which filters across every venue.
+   */
+  async getSuitability(
+    user: AuthenticatedUser,
+    venueId: string,
+    eventId: string,
+  ): Promise<VenueSuitability> {
+    this.access.requireScope(user, Resource.VENUE, Action.CHECK_AVAILABILITY);
+
+    const [venue, event] = await Promise.all([
+      this.prisma.venue.findFirst({
+        where: { id: venueId, status: VenueStatus.PUBLISHED },
+        select: { capacity: true, accessibilityFeatures: true, supportedLayouts: true },
+      }),
+      this.events.findSuitabilityRequirements(user, eventId),
+    ]);
+
+    if (!venue) {
+      throw new NotFoundException('venue not found');
+    }
+
+    return assessSuitability(venue, event);
+  }
+
+  /**
+   * US-17 — a venue's calendar as one free/tentative/booked status per day.
+   *
+   * The CHECK_AVAILABILITY grant is PUBLIC-scoped: published venues only, so
+   * a draft answers 404 exactly as it does on GET /venues/:id, and its
+   * existence is not confirmed.
+   *
+   * AC-3: nothing identifying a booking crosses this boundary. The lookup
+   * returns anonymous slots, and the result is serialised through
+   * DayAvailabilityDto, which drops any property it does not declare.
+   */
+  async getAvailability(
+    user: AuthenticatedUser,
+    id: string,
+    query: VenueAvailabilityQueryDto,
+    now: Date = new Date(),
+  ): Promise<DayAvailabilityDto[]> {
+    this.access.requireScope(user, Resource.VENUE, Action.CHECK_AVAILABILITY);
+
+    const venue = await this.prisma.venue.findFirst({
+      where: { id, status: VenueStatus.PUBLISHED },
+      select: { id: true },
+    });
+    if (!venue) {
+      throw new NotFoundException('venue not found');
+    }
+
+    const range = resolveRange(query, now);
+    const { from, to } = rangeBounds(range);
+    const slots = await this.bookings.findBookingSlotsForVenue(id, from, to);
+
+    return plainToInstance(
+      DayAvailabilityDto,
+      aggregateAvailability(range, slots),
+      { excludeExtraneousValues: true },
+    );
   }
 
   /**
@@ -421,7 +565,9 @@ export class VenuesService {
       'location',
       'capacity',
       'facilities',
+      'facilityNotes',
       'accessibilityFeatures',
+      'accessibilityNotes',
       'supportedLayouts',
       'operatingInfo',
     ] as const) {

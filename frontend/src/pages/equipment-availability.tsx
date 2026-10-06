@@ -23,6 +23,8 @@ import {
 } from '@/lib/date-time';
 import { EQUIPMENT_STATUS_STYLES } from '@/lib/status';
 import { formatDateRange } from '@/lib/utils';
+import { DatePicker } from '@/components/ui/date-picker';
+import { todayInVenueTime } from '@/lib/calendar';
 
 interface EquipmentRow {
   key: number;
@@ -145,13 +147,16 @@ export function EquipmentAvailability() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Starts" htmlFor="availability-start-date" required>
                 <div className="flex gap-2">
-                  <Input
-                    id="availability-start-date"
-                    type="date"
-                    className="flex-1"
-                    value={startDate}
-                    onChange={(e) => onWindowChange(setStartDate)(e.target.value)}
-                  />
+                  <div className="flex-1">
+                    <DatePicker
+                      id="availability-start-date"
+                      label="Start date"
+                      placeholder="Select a date"
+                      value={startDate}
+                      onChange={onWindowChange(setStartDate)}
+                      min={todayInVenueTime()}
+                    />
+                  </div>
                   <Select
                     id="availability-start-time"
                     aria-label="Start time"
@@ -175,16 +180,18 @@ export function EquipmentAvailability() {
                 errors={windowError ? [windowError] : undefined}
               >
                 <div className="flex gap-2">
-                  <Input
-                    id="availability-end-date"
-                    type="date"
-                    className="flex-1"
-                    min={startDate || undefined}
-                    value={endDate}
-                    onChange={(e) => onWindowChange(setEndDate)(e.target.value)}
-                    aria-invalid={windowError ? true : undefined}
-                    aria-describedby={windowError ? 'availability-end-date-error' : undefined}
-                  />
+                  <div className="flex-1">
+                    <DatePicker
+                      id="availability-end-date"
+                      label="End date"
+                      placeholder="Select a date"
+                      value={endDate}
+                      onChange={onWindowChange(setEndDate)}
+                      min={startDate || todayInVenueTime()}
+                      invalid={Boolean(windowError)}
+                      describedBy={windowError ? 'availability-end-date-error' : undefined}
+                    />
+                  </div>
                   <Select
                     id="availability-end-time"
                     aria-label="End time"

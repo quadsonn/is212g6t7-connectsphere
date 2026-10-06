@@ -5,7 +5,6 @@ import { PageHeader } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Field, Select } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
 import { LinkButton } from '@/components/ui/link-button';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { useAuth } from '@/features/auth/hooks/use-auth';
@@ -15,6 +14,7 @@ import { useVenues } from '@/features/venues/hooks/use-venues';
 import { apiErrorMessage } from '@/lib/api-client';
 import { cn, formatDate, formatDateRange } from '@/lib/utils';
 import type { BookingQueueEntry, BookingQueueQuery, BookingStatus } from '@/types/api';
+import { DatePicker } from '@/components/ui/date-picker';
 
 type View = 'pending' | 'decided';
 
@@ -168,10 +168,11 @@ export function VenueBookingQueue() {
             </Select>
           </Field>
           <Field label="From" htmlFor="queue-from">
-            <Input id="queue-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            {/* Filters look back as well as forward, so past dates stay selectable. */}
+            <DatePicker id="queue-from" label="From" value={from} onChange={setFrom} />
           </Field>
           <Field label="To" htmlFor="queue-to">
-            <Input id="queue-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            <DatePicker id="queue-to" label="To" value={to} onChange={setTo} min={from || undefined} />
           </Field>
           {view === 'decided' ? (
             <Field label="Status" htmlFor="queue-status">

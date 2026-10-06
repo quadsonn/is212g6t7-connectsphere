@@ -7,8 +7,9 @@ import { Field, Textarea } from '@/components/ui/form';
 import { apiErrorMessage } from '@/lib/api-client';
 import { BOOKING_STATUS_STYLES } from '@/lib/status';
 import type { BookingConflictErrorBody, VenueBooking } from '@/types/api';
-import { useDecideBooking } from '../hooks/use-bookings';
+import { useBookingConflicts, useDecideBooking } from '../hooks/use-bookings';
 import { ConflictList } from './conflict-list';
+import { ConflictReportPanel } from './conflict-report';
 
 type Choice = 'approve' | 'reject' | '';
 
@@ -19,15 +20,26 @@ type Choice = 'approve' | 'reject' | '';
  * without a reason. AC-3: approve takes an optional note. AC-7: once a
  * decision is recorded, approve/reject are gone. AC-6: the only remaining
  * action is an explicit, reasoned reversal, recorded as a new entry.
+ *
+ * US-24: a pending request shows its overlaps. A hard conflict disables
+ * Approve (Reject stays available); soft conflicts never do. The overlaps are
+ * re-fetched immediately before an approval is sent, and a 409 from the
+ * server refreshes them and explains what changed.
  */
 export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
   const { approve, reject, reverse } = useDecideBooking();
   const [choice, setChoice] = useState<Choice>('');
   const [text, setText] = useState('');
   const [reversing, setReversing] = useState(false);
+  const [staleNotice, setStaleNotice] = useState<string | null>(null);
+  const conflictsQuery = useBookingConflicts(booking, booking.status === 'REQUESTED');
+  const report = conflictsQuery.data;
+  const hardConflict = report?.hasHardConflict ?? false;
 
   const pending = approve.isPending || reject.isPending || reverse.isPending;
   const error = approve.error ?? reject.error ?? reverse.error;
+  // An approve 409 is cleared after refreshing the US-24 report (see
+  // submitDecision); a reversal 409 still lists what is in the way here.
   const conflicts =
     axios.isAxiosError<BookingConflictErrorBody>(error) && error.response?.status === 409
       ? (error.response.data.conflicts ?? [])
@@ -37,14 +49,41 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
     setChoice('');
     setText('');
     setReversing(false);
+    setStaleNotice(null);
     approve.reset();
     reject.reset();
     reverse.reset();
   };
 
-  function submitDecision() {
+  async function submitDecision() {
     if (choice === 'approve') {
-      approve.mutate({ id: booking.id, note: text.trim() || undefined }, { onSuccess: reset });
+      // AC-5/AC-7: never approve on the strength of what the page loaded with.
+      setStaleNotice(null);
+      const fresh = await conflictsQuery.refetch();
+      if (fresh.data?.hasHardConflict) {
+        setChoice('');
+        setStaleNotice(
+          'A confirmed booking now overlaps this time, so it can no longer be approved. The conflicts below have been refreshed.',
+        );
+        return;
+      }
+      approve.mutate(
+        { id: booking.id, note: text.trim() || undefined },
+        {
+          onSuccess: reset,
+          onError: (err) => {
+            // Lost a race to another approval: show what holds the slot now.
+            if (axios.isAxiosError(err) && err.response?.status === 409) {
+              void conflictsQuery.refetch();
+              setChoice('');
+              setStaleNotice(
+                'Another booking was confirmed for this time while you were reviewing it. The conflicts below have been refreshed.',
+              );
+              approve.reset();
+            }
+          },
+        },
+      );
     } else if (choice === 'reject') {
       reject.mutate({ id: booking.id, reason: text.trim() }, { onSuccess: reset });
     }
@@ -69,6 +108,25 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
           <CardTitle>Decision</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* US-24: overlaps on this venue, hard and soft. */}
+          <div aria-live="polite">
+            {conflictsQuery.isPending ? (
+              <p className="text-sm text-ink-500">Checking for overlapping bookings…</p>
+            ) : report ? (
+              <ConflictReportPanel report={report} />
+            ) : conflictsQuery.isError ? (
+              <p className="text-sm text-red-700">
+                {apiErrorMessage(conflictsQuery.error, 'Could not check for overlapping bookings.')}
+              </p>
+            ) : null}
+          </div>
+
+          {staleNotice ? (
+            <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+              {staleNotice}
+            </p>
+          ) : null}
+
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Decision">
             {(['approve', 'reject'] as const).map((option) => (
               <Button
@@ -78,6 +136,9 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
                 role="radio"
                 aria-checked={choice === option}
                 variant={choice === option ? (option === 'approve' ? 'primary' : 'danger') : 'secondary'}
+                // US-24 AC-5: a hard conflict rules approval out; Reject stays.
+                disabled={option === 'approve' && hardConflict}
+                aria-describedby={option === 'approve' && hardConflict ? 'approve-blocked' : undefined}
                 onClick={() => {
                   setChoice(option);
                   setText('');
@@ -87,6 +148,12 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
               </Button>
             ))}
           </div>
+          {hardConflict ? (
+            <p id="approve-blocked" className="text-xs text-red-800">
+              Approve is unavailable while a confirmed booking or blocked-out period overlaps this
+              time.
+            </p>
+          ) : null}
 
           {choice ? (
             <Field
@@ -114,8 +181,14 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
             <Button
               type="button"
               size="sm"
-              disabled={!choice || pending || (choice === 'reject' && text.trim().length === 0)}
-              onClick={submitDecision}
+              disabled={
+                !choice ||
+                pending ||
+                conflictsQuery.isFetching ||
+                (choice === 'approve' && hardConflict) ||
+                (choice === 'reject' && text.trim().length === 0)
+              }
+              onClick={() => void submitDecision()}
             >
               {pending ? 'Saving…' : 'Submit decision'}
             </Button>

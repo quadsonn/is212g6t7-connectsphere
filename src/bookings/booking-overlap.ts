@@ -2,7 +2,8 @@ import { BookingStatus, Prisma } from '@prisma/client';
 
 /**
  * The one definition of "this booking overlaps [from, to)", shared by every
- * story that asks it (US-17 availability, US-18 search, US-21 conflicts).
+ * story that asks it (US-16 calendar, US-17 availability, US-18 search,
+ * US-21/US-23 conflicts, US-24 overlap detection).
  *
  * Half-open on both sides: a booking ending exactly when the range starts, or
  * starting exactly when it ends, does not overlap. Back-to-back slots are not
@@ -13,6 +14,20 @@ import { BookingStatus, Prisma } from '@prisma/client';
  * have Postgres answer for every venue in one query instead of one per venue.
  */
 export function overlapping(from: Date, to: Date): Prisma.VenueBookingWhereInput {
+  return overlapsRange(from, to);
+}
+
+/**
+ * The same rule for any table with `start`/`end` columns — US-16 venue blocks
+ * as well as bookings — so there is still exactly one definition of it.
+ *
+ * The database mirrors it once more, unavoidably, in the US-24 EXCLUDE
+ * constraint: tsrange(start, end) with its default '[)' bounds.
+ */
+export function overlapsRange(
+  from: Date,
+  to: Date,
+): { start: { lt: Date }; end: { gt: Date } } {
   return { start: { lt: to }, end: { gt: from } };
 }
 

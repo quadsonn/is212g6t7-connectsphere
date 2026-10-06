@@ -16,9 +16,9 @@ export interface TimeSlot {
  * Bookable times run 6:00 AM–11:30 PM in 30-minute blocks, matching venue
  * operating hours — the same range the event request form offers.
  */
-function buildTimeSlots(): TimeSlot[] {
+function buildTimeSlots(fromHour = 6): TimeSlot[] {
   const slots: TimeSlot[] = [];
-  for (let minutes = 6 * 60; minutes < 24 * 60; minutes += 30) {
+  for (let minutes = fromHour * 60; minutes < 24 * 60; minutes += 30) {
     const hours24 = Math.floor(minutes / 60);
     const mins = minutes % 60;
     const value = `${String(hours24).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
@@ -39,6 +39,12 @@ export const TIME_SLOTS = buildTimeSlots();
 
 /** Start times stop half an hour before the last end time. */
 export const START_TIME_SLOTS = TIME_SLOTS.slice(0, -1);
+
+/**
+ * The whole day, 12:00 AM–11:30 PM, for things that are not bound by venue
+ * operating hours — e.g. a venue blocked out overnight for maintenance (US-16).
+ */
+export const FULL_DAY_TIME_SLOTS = buildTimeSlots(0);
 
 /**
  * The slot list, plus `current` if it falls off the 30-minute grid (e.g. a

@@ -9,6 +9,7 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
+import { overlapsRange } from './booking-overlap';
 import { BookingConflict } from './booking.types';
 import { BookingsService } from './bookings.service';
 import { CalendarQueryDto, CreateVenueBlockDto } from './dto/calendar.dto';
@@ -92,7 +93,7 @@ export class CalendarService {
       orderBy: { name: 'asc' },
     });
     const venueIds = venues.map((v) => v.id);
-    const inRange = { start: { lt: query.to }, end: { gt: query.from } };
+    const inRange = overlapsRange(query.from, query.to);
 
     const [bookings, blocks] = await Promise.all([
       this.prisma.venueBooking.findMany({
@@ -179,8 +180,7 @@ export class CalendarService {
         where: {
           venueId: venue.id,
           status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
-          start: { lt: dto.end },
-          end: { gt: dto.start },
+          ...overlapsRange(dto.start, dto.end),
         },
         include: { event: { select: { name: true } } },
         orderBy: { start: 'asc' },

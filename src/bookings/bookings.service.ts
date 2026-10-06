@@ -16,7 +16,7 @@ import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { overlapping } from './booking-overlap';
+import { overlapping, overlapsRange } from './booking-overlap';
 import { rescheduleWindow, TimeWindow } from './booking-reschedule';
 import {
   VenueBookingImpact,
@@ -36,11 +36,15 @@ import {
   BOOKABLE_EVENT_STATUSES,
   BOOKING_INCLUDE,
   BookingConflict,
+  BookingConflictReport,
+  BookingDecisionResult,
   BookingQueueEntry,
   BookingRequestResult,
   BookingView,
   BookingWarning,
   canDecide,
+  classifyConflicts,
+  HARD_CONFLICT_CODE,
   URGENT_WINDOW_DAYS,
 } from './booking.types';
 import {
@@ -329,7 +333,11 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /** US-23 AC-3 — approve, with an optional note. */
-  approve(user: AuthenticatedUser, id: string, dto: ApproveBookingDto): Promise<BookingView> {
+  approve(
+    user: AuthenticatedUser,
+    id: string,
+    dto: ApproveBookingDto,
+  ): Promise<BookingDecisionResult> {
     return this.recordDecision(
       user,
       id,
@@ -340,7 +348,11 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /** US-23 AC-2 — reject; the DTO guarantees a reason. */
-  reject(user: AuthenticatedUser, id: string, dto: RejectBookingDto): Promise<BookingView> {
+  reject(
+    user: AuthenticatedUser,
+    id: string,
+    dto: RejectBookingDto,
+  ): Promise<BookingDecisionResult> {
     return this.recordDecision(
       user,
       id,
@@ -351,7 +363,11 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /** US-23 AC-6 — overturn a decision as a new recorded action. */
-  async reverse(user: AuthenticatedUser, id: string, dto: ReverseBookingDto): Promise<BookingView> {
+  async reverse(
+    user: AuthenticatedUser,
+    id: string,
+    dto: ReverseBookingDto,
+  ): Promise<BookingDecisionResult> {
     const booking = await this.findDecidable(user, id);
     const outcome =
       booking.status === BookingStatus.APPROVED ? BookingStatus.REJECTED : BookingStatus.APPROVED;
@@ -375,58 +391,173 @@ export class BookingsService implements VenueBookingLookup {
     kind: BookingDecisionKind,
     outcome: BookingStatus,
     reason: string | null,
-  ): Promise<BookingView> {
+  ): Promise<BookingDecisionResult> {
     const { venueId } = await this.findDecidable(user, id);
+    let warnings: BookingWarning[] = [];
 
-    const decided = await this.prisma.$transaction(async (tx) => {
-      await this.lockVenue(tx, venueId);
+    const decided = await this.withExclusionAsConflict(id, () =>
+      this.prisma.$transaction(async (tx) => {
+        await this.lockVenue(tx, venueId);
 
-      // Re-read under the lock: the status may have changed since.
-      const current = await tx.venueBooking.findUniqueOrThrow({ where: { id } });
+        // Re-read under the lock: the status may have changed since.
+        const current = await tx.venueBooking.findUniqueOrThrow({ where: { id } });
 
-      if (!canDecide(kind, current.status, outcome)) {
-        throw new ConflictException(
-          kind === BookingDecisionKind.DECISION
-            ? `this booking request has already been ${current.status.toLowerCase()}`
-            : `a ${current.status.toLowerCase()} booking request cannot be reversed to ${outcome.toLowerCase()}`,
-        );
-      }
-
-      // Approving commits the slot, so it must still be free — of other
-      // confirmed bookings and (US-16) of blocked-out periods.
-      if (outcome === BookingStatus.APPROVED) {
-        const confirmed = (
-          await this.findOverlapping(tx, venueId, current.start, current.end)
-        ).filter((b) => b.status === BookingStatus.APPROVED && b.bookingId !== id);
-        const blocked = await this.findOverlappingBlocks(tx, venueId, current.start, current.end);
-
-        if (confirmed.length > 0 || blocked.length > 0) {
-          throw new ConflictException({
-            statusCode: 409,
-            error: 'Conflict',
-            message:
-              confirmed.length > 0
-                ? 'another confirmed booking already holds part of this time'
-                : 'this time falls in a period blocked out for this venue',
-            conflicts: [...confirmed, ...blocked],
-          });
+        if (!canDecide(kind, current.status, outcome)) {
+          throw new ConflictException(
+            kind === BookingDecisionKind.DECISION
+              ? `this booking request has already been ${current.status.toLowerCase()}`
+              : `a ${current.status.toLowerCase()} booking request cannot be reversed to ${outcome.toLowerCase()}`,
+          );
         }
-      }
 
-      await tx.bookingDecision.create({
-        data: { bookingId: id, decidedById: user.userId, kind, outcome, reason },
-      });
+        // US-24 AC-5/AC-7: approving commits the slot, so the overlap check runs
+        // again here, under the venue lock — never trusting what the page showed
+        // when it loaded. Hard conflicts (approved bookings, US-16 blocks) refuse
+        // the approval outright: there is no override, and nothing here moves or
+        // cancels another booking. Soft conflicts (pending requests) only warn.
+        if (outcome === BookingStatus.APPROVED) {
+          const report = await this.conflictsFor(tx, venueId, current.start, current.end, id);
+          if (report.hasHardConflict) {
+            throw this.hardConflict(report);
+          }
+          warnings = this.softWarnings(report);
+        }
 
-      return tx.venueBooking.update({
-        where: { id },
-        data: { status: outcome, decisionReason: reason },
-        include: BOOKING_INCLUDE,
-      });
-    });
+        await tx.bookingDecision.create({
+          data: { bookingId: id, decidedById: user.userId, kind, outcome, reason },
+        });
+
+        return tx.venueBooking.update({
+          where: { id },
+          data: { status: outcome, decisionReason: reason },
+          include: BOOKING_INCLUDE,
+        });
+      }),
+    );
 
     await this.notifyDecision(decided, kind);
 
-    return decided;
+    return { ...decided, warnings };
+  }
+
+  /**
+   * US-24 — the overlap report for one booking request, for the Venue Staff
+   * member deciding it. Read-only and stateless: it is recomputed on every
+   * call and on every approval attempt, so any future flow that changes a
+   * booking's times gets the re-check for free (AC-7).
+   *
+   * Scoped like every decision: a booking on a venue the caller does not
+   * manage reads as not found.
+   */
+  async findConflicts(user: AuthenticatedUser, id: string): Promise<BookingConflictReport> {
+    const booking = await this.findDecidable(user, id);
+    return this.conflictsFor(this.prisma, booking.venueId, booking.start, booking.end, booking.id);
+  }
+
+  /**
+   * US-24 — every live booking and block on the venue overlapping
+   * [start, end), classified. One indexed query per table (the
+   * [venueId, start, end] indexes), whatever the number of bookings — never a
+   * check per booking. `selfId` is excluded from its own report; null checks a
+   * proposed slot that has no booking yet.
+   *
+   * Buffer/turnaround time between bookings is intentionally not applied: the
+   * customer clarified it is not needed, superseding the AC that mentions it.
+   */
+  async conflictsFor(
+    db: Prisma.TransactionClient,
+    venueId: string,
+    start: Date,
+    end: Date,
+    selfId: string | null,
+  ): Promise<BookingConflictReport> {
+    const [bookings, blocks] = await Promise.all([
+      db.venueBooking.findMany({
+        where: {
+          venueId,
+          ...overlapping(start, end),
+          status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
+          ...(selfId ? { id: { not: selfId } } : {}),
+        },
+        orderBy: { start: 'asc' },
+        select: { id: true, status: true, start: true, end: true, event: { select: { name: true } } },
+      }),
+      db.venueBlock.findMany({
+        where: { venueId, ...overlapsRange(start, end) },
+        orderBy: { start: 'asc' },
+        select: { id: true, reason: true, start: true, end: true },
+      }),
+    ]);
+
+    return classifyConflicts(
+      selfId,
+      bookings.map((b) => ({ ...b, eventName: b.event.name })),
+      blocks.map((b) => ({ blockId: b.id, reason: b.reason, start: b.start, end: b.end })),
+    );
+  }
+
+  /**
+   * US-24 AC-5 — the 409 for a hard conflict. `conflicts` keeps the shape the
+   * US-21/US-23 screens already read; the classified report is alongside it.
+   */
+  private hardConflict(report: BookingConflictReport): ConflictException {
+    return new ConflictException({
+      statusCode: 409,
+      error: 'Conflict',
+      code: HARD_CONFLICT_CODE,
+      message:
+        report.hardConflicts.length > 0
+          ? 'another confirmed booking already holds part of this time'
+          : 'this time falls in a period blocked out for this venue',
+      conflicts: [
+        ...report.hardConflicts.map((c) => ({ kind: 'BOOKING' as const, status: BookingStatus.APPROVED, ...c })),
+        ...report.blocks.map((b) => ({
+          kind: 'BLOCK' as const,
+          bookingId: null,
+          eventName: null,
+          status: 'BLOCKED',
+          ...b,
+        })),
+      ],
+      report,
+    });
+  }
+
+  /** US-24 AC-3 — pending overlaps, reported but never blocking. */
+  private softWarnings(report: BookingConflictReport): BookingWarning[] {
+    if (report.softConflicts.length === 0) return [];
+    return [
+      {
+        code: 'OVERLAPS_PENDING_REQUEST',
+        message: 'other pending requests overlap this time; they can no longer be approved as they stand',
+        conflicts: report.softConflicts.map((c) => ({
+          kind: 'BOOKING' as const,
+          status: BookingStatus.REQUESTED,
+          ...c,
+        })),
+      },
+    ];
+  }
+
+  /**
+   * US-24 — the database backstop. If two writers race past the app check, the
+   * EXCLUDE constraint (VenueBooking_no_overlapping_approved) refuses the
+   * second with SQLSTATE 23P01. Prisma surfaces that as an unknown request
+   * error, so it is recognised by its SQLSTATE and turned into the same 409 as
+   * the app check, with a fresh report — never a 500.
+   */
+  private async withExclusionAsConflict<T>(id: string, run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      if (isExclusionViolation(error)) {
+        const booking = await this.prisma.venueBooking.findUniqueOrThrow({ where: { id } });
+        throw this.hardConflict(
+          await this.conflictsFor(this.prisma, booking.venueId, booking.start, booking.end, id),
+        );
+      }
+      throw error;
+    }
   }
 
   /**
@@ -487,8 +618,7 @@ export class BookingsService implements VenueBookingLookup {
       where: {
         venueId,
         status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
-        start: { lt: end },
-        end: { gt: start },
+        ...overlapsRange(start, end),
       },
       orderBy: { start: 'asc' },
       include: { event: { select: { name: true } } },
@@ -512,7 +642,7 @@ export class BookingsService implements VenueBookingLookup {
     end: Date,
   ): Promise<BookingConflict[]> {
     const blocks = await tx.venueBlock.findMany({
-      where: { venueId, start: { lt: end }, end: { gt: start } },
+      where: { venueId, ...overlapsRange(start, end) },
       orderBy: { start: 'asc' },
     });
 
@@ -652,4 +782,13 @@ export class BookingsService implements VenueBookingLookup {
       orderBy: { start: 'asc' },
     });
   }
+}
+
+/** SQLSTATE 23P01 — exclusion_violation. */
+function isExclusionViolation(error: unknown): boolean {
+  return (
+    (error instanceof Prisma.PrismaClientUnknownRequestError ||
+      error instanceof Prisma.PrismaClientKnownRequestError) &&
+    /\b23P01\b/.test(error.message)
+  );
 }

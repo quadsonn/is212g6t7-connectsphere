@@ -1,5 +1,7 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  BookingConflictReport,
+  BookingDecisionResult,
   BookingQueueEntry,
   BookingQueueQuery,
   BookingRequestPayload,
@@ -26,10 +28,15 @@ export const bookingsApi = {
   listForEvent: (eventId: string) =>
     apiClient.get<VenueBooking[]>(`/bookings/events/${eventId}`).then((r) => r.data),
 
-  // US-23 AC-3: approve, note optional.
+  // US-24: hard/soft overlaps for one request (Venue Staff of its venue only).
+  conflicts: (id: string) =>
+    apiClient.get<BookingConflictReport>(`/bookings/${id}/conflicts`).then((r) => r.data),
+
+  // US-23 AC-3: approve, note optional. US-24: 409 if a hard conflict exists
+  // at the moment of approval; soft conflicts come back as `warnings`.
   approve: (id: string, note?: string) =>
     apiClient
-      .post<VenueBooking>(`/bookings/${id}/approve`, note ? { note } : {})
+      .post<BookingDecisionResult>(`/bookings/${id}/approve`, note ? { note } : {})
       .then((r) => r.data),
 
   // US-23 AC-2: reject, reason required.

@@ -69,6 +69,81 @@ export interface BookingWarning {
 export type BookingRequestResult = BookingView & { warnings: BookingWarning[] };
 
 /**
+ * US-24 — an overlapping booking, as Venue Staff see it. Unlike the
+ * Coordinator-facing calendar (US-17), the event is named: AC-4 requires
+ * showing which booking is in the way.
+ */
+export interface OverlappingBooking {
+  bookingId: string;
+  eventName: string | null;
+  start: Date;
+  end: Date;
+}
+
+/** US-24 — a blocked-out period (US-16) overlapping the booking. */
+export interface OverlappingBlock {
+  blockId: string;
+  reason: string;
+  start: Date;
+  end: Date;
+}
+
+/**
+ * US-24 AC-2/AC-3 — every overlap on the venue, hard and soft kept apart.
+ *
+ * Hard: APPROVED bookings and blocked-out periods — approval is refused.
+ * Soft: REQUESTED (pending) bookings — a warning only, never a block.
+ * REJECTED bookings and the booking being checked are never listed.
+ */
+export interface BookingConflictReport {
+  hardConflicts: OverlappingBooking[];
+  softConflicts: OverlappingBooking[];
+  blocks: OverlappingBlock[];
+  hasHardConflict: boolean;
+}
+
+/** The 409 body for a hard conflict, from the app check or the database. */
+export const HARD_CONFLICT_CODE = 'BOOKING_HARD_CONFLICT';
+
+/** A decision's result: the booking, plus any soft-conflict warnings (US-24 AC-3). */
+export type BookingDecisionResult = BookingView & { warnings: BookingWarning[] };
+
+/**
+ * US-24 — sort overlapping rows into hard and soft. Pure, so the rules are
+ * unit-testable; the overlap itself is decided by the query (booking-overlap.ts).
+ */
+export function classifyConflicts(
+  selfId: string | null,
+  bookings: { id: string; status: BookingStatus; eventName: string | null; start: Date; end: Date }[],
+  blocks: OverlappingBlock[],
+): BookingConflictReport {
+  const hardConflicts: OverlappingBooking[] = [];
+  const softConflicts: OverlappingBooking[] = [];
+
+  for (const booking of bookings) {
+    // AC: a booking never conflicts with itself.
+    if (booking.id === selfId) continue;
+
+    const entry = {
+      bookingId: booking.id,
+      eventName: booking.eventName,
+      start: booking.start,
+      end: booking.end,
+    };
+    if (booking.status === BookingStatus.APPROVED) hardConflicts.push(entry);
+    else if (booking.status === BookingStatus.REQUESTED) softConflicts.push(entry);
+    // REJECTED holds nothing and is ignored.
+  }
+
+  return {
+    hardConflicts,
+    softConflicts,
+    blocks,
+    hasHardConflict: hardConflicts.length > 0 || blocks.length > 0,
+  };
+}
+
+/**
  * US-22 AC-5 — a pending request whose event starts within this many days is
  * flagged and moved to the top of the queue.
  *

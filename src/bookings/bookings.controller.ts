@@ -78,6 +78,18 @@ export class BookingsController {
     return this.bookingsService.findForEvent(user, eventId);
   }
 
+  /**
+   * US-24 — hard (approved/blocked) and soft (pending) overlaps for one
+   * request, for the Venue Staff member who manages its venue. Never cached:
+   * the screen re-asks before every approval.
+   */
+  @Get(':id/conflicts')
+  @RequirePermission(Resource.BOOKING, Action.DECIDE)
+  @Header('Cache-Control', 'no-store')
+  findConflicts(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.bookingsService.findConflicts(user, id);
+  }
+
   /** US-23 AC-3 — approve, optionally with a note. */
   @Post(':id/approve')
   @RequirePermission(Resource.BOOKING, Action.DECIDE)

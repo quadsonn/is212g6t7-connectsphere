@@ -1,4 +1,4 @@
-import { RoomLayout } from '@prisma/client';
+import { AccessibilityFeature, Facility, RoomLayout } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayUnique,
@@ -47,18 +47,43 @@ export class VenueDraftDto {
   @Type(() => Number)
   capacity?: number | null;
 
+  /** US-18 — the Facility vocabulary, so search can match it exactly. */
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
-  @MaxLength(100, { each: true })
-  facilities?: string[];
+  @ArrayUnique()
+  @IsEnum(Facility, {
+    each: true,
+    message: `facilities must contain only: ${Object.values(Facility).join(', ')}`,
+  })
+  facilities?: Facility[];
 
-  /** Free text, deliberately not the US-06 request enum — see the schema note. */
+  /** US-18 — anything a venue offers beyond the Facility list. */
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? null : value,
+  )
+  @IsString()
+  @MaxLength(1000)
+  facilityNotes?: string | null;
+
+  /** US-18 — the same AccessibilityFeature enum an Organiser requests from. */
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
-  @MaxLength(100, { each: true })
-  accessibilityFeatures?: string[];
+  @ArrayUnique()
+  @IsEnum(AccessibilityFeature, {
+    each: true,
+    message: `accessibilityFeatures must contain only: ${Object.values(AccessibilityFeature).join(', ')}`,
+  })
+  accessibilityFeatures?: AccessibilityFeature[];
+
+  /** US-18 — accessibility provision beyond the vocabulary (e.g. braille signage). */
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? null : value,
+  )
+  @IsString()
+  @MaxLength(1000)
+  accessibilityNotes?: string | null;
 
   /** US-13 — the shared US-06 lookup. */
   @IsOptional()

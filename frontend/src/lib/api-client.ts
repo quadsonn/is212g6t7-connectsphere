@@ -6,9 +6,15 @@ import { tokenStore } from './token';
 /**
  * The single axios instance every request goes through. Base URL is
  * configuration — never hardcode a host.
+ *
+ * In dev (`npm run dev`) requests go to the same origin under /api and Vite
+ * proxies them to VITE_API_URL, so the browser never makes a cross-origin call
+ * and CORS does not apply. A production build (including `vite preview`) has
+ * no dev-server proxy and calls VITE_API_URL directly, which is where CORS on
+ * the API still matters.
  */
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000',
+  baseURL: import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL ?? 'http://localhost:3000'),
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -60,6 +66,25 @@ const MESSAGE_OVERRIDES: Record<string, string> = {
   'proposedEnd must be later than proposedStart': 'The end time must be after the start time.',
   'expectedAttendance must be a whole number': 'Expected attendance must be a whole number.',
   'expectedAttendance must be greater than zero': 'Expected attendance must be greater than zero.',
+  // US-21 — venue booking requests.
+  'start must be a valid ISO 8601 date': 'Please enter a valid date and start time.',
+  'start must be in the future': 'The booking must start in the future.',
+  'end must be a valid ISO 8601 date': 'Please enter a valid end time.',
+  'end must be later than start': 'The end time must be after the start time.',
+  'venueId is required': 'Please choose a venue.',
+  'the requested time overlaps a confirmed booking for this venue':
+    'This venue is already booked for part of that time.',
+  // US-23 — booking decisions.
+  'a reason is required to reject this booking request': 'Please give a reason for rejecting this request.',
+  'a reason is required to reverse this decision': 'Please give a reason for reversing this decision.',
+  'another confirmed booking already holds part of this time':
+    'Another confirmed booking already holds part of this time, so this one cannot be approved.',
+  // US-16 — blocked-out periods.
+  'the requested time falls in a period blocked out for this venue':
+    'This venue is blocked out for part of that time.',
+  'this time falls in a period blocked out for this venue':
+    'This time is blocked out for the venue, so the request cannot be approved.',
+  'a reason is required to block out time': 'Please give a reason for blocking out this time.',
 };
 
 /** Turns a camelCase field name into a human label, e.g. "proposedStart" → "start". */

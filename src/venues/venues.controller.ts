@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   HttpCode,
@@ -9,7 +10,9 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 
@@ -21,8 +24,12 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { BrowseVenuesDto } from './dto/browse-venues.dto';
+import { VenueAvailabilityQueryDto } from './dto/venue-availability.dto';
+import { VenueSearchDto } from './dto/venue-search.dto';
+import { VenueSuitabilityQueryDto } from './dto/venue-suitability.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('venues')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -45,6 +52,20 @@ export class VenuesController {
     @Query() query: BrowseVenuesDto,
   ) {
     return this.venuesService.findAllForUser(user, query);
+  }
+
+  /**
+   * US-18 — search published venues by date, capacity, accessibility and
+   * facilities. Declared before ':id' so "search" is not read as an id.
+   */
+  @Get('search')
+  @RequirePermission(Resource.VENUE, Action.CHECK_AVAILABILITY)
+  @Header('Cache-Control', 'no-store')
+  search(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: VenueSearchDto,
+  ) {
+    return this.venuesService.search(user, query);
   }
 
   /** AC-2 — create a draft, however incomplete. */
@@ -75,6 +96,66 @@ export class VenuesController {
   @HttpCode(HttpStatus.OK)
   publish(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.venuesService.publish(user, id);
+  }
+
+  @Delete(':id')
+  @Roles(Role.VENUE_STAFF)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.venuesService.remove(user, id);
+  }
+
+  @Post(':id/images')
+  @Roles(Role.VENUE_STAFF)
+  @UseInterceptors(FileInterceptor('file'))
+  addImage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.venuesService.addImage(user, id, file);
+  }
+
+  @Delete(':id/images')
+  @Roles(Role.VENUE_STAFF)
+  removeImage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body('imageUrl') imageUrl: string,
+  ) {
+    return this.venuesService.removeImage(user, id, imageUrl);
+  }
+
+  /**
+   * US-17 — free / tentative / booked per day, for a Coordinator deciding
+   * whether to request this venue. Never says which event holds a day.
+   */
+  @Get(':id/availability')
+  @RequirePermission(Resource.VENUE, Action.CHECK_AVAILABILITY)
+  // A stale calendar would show a taken day as free.
+  @Header('Cache-Control', 'no-store')
+  getAvailability(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query() query: VenueAvailabilityQueryDto,
+  ) {
+    return this.venuesService.getAvailability(user, id, query);
+  }
+
+  /**
+   * US-20 — per-requirement suitability flags for one venue against one of
+   * the Coordinator's events. Advisory only: never a precondition for
+   * requesting the venue (AC-5).
+   */
+  @Get(':id/suitability')
+  @RequirePermission(Resource.VENUE, Action.CHECK_AVAILABILITY)
+  @Header('Cache-Control', 'no-store')
+  getSuitability(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query() query: VenueSuitabilityQueryDto,
+  ) {
+    return this.venuesService.getSuitability(user, id, query.eventId);
   }
 
   /** Declared after the literal routes above so "drafts" is not read as an id. */

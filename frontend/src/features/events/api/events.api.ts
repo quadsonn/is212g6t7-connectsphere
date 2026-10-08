@@ -1,10 +1,22 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  CatalogueOption,
+  ChangeRequest,
+  ChangeRequestApproval,
+  ChangeRequestPayload,
+  ChangeRequestReview,
+  PendingChangeRequestSummary,
+  ContactSummary,
   CoordinatorRequestView,
   EventRequest,
   EventRequestPayload,
+  EventChangeHistory,
   OrganiserRequestView,
+  PlanningUpdatePayload,
+  PlanningUpdateResult,
   PublicEventView,
+  TechnicalRequirementsPayload,
+  RelatedEventView,
 } from '@/types/api';
 
 /**
@@ -51,6 +63,38 @@ export const eventsApi = {
   submitDraft: (id: string) =>
     apiClient.post<EventRequest>(`/events/${id}/submit`).then((r) => r.data),
 
+  /** US-37 — propose a change to one of the Organiser's submitted events. */
+  requestChange: (id: string, body: ChangeRequestPayload) =>
+    apiClient.post<ChangeRequest>(`/events/${id}/change-requests`, body).then((r) => r.data),
+
+  /** US-38 AC-1 — pending change requests on the Coordinator's own events. */
+  listPendingChangeRequests: () =>
+    apiClient
+      .get<PendingChangeRequestSummary[]>('/events/change-requests/pending')
+      .then((r) => r.data),
+
+  /** US-38 AC-2 / AC-6 — one request, beside the event, with any warnings. */
+  getChangeRequestForReview: (requestId: string) =>
+    apiClient
+      .get<ChangeRequestReview>(`/events/change-requests/${requestId}`)
+      .then((r) => r.data),
+
+  /** US-38 AC-4 — approve: the event takes the proposed values. */
+  approveChangeRequest: (requestId: string) =>
+    apiClient
+      .post<ChangeRequestApproval>(`/events/change-requests/${requestId}/approve`)
+      .then((r) => r.data),
+
+  /** US-38 AC-3 — reject, with a reason. */
+  rejectChangeRequest: (requestId: string, reason: string) =>
+    apiClient
+      .post<ChangeRequest>(`/events/change-requests/${requestId}/reject`, { reason })
+      .then((r) => r.data),
+
+  /** US-37 — the equipment catalogue, for the change request picker. */
+  listEquipmentCatalogue: () =>
+    apiClient.get<CatalogueOption[]>('/events/equipment-catalogue').then((r) => r.data),
+
   /** The Coordinator's queue, in full detail. */
   listAssigned: () =>
     apiClient.get<CoordinatorRequestView[]>('/events/assigned').then((r) => r.data),
@@ -82,6 +126,47 @@ export const eventsApi = {
     apiClient
       .post<EventRequest>(`/events/${id}/return`, { reason })
       .then((r) => r.data),
+
+  /** US-25 — APPROVED -> PLANNING. */
+  startPlanning: (id: string) =>
+    apiClient
+      .post<CoordinatorRequestView>(`/events/${id}/start-planning`)
+      .then((r) => r.data),
+
+  /** US-25 — update an event's information during planning. */
+  updatePlanning: (id: string, body: PlanningUpdatePayload) =>
+    apiClient
+      .patch<PlanningUpdateResult>(`/events/${id}/planning`, body)
+      .then((r) => r.data),
+
+  /** US-27 AC-1 — the Coordinators this event can be handed to. */
+  getReassignmentCandidates: (id: string) =>
+    apiClient
+      .get<ContactSummary[]>(`/events/${id}/reassignment-candidates`)
+      .then((r) => r.data),
+
+  /** US-27 — hand the event to another Coordinator. */
+  reassign: (id: string, coordinatorId: string) =>
+    apiClient
+      .post<CoordinatorRequestView>(`/events/${id}/reassign`, { coordinatorId })
+      .then((r) => r.data),
+
+  /** US-28 — record equipment and technical requirements during planning. */
+  setTechnicalRequirements: (id: string, body: TechnicalRequirementsPayload) =>
+    apiClient
+      .patch<PlanningUpdateResult>(`/events/${id}/technical-requirements`, body)
+      .then((r) => r.data),
+
+  /** US-26 — the event's change history, oldest first. */
+  getHistory: (id: string) =>
+    apiClient.get<EventChangeHistory>(`/events/${id}/history`).then((r) => r.data),
+
+  /** US-25 AC-3 — Venue Staff / Technical Support: events related to their work. */
+  listRelated: () =>
+    apiClient.get<RelatedEventView[]>('/events').then((r) => r.data),
+
+  getRelated: (id: string) =>
+    apiClient.get<RelatedEventView>(`/events/${id}`).then((r) => r.data),
 
   respondToClarification: (id: string, response: string) =>
     apiClient

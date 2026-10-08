@@ -25,6 +25,12 @@ import { RespondClarificationDto } from './dto/respond-clarification.dto';
 import { RejectRequestDto } from './dto/reject-request.dto';
 import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
+import { UpdatePlanningDto } from './dto/update-planning.dto';
+import { TechnicalRequirementsDto } from './dto/technical-requirements.dto';
+import { CreateChangeRequestDto } from './dto/create-change-request.dto';
+import { RejectChangeRequestDto } from './dto/reject-change-request.dto';
+import { EventsChangeReviewService } from './events-change-review.service';
+import { EventsChangeRequestService } from './events-change-request.service';
 import { EventsService } from './events.service';
 
 /**
@@ -35,7 +41,11 @@ import { EventsService } from './events.service';
 @Controller('events')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class EventsController {
-  constructor(private readonly eventsService: EventsService) {}
+  constructor(
+    private readonly eventsService: EventsService,
+    private readonly changeRequests: EventsChangeRequestService,
+    private readonly changeReviews: EventsChangeReviewService,
+  ) {}
 
   /**
    * US-03 — submit a new event request (AC-1, AC-2, AC-5).
@@ -181,6 +191,108 @@ export class EventsController {
     return this.eventsService.assignCoordinator(user, id, dto);
   }
 
+  /**
+   * US-25 prerequisite — APPROVED -> PLANNING, through setStatus(). Without
+   * it no event could reach the status the story edits.
+   */
+  @Post(':id/start-planning')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  startPlanning(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.eventsService.startPlanning(user, id);
+  }
+
+  /**
+   * US-25 — update an event's information during planning.
+   *
+   * A separate route from PATCH /events/:id: that one is the Organiser's
+   * draft edit, with a different role, a different set of editable statuses,
+   * and no review flag. Sharing it would mean branching on role in the
+   * service.
+   */
+  @Patch(':id/planning')
+  @Roles(Role.EVENT_COORDINATOR)
+  updateDuringPlanning(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdatePlanningDto,
+  ) {
+    return this.eventsService.updateDuringPlanning(user, id, dto);
+  }
+
+  /**
+   * US-28 — record the equipment and technical support an event in planning
+   * needs. Its own route rather than part of PATCH :id/planning: the
+   * equipment is a list of rows, not a field on the event.
+   */
+  @Patch(':id/technical-requirements')
+  @Roles(Role.EVENT_COORDINATOR)
+  setTechnicalRequirements(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: TechnicalRequirementsDto,
+  ) {
+    return this.eventsService.setTechnicalRequirements(user, id, dto);
+  }
+
+  /** US-26 — the event's change history, oldest first. */
+  @Get(':id/history')
+  @Roles(Role.EVENT_COORDINATOR)
+  getChangeHistory(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.eventsService.getChangeHistory(user, id);
+  }
+
+  /**
+   * US-27 AC-1 — who the responsible Coordinator may hand this event to.
+   * Scoped to the event so the same ownership check guards both routes.
+   */
+  @Get(':id/reassignment-candidates')
+  @Roles(Role.EVENT_COORDINATOR)
+  getReassignmentCandidates(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.eventsService.getReassignmentCandidates(user, id);
+  }
+
+  /**
+   * US-27 — the responsible Coordinator confirms handing the event to a
+   * colleague. A separate route from US-10's PATCH /events/:id/coordinator:
+   * that one lets any Coordinator claim any event silently, this one is
+   * limited to the current owner and notifies and records the change.
+   */
+  @Post(':id/reassign')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  reassign(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: AssignCoordinatorDto,
+  ) {
+    return this.eventsService.reassign(user, id, dto);
+  }
+
+  /**
+   * US-37 — the Organiser proposes a change to one of their submitted events.
+   * Saved as PENDING beside the event; the event itself is not edited.
+   */
+  @Post(':id/change-requests')
+  @Roles(Role.EVENT_ORGANISER)
+  @HttpCode(HttpStatus.CREATED)
+  requestChange(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreateChangeRequestDto,
+  ) {
+    return this.changeRequests.request(user, id, dto);
+  }
+
   /** US-04 AC-4 — DRAFT -> SUBMITTED, through setStatus(). */
   @Post(':id/submit')
   @Roles(Role.EVENT_ORGANISER)
@@ -212,6 +324,62 @@ export class EventsController {
   @Roles(Role.EVENT_ORGANISER)
   findMine(@CurrentUser() user: AuthenticatedUser) {
     return this.eventsService.findMyRequests(user);
+  }
+
+  /**
+   * US-38 AC-1 — pending change requests on the Coordinator's own events.
+   * Declared before the :id routes; "change-requests" is a literal segment.
+   */
+  @Get('change-requests/pending')
+  @Roles(Role.EVENT_COORDINATOR)
+  listPendingChangeRequests(@CurrentUser() user: AuthenticatedUser) {
+    return this.changeReviews.listPending(user);
+  }
+
+  /** US-38 AC-2 / AC-6 — one request: current vs proposed, reason, warnings. */
+  @Get('change-requests/:requestId')
+  @Roles(Role.EVENT_COORDINATOR)
+  getChangeRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.changeReviews.getForReview(user, requestId);
+  }
+
+  /** US-38 AC-4 — approve: the event takes the proposed values. */
+  @Post('change-requests/:requestId/approve')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  approveChangeRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.changeReviews.approve(user, requestId);
+  }
+
+  /** US-38 AC-3 / AC-5 — reject, with a reason; the event is unchanged. */
+  @Post('change-requests/:requestId/reject')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  rejectChangeRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId') requestId: string,
+    @Body() dto: RejectChangeRequestDto,
+  ) {
+    return this.changeReviews.reject(user, requestId, dto);
+  }
+
+  /**
+   * US-37 — the equipment catalogue, as the change request form's picker.
+   *
+   * MUST be declared before @Get(':id'). A dedicated Organiser route because
+   * GET /equipment is Technical Support only; this returns just id, type,
+   * description and location.
+   */
+  @Get('equipment-catalogue')
+  @Roles(Role.EVENT_ORGANISER)
+  listEquipmentCatalogue() {
+    return this.changeRequests.listCatalogue();
   }
 
   /**

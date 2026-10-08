@@ -40,8 +40,8 @@ describe('US-14 update an existing venue (e2e)', () => {
         name: 'Sandbox Auditorium',
         location: 'School of Computing, Level 1',
         capacity: 420,
-        facilities: ['Stage'],
-        accessibilityFeatures: ['Step-free access', 'Hearing loop'],
+        facilities: ['STAGE'],
+        accessibilityFeatures: ['STEP_FREE_ACCESS', 'HEARING_LOOP'],
         supportedLayouts: ['THEATRE', 'CLASSROOM'],
         operatingInfo: 'Mon-Fri, 08:00-22:00',
         status: VenueStatus.PUBLISHED,
@@ -118,15 +118,15 @@ describe('US-14 update an existing venue (e2e)', () => {
 
       const res = await patch(venue.id, {
         capacity: 500,
-        facilities: ['Stage', 'PA system'],
-        accessibilityFeatures: ['Step-free access', 'Hearing loop', 'Braille signage'],
+        facilities: ['STAGE', 'SOUND_SYSTEM'],
+        accessibilityFeatures: ['STEP_FREE_ACCESS', 'HEARING_LOOP', 'ACCESSIBLE_RESTROOMS'],
         supportedLayouts: ['THEATRE', 'CLASSROOM', 'BANQUET'],
         operatingInfo: 'Mon-Sun, 07:00-23:00',
       }).expect(200);
 
       expect(res.body).toMatchObject({
         capacity: 500,
-        facilities: ['Stage', 'PA system'],
+        facilities: ['STAGE', 'SOUND_SYSTEM'],
         supportedLayouts: ['THEATRE', 'CLASSROOM', 'BANQUET'],
         operatingInfo: 'Mon-Sun, 07:00-23:00',
       });

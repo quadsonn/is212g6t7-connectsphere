@@ -223,10 +223,39 @@ describe('AccessControlService (US-02)', () => {
   });
 
   describe('roles with no event grant', () => {
-    it('refuses to build a filter for Venue Staff', () => {
-      expect(() => service.scopedEventFilter(userWith(Role.VENUE_STAFF))).toThrow(
-        ForbiddenException,
-      );
+    it('refuses to build a filter for an action Venue Staff do not hold', () => {
+      expect(() =>
+        service.scopedEventFilter(userWith(Role.VENUE_STAFF), Action.UPDATE),
+      ).toThrow(ForbiddenException);
+    });
+  });
+
+  describe('US-25 AC-3: RELATED scope', () => {
+    it('limits Venue Staff to events with a venue booking', () => {
+      expect(service.scopedEventFilter(userWith(Role.VENUE_STAFF))).toEqual({
+        venueBookings: { some: {} },
+      });
+    });
+
+    it('limits Technical Support to events with equipment work for them', () => {
+      expect(service.scopedEventFilter(userWith(Role.TECHNICAL_SUPPORT_STAFF))).toEqual({
+        OR: [
+          { equipmentReservations: { some: {} } },
+          // US-28 AC-3: recorded requirements, before anything is reserved.
+          { equipmentRequirements: { some: {} } },
+          { technicalSupportNeeds: { not: null } },
+        ],
+      });
+    });
+
+    it('gives staff the full record, not the attendee projection', () => {
+      const projected = service.projectEvent(
+        userWith(Role.VENUE_STAFF),
+        anEvent(),
+      ) as Record<string, unknown>;
+
+      expect(projected).toHaveProperty('expectedAttendance');
+      expect(projected).toHaveProperty('equipmentNeeds');
     });
   });
 });

@@ -1,4 +1,10 @@
-import type { EventStatus, VenueStatus } from '@/types/api';
+import type {
+  BookingStatus,
+  DayStatus,
+  EquipmentStatus,
+  EventStatus,
+  VenueStatus,
+} from '@/types/api';
 
 /**
  * The status colour language, defined once.
@@ -40,6 +46,26 @@ export const VENUE_STATUS_STYLES: Record<VenueStatus, StatusStyle> = {
   PUBLISHED: { label: 'Published', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
 };
 
+/** US-29 AC-2 — an equipment item's operational status. */
+export const EQUIPMENT_STATUS_STYLES: Record<EquipmentStatus, StatusStyle> = {
+  OPERATIONAL: { label: 'Operational', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
+  UNDER_MAINTENANCE: {
+    label: 'Under maintenance',
+    className: 'bg-amber-50 text-amber-900 ring-amber-400',
+  },
+  OUT_OF_SERVICE: { label: 'Out of service', className: 'bg-red-50 text-red-800 ring-red-300' },
+};
+
+/**
+ * Venue booking requests. REQUESTED is presented as "Pending" — the word
+ * US-21 AC-3 uses — while the API keeps the enum value.
+ */
+export const BOOKING_STATUS_STYLES: Record<BookingStatus, StatusStyle> = {
+  REQUESTED: { label: 'Pending', className: 'bg-amber-50 text-amber-900 ring-amber-400' },
+  APPROVED: { label: 'Approved', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
+  REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-800 ring-red-300' },
+};
+
 /** Statuses shown in the Coordinator's retained request list. */
 export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
   'DRAFT',
@@ -47,6 +73,8 @@ export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
   'UNDER_REVIEW',
   'AWAITING_CLARIFICATION',
   'APPROVED',
+  'PLANNING',
+  'AWAITING_ARRANGEMENTS',
   'CONFIRMED',
   'COMPLETED',
   'CANCELLED',
@@ -61,3 +89,51 @@ export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
  * resubmitted without demoting it to DRAFT first.
  */
 export const EDITABLE_EVENT_STATUSES: EventStatus[] = ['DRAFT', 'RETURNED'];
+
+/**
+ * US-37 — the statuses an Organiser may request a change in. Mirrors
+ * CHANGEABLE_STATUSES in the backend (events/change-request.rules.ts), which
+ * is what actually enforces it; this only decides whether to offer the button.
+ */
+export const CHANGEABLE_EVENT_STATUSES: EventStatus[] = [
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'APPROVED',
+  'RETURNED',
+  'AWAITING_CLARIFICATION',
+  'PLANNING',
+  'AWAITING_ARRANGEMENTS',
+  'CONFIRMED',
+];
+
+/**
+ * US-17 — availability calendar days. Each also carries an icon and label in
+ * the calendar itself, so the three states survive greyscale.
+ */
+export const DAY_STATUS_STYLES: Record<DayStatus, StatusStyle> = {
+  free: { label: 'Free', className: 'bg-ink-50 text-ink-800' },
+  tentative: { label: 'Tentatively held', className: 'bg-amber-100 text-amber-900' },
+  // Struck through as well as shaded, so "booked" survives greyscale.
+  booked: { label: 'Booked', className: 'bg-ink-200 text-ink-500 line-through' },
+};
+
+/**
+ * US-25 — statuses in which the Coordinator may update the event's
+ * information. Mirrors PLANNING_STATUSES in event-status.machine.ts.
+ */
+export const PLANNING_EVENT_STATUSES: EventStatus[] = ['PLANNING', 'AWAITING_ARRANGEMENTS'];
+
+/**
+ * US-10/US-27 — statuses at which a Coordinator may be assigned or the event
+ * reassigned. Mirrors ASSIGNABLE_STATUSES in event-status.machine.ts.
+ */
+export const ASSIGNABLE_EVENT_STATUSES: EventStatus[] = [
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'AWAITING_CLARIFICATION',
+  'RETURNED',
+  'APPROVED',
+  'PLANNING',
+  'AWAITING_ARRANGEMENTS',
+  'CONFIRMED',
+];

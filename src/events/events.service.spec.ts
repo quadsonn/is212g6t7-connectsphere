@@ -4,6 +4,7 @@ import { EventStatus, Role } from '@prisma/client';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Resource, Action, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
@@ -12,6 +13,9 @@ import { CreateEventRequestDto } from './dto/create-event-request.dto';
 describe('EventsService (US-03)', () => {
   let prisma: {
     eventRequest: { create: jest.Mock; update: jest.Mock; findMany: jest.Mock };
+    equipmentRequirement: { findMany: jest.Mock };
+    eventChangeRequest: { findFirst: jest.Mock };
+    registration: { groupBy: jest.Mock; findMany: jest.Mock };
     $transaction: jest.Mock;
   };
   let access: {
@@ -55,6 +59,13 @@ describe('EventsService (US-03)', () => {
         update: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
       },
+      equipmentRequirement: { findMany: jest.fn().mockResolvedValue([]) },
+      // US-37: an Organiser's event view looks for a pending change request.
+      eventChangeRequest: { findFirst: jest.fn().mockResolvedValue(null) },
+      registration: {
+        groupBy: jest.fn().mockResolvedValue([]),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       // Run the callback against the same mock client.
       $transaction: jest.fn((callback) => callback(prisma)),
     };
@@ -70,6 +81,7 @@ describe('EventsService (US-03)', () => {
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
+      { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
     );
   });
 
@@ -220,9 +232,13 @@ describe('EventsService (US-03)', () => {
       const event = draftRow({ status: EventStatus.SUBMITTED });
       access.assertEventAccess.mockResolvedValue(event);
 
-      await expect(service.findOneForUser(organiser, 'event-1')).resolves.toBe(
-        event,
-      );
+      // US-28 attaches the equipment requirements alongside the record.
+      await expect(service.findOneForUser(organiser, 'event-1')).resolves.toEqual({
+        ...event,
+        equipmentRequirements: [],
+        pendingChangeRequest: null,
+        latestChangeDecision: null,
+      });
     });
 
     it('scopes the list query rather than filtering after the fact', async () => {
@@ -231,6 +247,100 @@ describe('EventsService (US-03)', () => {
       expect(prisma.eventRequest.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { organiserId: 'organiser-1' } }),
       );
+    });
+  });
+
+  describe("Attendee list: only events they can register for", () => {
+    const attendee: AuthenticatedUser = {
+      userId: 'att-1',
+      role: Role.ATTENDEE,
+      jti: 'jti-a',
+    };
+    const DAY = 24 * 60 * 60 * 1000;
+    const inDays = (days: number) => new Date(Date.now() + days * DAY);
+
+    const open = (id: string, overrides: Record<string, unknown> = {}) => ({
+      id,
+      status: EventStatus.CONFIRMED,
+      registrationEnabled: true,
+      proposedStart: inDays(30),
+      expectedAttendance: 10,
+      registrationOpensAt: null,
+      registrationClosesAt: null,
+      withdrawalCutoffAt: null,
+      ...overrides,
+    });
+
+    const idsFor = async () =>
+      (await service.findAllForUser(attendee)).map((e) => (e as { id: string }).id);
+
+    it('keeps a confirmed, open, non-full event', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([open('ok')]);
+      await expect(idsFor()).resolves.toEqual(['ok']);
+    });
+
+    it('hides events that are not CONFIRMED or have registration disabled', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([
+        open('planning', { status: EventStatus.PLANNING }),
+        open('approved', { status: EventStatus.APPROVED }),
+        open('disabled', { registrationEnabled: false }),
+      ]);
+      await expect(idsFor()).resolves.toEqual([]);
+    });
+
+    it('hides events that have already started or ended', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([
+        open('past', { proposedStart: inDays(-2) }),
+      ]);
+      await expect(idsFor()).resolves.toEqual([]);
+    });
+
+    it('hides events that start within 3 days (registration closed)', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([
+        open('soon', { proposedStart: inDays(2) }),
+        open('edge', { proposedStart: inDays(4) }),
+      ]);
+      await expect(idsFor()).resolves.toEqual(['edge']);
+    });
+
+    it('hides events more than 2 months away (not open yet)', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([
+        open('far', { proposedStart: inDays(90) }),
+      ]);
+      await expect(idsFor()).resolves.toEqual([]);
+    });
+
+    it('hides full events, counting only REGISTERED rows', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([
+        open('full', { expectedAttendance: 2 }),
+        open('room', { expectedAttendance: 3 }),
+      ]);
+      prisma.registration.groupBy.mockResolvedValue([
+        { eventId: 'full', _count: { _all: 2 } },
+        { eventId: 'room', _count: { _all: 2 } },
+      ]);
+
+      await expect(idsFor()).resolves.toEqual(['room']);
+      expect(prisma.registration.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: 'REGISTERED' }),
+        }),
+      );
+    });
+
+    it('hides events the attendee is already registered for', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([open('mine'), open('other')]);
+      prisma.registration.findMany.mockResolvedValue([{ eventId: 'mine' }]);
+      await expect(idsFor()).resolves.toEqual(['other']);
+    });
+
+    it('does not apply the filter to staff roles', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([
+        open('planning', { status: EventStatus.PLANNING }),
+      ]);
+      const result = await service.findAllForUser(organiser);
+      expect(result).toHaveLength(1);
+      expect(prisma.registration.groupBy).not.toHaveBeenCalled();
     });
   });
 

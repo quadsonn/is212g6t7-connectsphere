@@ -33,8 +33,8 @@ describe('US-15 browse the venue catalogue (e2e)', () => {
         name: 'A venue',
         location: 'Somewhere',
         capacity: 100,
-        facilities: ['Stage'],
-        accessibilityFeatures: ['Step-free access'],
+        facilities: ['STAGE'],
+        accessibilityFeatures: ['STEP_FREE_ACCESS'],
         supportedLayouts: ['THEATRE'],
         operatingInfo: 'Mon-Fri, 08:00-22:00',
         status: VenueStatus.PUBLISHED,
@@ -128,8 +128,8 @@ describe('US-15 browse the venue catalogue (e2e)', () => {
 
       expect(res.body).toMatchObject({
         name: 'Sandbox Auditorium',
-        facilities: ['Stage'],
-        accessibilityFeatures: ['Step-free access'],
+        facilities: ['STAGE'],
+        accessibilityFeatures: ['STEP_FREE_ACCESS'],
         supportedLayouts: ['THEATRE'],
         operatingInfo: 'Mon-Fri, 08:00-22:00',
       });

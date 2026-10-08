@@ -3,6 +3,7 @@ import { EventStatus, Role } from '@prisma/client';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
@@ -16,6 +17,7 @@ describe('EventsService status view (US-05)', () => {
       create: jest.Mock;
       update: jest.Mock;
     };
+    eventChangeRequest: { findFirst: jest.Mock };
     $transaction: jest.Mock;
   };
   let access: {
@@ -52,6 +54,8 @@ describe('EventsService status view (US-05)', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
+      // US-37: the Organiser's single-event view looks for a pending change request.
+      eventChangeRequest: { findFirst: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn((cb) => cb(prisma)),
     };
     access = {
@@ -65,6 +69,7 @@ describe('EventsService status view (US-05)', () => {
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
+      { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
     );
   });
 

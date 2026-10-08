@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 
+import { BookingsModule } from '../bookings/bookings.module';
+import { EquipmentModule } from '../equipment/equipment.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { EventsChangeRequestService } from './events-change-request.service';
+import { EventsChangeReviewService } from './events-change-review.service';
 import { EventsController } from './events.controller';
 import { EventsService } from './events.service';
 
@@ -9,9 +13,11 @@ import { EventsService } from './events.service';
  * US-02 adds the read paths; create/submit arrive with US-04.
  */
 @Module({
-  imports: [NotificationsModule],
+  // EquipmentModule: US-33 releases an event's equipment on cancellation.
+  // BookingsModule: US-38 moves an event's bookings when its dates change.
+  imports: [NotificationsModule, EquipmentModule, BookingsModule],
   controllers: [EventsController],
-  providers: [EventsService],
+  providers: [EventsService, EventsChangeRequestService, EventsChangeReviewService],
   exports: [EventsService],
 })
 export class EventsModule {}

@@ -1,0 +1,197 @@
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { BookingStatus, Role, VenueStatus } from '@prisma/client';
+
+import { VenueBookingLookup } from '../bookings/booking-impact';
+import { AccessControlService } from '../common/access/access-control.service';
+import { Action, Resource, Scope } from '../common/access/permission.types';
+import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EventsService } from '../events/events.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
+import { VenueSearchDto } from './dto/venue-search.dto';
+import { VenuesService } from './venues.service';
+
+/**
+ * US-18 — how a search becomes a query. With Prisma mocked, these pin the
+ * filter the service builds; test/venues-search.e2e-spec.ts proves Postgres
+ * returns the right venues for it.
+ */
+describe('US-18 VenuesService.search', () => {
+  let prisma: { venue: { findMany: jest.Mock } };
+  let access: { requireScope: jest.Mock };
+  let service: VenuesService;
+
+  const coordinator: AuthenticatedUser = {
+    userId: 'coord-1',
+    role: Role.EVENT_COORDINATOR,
+    jti: 'j1',
+  };
+
+  const where = () => prisma.venue.findMany.mock.calls[0][0].where;
+
+  beforeEach(() => {
+    prisma = { venue: { findMany: jest.fn().mockResolvedValue([]) } };
+    access = { requireScope: jest.fn().mockReturnValue(Scope.PUBLIC) };
+
+    service = new VenuesService(
+      prisma as unknown as PrismaService,
+      access as unknown as AccessControlService,
+      {} as unknown as VenueBookingLookup,
+      {} as unknown as NotificationsService,
+      {} as unknown as SupabaseStorageService,
+      {} as unknown as EventsService,
+    );
+  });
+
+  it('US-18: requires the availability grant, not plain VENUE/READ', async () => {
+    await service.search(coordinator, {});
+
+    expect(access.requireScope).toHaveBeenCalledWith(
+      coordinator,
+      Resource.VENUE,
+      Action.CHECK_AVAILABILITY,
+    );
+  });
+
+  it('US-18: refuses a caller without the grant', async () => {
+    access.requireScope.mockImplementation(() => {
+      throw new ForbiddenException();
+    });
+
+    await expect(service.search(coordinator, {})).rejects.toThrow(ForbiddenException);
+    expect(prisma.venue.findMany).not.toHaveBeenCalled();
+  });
+
+  it('US-18: an empty search filters on publication only', async () => {
+    await service.search(coordinator, {});
+
+    expect(where()).toEqual({ status: VenueStatus.PUBLISHED });
+  });
+
+  it('US-15 AC-3 (restored after US-18): matches the name case-insensitively', async () => {
+    await service.search(coordinator, { name: 'audit' });
+
+    expect(where().name).toEqual({ contains: 'audit', mode: 'insensitive' });
+  });
+
+  it('US-18 AC-2: minimum capacity is inclusive (gte)', async () => {
+    await service.search(coordinator, { minCapacity: 100 });
+
+    expect(where().capacity).toEqual({ gte: 100 });
+  });
+
+  it('US-18 AC-3/AC-4: accessibility and facilities require every value (hasEvery)', async () => {
+    await service.search(coordinator, {
+      accessibility: ['STEP_FREE_ACCESS', 'HEARING_LOOP'],
+      facilities: ['PROJECTOR', 'WIFI'],
+    });
+
+    expect(where().accessibilityFeatures).toEqual({
+      hasEvery: ['STEP_FREE_ACCESS', 'HEARING_LOOP'],
+    });
+    expect(where().facilities).toEqual({ hasEvery: ['PROJECTOR', 'WIFI'] });
+  });
+
+  it('US-18: an empty list places no constraint', async () => {
+    await service.search(coordinator, { accessibility: [], facilities: [] });
+
+    expect(where()).toEqual({ status: VenueStatus.PUBLISHED });
+  });
+
+  it('US-18 AC-1: excludes venues with an APPROVED booking overlapping the slot, in the same query', async () => {
+    await service.search(coordinator, {
+      from: '2027-03-10T01:00:00Z',
+      to: '2027-03-10T09:00:00Z',
+    });
+
+    expect(where().bookings).toEqual({
+      none: {
+        status: BookingStatus.APPROVED,
+        start: { lt: new Date('2027-03-10T09:00:00Z') },
+        end: { gt: new Date('2027-03-10T01:00:00Z') },
+      },
+    });
+    expect(prisma.venue.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('US-18 AC-5: combines every active filter in one where clause', async () => {
+    await service.search(coordinator, {
+      from: '2027-03-10T01:00:00Z',
+      to: '2027-03-10T09:00:00Z',
+      minCapacity: 50,
+      accessibility: ['STEP_FREE_ACCESS'],
+      facilities: ['STAGE'],
+    });
+
+    expect(Object.keys(where()).sort()).toEqual([
+      'accessibilityFeatures',
+      'bookings',
+      'capacity',
+      'facilities',
+      'status',
+    ]);
+    expect(where().status).toBe(VenueStatus.PUBLISHED);
+  });
+
+  it.each([[{ from: '2027-03-10T01:00:00Z' }], [{ to: '2027-03-10T09:00:00Z' }]])(
+    'US-18 AC-1: rejects half a date range %j',
+    async (query) => {
+      await expect(service.search(coordinator, query)).rejects.toThrow(BadRequestException);
+    },
+  );
+
+  it('US-18 AC-6: returns an empty array when nothing matches', async () => {
+    await expect(service.search(coordinator, { minCapacity: 99999 })).resolves.toEqual([]);
+  });
+
+  describe('VenueSearchDto', () => {
+    const parse = async (query: Record<string, unknown>) => {
+      const dto = plainToInstance(VenueSearchDto, query);
+      return { dto, errors: await validate(dto) };
+    };
+
+    it('US-18: reads a comma-separated list', async () => {
+      const { dto, errors } = await parse({ facilities: 'PROJECTOR,WIFI' });
+
+      expect(errors).toHaveLength(0);
+      expect(dto.facilities).toEqual(['PROJECTOR', 'WIFI']);
+    });
+
+    it('US-18: reads a repeated key', async () => {
+      const { dto, errors } = await parse({ accessibility: ['STEP_FREE_ACCESS', 'HEARING_LOOP'] });
+
+      expect(errors).toHaveLength(0);
+      expect(dto.accessibility).toEqual(['STEP_FREE_ACCESS', 'HEARING_LOOP']);
+    });
+
+    it('US-15 AC-3 (restored after US-18): treats a blank name as no filter', async () => {
+      const { dto, errors } = await parse({ name: '   ' });
+
+      expect(errors).toHaveLength(0);
+      expect(dto.name).toBeUndefined();
+    });
+
+    it('US-18: coerces minCapacity from the query string', async () => {
+      const { dto, errors } = await parse({ minCapacity: '120' });
+
+      expect(errors).toHaveLength(0);
+      expect(dto.minCapacity).toBe(120);
+    });
+
+    it.each([
+      [{ facilities: 'Projector' }, 'facilities'],
+      [{ accessibility: 'ramp' }, 'accessibility'],
+      [{ minCapacity: '0' }, 'minCapacity'],
+      [{ minCapacity: 'lots' }, 'minCapacity'],
+      [{ from: '10 March' }, 'from'],
+      [{ from: '2027-03-10T09:00:00Z', to: '2027-03-10T08:00:00Z' }, 'to'],
+    ])('US-18: rejects %j', async (query, field) => {
+      const { errors } = await parse(query);
+
+      expect(errors.map((e) => e.property)).toContain(field);
+    });
+  });
+});

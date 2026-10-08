@@ -67,13 +67,28 @@ describe('US-13 venue drafts and publishing (e2e)', () => {
     http().post('/venues/drafts').set('Authorization', as(who)).send(body);
 
   describe('AC-1: every venue detail can be specified', () => {
+    it('US-18: rejects facilities or accessibility outside the controlled vocabulary', async () => {
+      for (const body of [
+        { facilities: ['Marquee points'] },
+        { accessibilityFeatures: ['Step-free access'] },
+      ]) {
+        const res = await http()
+          .post('/venues/drafts')
+          .set('Authorization', as('staffA'))
+          .send(body)
+          .expect(400);
+
+        expect(JSON.stringify(res.body.message)).toMatch(/must contain only/);
+      }
+    });
+
     it('accepts location, capacity, facilities, accessibility, layouts and hours', async () => {
       const res = await createDraft({
         name: 'Campus Green',
         location: 'Outdoor, adjacent to Library',
         capacity: 800,
-        facilities: ['Power supply', 'Marquee points'],
-        accessibilityFeatures: ['Step-free access', 'Accessible toilets nearby'],
+        facilities: ['POWER_OUTLETS'],
+        accessibilityFeatures: ['STEP_FREE_ACCESS', 'ACCESSIBLE_RESTROOMS'],
         supportedLayouts: ['BANQUET', 'THEATRE'],
         operatingInfo: 'Daily, subject to weather',
       }).expect(201);
@@ -82,8 +97,8 @@ describe('US-13 venue drafts and publishing (e2e)', () => {
         name: 'Campus Green',
         location: 'Outdoor, adjacent to Library',
         capacity: 800,
-        facilities: ['Power supply', 'Marquee points'],
-        accessibilityFeatures: ['Step-free access', 'Accessible toilets nearby'],
+        facilities: ['POWER_OUTLETS'],
+        accessibilityFeatures: ['STEP_FREE_ACCESS', 'ACCESSIBLE_RESTROOMS'],
         supportedLayouts: ['BANQUET', 'THEATRE'],
         operatingInfo: 'Daily, subject to weather',
       });

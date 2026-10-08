@@ -18,6 +18,7 @@ describe('status write audit (US-11)', () => {
   /** The single sanctioned writer of each model's status column. */
   const ALLOWED_FILE = 'events/events.service.ts';
   const ALLOWED_VENUE_FILE = 'venues/venues.service.ts';
+  const ALLOWED_RESERVATION_FILE = 'equipment/equipment-reservations.service.ts';
 
   const sourceFiles = (dir: string): string[] =>
     readdirSync(dir).flatMap((entry) => {
@@ -67,6 +68,30 @@ describe('status write audit (US-11)', () => {
     });
 
     expect(offenders).toEqual([ALLOWED_VENUE_FILE]);
+  });
+
+  it('writes EquipmentReservation.status in exactly one file (US-32/US-33)', () => {
+    // A commitment is created APPROVED (US-32) and leaves that status only by
+    // release on cancellation (US-33) — both in the reservations service.
+    const offenders = files.flatMap((file) => {
+      const matches =
+        readFileSync(file, 'utf8').match(statusWriteOn('equipmentReservation')) ?? [];
+      return matches.map(() => relative(SRC, file));
+    });
+
+    expect([...new Set(offenders)]).toEqual([ALLOWED_RESERVATION_FILE]);
+  });
+
+  it('confines the reservation release to the RELEASABLE_STATUSES filter (US-33 AC-4)', () => {
+    const source = readFileSync(join(SRC, ALLOWED_RESERVATION_FILE), 'utf8');
+    const releaseBody = source.slice(
+      source.indexOf('async releaseForCancelledEvent('),
+      source.indexOf('async findReleased('),
+    );
+
+    expect(releaseBody).toMatch(
+      /where:\s*\{\s*eventId,\s*status:\s*\{\s*in:\s*\[\.\.\.RELEASABLE_STATUSES\]\s*\}\s*\}/,
+    );
   });
 
   it('guards the venue write behind the publishable check', () => {

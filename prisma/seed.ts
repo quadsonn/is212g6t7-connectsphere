@@ -10,8 +10,12 @@ import 'dotenv/config';
 
 import {
   AccessibilityFeature,
+  EquipmentStatus,
+  BookingStatus,
   EventStatus,
   PrismaClient,
+  RegistrationStatus,
+  ReservationStatus,
   Role,
   RoomLayout,
   VenueStatus,
@@ -105,6 +109,74 @@ async function main() {
     });
   }
 
+  // US-34/US-35: events to try the Attendee flow against. Dates are relative to
+  // the day the seed runs and are refreshed on every re-run, so they stay inside
+  // (or deliberately outside) the registration window: opens 2 months before
+  // the start, closes 3 days before it. Only the first three should appear on
+  // the Attendee page; the last three exist to prove they are hidden.
+  const DAY = 24 * 60 * 60 * 1000;
+  const inDays = (days: number, hour = 9) => {
+    const d = new Date(Date.now() + days * DAY);
+    d.setUTCHours(hour, 0, 0, 0);
+    return d;
+  };
+
+  const registrationScenarios = [
+    { name: 'Career Fair', days: 20, expectedAttendance: 150, note: 'visible' },
+    { name: 'Welcome Mixer', days: 12, expectedAttendance: 80, note: 'visible' },
+    { name: 'Intimate Workshop (2 places)', days: 8, expectedAttendance: 2, note: 'visible; hides itself once two people register' },
+    { name: 'Sold-Out Gala (full)', days: 15, expectedAttendance: 1, note: 'hidden: full' },
+    { name: 'Last-Minute Briefing (closed)', days: 2, expectedAttendance: 40, note: 'hidden: closes 3 days before' },
+    { name: 'Next Year Kickoff (not open yet)', days: 120, expectedAttendance: 200, note: 'hidden: opens 2 months before' },
+  ];
+
+  for (const scenario of registrationScenarios) {
+    const start = inDays(scenario.days);
+    const data = {
+      ...base,
+      name: scenario.name,
+      status: EventStatus.CONFIRMED,
+      expectedAttendance: scenario.expectedAttendance,
+      proposedStart: start,
+      proposedEnd: new Date(start.getTime() + 8 * 60 * 60 * 1000),
+      registrationEnabled: true,
+    };
+    const existing = await prisma.eventRequest.findFirst({ where: { name: scenario.name } });
+    if (existing) {
+      await prisma.eventRequest.update({
+        where: { id: existing.id },
+        data: {
+          status: data.status,
+          expectedAttendance: data.expectedAttendance,
+          proposedStart: data.proposedStart,
+          proposedEnd: data.proposedEnd,
+          registrationEnabled: true,
+        },
+      });
+    } else {
+      await prisma.eventRequest.create({ data });
+    }
+  }
+
+  // Fill the 1-place "full" event with the second attendee, so capacity is
+  // exercised for real. Attendee 1 stays free to register for the visible events.
+  const attendee2 = await prisma.user.findUniqueOrThrow({
+    where: { email: 'attendee2@connectsphere.local' },
+  });
+  const fullEvent = await prisma.eventRequest.findFirstOrThrow({
+    where: { name: 'Sold-Out Gala (full)' },
+  });
+  await prisma.registration.upsert({
+    where: { eventId_attendeeId: { eventId: fullEvent.id, attendeeId: attendee2.id } },
+    update: { status: RegistrationStatus.REGISTERED, withdrawnAt: null },
+    create: {
+      eventId: fullEvent.id,
+      attendeeId: attendee2.id,
+      status: RegistrationStatus.REGISTERED,
+      phone: '+65 9000 0002',
+    },
+  });
+
   // Venues have no endpoint yet (the UI mocks them), but seeding keeps the
   // dev database coherent for when E4 lands.
   const venueStaff = await prisma.user.findUniqueOrThrow({
@@ -124,8 +196,8 @@ async function main() {
     await prisma.venue.create({
       data: {
         ...venue,
-        facilities: ['Power supply'],
-        accessibilityFeatures: ['Step-free access'],
+        facilities: ['POWER_OUTLETS'],
+        accessibilityFeatures: ['STEP_FREE_ACCESS'],
         supportedLayouts: [RoomLayout.THEATRE],
         operatingInfo: 'Mon–Fri, 08:00–22:00',
         // US-13: drafts are visible only to their manager.
@@ -134,7 +206,136 @@ async function main() {
     });
   }
 
-  console.log(`Seeded ${USERS.length} users (password: ${PASSWORD}), ${events.length} events, ${venues.length} venues.`);
+  // US-29: the Technical Support catalogue.
+  const equipment = [
+    {
+      type: 'Wireless microphone',
+      description: 'Handheld UHF mic, 4-hour battery life.',
+      location: 'AV Store Room, Level 1',
+      totalQuantity: 24,
+      operationalStatus: EquipmentStatus.OPERATIONAL,
+    },
+    {
+      type: 'Portable PA system',
+      description: 'Battery-powered speaker with mixer input.',
+      location: 'AV Store Room, Level 1',
+      totalQuantity: 6,
+      operationalStatus: EquipmentStatus.OPERATIONAL,
+    },
+    {
+      type: 'Projector (4K)',
+      description: 'Ceiling-mountable, HDMI and USB-C input.',
+      location: 'AV Store Room, Level 2',
+      totalQuantity: 8,
+      operationalStatus: EquipmentStatus.UNDER_MAINTENANCE,
+    },
+    {
+      type: 'Folding table',
+      description: '6ft rectangular, seats 6.',
+      location: 'Furniture Store, Basement',
+      totalQuantity: 40,
+      operationalStatus: EquipmentStatus.OPERATIONAL,
+    },
+    {
+      type: 'Extension reel',
+      description: '10m, 4-socket.',
+      location: 'AV Store Room, Level 1',
+      totalQuantity: 15,
+      operationalStatus: EquipmentStatus.OUT_OF_SERVICE,
+    },
+  ];
+
+  for (const item of equipment) {
+    const existing = await prisma.equipment.findFirst({ where: { type: item.type } });
+    if (existing) continue;
+
+    await prisma.equipment.create({ data: item });
+  }
+
+  // US-25/US-26: two events in planning, so the planning edit and change
+  // history can be tried locally.
+  //  - "Engineering Open House" has an APPROVED venue booking and equipment
+  //    reservation: date, attendance, layout, accessibility or equipment
+  //    edits are flagged for review.
+  //  - "Hackathon Kickoff" has only REQUESTED arrangements: every edit is an
+  //    ordinary edit.
+  // Both are visible to Venue Staff and Technical Support (US-25 AC-3).
+  // "Alumni Homecoming" above is APPROVED, to try "Start planning" on.
+  const auditorium = await prisma.venue.findFirstOrThrow({ where: { name: 'Sandbox Auditorium' } });
+  const projector =
+    (await prisma.equipment.findFirst({ where: { type: 'Laser projector' } })) ??
+    (await prisma.equipment.create({
+      data: { type: 'Laser projector', totalQuantity: 6 },
+    }));
+
+  const planningEvents = [
+    {
+      name: 'Engineering Open House',
+      start: '2026-11-12T09:00:00Z',
+      end: '2026-11-12T16:00:00Z',
+      booking: BookingStatus.APPROVED,
+      reservation: ReservationStatus.APPROVED,
+    },
+    {
+      name: 'Hackathon Kickoff',
+      start: '2026-11-26T18:00:00Z',
+      end: '2026-11-26T22:00:00Z',
+      booking: BookingStatus.REQUESTED,
+      reservation: ReservationStatus.REQUESTED,
+    },
+  ];
+
+  for (const event of planningEvents) {
+    const existing = await prisma.eventRequest.findFirst({ where: { name: event.name } });
+    if (existing) continue;
+
+    const start = new Date(event.start);
+    const end = new Date(event.end);
+
+    const created = await prisma.eventRequest.create({
+      data: {
+        ...base,
+        name: event.name,
+        status: EventStatus.PLANNING,
+        proposedStart: start,
+        proposedEnd: end,
+        programme: '09:00 Welcome\n10:00 Lab tours\n12:00 Lunch\n13:30 Project demos',
+      },
+    });
+
+    await prisma.venueBooking.create({
+      data: { eventId: created.id, venueId: auditorium.id, start, end, status: event.booking },
+    });
+    await prisma.equipmentReservation.create({
+      data: {
+        eventId: created.id,
+        equipmentId: projector.id,
+        quantity: 2,
+        start,
+        end,
+        status: event.reservation,
+      },
+    });
+
+    // US-28: requirements already recorded on the event with an approved
+    // reservation, so editing them shows the review flag.
+    if (event.reservation === ReservationStatus.APPROVED) {
+      await prisma.equipmentRequirement.createMany({
+        data: [
+          { eventId: created.id, equipmentType: 'Laser projector', quantity: 2 },
+          { eventId: created.id, equipmentType: 'Wireless microphone', quantity: 6, notes: 'Lapel' },
+        ],
+      });
+      await prisma.eventRequest.update({
+        where: { id: created.id },
+        data: { technicalSupportNeeds: 'On-site AV technician for the full day.' },
+      });
+    }
+  }
+
+  console.log(
+    `Seeded ${USERS.length} users (password: ${PASSWORD}), ${events.length + planningEvents.length} events, ${venues.length} venues.`,
+  );
 }
 
 main()

@@ -1,67 +1,57 @@
-import type { Equipment, EquipmentReservationSummary } from '@/types/api';
-
-/**
- * MOCK — no equipment endpoints exist yet (E6).
- *
- * TODO(E6): replace both functions with real calls, e.g.
- *   listRequests: () => apiClient.get<...>('/equipment/reservations')...
- *   listInventory: () => apiClient.get<Equipment[]>('/equipment')...
- *
- * NOTE: EquipmentReservationSummary flattens the event name onto the
- * reservation. The backend has no such response shape today — whether the API
- * returns it joined or the client fetches events separately is an open
- * question for the E6 story.
- */
-const SAMPLE_REQUESTS: EquipmentReservationSummary[] = [
-  {
-    id: 'res-1',
-    eventId: 'event-1',
-    eventName: 'Freshman Orientation 2026',
-    equipmentType: 'Wireless microphone',
-    quantity: 6,
-    start: '2026-10-01T08:00:00.000Z',
-    end: '2026-10-01T18:00:00.000Z',
-    status: 'REQUESTED',
-  },
-  {
-    id: 'res-2',
-    eventId: 'event-2',
-    eventName: 'Industry Networking Night',
-    equipmentType: 'Portable PA system',
-    quantity: 2,
-    start: '2026-10-14T10:00:00.000Z',
-    end: '2026-10-14T22:00:00.000Z',
-    status: 'REQUESTED',
-  },
-  {
-    id: 'res-3',
-    eventId: 'event-3',
-    eventName: 'Capstone Showcase',
-    equipmentType: 'Projector (4K)',
-    quantity: 4,
-    start: '2026-11-02T09:00:00.000Z',
-    end: '2026-11-02T17:00:00.000Z',
-    status: 'APPROVED',
-  },
-];
-
-const SAMPLE_INVENTORY: Equipment[] = [
-  { id: 'eq-1', type: 'Wireless microphone', totalQuantity: 24, technicalSpecs: 'UHF, 4h battery' },
-  { id: 'eq-2', type: 'Portable PA system', totalQuantity: 6, technicalSpecs: '400W, 2 speakers' },
-  { id: 'eq-3', type: 'Projector (4K)', totalQuantity: 8, technicalSpecs: '4000 lumens, HDMI/USB-C' },
-];
-
-const LATENCY_MS = 300;
+import { apiClient } from '@/lib/api-client';
+import type {
+  AvailabilityQuery,
+  BrowseEquipmentQuery,
+  CommitReservationPayload,
+  CommittedReservation,
+  Equipment,
+  EquipmentListItem,
+  EventRequirementDetails,
+  EventRequirements,
+  ItemAvailability,
+  ReleasedReservation,
+} from '@/types/api';
 
 export const equipmentApi = {
-  listRequests: async (): Promise<EquipmentReservationSummary[]> => {
-    await new Promise((resolve) => setTimeout(resolve, LATENCY_MS));
-    return SAMPLE_REQUESTS;
-  },
-  listInventory: async (): Promise<Equipment[]> => {
-    await new Promise((resolve) => setTimeout(resolve, LATENCY_MS));
-    return SAMPLE_INVENTORY;
-  },
-};
+  // US-29 AC-1/AC-3/AC-4: the catalogue, searchable and sortable.
+  listCatalogue: (query: BrowseEquipmentQuery = {}) =>
+    apiClient.get<EquipmentListItem[]>('/equipment', { params: query }).then((r) => r.data),
 
-export const EQUIPMENT_ENDPOINT_READY = false;
+  // US-29 AC-2: one item's full detail, including operational status.
+  getById: (id: string) =>
+    apiClient.get<Equipment>(`/equipment/${id}`).then((r) => r.data),
+
+  // US-30: free units of one item for a date and time.
+  checkAvailability: (equipmentId: string, query: AvailabilityQuery) =>
+    apiClient
+      .get<ItemAvailability>(`/equipment/${equipmentId}/availability`, { params: query })
+      .then((r) => r.data),
+
+  // US-31 AC-4: submitted events that have equipment requirements.
+  listRequirements: () =>
+    apiClient.get<EventRequirements[]>('/equipment/requirements').then((r) => r.data),
+
+  // US-31 AC-1/AC-2/AC-3: one event's requirements.
+  getRequirements: (eventId: string) =>
+    apiClient
+      .get<EventRequirements>(`/equipment/requirements/${eventId}`)
+      .then((r) => r.data),
+
+  // US-31: "View more details" — the full event, under the same rule.
+  getRequirementDetails: (eventId: string) =>
+    apiClient
+      .get<EventRequirementDetails>(`/equipment/requirements/${eventId}/details`)
+      .then((r) => r.data),
+
+  // US-32: commit a quantity of an item to an event.
+  commitReservation: (payload: CommitReservationPayload) =>
+    apiClient
+      .post<CommittedReservation>('/equipment/reservations', payload)
+      .then((r) => r.data),
+
+  // US-33 AC-3: reservations released because their event was cancelled.
+  listReleased: () =>
+    apiClient
+      .get<ReleasedReservation[]>('/equipment/reservations/released')
+      .then((r) => r.data),
+};

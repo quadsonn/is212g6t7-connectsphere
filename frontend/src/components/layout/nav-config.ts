@@ -6,6 +6,8 @@ import {
   ClipboardList,
   LayoutDashboard,
   Building2,
+  ShieldCheck,
+  Users,
   MapPin,
   Repeat2,
   Wrench,
@@ -56,6 +58,16 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: 'Browse events', to: '/events', icon: Ticket },
     { label: 'My registrations', to: '/events/mine', icon: CalendarCheck },
   ],
+  // Requirement changes 5 and 6 — accounts exist; screens are to come.
+  EVENT_COORDINATOR_LEAD: [
+    { label: 'Overview', to: '/lead', icon: LayoutDashboard },
+    { label: 'Unassigned queue', to: '/lead/unassigned', icon: ClipboardList, comingSoon: true },
+    { label: 'Coordinator assignments', to: '/lead/assignments', icon: Users, comingSoon: true },
+  ],
+  SAFETY_OFFICER: [
+    { label: 'Overview', to: '/safety', icon: LayoutDashboard },
+    { label: 'Safety checks', to: '/safety/checks', icon: ShieldCheck, comingSoon: true },
+  ],
 };
 
 /** Where each role lands after signing in. */
@@ -65,4 +77,6 @@ export const HOME_BY_ROLE: Record<Role, string> = {
   VENUE_STAFF: '/venues',
   TECHNICAL_SUPPORT_STAFF: '/equipment',
   ATTENDEE: '/events',
+  EVENT_COORDINATOR_LEAD: '/lead',
+  SAFETY_OFFICER: '/safety',
 };

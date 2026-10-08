@@ -135,6 +135,23 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
       ],
       [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
     },
+
+    // Requirement change 5 — "overseeing incoming event requests and
+    // assigning them to individual Event Coordinators".
+    //
+    // Account only for now: the unassigned queue, assignment and the
+    // supervision view are their own stories. Until those land this role is
+    // default-denied everywhere except its own notifications.
+    [Role.EVENT_COORDINATOR_LEAD]: {
+      [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
+    },
+
+    // Requirement change 6 — "reviewing the operational safety of planned
+    // events". Account only for now; the Operational Safety Check is its own
+    // story.
+    [Role.SAFETY_OFFICER]: {
+      [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
+    },
   },
 );
 

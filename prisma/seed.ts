@@ -37,6 +37,9 @@ const USERS = [
   { email: 'tech2@connectsphere.local', name: 'Nadia Technical', role: Role.TECHNICAL_SUPPORT_STAFF },
   { email: 'attendee@connectsphere.local', name: 'Sam Attendee', role: Role.ATTENDEE },
   { email: 'attendee2@connectsphere.local', name: 'Omar Attendee', role: Role.ATTENDEE },
+  // Requirement changes 5 and 6.
+  { email: 'lead@connectsphere.local', name: 'Elena Coordinator Lead', role: Role.EVENT_COORDINATOR_LEAD },
+  { email: 'safety@connectsphere.local', name: 'Kofi Safety Officer', role: Role.SAFETY_OFFICER },
 ];
 
 async function main() {

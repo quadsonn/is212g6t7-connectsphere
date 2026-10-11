@@ -26,6 +26,8 @@
     "prisma:studio": "prisma studio",
     "prisma:reset": "prisma migrate reset",
     "prisma:seed": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed.ts",
+    "demo:reset": "node scripts/demo.mjs reset",
+    "dev:demo": "node scripts/demo.mjs dev",
     "prisma:seed:roles": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-new-roles.ts",
     "venues:vocabulary-review": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/review-venue-vocabulary.ts"
   },

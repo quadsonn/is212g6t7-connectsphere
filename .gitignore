@@ -32,3 +32,6 @@ yarn-error.log*
 # build info
 *.tsbuildinfo
 frontend/vite.config.ts
+
+# W10 demo: per-machine local database address (see .env.demo.example)
+.env.demo

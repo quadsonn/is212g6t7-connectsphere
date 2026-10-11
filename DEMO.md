@@ -43,7 +43,7 @@ Your normal `npm run dev` is unchanged and still uses `.env` (Supabase).
 
 ## Demo data (see `prisma/seed-demo.ts`)
 
-Dates are fixed, in UTC.
+Dates and times are fixed, in Singapore time (+08:00).
 
 - **Robotics Showcase 2027**: Planning, **120 attendees**, 10 Mar 2027 09:00–17:00.
 - **Flow 1, venue suitability:** Seminar Room B (**80**) is not suitable.

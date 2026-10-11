@@ -25,7 +25,7 @@
  *
  *  Flow 3 — booking conflict (Coordinator)
  *    Main Auditorium has an APPROVED booking for "Alumni Evening 2027" on
- *    10 Mar 2027 13:00–20:00 (UTC).
+ *    10 Mar 2027 13:00–20:00 (Singapore time, +08:00).
  *    Requesting Main Auditorium for the Showcase 09:00–17:00 overlaps -> blocked.
  *    Requesting it 09:00–13:00 only touches the edge -> allowed (boundary;
  *    bookings are half-open, so ending exactly as another starts is fine).
@@ -60,7 +60,9 @@ const prisma = new PrismaClient();
 
 const PASSWORD = '12345678';
 
-// UTC throughout, so the data is identical whatever timezone a laptop is in.
+// Singapore time (+08:00), written explicitly: the team's laptops are on SGT,
+// so these show as the intended 09:00–17:00 etc. The fixed offset still makes
+// the stored instants identical on every machine.
 const at = (iso: string) => new Date(iso);
 
 const USERS = [
@@ -116,8 +118,8 @@ async function main() {
       name: 'Robotics Showcase 2027',
       purpose: 'Showcase final-year robotics projects to industry partners.',
       description: 'Project demos, judging and an awards session.',
-      proposedStart: at('2027-03-10T09:00:00Z'),
-      proposedEnd: at('2027-03-10T17:00:00Z'),
+      proposedStart: at('2027-03-10T09:00:00+08:00'),
+      proposedEnd: at('2027-03-10T17:00:00+08:00'),
       expectedAttendance: 120,
       status: EventStatus.PLANNING,
       equipmentNeeds: 'Projectors for the demo stations and microphones for judges.',
@@ -131,8 +133,8 @@ async function main() {
       name: 'Alumni Evening 2027',
       purpose: 'Reconnect alumni with the faculty.',
       description: 'Talks followed by a networking dinner.',
-      proposedStart: at('2027-03-10T13:00:00Z'),
-      proposedEnd: at('2027-03-10T20:00:00Z'),
+      proposedStart: at('2027-03-10T13:00:00+08:00'),
+      proposedEnd: at('2027-03-10T20:00:00+08:00'),
       expectedAttendance: 150,
       status: EventStatus.PLANNING,
     },
@@ -145,8 +147,8 @@ async function main() {
       name: 'Hackathon Kickoff 2027',
       purpose: 'Launch the spring hackathon.',
       description: 'Briefing, team formation and a keynote.',
-      proposedStart: at('2027-04-14T18:00:00Z'),
-      proposedEnd: at('2027-04-14T22:00:00Z'),
+      proposedStart: at('2027-04-14T18:00:00+08:00'),
+      proposedEnd: at('2027-04-14T22:00:00+08:00'),
       expectedAttendance: 60,
       status: EventStatus.APPROVED,
     },
@@ -157,8 +159,8 @@ async function main() {
     data: {
       eventId: alumni.id,
       venueId: auditorium.id,
-      start: at('2027-03-10T13:00:00Z'),
-      end: at('2027-03-10T20:00:00Z'),
+      start: at('2027-03-10T13:00:00+08:00'),
+      end: at('2027-03-10T20:00:00+08:00'),
       status: BookingStatus.APPROVED,
       requestedById: users.coordinator,
       expectedAttendance: 150,
@@ -189,8 +191,8 @@ async function main() {
       eventId: alumni.id,
       equipmentId: projector.id,
       quantity: 3,
-      start: at('2027-03-10T13:00:00Z'),
-      end: at('2027-03-10T20:00:00Z'),
+      start: at('2027-03-10T13:00:00+08:00'),
+      end: at('2027-03-10T20:00:00+08:00'),
       status: ReservationStatus.APPROVED,
     },
   });

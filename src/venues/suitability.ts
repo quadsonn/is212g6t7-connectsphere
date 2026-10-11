@@ -134,7 +134,7 @@ export function checkCapacity(venue: SuitabilityVenue, event: SuitabilityEvent) 
   } else if (expectedAttendance === null) {
     status = CheckStatus.NOT_RECORDED;
   } else {
-    status = expectedAttendance <= venueCapacity ? CheckStatus.MET : CheckStatus.UNMET;
+    status = expectedAttendance < venueCapacity ? CheckStatus.MET : CheckStatus.UNMET;
   }
 
   return { status, venueCapacity, expectedAttendance };

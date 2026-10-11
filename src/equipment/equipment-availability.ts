@@ -158,7 +158,7 @@ export function computeItemAvailability(input: {
     unavailableQuantity,
     reservedQuantity,
     availableQuantity,
-    fullyAvailable: requestedQuantity <= availableQuantity,
+    fullyAvailable: requestedQuantity < availableQuantity,
     shortfall: Math.max(0, requestedQuantity - availableQuantity),
   };
 }

@@ -618,7 +618,8 @@ export class BookingsService implements VenueBookingLookup {
       where: {
         venueId,
         status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
-        ...overlapsRange(start, end),
+        start: { lte: end },
+        end: { gte: start },
       },
       orderBy: { start: 'asc' },
       include: { event: { select: { name: true } } },

@@ -58,3 +58,21 @@ Dates are fixed, in UTC.
 
 - Never run `npx prisma migrate reset` yourself for the demo — use `npm run demo:reset`.
 - Never put a Supabase address in `.env.demo`.
+
+## Running the generated tests (`demo-tests/`)
+
+Agent-generated `.spec.ts` files go in `demo-tests/tests/`. The runner uses
+your installed Google Chrome; there's no extra browser download.
+
+```bash
+cd demo-tests && npm install      # once
+npm test                          # from demo-tests/, while `npm run dev:demo` runs
+npm run test:headed               # same, with a visible browser
+npm run report                    # open the HTML report of the last run
+```
+
+Run `npm run demo:reset` before each test run. A test should **pass** with
+`w10_demo` running and **fail** with `w10_demo-bugs` running. A test that
+passes on both is useless.
+
+`tests/smoke.spec.ts` checks the setup itself. It should pass on both branches.

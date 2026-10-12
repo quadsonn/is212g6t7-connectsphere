@@ -541,9 +541,19 @@ model Registration {
   status RegistrationStatus @default(REGISTERED)
 
   // US-34 AC-2: the form's fields. Name and email come from the User record.
-  phone               String
+  phone String
+
+  // The form no longer asks for dietary requirements. The column is kept, not
+  // dropped, so values already collected are not lost; nothing reads or writes
+  // it any more.
   dietaryRequirements String?
-  accessibilityNeeds  String?
+
+  // The standard option picked from the same list the Organiser's event form
+  // uses, if any. Null when none was needed or when the need is not on the
+  // list, in which case it is described in accessibilityNeeds.
+  accessibilityFeature AccessibilityFeature?
+  // Free text: the Attendee's own request, or detail beyond the option chosen.
+  accessibilityNeeds   String?
 
   // US-36: when the attendee withdrew; null while registered.
   withdrawnAt DateTime?

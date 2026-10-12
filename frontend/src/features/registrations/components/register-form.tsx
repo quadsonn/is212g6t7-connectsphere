@@ -1,14 +1,26 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Field, Textarea } from '@/components/ui/form';
+import { Field, Select, Textarea } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { ErrorState } from '@/components/ui/states';
 import { apiErrorMessage, fieldErrors } from '@/lib/api-client';
-import type { RegistrationView } from '@/types/api';
+import {
+  ACCESSIBILITY_FEATURE_LABELS,
+  ACCESSIBILITY_FEATURES,
+  type AccessibilityFeature,
+  type RegistrationView,
+} from '@/types/api';
 import { useRegister } from '../hooks/use-registrations';
 
-const FIELDS = ['phone', 'dietaryRequirements', 'accessibilityNeeds'] as const;
+const FIELDS = ['phone', 'accessibilityFeature', 'accessibilityNeeds'] as const;
+
+/**
+ * The dropdown's value for a need that is not on the list. Never sent to the
+ * server: it only reveals the box where the Attendee describes their own
+ * request, as on the Organiser's event form.
+ */
+const OTHER = 'OTHER';
 
 /**
  * US-34 AC-2/AC-3 — the registration form. Name and email come from the
@@ -26,8 +38,10 @@ export function RegisterForm({
   onCancel: () => void;
 }) {
   const [phone, setPhone] = useState('');
-  const [dietary, setDietary] = useState('');
+  // '' is none; otherwise a standard option, or OTHER for the Attendee's own.
   const [accessibility, setAccessibility] = useState('');
+  const [accessibilityNotes, setAccessibilityNotes] = useState('');
+  const [submitted, setSubmitted] = useState(false);
   const register = useRegister();
 
   const { byField, general } = fieldErrors(register.error, FIELDS);
@@ -36,15 +50,26 @@ export function RegisterForm({
       ? apiErrorMessage(register.error, 'Could not register. Please try again.')
       : general.join(' ');
 
+  // Choosing "Other" is a promise to describe it, so the description is needed.
+  const describeOther =
+    submitted && accessibility === OTHER && accessibilityNotes.trim() === ''
+      ? ['Please describe your accessibility request.']
+      : undefined;
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
+    setSubmitted(true);
+    if (accessibility === OTHER && accessibilityNotes.trim() === '') return;
+
     register.mutate(
       {
         eventId,
         phone,
         // Empty optional fields are left out rather than sent as blanks.
-        ...(dietary.trim() ? { dietaryRequirements: dietary } : {}),
-        ...(accessibility.trim() ? { accessibilityNeeds: accessibility } : {}),
+        ...(accessibility !== '' && accessibility !== OTHER
+          ? { accessibilityFeature: accessibility as AccessibilityFeature }
+          : {}),
+        ...(accessibilityNotes.trim() ? { accessibilityNeeds: accessibilityNotes } : {}),
       },
       { onSuccess: onRegistered },
     );
@@ -63,7 +88,7 @@ export function RegisterForm({
         htmlFor={id('phone')}
         required
         errors={byField.phone}
-        hint="Your name and email are taken from your account."
+        hint="Include your country code, e.g. +65 9123 4567. Your name and email are taken from your account."
       >
         <Input
           id={id('phone')}
@@ -77,32 +102,45 @@ export function RegisterForm({
       </Field>
 
       <Field
-        label="Dietary requirements"
-        htmlFor={id('dietary')}
-        errors={byField.dietaryRequirements}
+        label="Accessibility needs"
+        htmlFor={id('access')}
+        errors={byField.accessibilityFeature}
+        hint="Optional. Pick the closest match, or choose Other to describe your own."
       >
-        <Textarea
-          id={id('dietary')}
-          rows={2}
-          maxLength={500}
-          value={dietary}
-          onChange={(e) => setDietary(e.target.value)}
-          aria-invalid={byField.dietaryRequirements ? true : undefined}
-        />
+        <Select
+          id={id('access')}
+          value={accessibility}
+          onChange={(e) => setAccessibility(e.target.value)}
+          aria-invalid={byField.accessibilityFeature ? true : undefined}
+        >
+          <option value="">None</option>
+          {ACCESSIBILITY_FEATURES.map((feature) => (
+            <option key={feature} value={feature}>
+              {ACCESSIBILITY_FEATURE_LABELS[feature]}
+            </option>
+          ))}
+          <option value={OTHER}>Other</option>
+        </Select>
       </Field>
 
       <Field
-        label="Accessibility needs"
-        htmlFor={id('access')}
-        errors={byField.accessibilityNeeds}
+        label={accessibility === OTHER ? 'Describe your request' : 'Accessibility notes'}
+        htmlFor={id('access-notes')}
+        required={accessibility === OTHER}
+        errors={describeOther ?? byField.accessibilityNeeds}
+        hint={
+          accessibility === OTHER
+            ? undefined
+            : 'Anything else we should know, beyond the option above.'
+        }
       >
         <Textarea
-          id={id('access')}
+          id={id('access-notes')}
           rows={2}
           maxLength={500}
-          value={accessibility}
-          onChange={(e) => setAccessibility(e.target.value)}
-          aria-invalid={byField.accessibilityNeeds ? true : undefined}
+          value={accessibilityNotes}
+          onChange={(e) => setAccessibilityNotes(e.target.value)}
+          aria-invalid={describeOther || byField.accessibilityNeeds ? true : undefined}
         />
       </Field>
 

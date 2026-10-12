@@ -713,9 +713,30 @@ export type RegistrationStatus = 'REGISTERED' | 'WITHDRAWN';
 /** US-34 AC-2 — the registration form. Name and email come from the account. */
 export interface RegisterPayload {
   eventId: string;
+  /** International format with country code; the server stores it as E.164. */
   phone: string;
-  dietaryRequirements?: string;
+  /** A standard option; omitted when none is needed or the need is not listed. */
+  accessibilityFeature?: AccessibilityFeature;
+  /** The Attendee's own request, or detail beyond the option chosen. */
   accessibilityNeeds?: string;
+}
+
+/** Why the Register option is unavailable; mirrors RegisterBlock in the backend. */
+export type RegisterBlock = 'NOT_OPEN_TO_REGISTRATION' | 'NOT_YET_OPEN' | 'CLOSED' | 'FULL';
+
+/** GET /registrations/events/:eventId/options — may I register, and if not, why. */
+export interface RegistrationOptionsView {
+  eventId: string;
+  canRegister: boolean;
+  block: RegisterBlock | null;
+  /** Server-worded cause, for blocks the UI has no wording of its own for. */
+  reason: string | null;
+  opensAt: string | null;
+  closesAt: string | null;
+  alreadyRegistered: boolean;
+  registeredCount: number;
+  /** The event's registration capacity; null means no limit. */
+  capacity: number | null;
 }
 
 /** US-35/US-36 — one of the caller's registrations, with the event's current details. */
@@ -725,7 +746,7 @@ export interface RegistrationView {
   registeredAt: string;
   withdrawnAt: string | null;
   phone: string;
-  dietaryRequirements: string | null;
+  accessibilityFeature: AccessibilityFeature | null;
   accessibilityNeeds: string | null;
   event: {
     id: string;

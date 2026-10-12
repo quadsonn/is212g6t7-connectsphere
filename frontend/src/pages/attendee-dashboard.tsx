@@ -3,21 +3,22 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { usePublicEvents } from '@/features/events/hooks/use-events';
+import { RegisterAction } from '@/features/registrations/components/register-action';
 import { RegisterForm } from '@/features/registrations/components/register-form';
 import { apiErrorMessage } from '@/lib/api-client';
 import { formatDateRange } from '@/lib/utils';
 
 /**
- * REAL data — GET /events. For an Attendee the backend returns only events
- * they can register for right now (CONFIRMED, registration open, not full, not
- * already registered) and projects internal planning fields away (US-02 AC-7).
- * Register opens the US-34 form inline; once registered, the event leaves this
- * list and appears under My registrations.
+ * REAL data — GET /events. For an Attendee the backend returns the events they
+ * may see, projected to drop internal planning fields (US-02 AC-7). Each row
+ * asks the server whether registration is open and has room: Register opens
+ * the US-34 form inline, or is disabled with the reason and the open/close
+ * times when the event is closed, not yet open or full. Once registered, the
+ * event leaves this list and appears under My registrations.
  */
 export function AttendeeDashboard() {
   const { data: events, isPending, isError, error } = usePublicEvents();
@@ -95,16 +96,13 @@ export function AttendeeDashboard() {
                 </div>
 
                 {openFormId !== event.id ? (
-                  <Button
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => {
+                  <RegisterAction
+                    eventId={event.id}
+                    onRegister={() => {
                       setJustRegistered(null);
                       setOpenFormId(event.id);
                     }}
-                  >
-                    Register
-                  </Button>
+                  />
                 ) : null}
 
                 {openFormId === event.id ? (

@@ -52,16 +52,6 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.REVIEW, Scope.ASSIGNED),
         // US-09: asking a clarification on an assigned request.
         g(Action.CLARIFY, Scope.ASSIGNED),
-        // US-10. Deliberately ANY, not ASSIGNED: AC-2 requires reassigning an
-        // event away from the Coordinator who currently holds it, and an
-        // ASSIGNED scope would hide a peer's event entirely.
-        //
-        // This means any Coordinator can take an event from any other. CLAUDE.md
-        // §1 gives the role "assigns/coordinates events" and the brief defines
-        // no manager or admin role, so this is the reading that invents least —
-        // but see the US-10 summary: a Coordinator Manager is the likelier real
-        // answer and needs a customer decision.
-        g(Action.ASSIGN, Scope.ANY),
       ],
       [Resource.VENUE]: [
         g(Action.READ, Scope.ANY),
@@ -139,10 +129,12 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
     // Requirement change 5 — "overseeing incoming event requests and
     // assigning them to individual Event Coordinators".
     //
-    // Account only for now: the unassigned queue, assignment and the
-    // supervision view are their own stories. Until those land this role is
-    // default-denied everywhere except its own notifications.
+    // Assigns queued requests and reassigns events (ASSIGN, ANY). Deliberately
+    // no EVENT/READ: the queue and assignment views are projections built for
+    // this role, so it does not get the generic event reads, which return the
+    // full record.
     [Role.EVENT_COORDINATOR_LEAD]: {
+      [Resource.EVENT]: [g(Action.ASSIGN, Scope.ANY)],
       [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
     },
 

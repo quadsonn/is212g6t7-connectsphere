@@ -2,14 +2,14 @@ import { EventStatus } from '@prisma/client';
 
 import {
   ALLOWED_TRANSITIONS,
-  ASSIGNABLE_STATUSES,
+  ACTIVE_ASSIGNMENT_STATUSES,
   ATTENDEE_VISIBLE_STATUSES,
   buildStatusView,
   canTransition,
-  COORDINATOR_POOL_STATUSES,
   DECIDED_STATUSES,
   EDITABLE_STATUSES,
   isTerminal,
+  UNASSIGNED_QUEUE_STATUSES,
 } from './event-status.machine';
 
 /** US-11 — the consolidated state machine. */
@@ -256,11 +256,8 @@ describe('Event state machine (US-11)', () => {
       expect(EDITABLE_STATUSES).toEqual([EventStatus.DRAFT, EventStatus.RETURNED]);
     });
 
-    it('keeps the unassigned pool to statuses awaiting first review', () => {
-      expect(COORDINATOR_POOL_STATUSES).toEqual([
-        EventStatus.SUBMITTED,
-        EventStatus.UNDER_REVIEW,
-      ]);
+    it('keeps the unassigned queue to submitted requests', () => {
+      expect(UNASSIGNED_QUEUE_STATUSES).toEqual([EventStatus.SUBMITTED]);
     });
 
     it('never shows an Attendee a request still under review', () => {
@@ -277,23 +274,26 @@ describe('Event state machine (US-11)', () => {
       }
     });
 
-    it('never allows assignment on a draft or a terminal request', () => {
+    it('counts a request as active unless it is a draft or finished', () => {
       for (const status of [
         EventStatus.DRAFT,
         EventStatus.COMPLETED,
         EventStatus.CANCELLED,
         EventStatus.REJECTED,
       ]) {
-        expect(ASSIGNABLE_STATUSES).not.toContain(status);
+        expect(ACTIVE_ASSIGNMENT_STATUSES).not.toContain(status);
       }
+      // Everything else in the enum is active, so a status added later is
+      // not silently dropped from the Lead's view.
+      expect(ACTIVE_ASSIGNMENT_STATUSES).toHaveLength(ALL.length - 4);
     });
 
     it('keeps every rule set inside the enum', () => {
       for (const set of [
         EDITABLE_STATUSES,
-        COORDINATOR_POOL_STATUSES,
+        UNASSIGNED_QUEUE_STATUSES,
         ATTENDEE_VISIBLE_STATUSES,
-        ASSIGNABLE_STATUSES,
+        ACTIVE_ASSIGNMENT_STATUSES,
         DECIDED_STATUSES,
       ]) {
         for (const status of set) {

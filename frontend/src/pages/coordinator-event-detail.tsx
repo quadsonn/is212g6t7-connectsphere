@@ -12,7 +12,6 @@ import { ErrorState, LoadingState } from '@/components/ui/states';
 import { ChangeHistory } from '@/features/events/components/change-history';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { PlanningEditForm } from '@/features/events/components/planning-edit-form';
-import { ReassignEvent } from '@/features/events/components/reassign-event';
 import { TechnicalRequirementsCard } from '@/features/events/components/technical-requirements';
 import { ARRANGEMENT_LABELS } from '@/features/events/lib/change-format';
 import { BookingRequestForm } from '@/features/bookings/components/booking-request-form';
@@ -20,13 +19,12 @@ import { EventBookingsList } from '@/features/bookings/components/event-bookings
 import { useEventBookings } from '@/features/bookings/hooks/use-bookings';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import {
-  useAssignCoordinator,
   useAssignedRequest,
   useReviewEvent,
   useStartPlanning,
 } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
-import { ASSIGNABLE_EVENT_STATUSES, PLANNING_EVENT_STATUSES } from '@/lib/status';
+import { PLANNING_EVENT_STATUSES } from '@/lib/status';
 import type { PlanningUpdateResult } from '@/types/api';
 import { formatDateRange, humanise } from '@/lib/utils';
 import type { EventStatus } from '@/types/api';
@@ -50,7 +48,6 @@ export function CoordinatorEventDetail() {
   const { session } = useAuth();
   const { data: event, isPending, isError, error } = useAssignedRequest(id ?? '');
   const { approve, requestClarification, reject, returnForAmendment } = useReviewEvent();
-  const assignCoordinator = useAssignCoordinator();
   const { data: eventBookings = [] } = useEventBookings(id);
   const [decision, setDecision] = useState<Decision>('');
   const [decisionText, setDecisionText] = useState('');
@@ -82,11 +79,6 @@ export function CoordinatorEventDetail() {
   const canBook = event
     ? BOOKABLE_EVENT_STATUSES.includes(event.status) && event.coordinator?.id === session?.userId
     : false;
-
-  function assignToMe() {
-    if (!event || !session) return;
-    assignCoordinator.mutate({ id: event.id, coordinatorId: session.userId });
-  }
 
   const reviewError = approve.error ?? requestClarification.error ?? reject.error ?? returnForAmendment.error;
 
@@ -320,35 +312,15 @@ export function CoordinatorEventDetail() {
             </CardHeader>
             <CardContent className="space-y-3">
               {event.coordinator ? (
-                <>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field label="Assigned to">{event.coordinator.name}</Field>
-                    <Field label="Email">{event.coordinator.email}</Field>
-                  </div>
-                  {isAssignedToMe && ASSIGNABLE_EVENT_STATUSES.includes(event.status) ? (
-                    <ReassignEvent eventId={event.id} eventName={event.name ?? 'This event'} />
-                  ) : null}
-                </>
-              ) : (
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm text-ink-500">
-                    No coordinator assigned yet — this request can't be reviewed until one is.
-                  </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={assignCoordinator.isPending}
-                    onClick={assignToMe}
-                  >
-                    Assign to me
-                  </Button>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="Assigned to">{event.coordinator.name}</Field>
+                  <Field label="Email">{event.coordinator.email}</Field>
                 </div>
-              )}
-              {assignCoordinator.error ? (
-                <p className="text-sm text-red-700">
-                  {apiErrorMessage(assignCoordinator.error, 'Could not assign a coordinator.')}
+              ) : (
+                <p className="text-sm text-ink-500">
+                  No coordinator assigned yet — the Event Coordinator Lead assigns one.
                 </p>
-              ) : null}
+              )}
             </CardContent>
           </Card>
 

@@ -127,13 +127,29 @@ export const PLANNING_STATUSES: readonly EventStatus[] = [
 ];
 
 /**
- * US-03 AC-2: unassigned requests any Coordinator may pick up. Without this,
- * a freshly submitted request would be invisible to every Coordinator and no
- * review could start.
+ * Lead assignment story: a request is in the unassigned queue while it has no
+ * Coordinator and has been submitted. Only the Lead can see it there; no
+ * Coordinator can read, review or edit it (the ASSIGNED scope is
+ * coordinatorId = the caller, so an unowned request matches nobody).
  */
-export const COORDINATOR_POOL_STATUSES: readonly EventStatus[] = [
+export const UNASSIGNED_QUEUE_STATUSES: readonly EventStatus[] = [
+  EventStatus.SUBMITTED,
+];
+
+/**
+ * Lead supervision story: "active" means not completed, cancelled or rejected.
+ * A draft is excluded as well — it is not yet a request and has no Coordinator.
+ * Only active events show in the assignments view and can be reassigned.
+ */
+export const ACTIVE_ASSIGNMENT_STATUSES: readonly EventStatus[] = [
   EventStatus.SUBMITTED,
   EventStatus.UNDER_REVIEW,
+  EventStatus.APPROVED,
+  EventStatus.RETURNED,
+  EventStatus.AWAITING_CLARIFICATION,
+  EventStatus.PLANNING,
+  EventStatus.AWAITING_ARRANGEMENTS,
+  EventStatus.CONFIRMED,
 ];
 
 /**
@@ -147,18 +163,6 @@ export const ATTENDEE_VISIBLE_STATUSES: readonly EventStatus[] = [
   EventStatus.AWAITING_ARRANGEMENTS,
   EventStatus.CONFIRMED,
   EventStatus.COMPLETED,
-];
-
-/** US-10: statuses at which a Coordinator may be assigned or reassigned. */
-export const ASSIGNABLE_STATUSES: readonly EventStatus[] = [
-  EventStatus.SUBMITTED,
-  EventStatus.UNDER_REVIEW,
-  EventStatus.AWAITING_CLARIFICATION,
-  EventStatus.RETURNED,
-  EventStatus.APPROVED,
-  EventStatus.PLANNING,
-  EventStatus.AWAITING_ARRANGEMENTS,
-  EventStatus.CONFIRMED,
 ];
 
 /**

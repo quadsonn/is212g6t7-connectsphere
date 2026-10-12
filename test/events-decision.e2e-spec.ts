@@ -395,14 +395,14 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       },
     );
 
-    it('refuses to decide an unassigned request from the pool', async () => {
+    it('refuses to decide a request still in the Lead’s unassigned queue', async () => {
       const event = await seedEvent({ coordinatorId: null });
 
       await http()
         .post(`/events/${event.id}/reject`)
         .set('Authorization', as('coordinatorB'))
         .send({ reason: 'No' })
-        .expect(409);
+        .expect(404);
     });
 
     it.each(['organiser', 'attendee'])('refuses %s at the role gate', async (who) => {

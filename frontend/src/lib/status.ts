@@ -123,17 +123,3 @@ export const DAY_STATUS_STYLES: Record<DayStatus, StatusStyle> = {
  */
 export const PLANNING_EVENT_STATUSES: EventStatus[] = ['PLANNING', 'AWAITING_ARRANGEMENTS'];
 
-/**
- * US-10/US-27 — statuses at which a Coordinator may be assigned or the event
- * reassigned. Mirrors ASSIGNABLE_STATUSES in event-status.machine.ts.
- */
-export const ASSIGNABLE_EVENT_STATUSES: EventStatus[] = [
-  'SUBMITTED',
-  'UNDER_REVIEW',
-  'AWAITING_CLARIFICATION',
-  'RETURNED',
-  'APPROVED',
-  'PLANNING',
-  'AWAITING_ARRANGEMENTS',
-  'CONFIRMED',
-];

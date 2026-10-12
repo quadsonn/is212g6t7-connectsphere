@@ -6,7 +6,6 @@ import type {
   ChangeRequestPayload,
   ChangeRequestReview,
   PendingChangeRequestSummary,
-  ContactSummary,
   CoordinatorRequestView,
   EventRequest,
   EventRequestPayload,
@@ -103,12 +102,6 @@ export const eventsApi = {
   getAssignedById: (id: string) =>
     apiClient.get<CoordinatorRequestView>(`/events/assigned/${id}`).then((r) => r.data),
 
-  /** US-10 — link a Coordinator to a request as its main point of contact. */
-  assignCoordinator: (id: string, coordinatorId: string) =>
-    apiClient
-      .patch<CoordinatorRequestView>(`/events/${id}/coordinator`, { coordinatorId })
-      .then((r) => r.data),
-
   approve: (id: string) =>
     apiClient.post<EventRequest>(`/events/${id}/approve`).then((r) => r.data),
 
@@ -137,18 +130,6 @@ export const eventsApi = {
   updatePlanning: (id: string, body: PlanningUpdatePayload) =>
     apiClient
       .patch<PlanningUpdateResult>(`/events/${id}/planning`, body)
-      .then((r) => r.data),
-
-  /** US-27 AC-1 — the Coordinators this event can be handed to. */
-  getReassignmentCandidates: (id: string) =>
-    apiClient
-      .get<ContactSummary[]>(`/events/${id}/reassignment-candidates`)
-      .then((r) => r.data),
-
-  /** US-27 — hand the event to another Coordinator. */
-  reassign: (id: string, coordinatorId: string) =>
-    apiClient
-      .post<CoordinatorRequestView>(`/events/${id}/reassign`, { coordinatorId })
       .then((r) => r.data),
 
   /** US-28 — record equipment and technical requirements during planning. */

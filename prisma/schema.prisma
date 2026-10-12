@@ -194,6 +194,9 @@ enum NotificationType {
   EVENT_REASSIGNED
   REGISTRATION_CONFIRMED
   REGISTRATION_WITHDRAWN
+  // Lead assignment story: sent to the Coordinator a queued request is
+  // assigned to. Reassignment reuses EVENT_REASSIGNED.
+  EVENT_ASSIGNED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;
@@ -214,6 +217,11 @@ model User {
   passwordHash String
   name         String
   role         Role
+
+  // Lead assignment story: the client organisation an Organiser belongs to,
+  // shown in the unassigned queue. Nullable — no flow collects it yet and
+  // existing users have none.
+  organisation String?
 
   // AC-5 lockout state. Counted per account, over a trailing window.
   failedLoginAttempts   Int       @default(0)
@@ -293,6 +301,11 @@ model EventRequest {
   registrationEnabled Boolean     @default(false)
   status              EventStatus @default(DRAFT)
 
+  // Lead assignment story: when the request was last submitted, so the
+  // unassigned queue can list the oldest first. Written by setStatus() on
+  // every move to SUBMITTED; null for a request never submitted.
+  submittedAt DateTime?
+
   // US-34/US-36: when attendees may register, and the last moment they may
   // withdraw. AMBIGUOUS: the brief gives no way to set these, so they are
   // nullable and, when null, fall back to the event's own start
@@ -331,6 +344,7 @@ model EventRequest {
   @@index([organiserId])
   @@index([coordinatorId])
   @@index([status])
+  @@index([coordinatorId, submittedAt])
 }
 
 model Venue {

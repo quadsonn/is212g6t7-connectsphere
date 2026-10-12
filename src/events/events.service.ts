@@ -17,14 +17,12 @@ import {
   RegistrationStatus,
   ReservationStatus,
   Role,
-  User,
 } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import {
   AccessControlService,
-  CoordinatorSummary,
   EventWithCoordinator,
   PublicEventView,
 } from '../common/access/access-control.service';
@@ -33,7 +31,6 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { AssignCoordinatorDto } from './dto/assign-coordinator.dto';
 import { AskClarificationDto } from './dto/ask-clarification.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
 import { RespondClarificationDto } from './dto/respond-clarification.dto';
@@ -50,7 +47,6 @@ import {
   sameValue,
 } from './event-change.rules';
 import {
-  ASSIGNABLE_STATUSES,
   buildStatusView,
   canTransition,
   EDITABLE_STATUSES,
@@ -746,180 +742,6 @@ export class EventsService {
   }
 
   /**
-   * US-10 — link a Coordinator to an event as its main point of contact.
-   *
-   * Assignment is deliberately NOT a status change: AC-1 asks only that the
-   * Coordinator be linked, and moving SUBMITTED -> UNDER_REVIEW here would be
-   * inventing review behaviour this story does not describe. setStatus() is
-   * therefore not called, and the event's status is left exactly as found.
-   *
-   * AC-2 falls out of the single coordinatorId column: assigning a new
-   * Coordinator is what removes the previous one's ownership, so the two can
-   * never disagree.
-   */
-  async assignCoordinator(
-    user: AuthenticatedUser,
-    eventId: string,
-    dto: AssignCoordinatorDto,
-  ): Promise<EventRequest> {
-    const event = await this.access.assertEventAccess(
-      user,
-      eventId,
-      Action.ASSIGN,
-    );
-
-    if (!ASSIGNABLE_STATUSES.includes(event.status)) {
-      throw new ConflictException(
-        `a coordinator cannot be assigned while the request is ${event.status}`,
-      );
-    }
-
-    await this.assertIsCoordinator(dto.coordinatorId);
-
-    return this.prisma.eventRequest.update({
-      where: { id: event.id },
-      data: { coordinatorId: dto.coordinatorId },
-      include: COORDINATOR_SELECT,
-    });
-  }
-
-  /**
-   * The target must exist and actually hold the Coordinator role — otherwise
-   * an event could be handed to an Attendee, who would then be unable to see
-   * it at all.
-   */
-  private async assertIsCoordinator(userId: string): Promise<User> {
-    const target = await this.prisma.user.findUnique({ where: { id: userId } });
-
-    if (!target) {
-      throw new NotFoundException('coordinator not found');
-    }
-
-    if (target.role !== Role.EVENT_COORDINATOR) {
-      throw new BadRequestException(
-        'the assigned user must have the EVENT_COORDINATOR role',
-      );
-    }
-
-    return target;
-  }
-
-  /**
-   * US-27 AC-1 — the Coordinators this event could be handed to: everyone
-   * with the role except the caller, who is the one stepping away.
-   */
-  async getReassignmentCandidates(
-    user: AuthenticatedUser,
-    id: string,
-  ): Promise<CoordinatorSummary[]> {
-    await this.assertCanRequestReassignment(user, id);
-
-    return this.prisma.user.findMany({
-      where: { role: Role.EVENT_COORDINATOR, id: { not: user.userId } },
-      select: { id: true, name: true, email: true },
-      orderBy: { name: 'asc' },
-    });
-  }
-
-  /**
-   * US-27 — the responsible Coordinator hands their event to a colleague.
-   *
-   * Distinct from US-10's assignCoordinator(), which lets any Coordinator
-   * take any event and records nothing. This path is the owner stepping
-   * away, so it is limited to the currently assigned Coordinator (AC-1) and
-   * leaves a trail: the change goes in the event's history (AC-4) and both
-   * parties are notified (AC-3).
-   *
-   * AC-2 "confirmed" is the request itself: the client asks the Coordinator
-   * to confirm before sending it. AMBIGUOUS: the new Coordinator is not asked
-   * to accept — the story gives them no step. See the US-27 summary.
-   *
-   * Like assignCoordinator(), this is not a status change; setStatus() is not
-   * involved and the status is left exactly as found.
-   */
-  async reassign(
-    user: AuthenticatedUser,
-    id: string,
-    dto: AssignCoordinatorDto,
-  ): Promise<CoordinatorRequestView> {
-    const event = await this.assertCanRequestReassignment(user, id);
-
-    if (dto.coordinatorId === event.coordinatorId) {
-      throw new BadRequestException(
-        'choose a different coordinator — this event is already assigned to you',
-      );
-    }
-
-    const next = await this.assertIsCoordinator(dto.coordinatorId);
-    // assertCanRequestReassignment() guarantees the event has a coordinator.
-    const previous = event.coordinator!;
-
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const row = await tx.eventRequest.update({
-        where: { id: event.id },
-        data: { coordinatorId: next.id },
-        include: EVENT_CONTACTS_INCLUDE,
-      });
-
-      await this.recordChange(
-        tx,
-        event.id,
-        user.userId,
-        [{ field: 'coordinator', previous: previous.name, next: next.name }],
-        [],
-      );
-
-      return row;
-    });
-
-    // AC-3: raised after commit, so a failed notification cannot undo the
-    // reassignment (see NotificationsService.notifySafely).
-    const eventName = event.name ?? 'an event';
-    await this.notifications.notifySafely({
-      recipientId: previous.id,
-      type: NotificationType.EVENT_REASSIGNED,
-      message: `"${eventName}" has been reassigned from you to ${next.name}.`,
-      relatedEventId: event.id,
-    });
-    await this.notifications.notifySafely({
-      recipientId: next.id,
-      type: NotificationType.EVENT_REASSIGNED,
-      message: `You are now the coordinator for "${eventName}", reassigned to you by ${previous.name}.`,
-      relatedEventId: event.id,
-    });
-
-    return this.toOrganiserView(updated);
-  }
-
-  /**
-   * US-27 AC-1 — only the Coordinator responsible for the event may hand it
-   * on, and only at a status where a Coordinator can be assigned at all.
-   *
-   * Loaded through EVENT/ASSIGN (ANY scope, as US-10) so that a Coordinator
-   * who is not responsible gets an explicit 403 rather than a 404.
-   */
-  private async assertCanRequestReassignment(
-    user: AuthenticatedUser,
-    id: string,
-  ): Promise<EventWithCoordinator> {
-    const event = await this.access.assertEventAccess(user, id, Action.ASSIGN);
-
-    if (!this.access.isAssignedCoordinator(user, event)) {
-      throw new ForbiddenException(
-        'only the coordinator responsible for this event may request its reassignment',
-      );
-    }
-
-    if (!ASSIGNABLE_STATUSES.includes(event.status)) {
-      throw new ConflictException(
-        `an event cannot be reassigned while it is ${event.status}`,
-      );
-    }
-
-    return event;
-  }
-
-  /**
    * US-25 prerequisite — APPROVED -> PLANNING.
    *
    * The transition was already in the table, but no route reached it, so no
@@ -1280,7 +1102,12 @@ export class EventsService {
 
     const updated = await client.eventRequest.update({
       where: { id: event.id },
-      data: { status: next },
+      data: {
+        status: next,
+        // Lead assignment story: the queue is ordered by when a request was
+        // submitted, and every route into SUBMITTED comes through here.
+        ...(next === EventStatus.SUBMITTED ? { submittedAt: new Date() } : {}),
+      },
     });
 
     if (next === EventStatus.CANCELLED) {

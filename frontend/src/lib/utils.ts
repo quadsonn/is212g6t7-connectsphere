@@ -29,6 +29,12 @@ export function formatDate(iso: string): string {
   return dateFormatter.format(new Date(iso));
 }
 
+/** "12 Oct 2026, 14:05" — for moments where the time of day matters. */
+export function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+  return `${dateFormatter.format(date)}, ${timeFormatter.format(date)}`;
+}
+
 export function formatDateRange(
   startIso: string | null,
   endIso: string | null,

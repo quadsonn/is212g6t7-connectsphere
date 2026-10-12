@@ -956,3 +956,50 @@ export interface VenueBlockResult {
   /** Live bookings already inside the new block. */
   overlappingBookings: BookingConflict[];
 }
+
+// ---------------------------------------------------------------------------
+// Event Coordinator Lead — unassigned queue and assignments (/assignments)
+// ---------------------------------------------------------------------------
+
+/** One row of GET /assignments/queue. */
+export interface QueueEntry {
+  id: string;
+  name: string | null;
+  organiser: ContactSummary;
+  /** The Organiser's client organisation; null until one is recorded. */
+  organisation: string | null;
+  category: string | null;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  expectedAttendance: number | null;
+  submittedAt: string | null;
+}
+
+/** GET /assignments/queue/:id — a queued request opened before assigning. */
+export interface QueuedRequestDetail extends QueueEntry {
+  status: EventStatus;
+  purpose: string | null;
+  description: string | null;
+  preferredLayout: string | null;
+  layoutNotes: string | null;
+}
+
+/** GET /assignments — one Coordinator and the active events they hold. */
+export interface CoordinatorAssignments {
+  coordinator: ContactSummary;
+  activeCount: number;
+  events: {
+    id: string;
+    name: string | null;
+    status: EventStatus;
+    eventDate: string | null;
+  }[];
+}
+
+/** POST /assignments/queue/:id/assign and /assignments/events/:id/reassign. */
+export interface AssignmentResult {
+  id: string;
+  name: string | null;
+  status: EventStatus;
+  coordinator: ContactSummary;
+}

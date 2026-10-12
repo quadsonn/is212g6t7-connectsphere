@@ -97,7 +97,7 @@ describe('EventsService (US-03)', () => {
       expect(result.status).toBe(EventStatus.SUBMITTED);
       expect(prisma.eventRequest.update).toHaveBeenCalledWith({
         where: { id: 'event-1' },
-        data: { status: EventStatus.SUBMITTED },
+        data: { status: EventStatus.SUBMITTED, submittedAt: expect.any(Date) },
       });
     });
 

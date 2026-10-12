@@ -60,9 +60,8 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   // Requirement changes 5 and 6 — accounts exist; screens are to come.
   EVENT_COORDINATOR_LEAD: [
-    { label: 'Overview', to: '/lead', icon: LayoutDashboard },
-    { label: 'Unassigned queue', to: '/lead/unassigned', icon: ClipboardList, comingSoon: true },
-    { label: 'Coordinator assignments', to: '/lead/assignments', icon: Users, comingSoon: true },
+    { label: 'Unassigned queue', to: '/lead/unassigned', icon: ClipboardList },
+    { label: 'Coordinator assignments', to: '/lead/assignments', icon: Users },
   ],
   SAFETY_OFFICER: [
     { label: 'Overview', to: '/safety', icon: LayoutDashboard },

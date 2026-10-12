@@ -352,6 +352,12 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
           accessibilityNotes: 'Ramp access to the stage',
         })
         .expect(201);
+      // The Lead's assignment is a separate story; here the request is simply
+      // already in this Coordinator's hands.
+      await prisma.eventRequest.update({
+        where: { id: res.body.id },
+        data: { coordinatorId: ids.coordinator },
+      });
       return res.body.id as string;
     };
 

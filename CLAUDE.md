@@ -123,6 +123,7 @@ Later sprints add venue (`/venues`, `/bookings`), equipment (`/equipment`), regi
 - Don't change a status by writing the field directly — go through the transition method.
 - Don't bulk-generate modules we haven't estimated. Build the Sprint 1 slice first, learn our velocity, then expand.
 - Don't invent requirements the customer briefing doesn't state — flag gaps instead.
+- Don't let a migration silently discard existing values when converting free text to an enum or controlled list. Follow the US-18 pattern (`20261003120000_us18_venue_vocabulary`): map known values, move anything unmatched into a notes column with a clear marker, announce it, and add a migration test against old-format data (see `test/venue-vocabulary-migration.e2e-spec.ts`). US-06 and US-13 set unmatched layouts to NULL or dropped them — don't copy that.
 
 ---
 

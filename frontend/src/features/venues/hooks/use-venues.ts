@@ -6,6 +6,7 @@ import type {
   BrowseVenuesQuery,
   DayAvailability,
   Venue,
+  VenueBuffersPayload,
   VenueDraftPayload,
   VenueSearchQuery,
   VenueSuitability,
@@ -122,6 +123,15 @@ export function useRemoveVenueImage(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (imageUrl: string) => venuesApi.removeImage(id, imageUrl),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: venueKeys.all }),
+  });
+}
+
+// US-49: the venue's setup and turnaround time.
+export function useUpdateVenueBuffers(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: VenueBuffersPayload) => venuesApi.updateBuffers(id, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: venueKeys.all }),
   });
 }

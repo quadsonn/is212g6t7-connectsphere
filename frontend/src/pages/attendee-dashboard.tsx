@@ -13,12 +13,15 @@ import { apiErrorMessage } from '@/lib/api-client';
 import { formatDateRange } from '@/lib/utils';
 
 /**
- * REAL data — GET /events. For an Attendee the backend returns the events they
- * may see, projected to drop internal planning fields (US-02 AC-7). Each row
- * asks the server whether registration is open and has room: Register opens
- * the US-34 form inline, or is disabled with the reason and the open/close
- * times when the event is closed, not yet open or full. Once registered, the
- * event leaves this list and appears under My registrations.
+ * REAL data — GET /events. For an Attendee the backend returns the confirmed,
+ * upcoming events with registration switched on that they have not already
+ * registered for, projected to drop internal planning fields (US-02 AC-7).
+ * Not-yet-open and full events are included on purpose: each row asks the
+ * server whether registration is available, and Register is disabled with the
+ * reason and the open/close times when it is not. Events whose registration
+ * has closed are left out by the server. Otherwise Register opens the US-34
+ * form inline. Once registered, the event leaves this list and
+ * appears under My registrations.
  */
 export function AttendeeDashboard() {
   const { data: events, isPending, isError, error } = usePublicEvents();
@@ -31,7 +34,7 @@ export function AttendeeDashboard() {
     <>
       <PageHeader
         title="Browse events"
-        description="Events open for registration."
+        description="Upcoming events. Registration may be open, not yet open or full."
       />
 
       {justRegistered ? (
@@ -49,9 +52,9 @@ export function AttendeeDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Open events</CardTitle>
+          <CardTitle>Upcoming events</CardTitle>
           {openForRegistration ? (
-            <span className="text-sm text-ink-500">{openForRegistration.length} available</span>
+            <span className="text-sm text-ink-500">{openForRegistration.length} {openForRegistration.length === 1 ? 'event' : 'events'}</span>
           ) : null}
         </CardHeader>
 
@@ -65,8 +68,8 @@ export function AttendeeDashboard() {
 
         {openForRegistration && openForRegistration.length === 0 ? (
           <EmptyState
-            title="Nothing open right now"
-            description="Confirmed events with registration open will be listed here."
+            title="No upcoming events"
+            description="Confirmed events that accept registration will be listed here."
           />
         ) : null}
 

@@ -1222,52 +1222,44 @@ export class EventsService {
   }
 
   /**
-   * An Attendee's list is the events they could register for right now:
-   * CONFIRMED, registration enabled, inside the registration window and not
-   * full (the same rules the Register endpoint enforces), and not already
-   * registered by them. Everything else is hidden rather than shown disabled.
+   * An Attendee's list is the events they could still take part in:
+   * CONFIRMED, with registration enabled, not yet started, whose registration
+   * period has not ended, and not already registered by them.
+   *
+   * Events that are not yet open or full stay in the list on purpose. The
+   * Register option is disabled for them with the reason and the open and
+   * close times beside it (GET /registrations/events/:id/options), and the
+   * Register endpoint refuses them regardless. An event whose registration
+   * has closed is over for the Attendee, so it is left out rather than listed.
    */
   private async onlyRegistrable<T extends EventWithCoordinator>(
     user: AuthenticatedUser,
     events: T[],
   ): Promise<T[]> {
+    const now = new Date();
     const candidates = events.filter(
       (event) =>
-        event.status === EventStatus.CONFIRMED && event.registrationEnabled,
+        event.status === EventStatus.CONFIRMED &&
+        event.registrationEnabled &&
+        (event.proposedStart === null || event.proposedStart > now) &&
+        // The headcount does not matter here: CLOSED is decided before FULL.
+        evaluateRegistration(event, 0, now).block !== 'CLOSED',
     );
     if (candidates.length === 0) {
       return [];
     }
 
-    const ids = candidates.map((event) => event.id);
-    const [counts, mine] = await Promise.all([
-      this.prisma.registration.groupBy({
-        by: ['eventId'],
-        where: { eventId: { in: ids }, status: RegistrationStatus.REGISTERED },
-        _count: { _all: true },
-      }),
-      this.prisma.registration.findMany({
-        where: {
-          eventId: { in: ids },
-          attendeeId: user.userId,
-          status: RegistrationStatus.REGISTERED,
-        },
-        select: { eventId: true },
-      }),
-    ]);
-
-    const registeredCount = new Map(
-      counts.map((row) => [row.eventId, row._count._all]),
-    );
+    const mine = await this.prisma.registration.findMany({
+      where: {
+        eventId: { in: candidates.map((event) => event.id) },
+        attendeeId: user.userId,
+        status: RegistrationStatus.REGISTERED,
+      },
+      select: { eventId: true },
+    });
     const alreadyMine = new Set(mine.map((row) => row.eventId));
-    const now = new Date();
 
-    return candidates.filter(
-      (event) =>
-        !alreadyMine.has(event.id) &&
-        evaluateRegistration(event, registeredCount.get(event.id) ?? 0, now)
-          .canRegister,
-    );
+    return candidates.filter((event) => !alreadyMine.has(event.id));
   }
 
   /**

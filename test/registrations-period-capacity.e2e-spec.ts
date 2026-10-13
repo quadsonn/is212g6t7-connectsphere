@@ -302,6 +302,40 @@ describe('Registration period and capacity (e2e)', () => {
     });
   });
 
+  describe('the Attendee’s browse list', () => {
+    const browse = async (who: string) =>
+      (await http().get('/events').set('Authorization', as(who)).expect(200)).body.map(
+        (e: { name: string }) => e.name,
+      );
+
+    it('keeps full and not-yet-open events in the list, and drops ones whose registration has closed', async () => {
+      await seedEvent({ name: 'Open' });
+      await seedEvent({ name: 'Full', expectedAttendance: 1 });
+      await seedEvent({ name: 'Closed', registrationClosesAt: new Date(Date.now() - 1000) });
+      await seedEvent({ name: 'Not yet open', registrationOpensAt: new Date(Date.now() + 5 * DAY) });
+      const full = await prisma.eventRequest.findFirstOrThrow({ where: { name: 'Full' } });
+      await register('a1', full.id).expect(201);
+
+      expect((await browse('a2')).sort()).toEqual(['Full', 'Not yet open', 'Open']);
+    });
+
+    it('still hides events that are not confirmed, have registration off, have started, or that I hold', async () => {
+      await seedEvent({ name: 'Mine' });
+      await seedEvent({ name: 'Planning', status: EventStatus.PLANNING });
+      await seedEvent({ name: 'Registration off', registrationEnabled: false });
+      await seedEvent({
+        name: 'Started',
+        proposedStart: new Date(Date.now() - DAY),
+        proposedEnd: new Date(Date.now() + DAY),
+      });
+      await seedEvent({ name: 'Visible' });
+      const mine = await prisma.eventRequest.findFirstOrThrow({ where: { name: 'Mine' } });
+      await register('a1', mine.id).expect(201);
+
+      expect(await browse('a1')).toEqual(['Visible']);
+    });
+  });
+
   describe('my registrations list', () => {
     it('keeps withdrawn registrations below active ones, however the dates fall', async () => {
       const soon = await seedEvent({

@@ -377,6 +377,14 @@ model Venue {
   operatingInfo String?
   imageUrls     String[] @default([])
 
+  // US-49 (Week 7 Customer Change #1): time the venue is occupied before an
+  // event starts and after it ends — a 10:00-12:00 event with 30/45 occupies
+  // 09:30-12:45. Whole minutes, 0-480, enforced by the DTO and by CHECK
+  // constraints in the migration. Applying them to availability and conflict
+  // checks is US-50; see paddedRange() in bookings/booking-overlap.ts.
+  setupMinutes      Int @default(0)
+  turnaroundMinutes Int @default(0)
+
   status VenueStatus @default(DRAFT)
 
   createdAt DateTime @default(now())

@@ -500,12 +500,21 @@ export interface Venue {
   /** The shared US-06 lookup, same values an event request uses. */
   supportedLayouts: RoomLayout[];
   operatingInfo: string | null;
+  /** US-49: minutes the venue is occupied before / after each event (0-480). */
+  setupMinutes: number;
+  turnaroundMinutes: number;
   status: VenueStatus;
   /** The Venue Staff member who owns this entry (US-13 AC-4). */
   managedById: string | null;
   createdAt: string;
   updatedAt: string;
   imageUrls: string[];
+}
+
+/** US-49 — PATCH /venues/:id/buffers. */
+export interface VenueBuffersPayload {
+  setupMinutes: number;
+  turnaroundMinutes: number;
 }
 
 /** US-14 — a warning returned alongside an edit that may invalidate bookings. */

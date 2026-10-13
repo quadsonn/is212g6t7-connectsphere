@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/form';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { VenueAvailabilityCalendar } from '@/features/venues/components/venue-availability-calendar';
+import { bufferSummary } from '@/features/venues/buffers';
 import { VenueImageCarousel } from '@/features/venues/components/venue-image-carousel';
 import { VenueSuitabilityPanel } from '@/features/venues/components/venue-suitability-panel';
 import { useVenue } from '@/features/venues/hooks/use-venues';
@@ -139,6 +140,7 @@ function Overview({ venue }: { venue: Venue }) {
           <Tags values={accessibility} notes={venue.accessibilityNotes} />
         </Detail>
         <Detail label="Hours">{venue.operatingInfo ?? '—'}</Detail>
+        <Detail label="Setup and turnaround">{bufferSummary(venue)}</Detail>
       </dl>
     </div>
   );

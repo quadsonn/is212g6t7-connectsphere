@@ -64,21 +64,36 @@ export const ALLOWED_TRANSITIONS: Readonly<
   // Approved work moves into arrangement.
   [EventStatus.APPROVED]: [EventStatus.PLANNING, EventStatus.CANCELLED],
 
-  // US-11: PLANNING may go straight to CONFIRMED when nothing needs booking,
-  // or wait on venue/equipment decisions first.
+  // Requirement change 6: no event is confirmed without an approved safety
+  // check, so there is no direct edge from here to CONFIRMED any more. Once
+  // every venue booking is approved and the equipment is reserved, the event
+  // moves to AWAITING_SAFETY_CHECK on its own (SafetyReadinessService).
   [EventStatus.PLANNING]: [
     EventStatus.AWAITING_ARRANGEMENTS,
-    EventStatus.CONFIRMED,
+    EventStatus.AWAITING_SAFETY_CHECK,
     EventStatus.CANCELLED,
   ],
 
   // AMBIGUOUS: the edge back to PLANNING covers a booking being refused, which
   // sends the Coordinator back to find an alternative. E5/E6 will confirm.
   [EventStatus.AWAITING_ARRANGEMENTS]: [
-    EventStatus.CONFIRMED,
+    EventStatus.AWAITING_SAFETY_CHECK,
     EventStatus.PLANNING,
     EventStatus.CANCELLED,
   ],
+
+  // Requirement change 6. The Safety Officer approves (CONFIRMED, the only
+  // way in), asks for changes (back to PLANNING), or rejects (SAFETY_REJECTED).
+  // PLANNING is also the way out when an arrangement is withdrawn mid-check.
+  [EventStatus.AWAITING_SAFETY_CHECK]: [
+    EventStatus.CONFIRMED,
+    EventStatus.PLANNING,
+    EventStatus.SAFETY_REJECTED,
+    EventStatus.CANCELLED,
+  ],
+
+  // Blocked until the Coordinator reworks it: back to PLANNING, or abandoned.
+  [EventStatus.SAFETY_REJECTED]: [EventStatus.PLANNING, EventStatus.CANCELLED],
 
   [EventStatus.CONFIRMED]: [EventStatus.COMPLETED, EventStatus.CANCELLED],
 
@@ -149,7 +164,29 @@ export const ACTIVE_ASSIGNMENT_STATUSES: readonly EventStatus[] = [
   EventStatus.AWAITING_CLARIFICATION,
   EventStatus.PLANNING,
   EventStatus.AWAITING_ARRANGEMENTS,
+  EventStatus.AWAITING_SAFETY_CHECK,
+  EventStatus.SAFETY_REJECTED,
   EventStatus.CONFIRMED,
+];
+
+/**
+ * Requirement change 6: statuses from which the Coordinator may resume
+ * planning. APPROVED is the original route in (US-25); SAFETY_REJECTED is the
+ * way back after the Safety Officer blocks the event.
+ */
+export const RESUMABLE_PLANNING_STATUSES: readonly EventStatus[] = [
+  EventStatus.APPROVED,
+  EventStatus.SAFETY_REJECTED,
+];
+
+/**
+ * Requirement change 6: statuses in which arrangements are still being put
+ * together and a safety check can become due. Entering AWAITING_SAFETY_CHECK
+ * is only ever from one of these.
+ */
+export const SAFETY_CHECK_ELIGIBLE_STATUSES: readonly EventStatus[] = [
+  EventStatus.PLANNING,
+  EventStatus.AWAITING_ARRANGEMENTS,
 ];
 
 /**

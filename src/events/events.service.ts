@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   BookingStatus,
@@ -17,6 +18,7 @@ import {
   RegistrationStatus,
   ReservationStatus,
   Role,
+  SafetyOutcome,
 } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -28,6 +30,7 @@ import {
 } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
 import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -52,6 +55,7 @@ import {
   EDITABLE_STATUSES,
   EventStatusView,
   PLANNING_STATUSES,
+  RESUMABLE_PLANNING_STATUSES,
 } from './event-status.machine';
 import { evaluateRegistration } from '../registrations/registration-rules';
 import { CHANGE_REQUEST_INCLUDE } from './events-change-request.service';
@@ -232,6 +236,8 @@ export class EventsService {
     private readonly access: AccessControlService,
     private readonly notifications: NotificationsService,
     private readonly equipmentReservations: EquipmentReservationsService,
+    // Requirement change 6: tells the Safety check that requirements changed.
+    @Optional() private readonly arrangements?: ArrangementsRegistry,
   ) {}
 
   /**
@@ -756,6 +762,18 @@ export class EventsService {
 
     this.assertIsAssignedTo(user, event);
 
+    // Idempotent while already planning; otherwise only from the statuses that
+    // lead back into planning. A Coordinator cannot pull an event out of a
+    // pending safety check this way.
+    if (
+      event.status !== EventStatus.PLANNING &&
+      !RESUMABLE_PLANNING_STATUSES.includes(event.status)
+    ) {
+      throw new ConflictException(
+        `planning cannot be started while the event is ${event.status}`,
+      );
+    }
+
     return this.toOrganiserView(
       await this.setStatus(event, EventStatus.PLANNING),
     );
@@ -906,6 +924,9 @@ export class EventsService {
 
       return this.recordChange(tx, event.id, user.userId, changes, affected);
     });
+
+    // The equipment asked for may now be more or less than what is reserved.
+    await this.arrangements?.notifyChanged(event.id);
 
     return { ...(await this.findAssignedRequest(user, id)), change };
   }
@@ -1090,6 +1111,13 @@ export class EventsService {
       );
     }
 
+    // Requirement change 6: the state machine has no way into CONFIRMED except
+    // from AWAITING_SAFETY_CHECK; this is the second lock. Whatever path asks,
+    // an event is only confirmed while its latest safety review is an approval.
+    if (next === EventStatus.CONFIRMED) {
+      await this.assertSafetyApproved(event.id, tx ?? this.prisma);
+    }
+
     // The status write and the release must commit together; open a
     // transaction if the caller did not supply one.
     if (next === EventStatus.CANCELLED && !tx) {
@@ -1107,6 +1135,10 @@ export class EventsService {
         // Lead assignment story: the queue is ordered by when a request was
         // submitted, and every route into SUBMITTED comes through here.
         ...(next === EventStatus.SUBMITTED ? { submittedAt: new Date() } : {}),
+        // Requirement change 6: the Safety queue lists longest-waiting first.
+        ...(next === EventStatus.AWAITING_SAFETY_CHECK
+          ? { safetyQueuedAt: new Date() }
+          : {}),
       },
     });
 
@@ -1118,6 +1150,28 @@ export class EventsService {
     }
 
     return updated;
+  }
+
+  /**
+   * Requirement change 6 — an event may be confirmed only while its most
+   * recent safety review is an approval. A rejection or a request for changes
+   * after an earlier approval therefore re-blocks it.
+   */
+  private async assertSafetyApproved(
+    eventId: string,
+    client: Prisma.TransactionClient | PrismaService,
+  ): Promise<void> {
+    const latest = await client.safetyReview.findFirst({
+      where: { eventId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { outcome: true },
+    });
+
+    if (latest?.outcome !== SafetyOutcome.APPROVED) {
+      throw new ConflictException(
+        'this event cannot be confirmed without an approved safety check',
+      );
+    }
   }
 
   /**

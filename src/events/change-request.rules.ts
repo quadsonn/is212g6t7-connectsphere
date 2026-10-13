@@ -26,6 +26,8 @@ export const CHANGEABLE_STATUSES: readonly EventStatus[] = [
   EventStatus.AWAITING_CLARIFICATION,
   EventStatus.PLANNING,
   EventStatus.AWAITING_ARRANGEMENTS,
+  EventStatus.AWAITING_SAFETY_CHECK,
+  EventStatus.SAFETY_REJECTED,
   EventStatus.CONFIRMED,
 ];
 

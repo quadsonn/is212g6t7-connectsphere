@@ -14,6 +14,8 @@ export enum Resource {
   RESERVATION = 'RESERVATION',
   REGISTRATION = 'REGISTRATION',
   NOTIFICATION = 'NOTIFICATION',
+  /** Requirement change 6: an operational safety review of an event. */
+  SAFETY_REVIEW = 'SAFETY_REVIEW',
 }
 
 export enum Action {

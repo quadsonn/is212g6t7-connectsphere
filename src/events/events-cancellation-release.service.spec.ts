@@ -77,7 +77,8 @@ describe('EventsService.setStatus → equipment release (US-33)', () => {
       await expect(service.setStatus(event, EventStatus.CANCELLED)).rejects.toThrow('db down');
     });
 
-    it.each([EventStatus.AWAITING_ARRANGEMENTS, EventStatus.CONFIRMED])(
+    // CONFIRMED is no longer reachable from PLANNING: it needs a safety check.
+    it.each([EventStatus.AWAITING_ARRANGEMENTS, EventStatus.AWAITING_SAFETY_CHECK])(
       'releases nothing on a change to %s',
       async (next) => {
         await service.setStatus(event, next);

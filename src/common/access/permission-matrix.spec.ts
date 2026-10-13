@@ -485,4 +485,42 @@ describe('Permission matrix (US-02)', () => {
       );
     });
   });
+
+  describe('Safety Officer rows', () => {
+    it('lets the Safety Officer read and decide any safety review', () => {
+      expect(permissionScope(Role.SAFETY_OFFICER, Resource.SAFETY_REVIEW, Action.READ)).toBe(Scope.ANY);
+      expect(permissionScope(Role.SAFETY_OFFICER, Resource.SAFETY_REVIEW, Action.DECIDE)).toBe(Scope.ANY);
+    });
+
+    it('lets only the Safety Officer record a decision', () => {
+      expect(rolesWithPermission(Resource.SAFETY_REVIEW, Action.DECIDE)).toEqual([
+        Role.SAFETY_OFFICER,
+      ]);
+    });
+
+    it('lets a Coordinator read, answer, never decide, the checks on events they coordinate', () => {
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.SAFETY_REVIEW, Action.READ)).toBe(Scope.ASSIGNED);
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.SAFETY_REVIEW, Action.SUBMIT)).toBe(Scope.ASSIGNED);
+      expect(isPermitted(Role.EVENT_COORDINATOR, Resource.SAFETY_REVIEW, Action.DECIDE)).toBe(false);
+    });
+
+    it('gives every other role no access to safety reviews', () => {
+      const others = ALL_ROLES.filter(
+        (role) => role !== Role.SAFETY_OFFICER && role !== Role.EVENT_COORDINATOR,
+      );
+      for (const role of others) {
+        for (const action of Object.values(Action)) {
+          expect(isPermitted(role, Resource.SAFETY_REVIEW, action)).toBe(false);
+        }
+      }
+    });
+
+    it('gives the Safety Officer no generic event read: it sees the queue projections only', () => {
+      expect(isPermitted(Role.SAFETY_OFFICER, Resource.EVENT, Action.READ)).toBe(false);
+    });
+
+    it('agrees with the hardcoded @Roles list on the decision route', () => {
+      expect(rolesWithPermission(Resource.SAFETY_REVIEW, Action.DECIDE)).toEqual([Role.SAFETY_OFFICER]);
+    });
+  });
 });

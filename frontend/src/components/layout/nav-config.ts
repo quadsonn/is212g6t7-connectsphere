@@ -64,8 +64,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: 'Coordinator assignments', to: '/lead/assignments', icon: Users },
   ],
   SAFETY_OFFICER: [
-    { label: 'Overview', to: '/safety', icon: LayoutDashboard },
-    { label: 'Safety checks', to: '/safety/checks', icon: ShieldCheck, comingSoon: true },
+    { label: 'Safety checks', to: '/safety/checks', icon: ShieldCheck },
   ],
 };
 

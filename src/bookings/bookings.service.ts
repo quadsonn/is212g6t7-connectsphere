@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   BookingDecisionKind,
@@ -12,6 +13,7 @@ import {
 } from '@prisma/client';
 
 import { AccessControlService } from '../common/access/access-control.service';
+import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
 import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -84,6 +86,8 @@ export class BookingsService implements VenueBookingLookup {
     private readonly prisma: PrismaService,
     private readonly access: AccessControlService,
     private readonly notifications: NotificationsService,
+    // Requirement change 6: tells the Safety check that bookings changed.
+    @Optional() private readonly arrangements?: ArrangementsRegistry,
   ) {}
 
   /**
@@ -130,7 +134,7 @@ export class BookingsService implements VenueBookingLookup {
       throw new NotFoundException('venue not found');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       await this.lockVenue(tx, venue.id);
 
       const overlapping = await this.findOverlapping(
@@ -192,6 +196,11 @@ export class BookingsService implements VenueBookingLookup {
 
       return { ...booking, warnings };
     });
+
+    // A new pending request means the event is no longer fully approved.
+    await this.arrangements?.notifyChanged(dto.eventId);
+
+    return created;
   }
 
   /**
@@ -436,6 +445,9 @@ export class BookingsService implements VenueBookingLookup {
     );
 
     await this.notifyDecision(decided, kind);
+    // Approving the last pending booking (or withdrawing an approval) changes
+    // whether the event is due for its safety check.
+    await this.arrangements?.notifyChanged(decided.eventId);
 
     return { ...decided, warnings };
   }

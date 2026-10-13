@@ -24,6 +24,8 @@ import {
   useStartPlanning,
 } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
+import { SafetyHistory } from '@/features/safety/components/safety-history';
+import { useResubmitSafety, useSafetyReviews } from '@/features/safety/hooks/use-safety';
 import { PLANNING_EVENT_STATUSES } from '@/lib/status';
 import type { PlanningUpdateResult } from '@/types/api';
 import { formatDateRange, humanise } from '@/lib/utils';
@@ -52,6 +54,16 @@ export function CoordinatorEventDetail() {
   const [decision, setDecision] = useState<Decision>('');
   const [decisionText, setDecisionText] = useState('');
   const startPlanning = useStartPlanning();
+  const { data: safetyReviews = [] } = useSafetyReviews(id, Boolean(event));
+  const resubmitSafety = useResubmitSafety(id ?? '');
+  // Optional note to the Safety Officer, sent with the event.
+  const [safetyComment, setSafetyComment] = useState('');
+  // The latest review is feedback the Coordinator has not answered yet.
+  const latestSafety = safetyReviews[safetyReviews.length - 1];
+  const awaitingMyResponse =
+    latestSafety !== undefined &&
+    latestSafety.outcome !== 'APPROVED' &&
+    latestSafety.resubmittedAt === null;
   const [editing, setEditing] = useState(false);
   // US-25: what the last save did — shown until the next edit begins.
   const [lastSave, setLastSave] = useState<PlanningUpdateResult['change'] | 'unchanged' | null>(
@@ -158,15 +170,16 @@ export function CoordinatorEventDetail() {
             </CardContent>
           </Card>
 
-          {event.status === 'APPROVED' && isAssignedToMe ? (
+          {(event.status === 'APPROVED' || event.status === 'SAFETY_REJECTED') && isAssignedToMe ? (
             <Card>
               <CardHeader>
                 <CardTitle>Planning</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-ink-500">
-                  This event is approved. Start planning to refine its details and arrange the
-                  venue and equipment.
+                  {event.status === 'SAFETY_REJECTED'
+                    ? 'The Safety Officer rejected this event, and it is blocked from confirmation. Resume planning to rework it; its venue and equipment will need to be approved again.'
+                    : 'This event is approved. Start planning to refine its details and arrange the venue and equipment.'}
                 </p>
                 <Button
                   type="button"
@@ -174,13 +187,89 @@ export function CoordinatorEventDetail() {
                   disabled={startPlanning.isPending}
                   onClick={() => startPlanning.mutate(event.id)}
                 >
-                  Start planning
+                  {event.status === 'SAFETY_REJECTED' ? 'Resume planning' : 'Start planning'}
                 </Button>
                 {startPlanning.error ? (
                   <p className="w-full text-sm text-red-700">
                     {apiErrorMessage(startPlanning.error, 'Could not start planning.')}
                   </p>
                 ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {isAssignedToMe &&
+          (safetyReviews.length > 0 ||
+            event.status === 'AWAITING_SAFETY_CHECK' ||
+            event.status === 'SAFETY_REJECTED') ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Safety check</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {event.status === 'AWAITING_SAFETY_CHECK' ? (
+                  <p className="text-sm text-ink-600">
+                    Every venue booking is approved and the equipment is reserved. The event is
+                    waiting for the Safety Officer; it cannot be confirmed until it passes.
+                  </p>
+                ) : null}
+
+                {awaitingMyResponse && event.status === 'PLANNING' ? (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+                    <p className="text-sm text-amber-900">
+                      {latestSafety.outcome === 'CHANGES_REQUESTED'
+                        ? `The Safety Officer asked for changes${
+                            latestSafety.returnStage
+                              ? ` to the ${latestSafety.returnStage.toLowerCase()} planning`
+                              : ''
+                          }. Make them, then send the event back for a safety check.`
+                        : 'The Safety Officer rejected this event. Rework the plan, then send the event back for a safety check.'}
+                    </p>
+                    <div className="mt-3">
+                      <label
+                        htmlFor="safety-comment"
+                        className="block text-sm font-medium text-amber-900"
+                      >
+                        Comment for the Safety Officer{' '}
+                        <span className="font-normal text-amber-800">(optional)</span>
+                      </label>
+                      <Textarea
+                        id="safety-comment"
+                        rows={3}
+                        maxLength={1000}
+                        className="mt-1 bg-white"
+                        placeholder="What did you change, or why do you believe the concern is met?"
+                        value={safetyComment}
+                        onChange={(e) => setSafetyComment(e.target.value)}
+                      />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={resubmitSafety.isPending}
+                        onClick={() =>
+                          resubmitSafety.mutate(safetyComment, {
+                            onSuccess: () => setSafetyComment(''),
+                          })
+                        }
+                      >
+                        {resubmitSafety.isPending ? 'Sending…' : 'Send back for safety check'}
+                      </Button>
+                      <span className="text-xs text-amber-900">
+                        Available once the venue and equipment are confirmed and something has
+                        changed.
+                      </span>
+                    </div>
+                    {resubmitSafety.error ? (
+                      <p role="alert" className="mt-2 text-sm text-red-700">
+                        {apiErrorMessage(resubmitSafety.error, 'Could not send it back.')}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <SafetyHistory reviews={safetyReviews} />
               </CardContent>
             </Card>
           ) : null}

@@ -111,11 +111,37 @@ describe('Event state machine (US-11)', () => {
       expect(canTransition(EventStatus.APPROVED, EventStatus.CONFIRMED)).toBe(false);
     });
 
-    it('allows planning to wait on arrangements or confirm directly', () => {
+    it('allows planning to wait on arrangements or on its safety check', () => {
       expect(
         canTransition(EventStatus.PLANNING, EventStatus.AWAITING_ARRANGEMENTS),
       ).toBe(true);
-      expect(canTransition(EventStatus.PLANNING, EventStatus.CONFIRMED)).toBe(true);
+      expect(
+        canTransition(EventStatus.PLANNING, EventStatus.AWAITING_SAFETY_CHECK),
+      ).toBe(true);
+    });
+
+    it('never confirms an event except from a pending safety check', () => {
+      const into = ALL.filter((from) =>
+        canTransition(from, EventStatus.CONFIRMED),
+      );
+
+      expect(into).toEqual([EventStatus.AWAITING_SAFETY_CHECK]);
+    });
+
+    it('sends a safety decision to the one status each outcome means', () => {
+      const from = EventStatus.AWAITING_SAFETY_CHECK;
+
+      expect(canTransition(from, EventStatus.CONFIRMED)).toBe(true);
+      expect(canTransition(from, EventStatus.PLANNING)).toBe(true);
+      expect(canTransition(from, EventStatus.SAFETY_REJECTED)).toBe(true);
+      expect(canTransition(from, EventStatus.COMPLETED)).toBe(false);
+    });
+
+    it('keeps a safety-rejected event blocked: it can only be reworked or abandoned', () => {
+      expect(ALLOWED_TRANSITIONS[EventStatus.SAFETY_REJECTED]).toEqual([
+        EventStatus.PLANNING,
+        EventStatus.CANCELLED,
+      ]);
     });
 
     it('lets a refused arrangement send planning back round', () => {

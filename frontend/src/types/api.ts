@@ -29,6 +29,8 @@ export const EVENT_STATUSES = [
   'REJECTED',
   'PLANNING',
   'AWAITING_ARRANGEMENTS',
+  'AWAITING_SAFETY_CHECK',
+  'SAFETY_REJECTED',
   'CONFIRMED',
   'COMPLETED',
   'CANCELLED',
@@ -1024,3 +1026,114 @@ export interface AssignmentResult {
   status: EventStatus;
   coordinator: ContactSummary;
 }
+
+// ---------------------------------------------------------------------------
+// Safety Officer — the operational safety check (/safety)
+// ---------------------------------------------------------------------------
+
+export type SafetyOutcome = 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+export type SafetyReturnStage = 'VENUE' | 'TECHNICAL';
+
+/** One safety check of an event; the history keeps every one. */
+export interface SafetyReview {
+  id: string;
+  eventId: string;
+  outcome: SafetyOutcome;
+  reason: string | null;
+  returnStage: SafetyReturnStage | null;
+  emergencyAccessComment: string | null;
+  crowdMovementComment: string | null;
+  equipmentPlacementComment: string | null;
+  accessibilityComment: string | null;
+  /** The arrangements the Coordinator is asked to rework and have re-reviewed. */
+  affectedArrangements: ('VENUE_BOOKING' | 'EQUIPMENT_RESERVATION')[];
+  /** When the Coordinator sent the event back for a new check; null until then. */
+  resubmittedAt: string | null;
+  /** What the Coordinator told the Safety Officer when sending it back. */
+  resubmissionComment: string | null;
+  createdAt: string;
+  officer: ContactSummary;
+}
+
+/** One row of GET /safety/queue. */
+export interface SafetyQueueEntry {
+  id: string;
+  name: string | null;
+  coordinator: ContactSummary | null;
+  expectedAttendance: number | null;
+  proposedStart: string | null;
+  venues: { name: string | null; capacity: number | null }[];
+  queuedAt: string | null;
+  /** Above zero means this is a re-check. */
+  previousReviews: number;
+  lastOutcome: SafetyOutcome | null;
+}
+
+/** GET /safety/events/:id — everything needed to decide. */
+export interface SafetyReviewPacket {
+  event: {
+    id: string;
+    name: string | null;
+    purpose: string | null;
+    category: string | null;
+    status: EventStatus;
+    proposedStart: string | null;
+    proposedEnd: string | null;
+    expectedAttendance: number | null;
+    preferredLayout: string | null;
+    layoutNotes: string | null;
+    accessibilityRequirements: AccessibilityFeature[];
+    accessibilityNotes: string | null;
+    equipmentNeeds: string | null;
+    technicalSupportNeeds: string | null;
+    coordinator: ContactSummary | null;
+    organiser: ContactSummary;
+  };
+  venues: {
+    bookingId: string;
+    start: string;
+    end: string;
+    venue: {
+      id: string;
+      name: string | null;
+      location: string | null;
+      capacity: number | null;
+      supportedLayouts: string[];
+      accessibilityFeatures: string[];
+      layoutNotes: string | null;
+      operatingInfo: string | null;
+    };
+    /** Spare places once the expected attendance is seated; negative is over. */
+    capacityMargin: number | null;
+    blocks: { id: string; start: string; end: string; reason: string }[];
+  }[];
+  equipment: {
+    requirements: {
+      equipmentId: string | null;
+      equipmentType: string;
+      quantity: number;
+      notes: string | null;
+    }[];
+    reservations: {
+      id: string;
+      equipmentType: string;
+      quantity: number;
+      start: string;
+      end: string;
+    }[];
+  };
+  history: SafetyReview[];
+}
+
+export interface SafetyDecisionPayload {
+  outcome: SafetyOutcome;
+  reason?: string;
+  returnStage?: SafetyReturnStage;
+  emergencyAccessComment?: string;
+  crowdMovementComment?: string;
+  equipmentPlacementComment?: string;
+  accessibilityComment?: string;
+}
+
+/** POST /safety/events/:id/decision — the recorded review, plus where the event went. */
+export type SafetyDecisionResult = SafetyReview & { eventStatus: EventStatus };

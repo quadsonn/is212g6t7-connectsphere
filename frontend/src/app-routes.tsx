@@ -29,7 +29,8 @@ import { VenueEditRequest } from '@/pages/venue-edit-request';
 import { LeadAssignments } from '@/pages/lead-assignments';
 import { LeadQueuedRequest } from '@/pages/lead-queued-request';
 import { LeadUnassignedQueue } from '@/pages/lead-unassigned-queue';
-import { RolePlaceholder } from '@/pages/role-placeholder';
+import { SafetyQueue } from '@/pages/safety-queue';
+import { SafetyReview } from '@/pages/safety-review';
 import { RelatedEventDetail, RelatedEventsList } from '@/pages/related-events';
 import { VenueBookingQueue } from '@/pages/venue-booking-queue';
 import { VenueBookingDetail } from '@/pages/venue-booking-detail';
@@ -110,15 +111,9 @@ export function AppRoutes() {
           </Route>
 
           <Route element={<ProtectedRoute allow={['SAFETY_OFFICER']} />}>
-            <Route
-              path="/safety"
-              element={
-                <RolePlaceholder
-                  title="Safety Officer"
-                  description="Operational Safety Checks for planned events."
-                />
-              }
-            />
+            <Route path="/safety" element={<Navigate to="/safety/checks" replace />} />
+            <Route path="/safety/checks" element={<SafetyQueue />} />
+            <Route path="/safety/checks/:id" element={<SafetyReview />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={['ATTENDEE']} />}>

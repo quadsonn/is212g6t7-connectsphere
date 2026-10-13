@@ -69,6 +69,13 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.CREATE, Scope.ASSIGNED),
         g(Action.READ, Scope.ASSIGNED),
       ],
+      // Requirement change 6: the outcome and reasons of a safety check on an
+      // event they coordinate, and the means to answer it by sending the event
+      // back for a new check (SUBMIT). Only the Safety Officer decides.
+      [Resource.SAFETY_REVIEW]: [
+        g(Action.READ, Scope.ASSIGNED),
+        g(Action.SUBMIT, Scope.ASSIGNED),
+      ],
       [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
     },
 
@@ -139,9 +146,15 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
     },
 
     // Requirement change 6 — "reviewing the operational safety of planned
-    // events". Account only for now; the Operational Safety Check is its own
-    // story.
+    // events". Reads the queue and each review packet, and alone records a
+    // decision. Deliberately no EVENT/READ: the queue and the packet are
+    // projections built for this role, as for the Coordinator Lead, so it does
+    // not get the generic event reads, which return the full record.
     [Role.SAFETY_OFFICER]: {
+      [Resource.SAFETY_REVIEW]: [
+        g(Action.READ, Scope.ANY),
+        g(Action.DECIDE, Scope.ANY),
+      ],
       [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
     },
   },

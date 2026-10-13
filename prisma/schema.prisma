@@ -62,9 +62,31 @@ enum EventStatus {
   // AMBIGUOUS: no story yet drives a transition into or out of it — E5/E6
   // will. It exists now because AC-1 requires the event to be able to show it.
   AWAITING_ARRANGEMENTS
+  // Requirement change 6: every venue booking is approved and the requested
+  // equipment is reserved, so the event waits for the Safety Officer. Entered
+  // automatically; the only way out to CONFIRMED is an approved safety review.
+  AWAITING_SAFETY_CHECK
+  // The Safety Officer rejected the event. It stays blocked from CONFIRMED and
+  // out of the Safety queue until the Coordinator reworks it (back to PLANNING).
+  SAFETY_REJECTED
   CONFIRMED
   COMPLETED
   CANCELLED
+}
+
+// Requirement change 6: the Safety Officer's one outcome per review.
+enum SafetyOutcome {
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+// Requirement change 6: the earlier planning stage a CHANGES_REQUESTED outcome
+// sends the event back to. There is one PLANNING status, so the stage is
+// recorded on the review and decides which arrangements are re-opened.
+enum SafetyReturnStage {
+  VENUE
+  TECHNICAL
 }
 
 enum BookingStatus {
@@ -197,6 +219,8 @@ enum NotificationType {
   // Lead assignment story: sent to the Coordinator a queued request is
   // assigned to. Reassignment reuses EVENT_REASSIGNED.
   EVENT_ASSIGNED
+  // Requirement change 6: the Safety Officer decided; carries the reasons.
+  SAFETY_CHECK_DECIDED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;
@@ -237,6 +261,7 @@ model User {
   notifications         Notification[]
   clarificationMessages ClarificationMessage[]
   eventChanges          EventChange[]
+  safetyReviews         SafetyReview[]
   changeRequests        EventChangeRequest[]
   decidedChangeRequests EventChangeRequest[]   @relation("ChangeRequestDecider")
   managedVenues         Venue[]                @relation("VenueManager")
@@ -306,6 +331,11 @@ model EventRequest {
   // every move to SUBMITTED; null for a request never submitted.
   submittedAt DateTime?
 
+  // Requirement change 6: when the event last entered the Safety queue, so the
+  // queue lists the longest-waiting first. Written by setStatus() on every move
+  // to AWAITING_SAFETY_CHECK; null for an event that never has.
+  safetyQueuedAt DateTime?
+
   // US-34/US-36: when attendees may register, and the last moment they may
   // withdraw. AMBIGUOUS: the brief gives no way to set these, so they are
   // nullable and, when null, fall back to the event's own start
@@ -333,6 +363,7 @@ model EventRequest {
   updatedAt DateTime @updatedAt
 
   clarifications        ClarificationMessage[]
+  safetyReviews         SafetyReview[]
   changes               EventChange[]
   changeRequests        EventChangeRequest[]
   equipmentRequirements EquipmentRequirement[]
@@ -662,6 +693,56 @@ model EventChange {
 
   @@index([eventId, createdAt])
   @@index([changedById])
+}
+
+/**
+ * Requirement change 6 — one operational safety review of an event.
+ * Append-only, like EventChange: a later check never edits an earlier one, so
+ * the history of checks (and why each went the way it did) is preserved. The
+ * latest row is the event's current safety standing.
+ *
+ * The four comment columns are the factors the Safety Officer is asked to
+ * consider. They are optional on every outcome; reason is mandatory unless the
+ * outcome is APPROVED, and returnStage is mandatory exactly when changes are
+ * requested (both enforced by CHECK constraints in the migration, as well as
+ * the DTO).
+ */
+model SafetyReview {
+  id String @id @default(cuid())
+
+  eventId String
+  event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  officerId String
+  officer   User   @relation(fields: [officerId], references: [id], onDelete: Restrict)
+
+  outcome     SafetyOutcome
+  reason      String?
+  returnStage SafetyReturnStage?
+
+  emergencyAccessComment    String?
+  crowdMovementComment      String?
+  equipmentPlacementComment String?
+  accessibilityComment      String?
+
+  // The arrangements the Coordinator is asked to rework and have re-reviewed:
+  // the venue booking, the equipment reservation, or both. Flagged, not
+  // reopened: nothing is un-approved or released by a review.
+  affectedArrangements ConfirmedArrangement[] @default([])
+
+  // When the Coordinator answered a CHANGES_REQUESTED or REJECTED review by
+  // sending the event back for a new check. Null until then; while null the
+  // event is held out of the Safety queue. Not used for APPROVED.
+  resubmittedAt DateTime?
+
+  // What the Coordinator told the Safety Officer when sending the event back:
+  // what they changed, or why they believe the concern is met. Optional.
+  resubmissionComment String?
+
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt])
+  @@index([officerId])
 }
 
 /**

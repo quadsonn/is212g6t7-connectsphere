@@ -31,6 +31,7 @@ import {
   rangeBounds,
   resolveRange,
 } from './availability';
+import { UpdateVenueBuffersDto } from './dto/venue-buffers.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenueSearchDto } from './dto/venue-search.dto';
 import { assessSuitability, VenueSuitability } from './suitability';
@@ -356,6 +357,32 @@ export class VenuesService {
     }
 
     return { ...updated, warnings: warning ? [warning] : [] };
+  }
+
+  /**
+   * US-49 — set a venue's setup and turnaround time.
+   *
+   * Only the managing Venue Staff member (AC-4); anyone else gets the same
+   * not-found as every other venue write (findManaged). Draft and published
+   * venues alike. Writes only the two buffer columns.
+   *
+   * US-51 adds its pre-save conflict check here, before the update. Nothing
+   * here re-checks existing bookings against the new buffers — that is US-50/51.
+   */
+  async updateBuffers(
+    user: AuthenticatedUser,
+    id: string,
+    dto: UpdateVenueBuffersDto,
+  ): Promise<Venue> {
+    const venue = await this.findManaged(user, id, Action.UPDATE);
+
+    return this.prisma.venue.update({
+      where: { id: venue.id },
+      data: {
+        setupMinutes: dto.setupMinutes,
+        turnaroundMinutes: dto.turnaroundMinutes,
+      },
+    });
   }
 
   /**

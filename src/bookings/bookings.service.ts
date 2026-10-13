@@ -461,8 +461,11 @@ export class BookingsService implements VenueBookingLookup {
    * check per booking. `selfId` is excluded from its own report; null checks a
    * proposed slot that has no booking yet.
    *
-   * Buffer/turnaround time between bookings is intentionally not applied: the
-   * customer clarified it is not needed, superseding the AC that mentions it.
+   * Buffer time is NOT applied here yet. An earlier customer clarification
+   * dropped it; Week 7 Customer Change #1 reintroduced it as per-venue setup
+   * and turnaround time. US-49 added the fields (Venue.setupMinutes /
+   * turnaroundMinutes) and paddedRange() in booking-overlap.ts; applying them
+   * here, in availability and in the EXCLUDE constraint is US-50.
    */
   async conflictsFor(
     db: Prisma.TransactionClient,

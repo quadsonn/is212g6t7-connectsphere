@@ -27,6 +27,7 @@ import { BrowseVenuesDto } from './dto/browse-venues.dto';
 import { VenueAvailabilityQueryDto } from './dto/venue-availability.dto';
 import { VenueSearchDto } from './dto/venue-search.dto';
 import { VenueSuitabilityQueryDto } from './dto/venue-suitability.dto';
+import { UpdateVenueBuffersDto } from './dto/venue-buffers.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -88,6 +89,17 @@ export class VenuesController {
     @Body() dto: VenueDraftDto,
   ) {
     return this.venuesService.updateDraft(user, id, dto);
+  }
+
+  /** US-49 — set the venue's setup and turnaround time. */
+  @Patch(':id/buffers')
+  @Roles(Role.VENUE_STAFF)
+  updateBuffers(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateVenueBuffersDto,
+  ) {
+    return this.venuesService.updateBuffers(user, id, dto);
   }
 
   /** AC-3/AC-5 — publish once complete. */

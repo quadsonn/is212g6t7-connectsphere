@@ -3,6 +3,7 @@ import type {
   BrowseVenuesQuery,
   DayAvailability,
   Venue,
+  VenueBuffersPayload,
   VenueDraftPayload,
   VenueSearchQuery,
   VenueSuitability,
@@ -49,6 +50,10 @@ export const venuesApi = {
   // US-13 AC-2 (continuing a draft) and US-14 AC-1/AC-2/AC-4 (editing a live venue).
   update: (id: string, payload: VenueDraftPayload) =>
     apiClient.patch<VenueWithWarnings>(`/venues/${id}`, payload).then((r) => r.data),
+
+  // US-49: setup and turnaround time. Only the managing Venue Staff member.
+  updateBuffers: (id: string, payload: VenueBuffersPayload) =>
+    apiClient.patch<Venue>(`/venues/${id}/buffers`, payload).then((r) => r.data),
 
   // US-13 AC-3/AC-5: publish once all required fields are complete.
   publish: (id: string) =>

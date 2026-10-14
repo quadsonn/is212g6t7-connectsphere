@@ -10,6 +10,7 @@ import { Field as FormField, Select, Textarea } from '@/components/ui/form';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { ChangeHistory } from '@/features/events/components/change-history';
+import { ConfirmArrangementsCard } from '@/features/events/components/confirm-arrangements-card';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { PlanningEditForm } from '@/features/events/components/planning-edit-form';
 import { ReassignEvent } from '@/features/events/components/reassign-event';
@@ -26,9 +27,13 @@ import {
   useStartPlanning,
 } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
-import { ASSIGNABLE_EVENT_STATUSES, PLANNING_EVENT_STATUSES } from '@/lib/status';
+import {
+  ASSIGNABLE_EVENT_STATUSES,
+  CONFIRMABLE_EVENT_STATUSES,
+  PLANNING_EVENT_STATUSES,
+} from '@/lib/status';
 import type { PlanningUpdateResult } from '@/types/api';
-import { formatDateRange, humanise } from '@/lib/utils';
+import { formatDateRange, formatDateTime, humanise } from '@/lib/utils';
 import type { EventStatus } from '@/types/api';
 
 /** Mirrors BOOKABLE_EVENT_STATUSES in the backend's booking.types.ts (US-21). */
@@ -144,6 +149,11 @@ export function CoordinatorEventDetail() {
                 {event.statusView.decision ? (
                   <span className="text-xs text-ink-500">
                     {event.statusView.decision.reason ?? 'No reason given'}
+                  </span>
+                ) : null}
+                {event.arrangementsConfirmedAt ? (
+                  <span className="text-xs text-ink-500">
+                    Arrangements confirmed {formatDateTime(event.arrangementsConfirmedAt)}
                   </span>
                 ) : null}
               </div>
@@ -389,6 +399,9 @@ export function CoordinatorEventDetail() {
                 {canBook ? <BookingRequestForm event={event} /> : null}
               </CardContent>
             </Card>
+          ) : null}
+          {CONFIRMABLE_EVENT_STATUSES.includes(event.status) && isAssignedToMe ? (
+            <ConfirmArrangementsCard eventId={event.id} />
           ) : null}
           <ChangeHistory eventId={event.id} />
 

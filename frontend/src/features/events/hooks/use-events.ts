@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
   CatalogueOption,
+  ConfirmationReadiness,
   ChangeRequest,
   ChangeRequestApproval,
   ChangeRequestPayload,
@@ -26,6 +27,7 @@ export const eventKeys = {
   assigned: ['events', 'assigned'] as const,
   assignedDetail: (id: string) => ['events', 'assigned', id] as const,
   history: (id: string) => ['events', id, 'history'] as const,
+  readiness: (id: string) => ['events', id, 'confirmation-readiness'] as const,
   related: ['events', 'related'] as const,
   equipmentCatalogue: ['events', 'equipment-catalogue'] as const,
   pendingChangeRequests: ['events', 'change-requests', 'pending'] as const,
@@ -370,4 +372,42 @@ export function useDecideChangeRequest(requestId: string) {
   });
 
   return { approve, reject };
+}
+
+/** US-42 — the Coordinator's confirmation checklist. */
+export function useConfirmationReadiness(id: string, enabled = true) {
+  return useQuery<ConfirmationReadiness>({
+    queryKey: eventKeys.readiness(id),
+    queryFn: () => eventsApi.getConfirmationReadiness(id),
+    enabled: enabled && Boolean(id),
+  });
+}
+
+/**
+ * US-42 — confirm the arrangements. Everything under 'events' is refreshed:
+ * the status badge, the queue and the checklist all change.
+ */
+export function useConfirmArrangements(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => eventsApi.confirmArrangements(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    },
+  });
+}
+
+/** US-42 — tick or untick a free-text line; the checklist is refetched. */
+export function useManualCheck(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ requirementId, checked }: { requirementId: string; checked: boolean }) =>
+      eventsApi.setManualCheck(id, requirementId, checked),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.readiness(id) });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.assignedDetail(id) });
+    },
+  });
 }

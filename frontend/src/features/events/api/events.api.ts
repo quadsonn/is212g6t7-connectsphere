@@ -1,6 +1,8 @@
 import { apiClient } from '@/lib/api-client';
 import type {
   CatalogueOption,
+  ConfirmationReadiness,
+  EquipmentRequirement,
   ChangeRequest,
   ChangeRequestApproval,
   ChangeRequestPayload,
@@ -152,6 +154,25 @@ export const eventsApi = {
       .then((r) => r.data),
 
   /** US-28 — record equipment and technical requirements during planning. */
+  /** US-42 — what is ready to confirm and what is still outstanding. */
+  getConfirmationReadiness: (id: string) =>
+    apiClient
+      .get<ConfirmationReadiness>(`/events/${id}/confirmation-readiness`)
+      .then((r) => r.data),
+
+  /** US-42 — confirm the arrangements; the event moves to AWAITING_SAFETY_CHECK. */
+  confirmArrangements: (id: string) =>
+    apiClient.post<EventRequest>(`/events/${id}/confirm`).then((r) => r.data),
+
+  /** US-42 — tick (or untick) a free-text equipment line as checked by hand. */
+  setManualCheck: (id: string, requirementId: string, checked: boolean) => {
+    const url = `/events/${id}/requirements/${requirementId}/manual-confirm`;
+    const request = checked
+      ? apiClient.post<EquipmentRequirement>(url)
+      : apiClient.delete<EquipmentRequirement>(url);
+    return request.then((r) => r.data);
+  },
+
   setTechnicalRequirements: (id: string, body: TechnicalRequirementsPayload) =>
     apiClient
       .patch<PlanningUpdateResult>(`/events/${id}/technical-requirements`, body)

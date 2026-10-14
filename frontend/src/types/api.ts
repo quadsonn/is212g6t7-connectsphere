@@ -29,6 +29,8 @@ export const EVENT_STATUSES = [
   'REJECTED',
   'PLANNING',
   'AWAITING_ARRANGEMENTS',
+  // US-42: arrangements confirmed; waiting for the Safety Officer (US-57).
+  'AWAITING_SAFETY_CHECK',
   'CONFIRMED',
   'COMPLETED',
   'CANCELLED',
@@ -164,6 +166,9 @@ export interface EventRequest {
   decisionReason: string | null;
   /** US-05: what a Coordinator asked the Organiser to clarify. */
   clarificationRequest: string | null;
+  /** US-42 AC-4: when, and by whom, the Coordinator confirmed the arrangements. */
+  arrangementsConfirmedAt?: string | null;
+  arrangementsConfirmedById?: string | null;
   createdAt: string;
   updatedAt: string;
   clarifications?: ClarificationMessage[];
@@ -179,6 +184,22 @@ export interface EquipmentRequirement {
   equipmentType: string;
   quantity: number;
   notes: string | null;
+  /** US-42: a free-text line the Coordinator has checked by hand. */
+  manuallyConfirmedAt?: string | null;
+  manuallyConfirmedById?: string | null;
+}
+
+/** US-42 — one line of the confirmation checklist. */
+export interface ReadinessItem {
+  kind: 'VENUE' | 'EQUIPMENT';
+  label: string;
+  status: 'OK' | 'MISSING' | 'NEEDS_MANUAL_CHECK';
+}
+
+/** US-42 — GET /events/:id/confirmation-readiness. */
+export interface ConfirmationReadiness {
+  ready: boolean;
+  items: ReadinessItem[];
 }
 
 /** PATCH /events/:id/technical-requirements. Omit a key to leave it as is. */

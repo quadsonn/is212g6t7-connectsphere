@@ -61,6 +61,10 @@ import { evaluateRegistration } from '../registrations/registration-rules';
 import { CHANGE_REQUEST_INCLUDE } from './events-change-request.service';
 
 
+/** US-42 — a free-text equipment line is "unchanged" when all three match. */
+const freeTextKey = (line: { equipmentType: string; quantity: number; notes: string | null }) =>
+  JSON.stringify([line.equipmentType, line.quantity, line.notes]);
+
 /**
  * US-20 — statuses in which an event has no use for a venue: not yet a
  * request, turned down, or over.
@@ -1068,9 +1072,32 @@ export class EventsService {
 
     const change = await this.prisma.$transaction(async (tx) => {
       if (incoming && changes.some((c) => c.field === 'equipmentRequirements')) {
+        // US-42: a free-text line the Coordinator already checked by hand
+        // keeps its tick if it comes back unchanged; a changed or new line
+        // has to be checked again.
+        const ticked = new Map(
+          (
+            await tx.equipmentRequirement.findMany({
+              where: { eventId: event.id, equipmentId: null, manuallyConfirmedAt: { not: null } },
+            })
+          ).map((row) => [freeTextKey(row), row]),
+        );
+
         await tx.equipmentRequirement.deleteMany({ where: { eventId: event.id } });
         await tx.equipmentRequirement.createMany({
-          data: incoming.map((item) => ({ ...item, eventId: event.id })),
+          data: incoming.map((item) => {
+            const kept = item.equipmentId ? undefined : ticked.get(freeTextKey(item));
+            return {
+              ...item,
+              eventId: event.id,
+              ...(kept
+                ? {
+                    manuallyConfirmedAt: kept.manuallyConfirmedAt,
+                    manuallyConfirmedById: kept.manuallyConfirmedById,
+                  }
+                : {}),
+            };
+          }),
         });
       }
 
@@ -1252,11 +1279,16 @@ export class EventsService {
    * path cancels the event (#43 will add one), and with no window in which
    * the event is cancelled but its equipment still locked. If the release
    * fails, the cancellation rolls back with it.
+   *
+   * US-42 AC-4: a move to AWAITING_SAFETY_CHECK is the Coordinator confirming
+   * the arrangements, so it also records when and by whom (`actorId`). Other
+   * transitions record no actor; their stories keep their own trail.
    */
   async setStatus(
     event: EventRequest,
     next: EventStatus,
     tx?: Prisma.TransactionClient,
+    actorId?: string,
   ): Promise<EventRequest> {
     if (event.status === next) {
       return event;
@@ -1272,16 +1304,29 @@ export class EventsService {
     // transaction if the caller did not supply one.
     if (next === EventStatus.CANCELLED && !tx) {
       return this.prisma.$transaction((inner) =>
-        this.setStatus(event, next, inner),
+        this.setStatus(event, next, inner, actorId),
       );
     }
 
     const client = tx ?? this.prisma;
 
-    const updated = await client.eventRequest.update({
+    let updated = await client.eventRequest.update({
       where: { id: event.id },
       data: { status: next },
     });
+
+    // Kept apart from the status write above, which events-status-audit.spec
+    // pins to exactly `{ status: next }`. Callers confirming pass a
+    // transaction, so the two commit together.
+    if (next === EventStatus.AWAITING_SAFETY_CHECK) {
+      updated = await client.eventRequest.update({
+        where: { id: event.id },
+        data: {
+          arrangementsConfirmedAt: new Date(),
+          arrangementsConfirmedById: actorId ?? null,
+        },
+      });
+    }
 
     if (next === EventStatus.CANCELLED) {
       await this.equipmentReservations.releaseForCancelledEvent(

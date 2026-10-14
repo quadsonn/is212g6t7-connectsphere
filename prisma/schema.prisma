@@ -62,6 +62,11 @@ enum EventStatus {
   // AMBIGUOUS: no story yet drives a transition into or out of it — E5/E6
   // will. It exists now because AC-1 requires the event to be able to show it.
   AWAITING_ARRANGEMENTS
+  // US-42 (Week 7 Change #6): the assigned Coordinator confirmed every venue
+  // and equipment arrangement is ready; the event now waits for the Safety
+  // Officer's operational safety check. US-57 owns every edge out of it, and
+  // nothing reaches CONFIRMED without passing through here.
+  AWAITING_SAFETY_CHECK
   CONFIRMED
   COMPLETED
   CANCELLED
@@ -240,6 +245,10 @@ model User {
   venueBlocks           VenueBlock[]
   // US-51: booking conflict reviews this user resolved by hand.
   resolvedBookingReviews VenueBooking[] @relation("BookingReviewResolver")
+  // US-42: events whose arrangements this Coordinator confirmed, and the
+  // free-text equipment lines they checked by hand.
+  arrangementConfirmations   EventRequest[]         @relation("ArrangementsConfirmer")
+  manuallyConfirmedEquipment EquipmentRequirement[] @relation("RequirementManualConfirmer")
 
   @@index([role])
 }
@@ -297,6 +306,13 @@ model EventRequest {
 
   registrationEnabled Boolean     @default(false)
   status              EventStatus @default(DRAFT)
+
+  // US-42 AC-4: when, and by whom, the arrangements were confirmed (the move
+  // to AWAITING_SAFETY_CHECK). Written by setStatus(), which records no actor
+  // itself; null for an event never confirmed.
+  arrangementsConfirmedAt   DateTime?
+  arrangementsConfirmedById String?
+  arrangementsConfirmedBy   User?     @relation("ArrangementsConfirmer", fields: [arrangementsConfirmedById], references: [id], onDelete: Restrict)
 
   // US-34/US-36: when attendees may register, and the last moment they may
   // withdraw. AMBIGUOUS: the brief gives no way to set these, so they are
@@ -696,6 +712,13 @@ model EquipmentRequirement {
   // the DTO.
   quantity      Int
   notes         String?
+
+  // US-42: a free-text line (no equipmentId) names nothing to reserve, so the
+  // Coordinator ticks it once they have checked it by hand. Never set on a
+  // catalogue-linked line, whose reservations decide it instead.
+  manuallyConfirmedAt   DateTime?
+  manuallyConfirmedById String?
+  manuallyConfirmedBy   User?     @relation("RequirementManualConfirmer", fields: [manuallyConfirmedById], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

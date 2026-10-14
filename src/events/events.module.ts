@@ -5,6 +5,7 @@ import { EquipmentModule } from '../equipment/equipment.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { EventsChangeRequestService } from './events-change-request.service';
 import { EventsChangeReviewService } from './events-change-review.service';
+import { EventConfirmationService } from './event-confirmation.service';
 import { EventsController } from './events.controller';
 import { EventsService } from './events.service';
 
@@ -17,7 +18,13 @@ import { EventsService } from './events.service';
   // BookingsModule: US-38 moves an event's bookings when its dates change.
   imports: [NotificationsModule, EquipmentModule, BookingsModule],
   controllers: [EventsController],
-  providers: [EventsService, EventsChangeRequestService, EventsChangeReviewService],
+  providers: [
+    EventsService,
+    EventsChangeRequestService,
+    EventsChangeReviewService,
+    // US-42: confirming the arrangements.
+    EventConfirmationService,
+  ],
   exports: [EventsService],
 })
 export class EventsModule {}

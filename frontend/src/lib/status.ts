@@ -36,6 +36,11 @@ export const EVENT_STATUS_STYLES: Record<EventStatus, StatusStyle> = {
     label: 'Awaiting arrangements',
     className: 'bg-violet-50 text-violet-800 ring-violet-300',
   },
+  // US-42 AC-5: the words the Organiser sees once the Coordinator confirms.
+  AWAITING_SAFETY_CHECK: {
+    label: 'Arrangements confirmed - awaiting safety review',
+    className: 'bg-amber-50 text-amber-900 ring-amber-400',
+  },
   CONFIRMED: { label: 'Confirmed', className: 'bg-emerald-100 text-emerald-900 ring-emerald-400' },
   COMPLETED: { label: 'Completed', className: 'bg-ink-200 text-ink-800 ring-ink-400' },
   CANCELLED: { label: 'Cancelled', className: 'bg-rose-50 text-rose-800 ring-rose-300' },
@@ -75,6 +80,7 @@ export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
   'APPROVED',
   'PLANNING',
   'AWAITING_ARRANGEMENTS',
+  'AWAITING_SAFETY_CHECK',
   'CONFIRMED',
   'COMPLETED',
   'CANCELLED',
@@ -103,6 +109,7 @@ export const CHANGEABLE_EVENT_STATUSES: EventStatus[] = [
   'AWAITING_CLARIFICATION',
   'PLANNING',
   'AWAITING_ARRANGEMENTS',
+  'AWAITING_SAFETY_CHECK',
   'CONFIRMED',
 ];
 
@@ -123,6 +130,9 @@ export const DAY_STATUS_STYLES: Record<DayStatus, StatusStyle> = {
  */
 export const PLANNING_EVENT_STATUSES: EventStatus[] = ['PLANNING', 'AWAITING_ARRANGEMENTS'];
 
+/** US-42 — statuses the Coordinator may confirm from. Mirrors CONFIRMABLE_STATUSES. */
+export const CONFIRMABLE_EVENT_STATUSES: EventStatus[] = ['PLANNING', 'AWAITING_ARRANGEMENTS'];
+
 /**
  * US-10/US-27 — statuses at which a Coordinator may be assigned or the event
  * reassigned. Mirrors ASSIGNABLE_STATUSES in event-status.machine.ts.
@@ -135,5 +145,6 @@ export const ASSIGNABLE_EVENT_STATUSES: EventStatus[] = [
   'APPROVED',
   'PLANNING',
   'AWAITING_ARRANGEMENTS',
+  'AWAITING_SAFETY_CHECK',
   'CONFIRMED',
 ];

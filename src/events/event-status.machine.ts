@@ -64,21 +64,29 @@ export const ALLOWED_TRANSITIONS: Readonly<
   // Approved work moves into arrangement.
   [EventStatus.APPROVED]: [EventStatus.PLANNING, EventStatus.CANCELLED],
 
-  // US-11: PLANNING may go straight to CONFIRMED when nothing needs booking,
-  // or wait on venue/equipment decisions first.
+  // US-42 (Week 7 Change #6): no event is confirmed without a safety check,
+  // so the US-11 edge straight to CONFIRMED is gone. Once every arrangement is
+  // ready the Coordinator confirms them, which leads to AWAITING_SAFETY_CHECK.
+  // Allowed from PLANNING too: nothing moves an event to AWAITING_ARRANGEMENTS
+  // yet, so a strict rule would make Confirm unreachable.
   [EventStatus.PLANNING]: [
     EventStatus.AWAITING_ARRANGEMENTS,
-    EventStatus.CONFIRMED,
+    EventStatus.AWAITING_SAFETY_CHECK,
     EventStatus.CANCELLED,
   ],
 
   // AMBIGUOUS: the edge back to PLANNING covers a booking being refused, which
   // sends the Coordinator back to find an alternative. E5/E6 will confirm.
   [EventStatus.AWAITING_ARRANGEMENTS]: [
-    EventStatus.CONFIRMED,
+    EventStatus.AWAITING_SAFETY_CHECK,
     EventStatus.PLANNING,
     EventStatus.CANCELLED,
   ],
+
+  // US-42 enters this status; US-57 owns every way out of it (the Safety
+  // Officer approves -> CONFIRMED, asks for changes, or rejects) and adds
+  // those edges. Until then only cancellation leaves it.
+  [EventStatus.AWAITING_SAFETY_CHECK]: [EventStatus.CANCELLED],
 
   [EventStatus.CONFIRMED]: [EventStatus.COMPLETED, EventStatus.CANCELLED],
 
@@ -127,6 +135,16 @@ export const PLANNING_STATUSES: readonly EventStatus[] = [
 ];
 
 /**
+ * US-42: statuses from which the Coordinator may confirm the arrangements.
+ * Equal to PLANNING_STATUSES today, but named separately: once confirmed the
+ * event leaves planning, and the two lists answer different questions.
+ */
+export const CONFIRMABLE_STATUSES: readonly EventStatus[] = [
+  EventStatus.PLANNING,
+  EventStatus.AWAITING_ARRANGEMENTS,
+];
+
+/**
  * US-03 AC-2: unassigned requests any Coordinator may pick up. Without this,
  * a freshly submitted request would be invisible to every Coordinator and no
  * review could start.
@@ -145,6 +163,8 @@ export const ATTENDEE_VISIBLE_STATUSES: readonly EventStatus[] = [
   EventStatus.APPROVED,
   EventStatus.PLANNING,
   EventStatus.AWAITING_ARRANGEMENTS,
+  // US-42: still on its way to CONFIRMED, so it does not drop out of view.
+  EventStatus.AWAITING_SAFETY_CHECK,
   EventStatus.CONFIRMED,
   EventStatus.COMPLETED,
 ];
@@ -158,6 +178,7 @@ export const ASSIGNABLE_STATUSES: readonly EventStatus[] = [
   EventStatus.APPROVED,
   EventStatus.PLANNING,
   EventStatus.AWAITING_ARRANGEMENTS,
+  EventStatus.AWAITING_SAFETY_CHECK,
   EventStatus.CONFIRMED,
 ];
 

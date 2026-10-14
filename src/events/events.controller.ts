@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -31,6 +32,7 @@ import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { RejectChangeRequestDto } from './dto/reject-change-request.dto';
 import { EventsChangeReviewService } from './events-change-review.service';
 import { EventsChangeRequestService } from './events-change-request.service';
+import { EventConfirmationService } from './event-confirmation.service';
 import { EventsService } from './events.service';
 
 /**
@@ -45,6 +47,7 @@ export class EventsController {
     private readonly eventsService: EventsService,
     private readonly changeRequests: EventsChangeRequestService,
     private readonly changeReviews: EventsChangeReviewService,
+    private readonly confirmation: EventConfirmationService,
   ) {}
 
   /**
@@ -236,6 +239,50 @@ export class EventsController {
     @Body() dto: TechnicalRequirementsDto,
   ) {
     return this.eventsService.setTechnicalRequirements(user, id, dto);
+  }
+
+  /** US-42 AC-1/AC-2 — what is ready to confirm and what is outstanding. */
+  @Get(':id/confirmation-readiness')
+  @Roles(Role.EVENT_COORDINATOR)
+  getConfirmationReadiness(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.confirmation.readinessFor(user, id);
+  }
+
+  /** US-42 AC-3/AC-4 — confirm the arrangements; on to the safety check. */
+  @Post(':id/confirm')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  confirmArrangements(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.confirmation.confirm(user, id);
+  }
+
+  /** US-42 — tick a free-text equipment line as checked by hand. */
+  @Post(':id/requirements/:reqId/manual-confirm')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  manualConfirmRequirement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('reqId') reqId: string,
+  ) {
+    return this.confirmation.manualConfirm(user, id, reqId);
+  }
+
+  /** US-42 — undo the tick. */
+  @Delete(':id/requirements/:reqId/manual-confirm')
+  @Roles(Role.EVENT_COORDINATOR)
+  undoManualConfirmRequirement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('reqId') reqId: string,
+  ) {
+    return this.confirmation.undoManualConfirm(user, id, reqId);
   }
 
   /** US-26 — the event's change history, oldest first. */

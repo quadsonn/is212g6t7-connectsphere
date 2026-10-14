@@ -111,11 +111,26 @@ describe('Event state machine (US-11)', () => {
       expect(canTransition(EventStatus.APPROVED, EventStatus.CONFIRMED)).toBe(false);
     });
 
-    it('allows planning to wait on arrangements or confirm directly', () => {
+    it('allows planning to wait on arrangements', () => {
       expect(
         canTransition(EventStatus.PLANNING, EventStatus.AWAITING_ARRANGEMENTS),
       ).toBe(true);
-      expect(canTransition(EventStatus.PLANNING, EventStatus.CONFIRMED)).toBe(true);
+    });
+
+    it('US-42: confirming arrangements leads to the safety check, never straight to CONFIRMED', () => {
+      for (const from of [EventStatus.PLANNING, EventStatus.AWAITING_ARRANGEMENTS]) {
+        expect(canTransition(from, EventStatus.AWAITING_SAFETY_CHECK)).toBe(true);
+        expect(canTransition(from, EventStatus.CONFIRMED)).toBe(false);
+      }
+    });
+
+    it('US-42: nothing reaches CONFIRMED yet; US-57 adds the safety approval edge', () => {
+      for (const from of ALL) {
+        expect(canTransition(from, EventStatus.CONFIRMED)).toBe(false);
+      }
+      expect(ALLOWED_TRANSITIONS[EventStatus.AWAITING_SAFETY_CHECK]).toEqual([
+        EventStatus.CANCELLED,
+      ]);
     });
 
     it('lets a refused arrangement send planning back round', () => {
@@ -162,7 +177,14 @@ describe('Event state machine (US-11)', () => {
         }
       }
 
-      expect([...ALL].sort()).toEqual([...reached].sort());
+      // US-42 removed the edges that skipped the safety check, so CONFIRMED
+      // (and COMPLETED after it) can only be reached through the Safety
+      // Officer's approval, which US-57 adds. Delete this exception then.
+      const awaitingUs57: EventStatus[] = [EventStatus.CONFIRMED, EventStatus.COMPLETED];
+
+      expect([...ALL].filter((s) => !awaitingUs57.includes(s)).sort()).toEqual(
+        [...reached].sort(),
+      );
     });
   });
 

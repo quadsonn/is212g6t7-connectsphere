@@ -16,7 +16,7 @@ import { useEventBookings } from '@/features/bookings/hooks/use-bookings';
 import { apiErrorMessage } from '@/lib/api-client';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { CHANGEABLE_EVENT_STATUSES, EDITABLE_EVENT_STATUSES } from '@/lib/status';
-import { formatDate, humanise } from '@/lib/utils';
+import { formatDate, formatDateTime, humanise } from '@/lib/utils';
 import { ACCESSIBILITY_FEATURE_LABELS } from '@/types/api';
 
 /** A labelled value in the detail grid — dash when the field is still empty (a draft, US-04). */
@@ -108,6 +108,23 @@ export function OrganiserRequestDetail() {
                 : `Returned for changes: ${event.statusView.decision.reason}`
             }
           />
+        ) : null}
+
+        {/* US-42 AC-5: the Coordinator confirmed everything; safety review is next. */}
+        {event.status === 'AWAITING_SAFETY_CHECK' ? (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          >
+            <p className="font-medium">Arrangements confirmed - awaiting safety review</p>
+            <p className="mt-1">
+              Your coordinator has confirmed the venue and equipment
+              {event.arrangementsConfirmedAt
+                ? ` on ${formatDateTime(event.arrangementsConfirmedAt)}`
+                : ''}
+              . A Safety Officer will review the event next.
+            </p>
+          </div>
         ) : null}
 
         {event.clarificationRequested && event.clarificationRequest ? (

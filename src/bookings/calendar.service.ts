@@ -38,6 +38,13 @@ export interface CalendarEntry {
   /** AC-6: for a block — why, and who marked it. */
   reason: string | null;
   createdByName: string | null;
+  /**
+   * US-51: "Conflict - needs review", and why. Carried alongside `kind`
+   * rather than as a kind of its own, so a flagged entry still shows whether
+   * it is tentative or confirmed. Always false for a block.
+   */
+  needsReview: boolean;
+  needsReviewReason: string | null;
 }
 
 export interface CalendarView {
@@ -127,6 +134,8 @@ export class CalendarService {
         expectedAttendance: b.expectedAttendance,
         reason: null,
         createdByName: null,
+        needsReview: b.needsReview,
+        needsReviewReason: b.needsReview ? b.needsReviewReason : null,
       })),
       ...blocks.map((block) => ({
         id: block.id,
@@ -139,6 +148,8 @@ export class CalendarService {
         expectedAttendance: null,
         reason: block.reason,
         createdByName: block.createdBy.name,
+        needsReview: false,
+        needsReviewReason: null,
       })),
     ].sort((a, b) => a.start.getTime() - b.start.getTime());
 

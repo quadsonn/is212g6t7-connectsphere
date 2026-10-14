@@ -1,6 +1,16 @@
 import { BookingDecisionKind, BookingStatus, EventStatus, Prisma } from '@prisma/client';
 
 /**
+ * Statuses that still hold a venue. REJECTED bookings hold nothing — nothing
+ * depends on them (US-14) and they block no date (US-17). Shared with US-51's
+ * conflict re-check, which must agree on what "live" means.
+ */
+export const LIVE_STATUSES: BookingStatus[] = [
+  BookingStatus.REQUESTED,
+  BookingStatus.APPROVED,
+];
+
+/**
  * US-21 — event statuses in which a Coordinator may request a venue.
  *
  * AMBIGUOUS: the brief says review precedes venue booking (§1), so nothing
@@ -184,6 +194,9 @@ export const BOOKING_TRANSITIONS: Readonly<
     [BookingStatus.APPROVED]: [BookingStatus.REJECTED],
     [BookingStatus.REJECTED]: [BookingStatus.APPROVED],
   },
+  // US-51: resolving a "Conflict - needs review" flag is recorded as a
+  // decision but never changes the status, so it permits no transition.
+  [BookingDecisionKind.REVIEW_RESOLVED]: {},
 });
 
 export function canDecide(

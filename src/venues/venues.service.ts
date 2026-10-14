@@ -13,6 +13,9 @@ import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { VenueBookingLookup } from '../bookings/booking-impact';
 import { confirmedOverlapping } from '../bookings/booking-overlap';
+import { BookingReviewService, recheckReviewFlags } from '../bookings/booking-review.service';
+import { BufferClash } from '../bookings/buffer-clashes';
+import { lockVenue } from '../bookings/venue-lock';
 import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -31,7 +34,7 @@ import {
   rangeBounds,
   resolveRange,
 } from './availability';
-import { UpdateVenueBuffersDto } from './dto/venue-buffers.dto';
+import { UpdateVenueBuffersDto, VenueBuffersDto } from './dto/venue-buffers.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenueSearchDto } from './dto/venue-search.dto';
 import { assessSuitability, VenueSuitability } from './suitability';
@@ -79,6 +82,7 @@ export class VenuesService {
     private readonly notifications: NotificationsService,
     private readonly storage: SupabaseStorageService,
     private readonly events: EventsService,
+    private readonly reviews: BookingReviewService,
   ) {}
 
   /**
@@ -366,23 +370,72 @@ export class VenuesService {
    * not-found as every other venue write (findManaged). Draft and published
    * venues alike. Writes only the two buffer columns.
    *
-   * US-51 adds its pre-save conflict check here, before the update. Nothing
-   * here re-checks existing bookings against the new buffers — that is US-50/51.
+   * US-51 — before saving, the venue's future bookings are re-checked under
+   * the proposed buffers. New clashes refuse the save with a 409 listing them
+   * (AC-3/AC-4) unless `confirmConflicts` is set; then the buffers are saved
+   * and each clashing booking is flagged "Conflict - needs review" (AC-5),
+   * all in one transaction under the venue lock, so no booking can be
+   * requested or decided between the check and the save. Bookings are never
+   * moved, cancelled or re-statused (AC-6).
    */
   async updateBuffers(
     user: AuthenticatedUser,
     id: string,
     dto: UpdateVenueBuffersDto,
-  ): Promise<Venue> {
+  ): Promise<Venue & { flagged: number }> {
     const venue = await this.findManaged(user, id, Action.UPDATE);
+    const proposed = {
+      setupMinutes: dto.setupMinutes,
+      turnaroundMinutes: dto.turnaroundMinutes,
+    };
 
-    return this.prisma.venue.update({
-      where: { id: venue.id },
-      data: {
-        setupMinutes: dto.setupMinutes,
-        turnaroundMinutes: dto.turnaroundMinutes,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      await lockVenue(tx, venue.id);
+
+      // Re-read under the lock: the buffers may have changed since.
+      const current = await tx.venue.findUniqueOrThrow({
+        where: { id: venue.id },
+        select: { setupMinutes: true, turnaroundMinutes: true },
+      });
+      const clashes = await this.reviews.previewBufferChange(tx, venue.id, current, proposed);
+
+      if (clashes.length > 0 && !dto.confirmConflicts) {
+        throw new ConflictException({
+          statusCode: 409,
+          error: 'Conflict',
+          message:
+            'these buffer times would make existing bookings clash; confirm to save anyway and flag them for review',
+          clashes,
+        });
+      }
+
+      const updated = await tx.venue.update({ where: { id: venue.id }, data: proposed });
+      const flagged = clashes.length > 0 ? await this.reviews.flag(tx, clashes, proposed) : 0;
+      // Lowering a buffer may end earlier clashes: clear those flags.
+      await recheckReviewFlags(venue.id, tx);
+
+      return { ...updated, flagged };
     });
+  }
+
+  /**
+   * US-51 AC-3 — what saving these buffers would flag, without saving. Same
+   * permission rule as the save. Advisory: the save checks again under the
+   * lock, since bookings may change in between.
+   */
+  async previewBuffers(
+    user: AuthenticatedUser,
+    id: string,
+    dto: VenueBuffersDto,
+  ): Promise<{ clashes: BufferClash[] }> {
+    const venue = await this.findManaged(user, id, Action.UPDATE);
+    const clashes = await this.reviews.previewBufferChange(
+      this.prisma,
+      venue.id,
+      { setupMinutes: venue.setupMinutes, turnaroundMinutes: venue.turnaroundMinutes },
+      { setupMinutes: dto.setupMinutes, turnaroundMinutes: dto.turnaroundMinutes },
+    );
+    return { clashes };
   }
 
   /**

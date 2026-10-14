@@ -32,6 +32,20 @@ export function overlapsRange(
 }
 
 /**
+ * US-51 — overlapsRange() for windows already in memory, so the sweep over a
+ * venue's bookings needs no query per pair. The same half-open comparison as
+ * the filter above (start < other.end and end > other.start); if one changes,
+ * change both. test/booking-review-flags.e2e-spec.ts checks they agree with
+ * Postgres.
+ */
+export function windowsOverlap(
+  a: { start: Date; end: Date },
+  b: { start: Date; end: Date },
+): boolean {
+  return a.start < b.end && a.end > b.start;
+}
+
+/**
  * US-49 — the window a booking actually occupies once the venue's buffers
  * apply: setup time before it, turnaround time after it. The customer's
  * example: 10:00-12:00 with 30/45 minutes occupies 09:30-12:45.

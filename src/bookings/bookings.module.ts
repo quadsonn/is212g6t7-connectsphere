@@ -6,6 +6,7 @@ import { BookingsService } from './bookings.service';
 import { CalendarController } from './calendar.controller';
 import { CalendarService } from './calendar.service';
 import { VenueBookingLookup } from './booking-impact';
+import { BookingReviewService } from './booking-review.service';
 
 /**
  * E5 — venue booking requests, approval, conflict detection, and (US-16)
@@ -19,9 +20,10 @@ import { VenueBookingLookup } from './booking-impact';
   controllers: [BookingsController, CalendarController],
   providers: [
     BookingsService,
+    BookingReviewService,
     CalendarService,
     { provide: VenueBookingLookup, useExisting: BookingsService },
   ],
-  exports: [VenueBookingLookup, BookingsService],
+  exports: [VenueBookingLookup, BookingsService, BookingReviewService],
 })
 export class BookingsModule {}

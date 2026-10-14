@@ -9,6 +9,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { BookingStatusBadge } from '@/features/bookings/components/booking-status-badge';
+import { NeedsReviewBadge } from '@/features/bookings/components/needs-review-badge';
 import { useBookingQueue } from '@/features/bookings/hooks/use-bookings';
 import { useVenues } from '@/features/venues/hooks/use-venues';
 import { apiErrorMessage } from '@/lib/api-client';
@@ -74,6 +75,7 @@ function QueueRow({ entry }: { entry: BookingQueueEntry }) {
         </p>
       </div>
       <div className="flex items-center gap-3">
+        {entry.needsReview ? <NeedsReviewBadge /> : null}
         <BookingStatusBadge status={entry.status} />
         <LinkButton to={`/venues/bookings/${entry.id}`} variant="secondary" size="sm">
           View details

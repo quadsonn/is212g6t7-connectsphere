@@ -511,11 +511,33 @@ export interface Venue {
   imageUrls: string[];
 }
 
-/** US-49 — PATCH /venues/:id/buffers. */
+/** US-49 — PATCH /venues/:id/buffers. US-51: `confirmConflicts` is "save anyway". */
 export interface VenueBuffersPayload {
   setupMinutes: number;
   turnaroundMinutes: number;
+  confirmConflicts?: boolean;
 }
+
+/** US-51 — one side of a buffer clash. */
+export interface BufferClashParty {
+  bookingId: string;
+  eventName: string | null;
+  start: string;
+  end: string;
+}
+
+/** US-51 — a booking the new buffers would flag, and what it would clash with. */
+export interface BufferClash extends BufferClashParty {
+  clashesWith: BufferClashParty;
+}
+
+/** US-51 — POST /venues/:id/buffers/preview, and the 409 body of a refused save. */
+export interface BufferPreview {
+  clashes: BufferClash[];
+}
+
+/** US-51 — PATCH /venues/:id/buffers: the venue plus how many bookings were flagged. */
+export type VenueBuffersResult = Venue & { flagged: number };
 
 /** US-14 — a warning returned alongside an edit that may invalidate bookings. */
 export interface VenueUpdateWarning {
@@ -839,12 +861,22 @@ export interface VenueBooking {
   requestedBy: ContactSummary | null;
   /** US-23 AC-4/AC-6: every decision and reversal, oldest first. */
   decisions: BookingDecision[];
+  /**
+   * US-51: "Conflict - needs review" — a buffer change made this booking
+   * clash with another. Never changes start, end or status.
+   */
+  needsReview: boolean;
+  needsReviewReason: string | null;
+  flaggedAt: string | null;
+  reviewResolvedAt: string | null;
+  reviewResolvedById: string | null;
 }
 
 /** US-23 — one recorded decision. Append-only: never edited after the fact. */
 export interface BookingDecision {
   id: string;
-  kind: 'DECISION' | 'REVERSAL';
+  /** US-51: REVIEW_RESOLVED clears a conflict flag; outcome is the unchanged status. */
+  kind: 'DECISION' | 'REVERSAL' | 'REVIEW_RESOLVED';
   outcome: BookingStatus;
   reason: string | null;
   createdAt: string;
@@ -934,6 +966,9 @@ export interface CalendarEntry {
   expectedAttendance: number | null;
   reason: string | null;
   createdByName: string | null;
+  /** US-51: "Conflict - needs review", alongside kind. Always false for a block. */
+  needsReview: boolean;
+  needsReviewReason: string | null;
 }
 
 /** GET /calendar */

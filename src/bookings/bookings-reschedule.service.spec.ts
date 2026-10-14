@@ -23,17 +23,28 @@ describe('BookingsService.rescheduleForEventChange (US-38)', () => {
   });
 
   let tx: {
-    venueBooking: { findMany: jest.Mock; update: jest.Mock };
+    venueBooking: { findMany: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
+    venue: { findUniqueOrThrow: jest.Mock };
     $executeRaw: jest.Mock;
   };
   let service: BookingsService;
+  // The event's live bookings; and (US-51) the venue's flagged bookings,
+  // which the re-check after the move asks for separately.
+  let liveRows: ReturnType<typeof row>[];
+  let flaggedRows: { id: string; status: BookingStatus }[];
 
   beforeEach(() => {
+    liveRows = [row()];
+    flaggedRows = [];
     tx = {
       venueBooking: {
-        findMany: jest.fn().mockResolvedValue([row()]),
+        findMany: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve(where.needsReview ? flaggedRows : where.eventId ? liveRows : []),
+        ),
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
+      venue: { findUniqueOrThrow: jest.fn().mockResolvedValue({ setupMinutes: 0, turnaroundMinutes: 0 }) },
       $executeRaw: jest.fn().mockResolvedValue(1),
     };
     service = new BookingsService(
@@ -103,10 +114,10 @@ describe('BookingsService.rescheduleForEventChange (US-38)', () => {
   });
 
   it('moves every live booking, including a pending one', async () => {
-    tx.venueBooking.findMany.mockResolvedValue([
+    liveRows = [
       row(),
       row({ id: 'booking-2', venueId: 'venue-2', status: BookingStatus.REQUESTED }),
-    ]);
+    ];
 
     const moved = await run();
 
@@ -115,9 +126,32 @@ describe('BookingsService.rescheduleForEventChange (US-38)', () => {
   });
 
   it('does nothing when the event has no live bookings', async () => {
-    tx.venueBooking.findMany.mockResolvedValue([]);
+    liveRows = [];
 
     await expect(run()).resolves.toEqual([]);
     expect(tx.venueBooking.update).not.toHaveBeenCalled();
+  });
+
+  it('US-51: re-checks review flags on each venue a booking moved on', async () => {
+    liveRows = [
+      row(),
+      row({ id: 'booking-2', venueId: 'venue-2', status: BookingStatus.REQUESTED }),
+    ];
+
+    await run();
+
+    const flagQueries = tx.venueBooking.findMany.mock.calls.filter(([args]) => args.where.needsReview);
+    expect(flagQueries.map(([args]) => args.where.venueId)).toEqual(['venue-1', 'venue-2']);
+  });
+
+  it('US-51: clears a flag the move resolved', async () => {
+    flaggedRows = [{ id: 'other', status: BookingStatus.APPROVED }];
+
+    await run();
+
+    // Nothing is live on the venue any more in this mock, so nothing clashes.
+    expect(tx.venueBooking.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['other'] } } }),
+    );
   });
 });

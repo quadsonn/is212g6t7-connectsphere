@@ -1,3 +1,4 @@
+import { AlertTriangle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { cn, formatDateRange } from '@/lib/utils';
@@ -7,6 +8,8 @@ import {
   AVAILABLE_CLASS,
   type CalendarFilters,
   ENTRY_STYLES,
+  NEEDS_REVIEW_CLASS,
+  NEEDS_REVIEW_LABEL,
   NO_FILTERS,
   daysIn,
   entriesOn,
@@ -29,6 +32,7 @@ function entryTitle(entry: CalendarEntry): string {
 function entrySummary(entry: CalendarEntry, venueName?: string | null): string {
   return [
     ENTRY_STYLES[entry.kind].label,
+    entry.needsReview ? NEEDS_REVIEW_LABEL : null,
     entryTitle(entry),
     venueName,
     `${timeLabel(entry.start)}–${timeLabel(entry.end)}`,
@@ -63,10 +67,17 @@ export function EntryChip({
         'block w-full truncate rounded-md px-2 py-1 text-left text-xs',
         'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600',
         kind.className,
+        entry.needsReview && NEEDS_REVIEW_CLASS,
         className,
       )}
     >
-      <span className="sr-only">{kind.label}: </span>
+      <span className="sr-only">
+        {kind.label}
+        {entry.needsReview ? `, ${NEEDS_REVIEW_LABEL}` : ''}:{' '}
+      </span>
+      {entry.needsReview ? (
+        <AlertTriangle className="mr-1 inline size-3 text-red-600" aria-hidden="true" />
+      ) : null}
       <span className="font-medium">
         {timeLabel(entry.start)}–{timeLabel(entry.end)}
       </span>{' '}
@@ -272,6 +283,7 @@ export function DayTimeline({
                     'absolute overflow-hidden rounded-md border-2 border-l-[5px] px-2 py-1 text-left text-xs shadow-sm',
                     'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600',
                     STATUS_BORDER[entry.kind],
+                    entry.needsReview && NEEDS_REVIEW_CLASS,
                   )}
                   style={{
                     top,
@@ -291,7 +303,10 @@ export function DayTimeline({
                   <span className="block truncate">
                     {name} · {timeLabel(entry.start)}–{timeLabel(entry.end)}
                   </span>
-                  <span className="block truncate opacity-80">{STATUS_WORD[entry.kind]}</span>
+                  <span className="block truncate opacity-80">
+                    {STATUS_WORD[entry.kind]}
+                    {entry.needsReview ? ` · ${NEEDS_REVIEW_LABEL}` : ''}
+                  </span>
                 </button>
               );
             })}

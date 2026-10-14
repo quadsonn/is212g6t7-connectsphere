@@ -69,6 +69,22 @@ export function useDecideBooking() {
 }
 
 /**
+ * US-51 — clear a "Conflict - needs review" flag by hand. Refreshes bookings
+ * and the calendar, where the flag is also shown.
+ */
+export function useResolveReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note?: string }) => bookingsApi.resolveReview(id, note),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      // calendarKeys.all — not imported, since use-calendar imports this file.
+      void queryClient.invalidateQueries({ queryKey: ['calendar'] });
+    },
+  });
+}
+
+/**
  * US-22 — the Venue Staff queue. Refetches when the tab regains focus (React
  * Query's default), so a request decided elsewhere drops out of the pending view.
  */

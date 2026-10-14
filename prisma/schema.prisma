@@ -78,6 +78,9 @@ enum BookingStatus {
 enum BookingDecisionKind {
   DECISION
   REVERSAL
+  // US-51: Venue Staff cleared a "Conflict - needs review" flag. Records who
+  // and why; never changes the booking's status (outcome = status as it was).
+  REVIEW_RESOLVED
 }
 
 // US-06: the predefined room layouts an Organiser may choose from.
@@ -235,6 +238,8 @@ model User {
   requestedBookings     VenueBooking[]         @relation("BookingRequester")
   bookingDecisions      BookingDecision[]
   venueBlocks           VenueBlock[]
+  // US-51: booking conflict reviews this user resolved by hand.
+  resolvedBookingReviews VenueBooking[] @relation("BookingReviewResolver")
 
   @@index([role])
 }
@@ -448,10 +453,26 @@ model VenueBooking {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // US-51: "Conflict - needs review". Set when Venue Staff save a buffer
+  // change that makes this booking clash with another, and cleared by hand
+  // (resolve-review) or automatically once it no longer clashes. Deliberately
+  // NOT a BookingStatus: a status would take an APPROVED booking out of the
+  // US-24 exclusion constraint. The flag never changes start, end or status.
+  needsReview       Boolean   @default(false)
+  needsReviewReason String?
+  flaggedAt         DateTime?
+  // When and by whom the latest flag was cleared. A null resolver with a
+  // timestamp means it was cleared automatically (recheckReviewFlags).
+  reviewResolvedAt   DateTime?
+  reviewResolvedById String?
+  reviewResolvedBy   User?     @relation("BookingReviewResolver", fields: [reviewResolvedById], references: [id], onDelete: Restrict)
+
   // US-23 AC-4/AC-6: every decision ever made on this request, oldest first.
   decisions BookingDecision[]
 
   @@index([requestedById])
+  // US-51: flagged bookings on a venue, for the re-check after any change.
+  @@index([venueId, needsReview])
   // Supports the (venueId, time range) conflict lookup in §5.
   //
   // Overlap prevention has two layers (US-24):

@@ -4,12 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
 
-import type { Venue } from '@/types/api';
+import type { BufferClash, Venue } from '@/types/api';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { venuesApi } from '../api/venues.api';
 import { VenueBuffersCard } from './venue-buffers-card';
 
-vi.mock('../api/venues.api', () => ({ venuesApi: { updateBuffers: vi.fn() } }));
+vi.mock('../api/venues.api', () => ({ venuesApi: { updateBuffers: vi.fn(), previewBuffers: vi.fn() } }));
 vi.mock('@/features/auth/hooks/use-auth', () => ({ useAuth: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }));
 
@@ -56,7 +56,8 @@ describe('US-49 venue buffers card', () => {
 
   it('US-49 AC-1: the manager saves new values and sees a success toast', async () => {
     signedInAs('staff-1');
-    api.updateBuffers.mockResolvedValue({ ...venue, setupMinutes: 15, turnaroundMinutes: 0 });
+    api.previewBuffers.mockResolvedValue({ clashes: [] });
+    api.updateBuffers.mockResolvedValue({ ...venue, setupMinutes: 15, turnaroundMinutes: 0, flagged: 0 });
     renderCard();
 
     await userEvent.clear(setupInput());
@@ -68,6 +69,7 @@ describe('US-49 venue buffers card', () => {
     await waitFor(() =>
       expect(api.updateBuffers).toHaveBeenCalledWith('v1', { setupMinutes: 15, turnaroundMinutes: 0 }),
     );
+    expect(api.previewBuffers).toHaveBeenCalledWith('v1', { setupMinutes: 15, turnaroundMinutes: 0 });
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
   });
 
@@ -87,5 +89,77 @@ describe('US-49 venue buffers card', () => {
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(setupInput()).toHaveAttribute('aria-invalid', 'true');
     expect(api.updateBuffers).not.toHaveBeenCalled();
+    expect(api.previewBuffers).not.toHaveBeenCalled();
+  });
+});
+
+describe('US-51 clashes before saving buffers', () => {
+  const clash: BufferClash = {
+    bookingId: 'b1',
+    eventName: 'Morning lecture',
+    start: '2030-10-01T10:00:00.000Z',
+    end: '2030-10-01T12:00:00.000Z',
+    clashesWith: {
+      bookingId: 'b2',
+      eventName: 'Lunch talk',
+      start: '2030-10-01T12:30:00.000Z',
+      end: '2030-10-01T14:00:00.000Z',
+    },
+  };
+
+  const changeAndSave = async () => {
+    signedInAs('staff-1');
+    renderCard();
+    await userEvent.clear(setupInput());
+    await userEvent.type(setupInput(), '60');
+    await userEvent.click(save());
+  };
+
+  it('US-51 AC-3: lists each clash — event, time, and what it clashes with — before saving', async () => {
+    api.previewBuffers.mockResolvedValue({ clashes: [clash] });
+    await changeAndSave();
+
+    const dialog = await screen.findByRole('dialog', { name: /bookings would clash/i });
+    expect(dialog).toHaveTextContent('Morning lecture');
+    expect(dialog).toHaveTextContent('Lunch talk');
+    expect(api.updateBuffers).not.toHaveBeenCalled();
+  });
+
+  it('US-51 AC-4: Cancel closes the list and saves nothing', async () => {
+    api.previewBuffers.mockResolvedValue({ clashes: [clash] });
+    await changeAndSave();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(api.updateBuffers).not.toHaveBeenCalled();
+  });
+
+  it('US-51 AC-4/AC-5: Save anyway saves with confirmation and says how many were flagged', async () => {
+    api.previewBuffers.mockResolvedValue({ clashes: [clash] });
+    api.updateBuffers.mockResolvedValue({ ...venue, setupMinutes: 60, flagged: 2 });
+    await changeAndSave();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Save anyway' }));
+
+    await waitFor(() =>
+      expect(api.updateBuffers).toHaveBeenCalledWith('v1', {
+        setupMinutes: 60,
+        turnaroundMinutes: 45,
+        confirmConflicts: true,
+      }),
+    );
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/2 bookings flagged/)));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('US-51 AC-7: no clashes saves straight away with "Buffer times saved"', async () => {
+    api.previewBuffers.mockResolvedValue({ clashes: [] });
+    api.updateBuffers.mockResolvedValue({ ...venue, setupMinutes: 60, flagged: 0 });
+    await changeAndSave();
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/^Buffer times saved/)));
+    expect(api.updateBuffers).toHaveBeenCalledWith('v1', { setupMinutes: 60, turnaroundMinutes: 45 });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

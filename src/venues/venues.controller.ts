@@ -27,7 +27,7 @@ import { BrowseVenuesDto } from './dto/browse-venues.dto';
 import { VenueAvailabilityQueryDto } from './dto/venue-availability.dto';
 import { VenueSearchDto } from './dto/venue-search.dto';
 import { VenueSuitabilityQueryDto } from './dto/venue-suitability.dto';
-import { UpdateVenueBuffersDto } from './dto/venue-buffers.dto';
+import { UpdateVenueBuffersDto, VenueBuffersDto } from './dto/venue-buffers.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -91,7 +91,10 @@ export class VenuesController {
     return this.venuesService.updateDraft(user, id, dto);
   }
 
-  /** US-49 — set the venue's setup and turnaround time. */
+  /**
+   * US-49 — set the venue's setup and turnaround time. US-51: 409 with the
+   * clashes unless `confirmConflicts` is true.
+   */
   @Patch(':id/buffers')
   @Roles(Role.VENUE_STAFF)
   updateBuffers(
@@ -100,6 +103,18 @@ export class VenuesController {
     @Body() dto: UpdateVenueBuffersDto,
   ) {
     return this.venuesService.updateBuffers(user, id, dto);
+  }
+
+  /** US-51 AC-3 — which bookings these buffers would flag. Saves nothing. */
+  @Post(':id/buffers/preview')
+  @Roles(Role.VENUE_STAFF)
+  @HttpCode(HttpStatus.OK)
+  previewBuffers(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: VenueBuffersDto,
+  ) {
+    return this.venuesService.previewBuffers(user, id, dto);
   }
 
   /** AC-3/AC-5 — publish once complete. */

@@ -11,6 +11,8 @@ import type {
   VenueSearchQuery,
   VenueSuitability,
 } from '@/types/api';
+import { bookingKeys } from '@/features/bookings/hooks/use-bookings';
+import { calendarKeys } from '@/features/calendar/hooks/use-calendar';
 import { venuesApi } from '../api/venues.api';
 
 export const venueKeys = {
@@ -127,12 +129,24 @@ export function useRemoveVenueImage(id: string) {
   });
 }
 
-// US-49: the venue's setup and turnaround time.
+// US-49: the venue's setup and turnaround time. US-51: saving may flag
+// bookings, so the booking queue and calendar are refreshed too.
 export function useUpdateVenueBuffers(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: VenueBuffersPayload) => venuesApi.updateBuffers(id, payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: venueKeys.all }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: venueKeys.all });
+      void queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      void queryClient.invalidateQueries({ queryKey: calendarKeys.all });
+    },
+  });
+}
+
+// US-51: which bookings the proposed buffers would flag, before saving.
+export function usePreviewVenueBuffers(id: string) {
+  return useMutation({
+    mutationFn: (payload: VenueBuffersPayload) => venuesApi.previewBuffers(id, payload),
   });
 }
 

@@ -17,8 +17,15 @@ export function BookingDecisionHistory({ decisions }: { decisions: BookingDecisi
       {decisions.map((d) => (
         <li key={d.id} className="text-sm">
           <p className="font-medium text-ink-900">
-            {d.kind === 'REVERSAL' ? 'Reversed to ' : ''}
-            {BOOKING_STATUS_STYLES[d.outcome].label}
+            {d.kind === 'REVIEW_RESOLVED' ? (
+              // US-51: a resolved conflict flag; the status did not change.
+              <>Conflict review resolved · still {BOOKING_STATUS_STYLES[d.outcome].label.toLowerCase()}</>
+            ) : (
+              <>
+                {d.kind === 'REVERSAL' ? 'Reversed to ' : ''}
+                {BOOKING_STATUS_STYLES[d.outcome].label}
+              </>
+            )}
           </p>
           {d.reason ? <p className="mt-0.5 text-ink-800">{d.reason}</p> : null}
           <p className="mt-1 text-xs text-ink-500">

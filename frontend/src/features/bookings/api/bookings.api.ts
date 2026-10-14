@@ -43,6 +43,12 @@ export const bookingsApi = {
   reject: (id: string, reason: string) =>
     apiClient.post<VenueBooking>(`/bookings/${id}/reject`, { reason }).then((r) => r.data),
 
+  // US-51: clear a "Conflict - needs review" flag, with an optional note.
+  resolveReview: (id: string, note?: string) =>
+    apiClient
+      .post<VenueBooking>(`/bookings/${id}/resolve-review`, note ? { note } : {})
+      .then((r) => r.data),
+
   // US-23 AC-6: reverse a decision, recorded as a new action.
   reverse: (id: string, reason: string) =>
     apiClient.post<VenueBooking>(`/bookings/${id}/reverse`, { reason }).then((r) => r.data),

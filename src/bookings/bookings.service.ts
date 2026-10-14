@@ -18,20 +18,13 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { overlapping, overlapsRange } from './booking-overlap';
 import { rescheduleWindow, TimeWindow } from './booking-reschedule';
+import { recheckReviewFlags } from './booking-review.service';
+import { lockVenue } from './venue-lock';
 import {
   VenueBookingImpact,
   VenueBookingLookup,
   VenueBookingSlot,
 } from './booking-impact';
-
-/**
- * Statuses that still hold a venue. REJECTED bookings hold nothing — nothing
- * depends on them (US-14) and they block no date (US-17).
- */
-const LIVE_STATUSES: BookingStatus[] = [
-  BookingStatus.REQUESTED,
-  BookingStatus.APPROVED,
-];
 import {
   BOOKABLE_EVENT_STATUSES,
   BOOKING_INCLUDE,
@@ -45,6 +38,7 @@ import {
   canDecide,
   classifyConflicts,
   HARD_CONFLICT_CODE,
+  LIVE_STATUSES,
   URGENT_WINDOW_DAYS,
 } from './booking.types';
 import {
@@ -240,6 +234,8 @@ export class BookingsService implements VenueBookingLookup {
       venue: { managedById: user.userId },
       status: { in: statuses },
       ...(query.venueId ? { venueId: query.venueId } : {}),
+      // US-51: only bookings flagged "Conflict - needs review".
+      ...(query.needsReview ? { needsReview: true } : {}),
       // Overlap with [from, to], so a multi-day booking that straddles the
       // range boundary is still included.
       ...(query.to ? { start: { lte: query.to } } : {}),
@@ -427,11 +423,29 @@ export class BookingsService implements VenueBookingLookup {
           data: { bookingId: id, decidedById: user.userId, kind, outcome, reason },
         });
 
-        return tx.venueBooking.update({
+        // US-51: a rejected booking holds nothing, so its own "Conflict -
+        // needs review" flag no longer applies — cleared automatically.
+        const clearsOwnFlag = outcome === BookingStatus.REJECTED && current.needsReview;
+
+        const updated = await tx.venueBooking.update({
           where: { id },
-          data: { status: outcome, decisionReason: reason },
+          data: {
+            status: outcome,
+            decisionReason: reason,
+            ...(clearsOwnFlag
+              ? { needsReview: false, reviewResolvedAt: new Date(), reviewResolvedById: null }
+              : {}),
+          },
           include: BOOKING_INCLUDE,
         });
+
+        // US-51: leaving a live status may end other bookings' buffer
+        // clashes too. Same transaction, under the venue lock.
+        if (outcome === BookingStatus.REJECTED) {
+          await recheckReviewFlags(venueId, tx);
+        }
+
+        return updated;
       }),
     );
 
@@ -719,6 +733,13 @@ export class BookingsService implements VenueBookingLookup {
       });
     }
 
+    // US-51: moved bookings may no longer clash with what they were flagged
+    // against. Only clears flags; a clash at the new time is caught when the
+    // booking is approved again.
+    for (const venueId of new Set(live.map((b) => b.venueId))) {
+      await recheckReviewFlags(venueId, tx);
+    }
+
     return moved;
   }
 
@@ -733,7 +754,7 @@ export class BookingsService implements VenueBookingLookup {
     tx: Prisma.TransactionClient,
     venueId: string,
   ): Promise<void> {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${venueId}))`;
+    await lockVenue(tx, venueId);
   }
 
   /**

@@ -2,8 +2,10 @@ import { apiClient } from '@/lib/api-client';
 import type {
   BrowseVenuesQuery,
   DayAvailability,
+  BufferPreview,
   Venue,
   VenueBuffersPayload,
+  VenueBuffersResult,
   VenueDraftPayload,
   VenueSearchQuery,
   VenueSuitability,
@@ -52,8 +54,13 @@ export const venuesApi = {
     apiClient.patch<VenueWithWarnings>(`/venues/${id}`, payload).then((r) => r.data),
 
   // US-49: setup and turnaround time. Only the managing Venue Staff member.
+  // US-51: 409 with the clashes unless confirmConflicts is true.
   updateBuffers: (id: string, payload: VenueBuffersPayload) =>
-    apiClient.patch<Venue>(`/venues/${id}/buffers`, payload).then((r) => r.data),
+    apiClient.patch<VenueBuffersResult>(`/venues/${id}/buffers`, payload).then((r) => r.data),
+
+  // US-51: which bookings the proposed buffers would flag. Saves nothing.
+  previewBuffers: (id: string, payload: VenueBuffersPayload) =>
+    apiClient.post<BufferPreview>(`/venues/${id}/buffers/preview`, payload).then((r) => r.data),
 
   // US-13 AC-3/AC-5: publish once all required fields are complete.
   publish: (id: string) =>

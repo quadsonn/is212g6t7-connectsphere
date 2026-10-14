@@ -104,6 +104,14 @@ export const ENTRY_STYLES: Record<CalendarEntryKind, { label: string; className:
   },
 };
 
+/**
+ * US-51 — a booking flagged "Conflict - needs review". Drawn as a red ring on
+ * top of its tentative/confirmed style, and always spelled out in text too,
+ * so the flag never depends on colour alone.
+ */
+export { NEEDS_REVIEW_LABEL } from '@/features/bookings/needs-review';
+export const NEEDS_REVIEW_CLASS = 'ring-2 ring-red-500 ring-offset-1';
+
 /** "Available" — the absence of an entry. */
 export const AVAILABLE_CLASS = 'bg-emerald-50/60 text-emerald-800';
 

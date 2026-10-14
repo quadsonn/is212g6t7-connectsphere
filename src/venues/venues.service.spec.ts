@@ -7,6 +7,7 @@ import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { BookingReviewService } from '../bookings/booking-review.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { VenueDraftDto } from './dto/venue-draft.dto';
@@ -80,6 +81,7 @@ describe('VenuesService (US-13)', () => {
       notifications as unknown as NotificationsService,
       { uploadVenueImage: jest.fn() } as unknown as SupabaseStorageService,
       {} as unknown as EventsService,
+      {} as unknown as BookingReviewService,
     );
   });
 

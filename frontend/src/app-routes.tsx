@@ -33,6 +33,7 @@ import { VenueBookingDetail } from '@/pages/venue-booking-detail';
 import { VenueCalendar } from '@/pages/venue-calendar';
 import { CoordinatorChangeRequests } from '@/pages/coordinator-change-requests';
 import { CoordinatorChangeRequestDetail } from '@/pages/coordinator-change-request-detail';
+import { NotificationsPage } from '@/pages/notifications';
 
 /** Sends a signed-in user to their role's dashboard; everyone else to login. */
 function RoleHome() {
@@ -48,6 +49,8 @@ export function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<RoleHome />} />
+          {/* Notifications page: every role reads its own (the API scopes it). */}
+          <Route path="/notifications" element={<NotificationsPage />} />
 
           {/*
             Each dashboard is additionally restricted to its role. This is

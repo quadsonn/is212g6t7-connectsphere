@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 
 import { Wordmark } from '@/components/ui/logo';
 import { useAuth } from '@/features/auth/hooks/use-auth';
+import { NotificationBell } from '@/features/notifications/components/notification-bell';
 import { cn } from '@/lib/utils';
 import { NAV_BY_ROLE } from './nav-config';
 import { SidebarSlotContext } from './sidebar-slot-context';
@@ -26,7 +27,11 @@ export function AppShell() {
       <header className="sticky top-0 z-10 border-b border-ink-200 bg-white">
         <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
           <Wordmark />
-          <UserMenu />
+          <div className="flex items-center gap-2">
+            {/* Notifications page: every role's bell, with the unread count. */}
+            <NotificationBell />
+            <UserMenu />
+          </div>
         </div>
       </header>
 

@@ -53,6 +53,8 @@ function QueueRow({ entry }: { entry: BookingQueueEntry }) {
       className={cn(
         'flex flex-wrap items-start justify-between gap-3 px-5 py-4',
         entry.urgent && 'border-l-4 border-l-red-500 bg-red-50/40',
+        // US-44: released bookings hold nothing; kept in the history, greyed.
+        entry.status === 'RELEASED' && 'opacity-60',
       )}
     >
       <div className="min-w-0 space-y-1">
@@ -183,9 +185,11 @@ export function VenueBookingQueue() {
                 value={status}
                 onChange={(e) => setStatus(e.target.value as BookingStatus | '')}
               >
-                <option value="">Approved and rejected</option>
+                <option value="">Approved, rejected and released</option>
                 <option value="APPROVED">Approved</option>
                 <option value="REJECTED">Rejected</option>
+                {/* US-44: event cancelled, or a hold released or expired. */}
+                <option value="RELEASED">Released</option>
               </Select>
             </Field>
           ) : null}

@@ -924,12 +924,16 @@ export interface PlaceHoldPayload {
 /** US-23 — one recorded decision. Append-only: never edited after the fact. */
 export interface BookingDecision {
   id: string;
-  /** US-51: REVIEW_RESOLVED clears a conflict flag; outcome is the unchanged status. */
-  kind: 'DECISION' | 'REVERSAL' | 'REVIEW_RESOLVED';
+  /**
+   * US-51: REVIEW_RESOLVED clears a conflict flag; outcome is the unchanged status.
+   * US-44: RELEASE — released because the event was cancelled.
+   */
+  kind: 'DECISION' | 'REVERSAL' | 'REVIEW_RESOLVED' | 'RELEASE';
   outcome: BookingStatus;
   reason: string | null;
   createdAt: string;
-  decidedBy: ContactSummary & { role: Role };
+  /** US-44: null when the system recorded it (a cancellation with no known actor). */
+  decidedBy: (ContactSummary & { role: Role }) | null;
 }
 
 /** POST /bookings */

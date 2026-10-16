@@ -20,6 +20,9 @@ export function BookingDecisionHistory({ decisions }: { decisions: BookingDecisi
             {d.kind === 'REVIEW_RESOLVED' ? (
               // US-51: a resolved conflict flag; the status did not change.
               <>Conflict review resolved · still {BOOKING_STATUS_STYLES[d.outcome].label.toLowerCase()}</>
+            ) : d.kind === 'RELEASE' ? (
+              // US-44: released because the event was cancelled.
+              <>Released</>
             ) : (
               <>
                 {d.kind === 'REVERSAL' ? 'Reversed to ' : ''}
@@ -29,7 +32,7 @@ export function BookingDecisionHistory({ decisions }: { decisions: BookingDecisi
           </p>
           {d.reason ? <p className="mt-0.5 text-ink-800">{d.reason}</p> : null}
           <p className="mt-1 text-xs text-ink-500">
-            {d.decidedBy.name} ({humanise(d.decidedBy.role)}) ·{' '}
+            {d.decidedBy ? `${d.decidedBy.name} (${humanise(d.decidedBy.role)})` : 'System'} ·{' '}
             {new Date(d.createdAt).toLocaleString()}
           </p>
         </li>

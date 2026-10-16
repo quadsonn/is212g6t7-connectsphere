@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { NotificationType } from '@prisma/client';
+import { NotificationType, Prisma } from '@prisma/client';
 
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
@@ -7,8 +7,15 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
 import { linkFor, splitReason } from './notification-view';
 
-/** How many of the newest notifications the page shows. */
+/** How many of the newest notifications one page holds, unless asked (US-40). */
+export const INBOX_DEFAULT_LIMIT = 20;
+/** The most one page may hold. */
 export const INBOX_LIMIT = 100;
+
+const ITEM_INCLUDE = {
+  relatedEvent: { select: { id: true, name: true } },
+  relatedBooking: { select: { id: true, venue: { select: { id: true, name: true } } } },
+} satisfies Prisma.NotificationInclude;
 
 /** One notification as the page shows it. */
 export interface InboxItem {
@@ -23,7 +30,9 @@ export interface InboxItem {
   readAt: Date | null;
   createdAt: Date;
   relatedEvent: { id: string; name: string | null } | null;
-  /** The related event's page for this reader's role; null if none. */
+  /** US-40 AC-3: the booking request it is about, and so its venue. */
+  relatedBooking: { id: string; venue: { id: string; name: string | null } } | null;
+  /** Where it leads for this reader's role (see linkFor); null if nowhere. */
   link: string | null;
 }
 
@@ -45,15 +54,31 @@ export class NotificationsInboxService {
     private readonly access: AccessControlService,
   ) {}
 
-  /** The caller's notifications, newest first. */
-  async list(user: AuthenticatedUser): Promise<InboxItem[]> {
+  /**
+   * The caller's notifications, newest first (US-40 AC-5), a page at a time.
+   * `cursor` is the id of the last one already shown; the next page starts
+   * after it. A page shorter than `limit` is the last. A cursor that is not
+   * one of the caller's own notifications reads as not found.
+   */
+  async list(
+    user: AuthenticatedUser,
+    page: { limit?: number; cursor?: string } = {},
+  ): Promise<InboxItem[]> {
     this.access.requireScope(user, Resource.NOTIFICATION, Action.READ);
+
+    if (page.cursor) {
+      const own = await this.prisma.notification.count({
+        where: { id: page.cursor, recipientId: user.userId },
+      });
+      if (own === 0) throw new NotFoundException('notification not found');
+    }
 
     const rows = await this.prisma.notification.findMany({
       where: { recipientId: user.userId },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: INBOX_LIMIT,
-      include: { relatedEvent: { select: { id: true, name: true } } },
+      take: page.limit ?? INBOX_DEFAULT_LIMIT,
+      ...(page.cursor ? { cursor: { id: page.cursor }, skip: 1 } : {}),
+      include: ITEM_INCLUDE,
     });
 
     return rows.map((row) => this.toItem(user, row));
@@ -92,7 +117,7 @@ export class NotificationsInboxService {
 
     const row = await this.prisma.notification.findUniqueOrThrow({
       where: { id },
-      include: { relatedEvent: { select: { id: true, name: true } } },
+      include: ITEM_INCLUDE,
     });
     return this.toItem(user, row);
   }
@@ -116,7 +141,7 @@ export class NotificationsInboxService {
     const row = await this.prisma.notification.update({
       where: { id },
       data: { read: false, readAt: null },
-      include: { relatedEvent: { select: { id: true, name: true } } },
+      include: ITEM_INCLUDE,
     });
     return this.toItem(user, row);
   }
@@ -142,7 +167,9 @@ export class NotificationsInboxService {
       readAt: Date | null;
       createdAt: Date;
       relatedEventId: string | null;
+      relatedBookingId: string | null;
       relatedEvent: { id: string; name: string | null } | null;
+      relatedBooking: { id: string; venue: { id: string; name: string | null } } | null;
     },
   ): InboxItem {
     const { summary, reason } = splitReason(row.message);
@@ -156,7 +183,8 @@ export class NotificationsInboxService {
       readAt: row.readAt,
       createdAt: row.createdAt,
       relatedEvent: row.relatedEvent,
-      link: linkFor(user.role, row.relatedEventId),
+      relatedBooking: row.relatedBooking,
+      link: linkFor(user.role, row.relatedEventId, row.relatedBookingId),
     };
   }
 }

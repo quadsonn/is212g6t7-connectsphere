@@ -145,6 +145,8 @@ describe('Notifications page (e2e)', () => {
           readAt: null,
           createdAt: expect.any(String),
           relatedEvent: { id: ids.gala, name: 'gala' },
+          // US-40: only venue activity names a booking.
+          relatedBooking: null,
           link: `/coordinator/events/${ids.gala}`,
         },
       ]);

@@ -18,6 +18,7 @@ import {
   RescheduledBooking,
 } from '../bookings/bookings.service';
 import { rescheduleWindow, TimeWindow, windowMoved } from '../bookings/booking-reschedule';
+import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 import {
   computeItemAvailability,
   holdingReservationsWhere,
@@ -104,6 +105,7 @@ export class EventsChangeReviewService {
     private readonly events: EventsService,
     private readonly bookings: BookingsService,
     private readonly reservations: EquipmentReservationsService,
+    private readonly venueActivity: VenueActivityNotifier,
   ) {}
 
   /** AC-1 — pending requests on this Coordinator's own events, oldest first. */
@@ -390,6 +392,14 @@ export class EventsChangeReviewService {
         where: { id: event.id },
       });
 
+      // US-40: the APPROVED bookings, read before a reschedule puts them back
+      // to REQUESTED, so their managers can be told what changed.
+      const approvedBookings = await tx.venueBooking.findMany({
+        where: { eventId: event.id, status: BookingStatus.APPROVED },
+        orderBy: [{ start: 'asc' }, { id: 'asc' }],
+        select: { id: true, start: true, end: true },
+      });
+
       const changes: FieldChange[] = diffEventFields(before, {
         proposedStart: request.proposedStart ?? undefined,
         proposedEnd: request.proposedEnd ?? undefined,
@@ -425,6 +435,20 @@ export class EventsChangeReviewService {
         );
         arrangements.equipmentReservations =
           await this.reservations.releaseForRescheduledEvent(event.id, tx);
+      }
+
+      // US-40 AC-1: an approved booking's date, time or attendance changed —
+      // tell its venue's manager, once per booking, in this transaction.
+      const attendanceChanged = changes.some((c) => c.field === 'expectedAttendance');
+      if (moved || attendanceChanged) {
+        for (const booking of approvedBookings) {
+          await this.venueActivity.approvedBookingChanged(tx, booking.id, {
+            ...(moved ? { movedFrom: { start: booking.start, end: booking.end } } : {}),
+            ...(attendanceChanged && request.proposedAttendance !== null
+              ? { attendance: { from: before.expectedAttendance, to: request.proposedAttendance } }
+              : {}),
+          });
+        }
       }
 
       if (request.equipmentChanged) {

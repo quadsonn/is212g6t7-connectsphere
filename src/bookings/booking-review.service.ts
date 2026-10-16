@@ -7,6 +7,7 @@ import { Action, Resource } from '../common/access/permission.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { BOOKING_INCLUDE, BookingView, LIVE_STATUSES } from './booking.types';
 import { BufferClash, Buffers, ClashCandidate, clashingIds, newClashes } from './buffer-clashes';
+import { slot } from './slot-label';
 import { lockVenue } from './venue-lock';
 
 /**
@@ -204,10 +205,3 @@ async function loadUnfinishedLive(
   return rows.map((r) => ({ id: r.id, start: r.start, end: r.end, eventName: r.event.name }));
 }
 
-
-/** "2030-10-01 12:30-14:00 UTC" — times are stored without a zone (UTC). */
-function slot(start: Date, end: Date): string {
-  const iso = (d: Date) => d.toISOString().slice(0, 16).replace('T', ' ');
-  const sameDay = start.toISOString().slice(0, 10) === end.toISOString().slice(0, 10);
-  return `${iso(start)}–${sameDay ? end.toISOString().slice(11, 16) : iso(end)} UTC`;
-}

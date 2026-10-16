@@ -18,8 +18,18 @@ import { Role } from '@prisma/client';
  *
  * Roles with no event page of their own (Attendee, Coordinator Lead, Safety
  * Officer) get no link, rather than one that would 404 or bounce them home.
+ *
+ * US-40 AC-3: a venue activity notification names its booking request, and
+ * Venue Staff go straight to that request in their queue.
  */
-export function linkFor(role: string, relatedEventId: string | null): string | null {
+export function linkFor(
+  role: string,
+  relatedEventId: string | null,
+  relatedBookingId: string | null = null,
+): string | null {
+  if (role === Role.VENUE_STAFF && relatedBookingId) {
+    return `/venues/bookings/${relatedBookingId}`;
+  }
   if (!relatedEventId) return null;
 
   switch (role) {

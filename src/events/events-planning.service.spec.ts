@@ -11,6 +11,7 @@ import { EquipmentReservationsService } from '../equipment/equipment-reservation
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService, NO_CHANGES_MESSAGE } from './events.service';
+import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 
 /** US-25 / US-26 — planning edits and change history. */
 describe('EventsService planning edits and history (US-25, US-26)', () => {
@@ -83,6 +84,7 @@ describe('EventsService planning edits and history (US-25, US-26)', () => {
       access as unknown as AccessControlService,
       { notify: jest.fn(), notifySafely: jest.fn() } as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
     );
   });
 

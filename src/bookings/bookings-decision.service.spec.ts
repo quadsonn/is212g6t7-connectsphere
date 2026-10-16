@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BookingsService } from './bookings.service';
 import { canDecide } from './booking.types';
 import { ApproveBookingDto, RejectBookingDto, ReverseBookingDto } from './dto/booking-decision.dto';
+import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /** US-23 — Approve/Reject Booking Request with Reason. */
 describe('BookingsService decisions (US-23)', () => {
@@ -72,6 +73,7 @@ describe('BookingsService decisions (US-23)', () => {
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
     );
   });
 

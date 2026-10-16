@@ -16,6 +16,7 @@ import { EquipmentReservationsService } from '../equipment/equipment-reservation
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsChangeReviewService } from './events-change-review.service';
 import { EventsService } from './events.service';
+import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 
 /** US-38 — a Coordinator reviews a change request and approves or rejects it. */
 describe('EventsChangeReviewService (US-38)', () => {
@@ -156,6 +157,7 @@ describe('EventsChangeReviewService (US-38)', () => {
       events as unknown as EventsService,
       bookings as unknown as BookingsService,
       reservations as unknown as EquipmentReservationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
     );
   });
 

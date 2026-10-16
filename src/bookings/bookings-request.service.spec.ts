@@ -16,6 +16,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookingsService } from './bookings.service';
 import { CreateBookingRequestDto } from './dto/create-booking-request.dto';
+import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /** US-21 — submit a request to book a venue with timing and requirements. */
 describe('BookingsService createRequest (US-21)', () => {
@@ -92,6 +93,7 @@ describe('BookingsService createRequest (US-21)', () => {
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       { notifySafely: jest.fn() } as unknown as NotificationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
     );
   });
 

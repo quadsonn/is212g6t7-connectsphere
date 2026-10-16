@@ -57,6 +57,7 @@ import {
   EventStatusView,
   PLANNING_STATUSES,
 } from './event-status.machine';
+import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 import { evaluateRegistration } from '../registrations/registration-rules';
 import { CHANGE_REQUEST_INCLUDE } from './events-change-request.service';
 
@@ -240,6 +241,7 @@ export class EventsService {
     private readonly access: AccessControlService,
     private readonly notifications: NotificationsService,
     private readonly equipmentReservations: EquipmentReservationsService,
+    private readonly venueActivity: VenueActivityNotifier,
   ) {}
 
   /**
@@ -1333,6 +1335,9 @@ export class EventsService {
         event.id,
         client,
       );
+      // US-40 AC-1: tell each venue's manager. Notify only — releasing the
+      // venue bookings is US-44's, and will go here too.
+      await this.venueActivity.eventCancelled(client, event.id);
     }
 
     return updated;

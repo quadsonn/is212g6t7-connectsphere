@@ -202,6 +202,13 @@ enum NotificationType {
   EVENT_REASSIGNED
   REGISTRATION_CONFIRMED
   REGISTRATION_WITHDRAWN
+  // US-40 AC-1: venue activity, sent only to the venue's manager.
+  BOOKING_REQUEST_SUBMITTED
+  BOOKING_DETAILS_CHANGED
+  BOOKING_EVENT_CANCELLED
+  // US-40 AC-1: tentative holds. Defined here; US-54 builds holds and sends them.
+  HOLD_EXPIRING
+  HOLD_EXPIRED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;
@@ -486,6 +493,9 @@ model VenueBooking {
   // US-23 AC-4/AC-6: every decision ever made on this request, oldest first.
   decisions BookingDecision[]
 
+  // US-40: venue activity notifications about this booking.
+  notifications Notification[]
+
   @@index([requestedById])
   // US-51: flagged bookings on a venue, for the re-check after any change.
   @@index([venueId, needsReview])
@@ -604,6 +614,12 @@ model Notification {
   relatedEventId String?
   relatedEvent   EventRequest? @relation(fields: [relatedEventId], references: [id], onDelete: Cascade)
 
+  // US-40 AC-3: the booking request a venue activity notification is about,
+  // and so the venue (relatedBooking.venue) and where its link leads. Null for
+  // every other kind. SetNull, not Cascade: losing the booking keeps the notice.
+  relatedBookingId String?
+  relatedBooking   VenueBooking? @relation(fields: [relatedBookingId], references: [id], onDelete: SetNull)
+
   read      Boolean   @default(false)
   // Notifications page: when the recipient marked it read; null while unread.
   // Kept alongside `read` (set together) so existing readers are unaffected.
@@ -614,6 +630,7 @@ model Notification {
   // Notifications page: a recipient's inbox, newest first.
   @@index([recipientId, createdAt])
   @@index([relatedEventId])
+  @@index([relatedBookingId])
 }
 
 // AC-4: logout must actually terminate the session. A signed JWT stays valid

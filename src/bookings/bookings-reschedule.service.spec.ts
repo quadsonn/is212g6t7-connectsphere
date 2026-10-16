@@ -4,6 +4,7 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookingsService } from './bookings.service';
+import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /** US-38 — an event's dates change, so its live bookings move with it. */
 describe('BookingsService.rescheduleForEventChange (US-38)', () => {
@@ -51,6 +52,7 @@ describe('BookingsService.rescheduleForEventChange (US-38)', () => {
       {} as PrismaService,
       {} as AccessControlService,
       {} as NotificationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
     );
   });
 

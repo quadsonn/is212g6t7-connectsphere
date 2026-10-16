@@ -19,6 +19,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { overlapping, overlapsRange } from './booking-overlap';
 import { rescheduleWindow, TimeWindow } from './booking-reschedule';
 import { recheckReviewFlags } from './booking-review.service';
+import { VenueActivityNotifier } from './venue-activity-notifier';
 import { lockVenue } from './venue-lock';
 import {
   VenueBookingImpact,
@@ -78,6 +79,7 @@ export class BookingsService implements VenueBookingLookup {
     private readonly prisma: PrismaService,
     private readonly access: AccessControlService,
     private readonly notifications: NotificationsService,
+    private readonly venueActivity: VenueActivityNotifier,
   ) {}
 
   /**
@@ -170,6 +172,9 @@ export class BookingsService implements VenueBookingLookup {
         },
         include: BOOKING_INCLUDE,
       });
+
+      // US-40 AC-1: tell the venue's manager, in this transaction.
+      await this.venueActivity.requestSubmitted(tx, booking.id);
 
       // AC-5: the only overlaps left are pending ones.
       const warnings: BookingWarning[] =

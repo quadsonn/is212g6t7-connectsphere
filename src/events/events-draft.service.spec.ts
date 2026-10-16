@@ -9,6 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
+import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 
 /** US-04 — drafts. */
 describe('EventsService drafts (US-04)', () => {
@@ -80,6 +81,7 @@ describe('EventsService drafts (US-04)', () => {
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
     );
   });
 

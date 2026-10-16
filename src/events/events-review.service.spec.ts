@@ -12,6 +12,7 @@ import { EquipmentReservationsService } from '../equipment/equipment-reservation
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
+import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 
 /** US-07 — Coordinator review and approval. */
 describe('EventsService review (US-07)', () => {
@@ -78,6 +79,7 @@ describe('EventsService review (US-07)', () => {
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
     );
   });
 

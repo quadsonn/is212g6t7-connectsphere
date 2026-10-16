@@ -6,6 +6,7 @@ import { EquipmentReservationsService } from '../equipment/equipment-reservation
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
+import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 
 /**
  * US-33 AC-1 — EventsService.setStatus() releases equipment when an event
@@ -39,6 +40,7 @@ describe('EventsService.setStatus → equipment release (US-33)', () => {
       {} as AccessControlService,
       {} as NotificationsService,
       reservations as unknown as EquipmentReservationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
     );
   });
 

@@ -8,6 +8,7 @@ import { EquipmentReservationsService } from '../equipment/equipment-reservation
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
+import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 
 /** US-12 — the Coordinator's full-detail read. */
 describe('EventsService coordinator view (US-12)', () => {
@@ -79,6 +80,7 @@ describe('EventsService coordinator view (US-12)', () => {
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
     );
   });
 

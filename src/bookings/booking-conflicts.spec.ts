@@ -8,6 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { classifyConflicts, HARD_CONFLICT_CODE } from './booking.types';
 import { BookingsService } from './bookings.service';
+import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /** US-24 — classifying overlaps, and the database backstop's error mapping. */
 describe('US-24 overlapping booking detection', () => {
@@ -111,6 +112,7 @@ describe('US-24 overlapping booking detection', () => {
         prisma as unknown as PrismaService,
         { requireScope: jest.fn().mockReturnValue(Scope.ANY) } as unknown as AccessControlService,
         { notifySafely: jest.fn() } as unknown as NotificationsService,
+        { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
       );
     };
 

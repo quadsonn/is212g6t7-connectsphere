@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Param, Patch, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, Param, Patch, Query, UseGuards } from '@nestjs/common';
 
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { Action, Resource } from '../common/access/permission.types';
@@ -6,6 +6,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermission } from '../common/decorators/require-permission.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { ListNotificationsDto } from './dto/list-notifications.dto';
 import { NotificationsInboxService } from './notifications-inbox.service';
 
 /**
@@ -18,12 +19,12 @@ import { NotificationsInboxService } from './notifications-inbox.service';
 export class NotificationsController {
   constructor(private readonly inbox: NotificationsInboxService) {}
 
-  /** The caller's notifications, newest first. */
+  /** The caller's notifications, newest first; `?limit=&cursor=` pages (US-40). */
   @Get()
   @RequirePermission(Resource.NOTIFICATION, Action.READ)
   @Header('Cache-Control', 'no-store')
-  list(@CurrentUser() user: AuthenticatedUser) {
-    return this.inbox.list(user);
+  list(@CurrentUser() user: AuthenticatedUser, @Query() query: ListNotificationsDto) {
+    return this.inbox.list(user, query);
   }
 
   /** The bell's unread count. */

@@ -8,6 +8,8 @@ export interface NotifyInput {
   type: NotificationType;
   message: string;
   relatedEventId?: string | null;
+  /** US-40: the booking request a venue activity notification is about. */
+  relatedBookingId?: string | null;
 }
 
 /**
@@ -21,8 +23,12 @@ export interface NotifyInput {
  * receipts and any digest behaviour. When E9 lands it should take over this
  * service rather than adding a second notification path.
  *
- * Callers must treat notification as best-effort: a delivery failure must
- * never roll back the business action that triggered it (see notifySafely).
+ * Two ways to call it:
+ *  - notify(input, tx) inside the triggering transaction, so the notification
+ *    exists if and only if the action committed (US-40's venue activity).
+ *    A failure to record it then fails the action too.
+ *  - notifySafely(input) after commit, best-effort: a recording failure never
+ *    undoes the action (US-09, US-23).
  */
 @Injectable()
 export class NotificationsService {
@@ -43,6 +49,7 @@ export class NotificationsService {
         type: input.type,
         message: input.message,
         relatedEventId: input.relatedEventId ?? null,
+        relatedBookingId: input.relatedBookingId ?? null,
       },
     });
   }

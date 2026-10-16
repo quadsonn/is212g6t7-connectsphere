@@ -14,6 +14,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventConfirmationService } from './event-confirmation.service';
 import { EventsService } from './events.service';
+import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 
 const coordinator: AuthenticatedUser = {
   userId: 'coord-1',
@@ -37,6 +38,7 @@ describe('US-42 EventsService.setStatus records who confirmed', () => {
       {} as AccessControlService,
       {} as NotificationsService,
       {} as EquipmentReservationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
     );
     return { service, update };
   };

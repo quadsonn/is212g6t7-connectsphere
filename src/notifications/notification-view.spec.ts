@@ -21,6 +21,14 @@ describe('Notifications page: presenting a notification', () => {
       },
     );
 
+    it('US-40 AC-3: Venue Staff go to the booking request itself when there is one', () => {
+      expect(linkFor(Role.VENUE_STAFF, 'e1', 'b1')).toBe('/venues/bookings/b1');
+    });
+
+    it('US-40: other roles keep the event link even when a booking is named', () => {
+      expect(linkFor(Role.EVENT_COORDINATOR, 'e1', 'b1')).toBe('/coordinator/events/e1');
+    });
+
     it('gives no link when the notification names no event', () => {
       expect(linkFor(Role.EVENT_COORDINATOR, null)).toBeNull();
     });

@@ -17,6 +17,7 @@ import { BookingStatus } from '@prisma/client';
  *   CONVERT     (US-54 convert)                  HELD -> APPROVED
  *   RELEASE     (US-54 release, US-38 reschedule) HELD -> RELEASED
  *   EXPIRE      (US-54 expiry)                   HELD -> RELEASED
+ *   CANCEL_EVENT (US-44 releaseForCancelledEvent) REQUESTED | APPROVED | HELD -> RELEASED
  *
  * RELEASED and REJECTED hold nothing; only a REVERSAL brings a REJECTED
  * booking back. Nothing leaves RELEASED, so an expired hold can never become
@@ -28,7 +29,8 @@ import { BookingStatus } from '@prisma/client';
  * idempotency. Keep the two in step.
  *
  * DECISION, REVERSAL and REVIEW_RESOLVED share their names with
- * BookingDecisionKind, so a decision's kind is its action.
+ * BookingDecisionKind, so a decision's kind is its action. (US-44's RELEASE
+ * kind records a CANCEL_EVENT; it is not a decision anyone can make.)
  */
 export enum BookingAction {
   REQUEST = 'REQUEST',
@@ -40,6 +42,7 @@ export enum BookingAction {
   CONVERT = 'CONVERT',
   RELEASE = 'RELEASE',
   EXPIRE = 'EXPIRE',
+  CANCEL_EVENT = 'CANCEL_EVENT',
 }
 
 /** `NEW` is the "from" of an action that creates the booking. */
@@ -61,6 +64,8 @@ export const BOOKING_TRANSITIONS: Readonly<
   [BookingAction.CONVERT]: { [HELD]: [APPROVED] },
   [BookingAction.RELEASE]: { [HELD]: [RELEASED] },
   [BookingAction.EXPIRE]: { [HELD]: [RELEASED] },
+  // US-44 AC-1: whatever the booking was doing — pending, held or confirmed.
+  [BookingAction.CANCEL_EVENT]: { [REQUESTED]: [RELEASED], [APPROVED]: [RELEASED], [HELD]: [RELEASED] },
 });
 
 /** May `action` take a booking from `from` (null: not created yet) to `to`? */

@@ -193,5 +193,7 @@ export function canDecide(
   from: BookingStatus,
   to: BookingStatus,
 ): boolean {
+  // US-44: RELEASE is recorded by the system on cancellation, never decided.
+  if (kind === BookingDecisionKind.RELEASE) return false;
   return canTransition(kind as unknown as BookingAction, from, to);
 }

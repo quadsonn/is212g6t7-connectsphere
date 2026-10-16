@@ -1,7 +1,8 @@
 import { ConflictException } from '@nestjs/common';
-import { BookingStatus } from '@prisma/client';
+import { BookingDecisionKind, BookingStatus } from '@prisma/client';
 
 import { assertTransition, BookingAction, canTransition } from './booking-status.machine';
+import { canDecide } from './booking.types';
 
 const { REQUESTED, APPROVED, REJECTED, HELD, RELEASED } = BookingStatus;
 const ALL = [REQUESTED, APPROVED, REJECTED, HELD, RELEASED];
@@ -20,6 +21,10 @@ const ALLOWED: [BookingAction, BookingStatus, BookingStatus][] = [
   [BookingAction.CONVERT, HELD, APPROVED],
   [BookingAction.RELEASE, HELD, RELEASED],
   [BookingAction.EXPIRE, HELD, RELEASED],
+  // US-44.
+  [BookingAction.CANCEL_EVENT, REQUESTED, RELEASED],
+  [BookingAction.CANCEL_EVENT, APPROVED, RELEASED],
+  [BookingAction.CANCEL_EVENT, HELD, RELEASED],
 ];
 
 describe('booking status machine', () => {
@@ -47,5 +52,13 @@ describe('booking status machine', () => {
     expect(() => assertTransition(BookingAction.CONVERT, RELEASED, APPROVED)).toThrow(ConflictException);
     expect(() => assertTransition(BookingAction.CONVERT, RELEASED, APPROVED)).toThrow(/released/);
     expect(() => assertTransition(BookingAction.CONVERT, HELD, APPROVED)).not.toThrow();
+  });
+});
+
+describe('US-44: RELEASE is not a decision', () => {
+  it('US-44: no one can decide a RELEASE, from any status', () => {
+    for (const from of ALL) {
+      for (const to of ALL) expect(canDecide(BookingDecisionKind.RELEASE, from, to)).toBe(false);
+    }
   });
 });

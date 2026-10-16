@@ -92,6 +92,10 @@ enum BookingDecisionKind {
   // US-51: Venue Staff cleared a "Conflict - needs review" flag. Records who
   // and why; never changes the booking's status (outcome = status as it was).
   REVIEW_RESOLVED
+  // US-44: the booking was released because its event was cancelled
+  // (outcome RELEASED). Recorded by the system; decidedBy is the canceller
+  // when known.
+  RELEASE
 }
 
 // US-06: the predefined room layouts an Organiser may choose from.
@@ -856,8 +860,10 @@ model BookingDecision {
   booking   VenueBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   // AC-4: attributed to the Venue Staff member who made it.
-  decidedById String
-  decidedBy   User   @relation(fields: [decidedById], references: [id], onDelete: Restrict)
+  // US-44: null for a RELEASE recorded by the system — an event cancelled
+  // with no known actor. Every decision and reversal still names its maker.
+  decidedById String?
+  decidedBy   User?   @relation(fields: [decidedById], references: [id], onDelete: Restrict)
 
   kind BookingDecisionKind @default(DECISION)
 

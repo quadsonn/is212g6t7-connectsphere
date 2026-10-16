@@ -167,7 +167,7 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
     );
 
     it.each(['reject', 'return'])(
-      '%s is blocked when the reason is empty or whitespace-only',
+      '%s is blocked when the reason is an empty string',
       async (action) => {
         const event = await seedEvent();
 
@@ -181,6 +181,27 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
           where: { id: event.id },
         });
         expect(stored.status).toBe(EventStatus.SUBMITTED);
+      },
+    );
+
+    // BUG: whitespace-only accepted, fails until trim fix lands (audit gap #1)
+    it.each(['reject', 'return'])(
+      '%s is blocked when the reason is whitespace-only',
+      async (action) => {
+        const event = await seedEvent();
+
+        await http()
+          .post(`/events/${event.id}/${action}`)
+          .set('Authorization', as('coordinatorA'))
+          .send({ reason: '   ' })
+          .expect(400);
+
+        const stored = await prisma.eventRequest.findUniqueOrThrow({
+          where: { id: event.id },
+        });
+        expect(stored.status).toBe(EventStatus.SUBMITTED);
+        expect(stored.decisionReason).toBeNull();
+        expect(stored.clarificationRequest).toBeNull();
       },
     );
 

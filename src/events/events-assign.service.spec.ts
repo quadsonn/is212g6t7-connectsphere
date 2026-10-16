@@ -219,7 +219,14 @@ describe('EventsService coordinator assignment (US-10)', () => {
         service.assignCoordinator(coordinator, 'event-1', {
           coordinatorId: 'coordinator-2',
         }),
-      ).resolves.toBeDefined();
+      ).resolves.toMatchObject({ coordinatorId: 'coordinator-2' });
+      // AC-1: the link is written, and only the link — the status is left as found.
+      expect(prisma.eventRequest.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'event-1' },
+          data: { coordinatorId: 'coordinator-2' },
+        }),
+      );
     });
 
     it.each([EventStatus.DRAFT, EventStatus.COMPLETED, EventStatus.CANCELLED])(

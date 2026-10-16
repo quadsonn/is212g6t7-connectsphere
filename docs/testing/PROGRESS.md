@@ -63,6 +63,108 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 
 **Results:** `npx jest` 956/956 (972 − 24 + 8).
 
+## 2026-10-17: story group 1 (US-07, US-08, US-09): test cases and integration conversion
+
+**Part A: written test cases.** `docs/testing/sprint1-test-cases.md` has 22 test cases, TC-S1-01 to TC-S1-22, in the course template. Expected Results come from the AC wording.
+
+| Story | TCs | Pass | Fail | Not Executed |
+|---|---|---:|---:|---:|
+| US-07 | TC-S1-01 to 07 | 6 | 0 | 1 (GAP: TC-07 concurrency, gap #2) |
+| US-08 | TC-S1-08 to 14 | 6 | 1 (TC-11 whitespace reason, gap #1) | 0 |
+| US-09 | TC-S1-15 to 22 | 5 | 0 | 3 (TC-15 Playwright pending; TC-18 GAP, whitespace question, gap #1; TC-20 notifications in progress, changed 2026-10-17) |
+| **Total** | **22** | **17** | **1** | **4** (2 GAP, 1 Playwright, 1 notifications) |
+
+**Part B: integration conversion.** `events-review`, `events-decision` and `events-clarification` now use the shared pattern:
+- **Setup:** the app binds `127.0.0.1`, `beforeEach` runs `resetDb` + `loadSql('base-users')`, and users log in once in `beforeAll`.
+- **Removed:** every `deleteMany`, every per-test user and event seed (`seedEvent`), and bcrypt.
+- **Event data:** comes from the SQL scripts. Each test loads its scripts in its Arrange step (`await given('tc-s1-01-setup')`).
+
+**New scripts**, documented in the fixtures README:
+- `tc-s1-01-setup.sql`: 1 SUBMITTED request.
+- `tc-s1-02-setup.sql`: 12 requests, covering every review state.
+- `tc-s1-22-setup.sql`: a second Organiser.
+
+**Assertions are unchanged.** The assertion lines (`expect(` and `.expect(`) were diffed before and after:
+- Review: 39 = 39. Decision: 59 = 59. Clarification: 77 = 77.
+- Clarification also gained one login check (`.expect(200)`) in the Arrange step of TC-S1-22, which needs the second Organiser's token.
+
+**Traceability is checked mechanically.** All 36 "Automated by" references exist. Each one loads exactly the script(s) its test case's pre-condition names. TC-ID comments were added to the 36 referenced tests.
+
+| File | Tests | Before | After (3 runs) |
+|---|---:|---:|---:|
+| `events-review.e2e-spec.ts` | 21 | about 8.9 s | 1.09–1.23 s |
+| `events-decision.e2e-spec.ts` | 26 | about 10.8 s | 1.21–1.51 s |
+| `events-clarification.e2e-spec.ts` | 25 | about 11.5 s | 1.25–1.44 s |
+
+`npx jest`: 956/956.
+
+**AC ↔ code mismatches**, also listed per story in the test-case file:
+- **US-07 AC-3:** the code also requires an assigned Coordinator; an unassigned request returns 409.
+- **Permission cases:** a non-assigned user gets 404 rather than an explicit "denied".
+- **US-08 AC-2 and US-09 AC-1:** whitespace-only text is accepted (gap #1).
+- **US-09 AC-4:** "notified" is a stored notification record only; nothing is delivered.
+
+### Remaining Sprint 1 integration files to convert (11)
+`auth`, `access-control`, `events-submit`, `events-draft`, `events-status-view`, `events-layout`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`
+
+## 2026-10-17: story group 2 (US-03, US-04, US-05, US-06): test cases and integration conversion
+
+**Context.** Week 7 Change 5 (Event Coordinator Lead and the unassigned queue) and Change 6 (Safety Officer) are being built on `Sprint3-MAIN` and are not yet on this branch. Expected Results follow the AC wording, updated for Change 5 where it applies. No test case cites a test that asserts the old, pre-Change-5 behaviour.
+
+**Edits to group 1 test cases** (no renumbering):
+- TC-S1-01, 04, 05, 06 and 07 gain the remark "Approval requires an assigned Coordinator, consistent with Week 7 Change 5". The US-07 mismatch note is marked resolved by Change 5.
+- TC-S1-20 (US-09 AC-4) is now Not Executed: "Notifications in progress (Sprint 3 story: Be Notified of My Request Outcome)".
+- The 404-for-denied cases now say "Denied = 404 by design (agreed decision)".
+
+**Part A: written test cases.** TC-S1-23 to 54 (32 cases):
+
+| Story | TCs | Pass | Fail | Not Executed |
+|---|---|---:|---:|---:|
+| US-03 | 23–30 | 6 | 0 | 2 (TC-25 GAP, pending Change 5 merge; TC-27 GAP, boundaries and whitespace gap #1) |
+| US-04 | 31–38 | 7 | 0 | 1 (TC-34 Playwright pending) |
+| US-05 | 39–46 | 8 | 0 | 0 |
+| US-06 | 47–54 | 7 | 0 | 1 (TC-54 GAP, to be linked in group 3) |
+| **Group 2** | **32** | **28** | **0** | **4** |
+| **File total (groups 1 + 2)** | **54** | **45** | **1** | **8** (5 GAP, 2 Playwright, 1 notifications) |
+
+**Part B: integration conversion.** `events-submit`, `events-draft`, `events-status-view` and `events-layout` now use the shared pattern:
+- **Setup:** the app binds `127.0.0.1`, each test runs `resetDb` + `loadSql('base-users')`, and users log in once in `beforeAll`. The second Organiser comes from `tc-s1-22-setup`, loaded in `beforeAll` for the login and by each test that needs the user.
+- **Removed:** `deleteMany`, `seedUser`, `seedRequest` and bcrypt.
+- **No event seeding was needed** in `submit`, `draft` and `layout`, because those tests create requests through the API under test.
+
+**New scripts**, all verified via psql and documented in the README:
+- `tc-s1-39` (one request per status), `tc-s1-41` (2 rejected), `tc-s1-42` (3 drafts), `tc-s1-45` (1 approved) and `tc-s1-46` (mine and theirs).
+- `tc-s1-54`: an assigned request with layout and accessibility, ready for the group 3 US-12 conversion.
+
+**Assertions are unchanged** (assertion-line diffs): submit 55 = 55, draft 60 = 60, status-view 42 = 42, layout 58 = 58.
+
+**Traceability is checked mechanically.** All 99 "Automated by" references across the 54 TCs load exactly their pre-condition scripts. TC comments were added to 63 referenced group 2 tests.
+
+| File | Tests | Before | After (3 runs) |
+|---|---:|---:|---:|
+| `events-submit.e2e-spec.ts` | 21 | about 9.3 s | 1.16–1.41 s |
+| `events-draft.e2e-spec.ts` | 20 | about 6.8 s | 1.07–1.22 s |
+| `events-status-view.e2e-spec.ts` | 16 | about 5.0 s | 1.03–1.12 s |
+| `events-layout.e2e-spec.ts` | 23 | about 7.2 s | 1.26–1.29 s |
+
+`npx jest`: 956/956.
+
+**Tests that assert pre-Change-5 behaviour.** These are not cited by any TC, and will need updating when Change 5 merges:
+- `events-submit::makes the request visible to a Coordinator for review`
+- `events-draft::makes it visible to a Coordinator once submitted`
+- `events-layout::shows layout and accessibility in the review queue`
+- `events-layout::shows them when the Coordinator opens the request`
+- Group 1 has one too: `events-review::approves once that request has been assigned (US-10 then US-07)`, where a Coordinator assigns themselves from the pool.
+
+**AC ↔ code mismatches**, detailed per story in the test-case file:
+- **US-03 AC-2:** the shared Coordinator pool versus the Lead's queue.
+- **US-03 AC-3:** whitespace is accepted (gap #1), and the boundaries are untested.
+- **US-05 AC-4:** no action moves a new submission to UNDER_REVIEW.
+- **US-06 AC-6:** the existing tests read the unassigned pool.
+
+### Remaining Sprint 1 integration files to convert (7)
+`auth`, `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`
+
 ## Open
-- **TC IDs:** CONVENTIONS.md asks every test to carry its TC ID and setup script in a comment. The TC catalogue (`TC-S1-XX`) doesn't exist yet. The pilot has a file-level pre-condition comment only.
+- **TC IDs:** done for US-07/08/09 (TC-S1-01 to 22). The remaining stories get theirs as each group is written.
 - **G1 (whitespace accepted):** the fix is parked on `sprint3-raye-BACKUP`, in `src/common/validators/trim.transform.ts` and the 5 DTOs. Landing it is an application-code change, so agree it with the team first.

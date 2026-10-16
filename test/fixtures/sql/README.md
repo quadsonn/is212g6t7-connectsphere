@@ -13,8 +13,19 @@ Both helpers check that they are connected to a local `_test` database before wr
 
 | Script | Creates | Used by |
 |---|---|---|
-| `base-users.sql` | 6 users: one per Sprint 1 role, with two Coordinators | `test/events-review.e2e-spec.ts` (pilot) |
+| `base-users.sql` | 6 users: one per Sprint 1 role, with two Coordinators | Every converted spec (`beforeEach`) |
 | `base-venues.sql` | 4 venues (3 published, 1 draft), all managed by `u-venue-staff`. Load after `base-users.sql`. | Venue specs, once converted |
+| `tc-s1-01-setup.sql` | 1 SUBMITTED request, `e-submitted`, assigned to `u-coordinator-a` | TC-S1-01, 03, 05, 06, 09–14, 16, 17, 19–22 (US-07/08/09), 43 (US-05) |
+| `tc-s1-02-setup.sql` | 12 requests covering every review state (see below) | TC-S1-02, 04, 08 (US-07/08), plus status-variant tests in the US-07/08/09 specs |
+| `tc-s1-22-setup.sql` | A second Organiser, `u-organiser-2` / other@example.com | TC-S1-22, 30, 38, 46 |
+| `tc-s1-39-setup.sql` | 12 requests of u-organiser's, one per status, named "Request <STATUS>" | TC-S1-39 (US-05 AC-1) |
+| `tc-s1-41-setup.sql` | 2 REJECTED requests with reasons | TC-S1-41 (US-05 AC-2) |
+| `tc-s1-42-setup.sql` | 3 drafts: plain, returned with a question, and one asked about attendance | TC-S1-42 (US-05 AC-3) |
+| `tc-s1-45-setup.sql` | 1 APPROVED request | TC-S1-45 (US-05 AC-4) |
+| `tc-s1-46-setup.sql` | 1 request of u-organiser's and 2 of u-organiser-2's. Load after `tc-s1-22-setup`. | TC-S1-46 (US-05 AC-5) |
+| `tc-s1-54-setup.sql` | 1 SUBMITTED request with layout and accessibility, assigned to `u-coordinator-a` | TC-S1-54 (US-06 AC-6). Not yet loaded; linked when `events-coordinator-view` is converted (group 3). |
+
+Specs load the `tc-s1-*` scripts per test, in the Arrange step: `await given('tc-s1-01-setup')`. A test can always be traced to exactly the script its test case names. Test-case pre-conditions are in `docs/testing/sprint1-test-cases.md`.
 
 ### `base-users.sql`
 
@@ -41,6 +52,62 @@ All four are managed by `u-venue-staff`.
 | `v-draft-annex` | Annex (draft) | none | none | DRAFT | none | none |
 
 All rows use the timestamp `2026-09-01 09:00:00`.
+
+### `tc-s1-01-setup.sql`
+
+| ID | Status | Organiser | Coordinator | Key values |
+|---|---|---|---|---|
+| `e-submitted` | SUBMITTED | `u-organiser` | `u-coordinator-a` | "Freshman Orientation 2030"; purpose "Welcome new students"; description "Full-day programme with talks and booths"; 2030-10-01 09:00–17:00 UTC; attendance 320 |
+
+### `tc-s1-02-setup.sql`
+
+Every row is raised by `u-organiser`. All are assigned to `u-coordinator-a` except `e-unassigned`. Each uses the same values as `e-submitted`, except the two "-2" rows ("Careers Fair 2030", 2030-11-05, attendance 200). Tests look these rows up by ID. A spec that reads a whole list (for example `GET /events/mine` and `body[0]`) uses `tc-s1-01-setup.sql` instead.
+
+| ID | Status | Extra |
+|---|---|---|
+| `e-submitted` | SUBMITTED | — |
+| `e-submitted-2` | SUBMITTED | a second, independent request |
+| `e-draft` | DRAFT | — |
+| `e-under-review` | UNDER_REVIEW | — |
+| `e-under-review-2` | UNDER_REVIEW | a second, independent request |
+| `e-approved` | APPROVED | — |
+| `e-rejected` | REJECTED | no reason recorded |
+| `e-returned` | RETURNED | clarificationRequest "Please confirm the attendance figure" |
+| `e-cancelled` | CANCELLED | — |
+| `e-with-question` | SUBMITTED | clarificationRequest "An earlier question" |
+| `e-stale` | SUBMITTED | clarificationRequest "An earlier question", decisionReason "An earlier rejection" |
+| `e-unassigned` | SUBMITTED | no coordinator, so it sits in the review pool |
+
+### `tc-s1-22-setup.sql`
+
+| ID | Email | Name | Role |
+|---|---|---|---|
+| `u-organiser-2` | other@example.com | Otto Organiser | EVENT_ORGANISER |
+
+The password is the same as for the base users.
+
+### US-05 scripts (`tc-s1-39` to `tc-s1-46`)
+
+Every row uses purpose "Purpose", description "Description", category "Conference", 2030-10-01 09:00–17:00 UTC and attendance 100, with no coordinator. Where a list test reads `body[0]`, the intended row has the newest `createdAt`, and that is noted in each script.
+
+| Script | ID | Owner | Status | Name | Extra |
+|---|---|---|---|---|---|
+| `tc-s1-39` | `e-status-<status>` (12 rows) | u-organiser | each EventStatus | "Request <STATUS>" | Add a row if a status is added (e.g. Change 6) |
+| `tc-s1-41` | `e-rejected-latest` (newest) | u-organiser | REJECTED | Seeded request | reason "Clashes with the examination period" |
+| | `e-rejected-direct` | u-organiser | REJECTED | Seeded request | reason "Venue capacity insufficient" |
+| `tc-s1-42` | `e-draft-plain` | u-organiser | DRAFT | Plain draft | — |
+| | `e-draft-returned` | u-organiser | DRAFT | Returned for clarification | question "Which venue did you have in mind?" |
+| | `e-draft-asked` (newest) | u-organiser | DRAFT | Seeded request | question "Please confirm the expected attendance figure" |
+| `tc-s1-45` | `e-approved-only` | u-organiser | APPROVED | Seeded request | — |
+| `tc-s1-46` | `e-mine` | u-organiser | DRAFT | Mine | — |
+| | `e-theirs` | u-organiser-2 | DRAFT | Theirs | — |
+| | `e-theirs-rejected` | u-organiser-2 | REJECTED | Theirs | reason "CONFIDENTIAL internal note" |
+
+### `tc-s1-54-setup.sql`
+
+| ID | Status | Organiser | Coordinator | Key values |
+|---|---|---|---|---|
+| `e-with-preferences` | SUBMITTED | `u-organiser` | `u-coordinator-a` | Layout THEATRE, notes "Centre aisle, front row reserved". Accessibility STEP_FREE_ACCESS and HEARING_LOOP, notes "Ramp access to the stage". Equipment "Six wireless microphones, two projectors". Registration enabled. Attendance 320. |
 
 ## Loading a script by hand
 

@@ -1,48 +1,60 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventStatus, PrismaClient, Role } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { EventStatus, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
-/** US-08 e2e — reject and return as distinct decisions. */
+/**
+ * US-08 e2e — reject and return as distinct decisions.
+ *
+ * Pre-condition for every test: reset the testDB, then run
+ * test/fixtures/sql/base-users.sql; each test then loads the tc-s1 script its
+ * test case names (see docs/testing/sprint1-test-cases.md).
+ */
 describe('US-08 reject / return with a mandatory reason (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
   const PASSWORD = 'correct-horse-battery-staple';
+
+  /** Fixed rows from base-users.sql. */
+  const USERS = {
+    organiser: { id: 'u-organiser', email: 'organiser@example.com' },
+    coordinatorA: { id: 'u-coordinator-a', email: 'coord.a@example.com' },
+    coordinatorB: { id: 'u-coordinator-b', email: 'coord.b@example.com' },
+    attendee: { id: 'u-attendee', email: 'attendee@example.com' },
+  } as const;
+  const ids = Object.fromEntries(
+    Object.entries(USERS).map(([key, user]) => [key, user.id]),
+  ) as Record<string, string>;
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-  };
+  /** Fixed rows from the tc-s1 setup scripts (see test/fixtures/sql/README.md). */
+  const EVENT = {
+    submitted: { id: 'e-submitted' },
+    submitted2: { id: 'e-submitted-2' },
+    draft: { id: 'e-draft' },
+    underReview: { id: 'e-under-review' },
+    underReview2: { id: 'e-under-review-2' },
+    approved: { id: 'e-approved' },
+    rejected: { id: 'e-rejected' },
+    returned: { id: 'e-returned' },
+    cancelled: { id: 'e-cancelled' },
+    withQuestion: { id: 'e-with-question' },
+    stale: { id: 'e-stale' },
+    unassigned: { id: 'e-unassigned' },
+  } as const;
 
-  const seedEvent = async (overrides: Record<string, unknown> = {}) =>
-    prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinatorA,
-        name: 'Freshman Orientation 2030',
-        purpose: 'Welcome new students',
-        description: 'Full-day programme',
-        category: 'Student engagement',
-        proposedStart: new Date('2030-10-01T09:00:00Z'),
-        proposedEnd: new Date('2030-10-01T17:00:00Z'),
-        expectedAttendance: 320,
-        status: EventStatus.SUBMITTED,
-        ...overrides,
-      },
-    });
+  /** Loads a test case's setup script(s) on top of base-users. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -51,12 +63,23 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    // Listen once, on 127.0.0.1. With init() alone Supertest re-listens on a
-    // random port per request, which can be a port another local process holds
-    // on 127.0.0.1 — the request then hangs or fails with "Parse Error".
+    // Bound to 127.0.0.1 explicitly: with init() alone, or a dual-stack [::]
+    // listener, the OS can hand out a port another local process already holds
+    // on 127.0.0.1, and Supertest then talks to that process (hangs, or
+    // "Parse Error: Expected HTTP/").
     await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Log each base user in once, through the real endpoint. JWTs are
+    // stateless and the users are re-created with the same IDs after every
+    // reset, so these tokens stay valid for every test in the file.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    for (const [key, { email }] of Object.entries(USERS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
@@ -65,20 +88,16 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinatorA', 'coord.a@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('coordinatorB', 'coord.b@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('attendee', 'attendee@example.com', Role.ATTENDEE);
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
   });
 
   describe('AC-1: reject and return are separate actions', () => {
+    // TC-S1-08 · setup: base-users + tc-s1-02-setup · fails if Reject and Return produced the same outcome
     it('reject and return are different endpoints with different outcomes', async () => {
-      const toReject = await seedEvent({ name: 'To reject' });
-      const toReturn = await seedEvent({ name: 'To return' });
+      await given('tc-s1-02-setup');
+      const toReject = EVENT.submitted;
+      const toReturn = EVENT.submitted2;
 
       const rejected = await http()
         .post(`/events/${toReject.id}/reject`)
@@ -97,8 +116,10 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       expect(rejected.body.status).not.toBe(returned.body.status);
     });
 
+    // TC-S1-13 · setup: base-users + tc-s1-01-setup · fails if a rejected request could still be edited
     it('rejecting does not leave the request amendable', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/reject`)
@@ -114,7 +135,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
     });
 
     it('returning does leave the request amendable', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/return`)
@@ -129,8 +151,10 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
         .expect(200);
     });
 
+    // TC-S1-13 · setup: base-users + tc-s1-01-setup · fails if a rejection could be overturned by a Return
     it('a rejected request cannot then be returned', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/reject`)
@@ -147,10 +171,12 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
   });
 
   describe('AC-2: a reason is mandatory', () => {
+    // TC-S1-09 · setup: base-users + tc-s1-01-setup · fails if a decision was accepted without a reason
     it.each(['reject', 'return'])(
       '%s is blocked when the reason is missing',
       async (action) => {
-        const event = await seedEvent();
+        await given('tc-s1-01-setup');
+        const event = EVENT.submitted;
 
         const res = await http()
           .post(`/events/${event.id}/${action}`)
@@ -169,10 +195,12 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       },
     );
 
+    // TC-S1-10 · setup: base-users + tc-s1-01-setup · fails if an empty reason was accepted
     it.each(['reject', 'return'])(
       '%s is blocked when the reason is an empty string',
       async (action) => {
-        const event = await seedEvent();
+        await given('tc-s1-01-setup');
+        const event = EVENT.submitted;
 
         await http()
           .post(`/events/${event.id}/${action}`)
@@ -187,11 +215,13 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       },
     );
 
+    // TC-S1-11 · setup: base-users + tc-s1-01-setup · TC status Fail while gap #1 is open (it.failing passes because '   ' is still accepted)
     // KNOWN BUG (audit gap #1): whitespace-only accepted. Switch back to it(...) when the trim fix lands.
     it.failing.each(['reject', 'return'])(
       '%s is blocked when the reason is whitespace-only',
       async (action) => {
-        const event = await seedEvent();
+        await given('tc-s1-01-setup');
+        const event = EVENT.submitted;
 
         await http()
           .post(`/events/${event.id}/${action}`)
@@ -208,8 +238,10 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       },
     );
 
+    // TC-S1-09 · setup: base-users + tc-s1-01-setup · fails if a refused decision still wrote a status or reason
     it('nothing is written when the reason is missing', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/reject`)
@@ -227,7 +259,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
 
   describe('AC-3: status updates accordingly', () => {
     it('reject sets REJECTED', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/reject`)
@@ -242,7 +275,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
     });
 
     it('return sets RETURNED', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/return`)
@@ -257,8 +291,9 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
     });
 
     it('both work from UNDER_REVIEW', async () => {
-      const a = await seedEvent({ status: EventStatus.UNDER_REVIEW });
-      const b = await seedEvent({ status: EventStatus.UNDER_REVIEW });
+      await given('tc-s1-02-setup');
+      const a = EVENT.underReview;
+      const b = EVENT.underReview2;
 
       await http()
         .post(`/events/${a.id}/reject`)
@@ -273,7 +308,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
     });
 
     it('refuses to reject a DRAFT', async () => {
-      const event = await seedEvent({ status: EventStatus.DRAFT });
+      await given('tc-s1-02-setup');
+      const event = EVENT.draft;
 
       await http()
         .post(`/events/${event.id}/reject`)
@@ -284,8 +320,10 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
   });
 
   describe('AC-4: the decision and reason are retained and surfaced', () => {
+    // TC-S1-12 · setup: base-users + tc-s1-01-setup · fails if the rejection reason was not saved or not shown to the Organiser
     it('shows the rejection reason in the Organiser’s view (US-05 AC-2)', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/reject`)
@@ -304,8 +342,10 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       );
     });
 
+    // TC-S1-12 · setup: base-users + tc-s1-01-setup · fails if the return reason was not saved or not shown
     it('shows the return reason as an outstanding clarification (US-05 AC-3)', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/return`)
@@ -323,8 +363,10 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       expect(mine.body.clarificationRequest).toMatch(/attendance figure/);
     });
 
+    // TC-S1-12 · setup: base-users + tc-s1-01-setup · fails if the reason was lost after the first read
     it('retains the reason across later reads', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/reject`)
@@ -346,9 +388,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
     });
 
     it('a rejection clears an earlier clarification', async () => {
-      const event = await seedEvent({
-        clarificationRequest: 'An earlier question',
-      });
+      await given('tc-s1-02-setup');
+      const event = EVENT.withQuestion;
 
       await http()
         .post(`/events/${event.id}/reject`)
@@ -366,7 +407,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
 
   describe('the return round trip', () => {
     it('returns, is amended, resubmitted and then approved', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/return`)
@@ -406,10 +448,12 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
   });
 
   describe('assignment ownership and role', () => {
+    // TC-S1-14 · setup: base-users + tc-s1-01-setup · fails if a Coordinator could decide another Coordinator's event
     it.each(['reject', 'return'])(
       '%s refuses a Coordinator assigned elsewhere',
       async (action) => {
-        const event = await seedEvent({ coordinatorId: ids.coordinatorA });
+        await given('tc-s1-01-setup');
+        const event = EVENT.submitted;
 
         await http()
           .post(`/events/${event.id}/${action}`)
@@ -420,7 +464,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
     );
 
     it('refuses to decide an unassigned request from the pool', async () => {
-      const event = await seedEvent({ coordinatorId: null });
+      await given('tc-s1-02-setup');
+      const event = EVENT.unassigned;
 
       await http()
         .post(`/events/${event.id}/reject`)
@@ -429,8 +474,10 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
         .expect(409);
     });
 
+    // TC-S1-14 · setup: base-users + tc-s1-01-setup · fails if an Organiser or Attendee could reject
     it.each(['organiser', 'attendee'])('refuses %s at the role gate', async (who) => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/reject`)
@@ -440,7 +487,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
     });
 
     it('refuses an unauthenticated caller', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/return`)

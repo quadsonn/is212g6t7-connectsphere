@@ -1,22 +1,56 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventStatus, PrismaClient, Role } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { EventStatus, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
-/** US-05 e2e — one describe per acceptance criterion. */
+/**
+ * US-05 e2e — one describe per acceptance criterion.
+ *
+ * Pre-condition for every test: reset the testDB, then run
+ * test/fixtures/sql/base-users.sql; a test that needs more loads the tc-s1
+ * script its test case names (see docs/testing/sprint1-test-cases.md).
+ */
 describe('US-05 organiser views status of own requests (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
   const PASSWORD = 'correct-horse-battery-staple';
+
+  /** Fixed rows from base-users.sql. */
+  const USERS = {
+    organiser: { id: 'u-organiser', email: 'organiser@example.com' },
+    coordinator: { id: 'u-coordinator-a', email: 'coord.a@example.com' },
+  } as const;
+
+  /** Fixed rows from tc-s1-22-setup.sql: loaded only by the tests that need them. */
+  const EXTRA_USERS = {
+    otherOrganiser: { id: 'u-organiser-2', email: 'other@example.com' },
+  } as const;
+  const ids = Object.fromEntries(
+    Object.entries({ ...USERS, ...EXTRA_USERS }).map(([key, user]) => [key, user.id]),
+  ) as Record<string, string>;
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
+
+  /** Loads a test case's setup script(s) on top of base-users. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
+  };
+
+  /** Fixed rows from the tc-s1 setup scripts (see test/fixtures/sql/README.md). */
+  const EVENT = {
+    submitted: { id: 'e-submitted' },
+    rejectedDirect: { id: 'e-rejected-direct' },
+    approvedOnly: { id: 'e-approved-only' },
+    theirs: { id: 'e-theirs' },
+    theirsRejected: { id: 'e-theirs-rejected' },
+  } as const;
 
   const completeFields = {
     name: 'Freshman Orientation 2030',
@@ -28,41 +62,6 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
     expectedAttendance: 300,
   };
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-  };
-
-  /**
-   * Creates a request directly in the database at a given status.
-   *
-   * US-05 is read-only and owns no transition logic, and the Coordinator
-   * review endpoints that would set these fields do not exist yet — so the
-   * fixtures are seeded rather than driven through the API.
-   */
-  const seedRequest = async (
-    organiserKey: string,
-    overrides: Record<string, unknown> = {},
-  ) => {
-    return prisma.eventRequest.create({
-      data: {
-        organiserId: ids[organiserKey],
-        name: 'Seeded request',
-        purpose: 'Purpose',
-        description: 'Description',
-        category: 'Conference',
-        proposedStart: new Date('2030-10-01T09:00:00Z'),
-        proposedEnd: new Date('2030-10-01T17:00:00Z'),
-        expectedAttendance: 100,
-        ...overrides,
-      },
-    });
-  };
-
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -70,9 +69,24 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    // Bound to 127.0.0.1 explicitly: with init() alone, or a dual-stack [::]
+    // listener, the OS can hand out a port another local process already holds
+    // on 127.0.0.1, and Supertest then talks to that process (hangs, or
+    // "Parse Error: Expected HTTP/").
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Log each user in once, through the real endpoint. JWTs are stateless and
+    // the users are re-created with the same IDs after every reset, so these
+    // tokens stay valid for every test in the file.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s1-22-setup');
+    for (const [key, { email }] of Object.entries({ ...USERS, ...EXTRA_USERS })) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
@@ -81,20 +95,14 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('otherOrganiser', 'other@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
   });
 
   describe('AC-1: each request shows its current status', () => {
+    // TC-S1-39 · setup: base-users + tc-s1-39-setup · fails if a request showed a status other than its own
     it('reports every status in the lifecycle', async () => {
-      for (const status of Object.values(EventStatus)) {
-        await seedRequest('organiser', { name: `Request ${status}`, status });
-      }
+      await given('tc-s1-39-setup');
 
       const res = await http()
         .get('/events/mine')
@@ -110,6 +118,7 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       }
     });
 
+    // TC-S1-40 · setup: base-users · fails if an Organiser with no requests got an error instead of an empty list
     it('returns an empty list when the Organiser has none', async () => {
       const res = await http()
         .get('/events/mine')
@@ -132,11 +141,9 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
   });
 
   describe('AC-2: a rejected request shows the Coordinator’s reason', () => {
+    // TC-S1-41 · setup: base-users + tc-s1-41-setup · fails if a rejected request's reason was missing
     it('includes decisionReason on a rejected request', async () => {
-      await seedRequest('organiser', {
-        status: EventStatus.REJECTED,
-        decisionReason: 'Clashes with the examination period',
-      });
+      await given('tc-s1-41-setup');
 
       const res = await http()
         .get('/events/mine')
@@ -147,11 +154,10 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(res.body[0].decisionReason).toBe('Clashes with the examination period');
     });
 
+    // TC-S1-41 · setup: base-users + tc-s1-41-setup · fails if a rejected request's reason was missing
     it('includes it when opening the request directly', async () => {
-      const seeded = await seedRequest('organiser', {
-        status: EventStatus.REJECTED,
-        decisionReason: 'Venue capacity insufficient',
-      });
+      await given('tc-s1-41-setup');
+      const seeded = EVENT.rejectedDirect;
 
       const res = await http()
         .get(`/events/mine/${seeded.id}`)
@@ -163,11 +169,9 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
   });
 
   describe('AC-3: clarification is shown, with the question', () => {
+    // TC-S1-42 · setup: base-users + tc-s1-42-setup · fails if an outstanding clarification or its question was not shown
     it('flags clarification and shows what is asked', async () => {
-      await seedRequest('organiser', {
-        status: EventStatus.DRAFT,
-        clarificationRequest: 'Please confirm the expected attendance figure',
-      });
+      await given('tc-s1-42-setup');
 
       const res = await http()
         .get('/events/mine')
@@ -178,13 +182,9 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(res.body[0].clarificationRequest).toMatch(/expected attendance/);
     });
 
+    // TC-S1-42 · setup: base-users + tc-s1-42-setup · fails if an outstanding clarification or its question was not shown
     it('distinguishes a returned request from an ordinary draft', async () => {
-      await seedRequest('organiser', { name: 'Plain draft', status: EventStatus.DRAFT });
-      await seedRequest('organiser', {
-        name: 'Returned for clarification',
-        status: EventStatus.DRAFT,
-        clarificationRequest: 'Which venue did you have in mind?',
-      });
+      await given('tc-s1-42-setup');
 
       const res = await http()
         .get('/events/mine')
@@ -202,8 +202,9 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(byName['Returned for clarification']).toBe(true);
     });
 
+    // TC-S1-43 · setup: base-users + tc-s1-01-setup · fails if a clarification flag appeared when nothing was asked
     it('reports no clarification when none was asked', async () => {
-      await seedRequest('organiser', { status: EventStatus.SUBMITTED });
+      await given('tc-s1-01-setup');
 
       const res = await http()
         .get('/events/mine')
@@ -216,6 +217,7 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
   });
 
   describe('AC-4: the displayed status is the most recent valid state', () => {
+    // TC-S1-44 · setup: base-users · fails if the list showed a stale status after a transition
     it('reflects a transition made through the real submit endpoint', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -242,7 +244,8 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
     });
 
     it('reflects a later submitted -> under review change', async () => {
-      const seeded = await seedRequest('organiser', { status: EventStatus.SUBMITTED });
+      await given('tc-s1-01-setup');
+      const seeded = EVENT.submitted;
 
       await prisma.eventRequest.update({
         where: { id: seeded.id },
@@ -257,8 +260,10 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(res.body[0].status).toBe(EventStatus.UNDER_REVIEW);
     });
 
+    // TC-S1-45 · setup: base-users + tc-s1-45-setup · fails if a repeated read served a cached status
     it('does not serve a stale status on a repeated read', async () => {
-      const seeded = await seedRequest('organiser', { status: EventStatus.APPROVED });
+      await given('tc-s1-45-setup');
+      const seeded = EVENT.approvedOnly;
 
       await http().get('/events/mine').set('Authorization', as('organiser')).expect(200);
 
@@ -277,9 +282,9 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
   });
 
   describe('AC-5: another Organiser’s requests never appear', () => {
+    // TC-S1-46 · setup: base-users + tc-s1-22-setup + tc-s1-46-setup · fails if another Organiser's request or reason leaked
     it('excludes them from the list', async () => {
-      await seedRequest('organiser', { name: 'Mine' });
-      await seedRequest('otherOrganiser', { name: 'Theirs' });
+      await given('tc-s1-22-setup', 'tc-s1-46-setup');
 
       const res = await http()
         .get('/events/mine')
@@ -290,8 +295,10 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(res.body[0].name).toBe('Mine');
     });
 
+    // TC-S1-46 · setup: base-users + tc-s1-22-setup + tc-s1-46-setup · fails if another Organiser's request or reason leaked
     it('denies fetching another Organiser’s request by id', async () => {
-      const theirs = await seedRequest('otherOrganiser', { name: 'Theirs' });
+      await given('tc-s1-22-setup', 'tc-s1-46-setup');
+      const theirs = EVENT.theirs;
 
       const res = await http()
         .get(`/events/mine/${theirs.id}`)
@@ -301,11 +308,10 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(res.body.name).toBeUndefined();
     });
 
+    // TC-S1-46 · setup: base-users + tc-s1-22-setup + tc-s1-46-setup · fails if another Organiser's request or reason leaked
     it('does not leak a rejection reason belonging to someone else', async () => {
-      const theirs = await seedRequest('otherOrganiser', {
-        status: EventStatus.REJECTED,
-        decisionReason: 'CONFIDENTIAL internal note',
-      });
+      await given('tc-s1-22-setup', 'tc-s1-46-setup');
+      const theirs = EVENT.theirsRejected;
 
       const list = await http()
         .get('/events/mine')
@@ -325,7 +331,7 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
     it('does not treat "mine" as an event id', async () => {
       // GET /events/mine is declared before GET /events/:id; if that order
       // ever changes this returns 404 instead of the list.
-      await seedRequest('organiser');
+      await given('tc-s1-01-setup');
 
       const res = await http()
         .get('/events/mine')

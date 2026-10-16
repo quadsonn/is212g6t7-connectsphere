@@ -11,7 +11,8 @@ import { resetDb } from './helpers/reset-db';
  * US-07 e2e — one describe per acceptance criterion.
  *
  * Pre-condition for every test: reset the testDB, then run
- * test/fixtures/sql/base-users.sql (see test/fixtures/sql/README.md).
+ * test/fixtures/sql/base-users.sql; each test then loads the tc-s1 script its
+ * test case names (see docs/testing/sprint1-test-cases.md).
  */
 describe('US-07 coordinator reviews and approves (e2e)', () => {
   let app: INestApplication;
@@ -28,28 +29,41 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   } as const;
   const ids = Object.fromEntries(
     Object.entries(USERS).map(([key, user]) => [key, user.id]),
-  ) as Record<keyof typeof USERS, string>;
+  ) as Record<string, string>;
   const tokens: Record<string, string> = {};
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
 
-  const seedEvent = async (overrides: Record<string, unknown> = {}) =>
-    prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinatorA,
-        name: 'Freshman Orientation 2030',
-        purpose: 'Welcome new students',
-        description: 'Full-day programme with talks and booths',
-        category: 'Student engagement',
-        proposedStart: new Date('2030-10-01T09:00:00Z'),
-        proposedEnd: new Date('2030-10-01T17:00:00Z'),
-        expectedAttendance: 320,
-        status: EventStatus.SUBMITTED,
-        ...overrides,
-      },
-    });
+  /** Fixed rows from the tc-s1 setup scripts (see test/fixtures/sql/README.md). */
+  const EVENT = {
+    submitted: { id: 'e-submitted' },
+    submitted2: { id: 'e-submitted-2' },
+    draft: { id: 'e-draft' },
+    underReview: { id: 'e-under-review' },
+    underReview2: { id: 'e-under-review-2' },
+    approved: { id: 'e-approved' },
+    rejected: { id: 'e-rejected' },
+    returned: { id: 'e-returned' },
+    cancelled: { id: 'e-cancelled' },
+    withQuestion: { id: 'e-with-question' },
+    stale: { id: 'e-stale' },
+    unassigned: { id: 'e-unassigned' },
+  } as const;
+
+  /** Loads a test case's setup script(s) on top of base-users. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
+  };
+
+  /** The catalogue row for each status the AC-1 table shows. */
+  const EVENT_BY_STATUS: Record<string, { id: string }> = {
+    [EventStatus.DRAFT]: EVENT.draft,
+    [EventStatus.SUBMITTED]: EVENT.submitted,
+    [EventStatus.UNDER_REVIEW]: EVENT.underReview,
+    [EventStatus.APPROVED]: EVENT.approved,
+    [EventStatus.REJECTED]: EVENT.rejected,
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -58,9 +72,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    // Bound to 127.0.0.1 explicitly: on a dual-stack [::] listener the OS can
-    // hand out a port another local process already holds on 127.0.0.1, and
-    // Supertest then talks to that process ("Parse Error: Expected HTTP/").
+    // Bound to 127.0.0.1 explicitly: with init() alone, or a dual-stack [::]
+    // listener, the OS can hand out a port another local process already holds
+    // on 127.0.0.1, and Supertest then talks to that process (hangs, or
+    // "Parse Error: Expected HTTP/").
     await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
@@ -87,6 +102,7 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   describe('AC-1: current status is displayed', () => {
+    // TC-S1-02 · setup: base-users + tc-s1-02-setup · fails if the Coordinator view reported a different status from the one stored
     it.each([
       EventStatus.DRAFT,
       EventStatus.SUBMITTED,
@@ -94,7 +110,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       EventStatus.APPROVED,
       EventStatus.REJECTED,
     ])('shows %s', async (status) => {
-      const event = await seedEvent({ status });
+      await given('tc-s1-02-setup');
+      const event = EVENT_BY_STATUS[status];
 
       const res = await http()
         .get(`/events/assigned/${event.id}`)
@@ -104,12 +121,11 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(res.body.status).toBe(status);
     });
 
+    // TC-S1-02 · setup: base-users + tc-s1-02-setup · fails if a returned request lost its status or its outstanding question
     it('shows a returned request with its outstanding question', async () => {
       // US-08 made RETURNED a status in its own right.
-      const event = await seedEvent({
-        status: EventStatus.RETURNED,
-        clarificationRequest: 'Please confirm the attendance figure',
-      });
+      await given('tc-s1-02-setup');
+      const event = EVENT.returned;
 
       const res = await http()
         .get(`/events/assigned/${event.id}`)
@@ -122,7 +138,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
 
     it('does not mark an ordinary draft as returned', async () => {
-      const event = await seedEvent({ status: EventStatus.DRAFT });
+      await given('tc-s1-02-setup');
+      const event = EVENT.draft;
 
       const res = await http()
         .get(`/events/assigned/${event.id}`)
@@ -134,8 +151,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   describe('AC-2: all details are displayed', () => {
+    // TC-S1-03 · setup: base-users + tc-s1-01-setup · fails if a detail field was dropped or altered in the Coordinator view
     it('returns name, purpose, description and proposed date & time', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       const res = await http()
         .get(`/events/assigned/${event.id}`)
@@ -157,8 +176,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   describe('AC-3: approving updates the status', () => {
+    // TC-S1-01 · setup: base-users + tc-s1-01-setup · fails if Approve did not persist APPROVED
     it('moves a submitted request to APPROVED', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       const res = await http()
         .post(`/events/${event.id}/approve`)
@@ -174,7 +195,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
 
     it('approves from UNDER_REVIEW', async () => {
-      const event = await seedEvent({ status: EventStatus.UNDER_REVIEW });
+      await given('tc-s1-02-setup');
+      const event = EVENT.underReview;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -187,8 +209,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.APPROVED);
     });
 
+    // TC-S1-01 · setup: base-users + tc-s1-01-setup · fails if the Organiser's list did not reflect the approval
     it('is visible to the Organiser afterwards', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -203,8 +227,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(mine.body[0].status).toBe(EventStatus.APPROVED);
     });
 
+    // TC-S1-04 · setup: base-users + tc-s1-02-setup · fails if a DRAFT could be approved (illegal transition)
     it('refuses to approve a DRAFT', async () => {
-      const event = await seedEvent({ status: EventStatus.DRAFT });
+      await given('tc-s1-02-setup');
+      const event = EVENT.draft;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -217,8 +243,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.DRAFT);
     });
 
+    // TC-S1-04 · setup: base-users + tc-s1-02-setup · fails if a CANCELLED request could be approved
     it('refuses to approve a CANCELLED request', async () => {
-      const event = await seedEvent({ status: EventStatus.CANCELLED });
+      await given('tc-s1-02-setup');
+      const event = EVENT.cancelled;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -226,8 +254,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
         .expect(409);
     });
 
+    // TC-S1-05 · setup: base-users + tc-s1-01-setup · fails if a repeated Approve errored or changed the status
     it('is idempotent — approving twice leaves it APPROVED', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -245,11 +275,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
 
     it('clears a stale clarification and rejection reason', async () => {
-      const event = await seedEvent({
-        status: EventStatus.SUBMITTED,
-        clarificationRequest: 'An earlier question',
-        decisionReason: 'An earlier rejection',
-      });
+      await given('tc-s1-02-setup');
+      const event = EVENT.stale;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -265,8 +292,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   describe('assignment ownership and role', () => {
+    // TC-S1-06 · setup: base-users + tc-s1-01-setup · fails if a Coordinator could approve an event assigned to someone else
     it('refuses a Coordinator assigned to a different event', async () => {
-      const event = await seedEvent({ coordinatorId: ids.coordinatorA });
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -280,7 +309,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
 
     it('refuses to approve an unassigned request from the pool', async () => {
-      const event = await seedEvent({ coordinatorId: null });
+      await given('tc-s1-02-setup');
+      const event = EVENT.unassigned;
 
       const res = await http()
         .post(`/events/${event.id}/approve`)
@@ -291,7 +321,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
 
     it('approves once that request has been assigned (US-10 then US-07)', async () => {
-      const event = await seedEvent({ coordinatorId: null });
+      await given('tc-s1-02-setup');
+      const event = EVENT.unassigned;
 
       await http()
         .patch(`/events/${event.id}/coordinator`)
@@ -310,8 +341,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.APPROVED);
     });
 
+    // TC-S1-06 · setup: base-users + tc-s1-01-setup · fails if an Organiser or Attendee could approve
     it.each(['organiser', 'attendee'])('refuses %s at the role gate', async (who) => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -325,7 +358,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
 
     it('refuses an unauthenticated caller', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http().post(`/events/${event.id}/approve`).expect(401);
     });

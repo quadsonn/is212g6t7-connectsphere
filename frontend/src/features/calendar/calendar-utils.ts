@@ -85,9 +85,15 @@ export function timeLabel(iso: string): string {
  * still reads in greyscale (matching lib/status.ts).
  */
 export const ENTRY_STYLES: Record<CalendarEntryKind, { label: string; className: string; style?: React.CSSProperties }> = {
-  TENTATIVE: {
-    label: 'Tentatively held',
+  // US-54: a pending request, which does not block the slot.
+  PENDING: {
+    label: 'Pending',
     className: 'border border-dashed border-amber-500 bg-amber-50 text-amber-900',
+  },
+  // US-54: a live hold, which does — until it expires.
+  TENTATIVE: {
+    label: 'Tentative',
+    className: 'border-2 border-dotted border-sky-600 bg-sky-50 text-sky-900',
   },
   CONFIRMED: {
     label: 'Confirmed',
@@ -149,7 +155,8 @@ export type AvailabilityFacet = CalendarEntryKind | 'AVAILABLE';
 
 export const AVAILABILITY_FACETS: { value: AvailabilityFacet; label: string }[] = [
   { value: 'AVAILABLE', label: 'Available' },
-  { value: 'TENTATIVE', label: 'Tentatively held' },
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'TENTATIVE', label: 'Tentative' },
   { value: 'CONFIRMED', label: 'Confirmed' },
   { value: 'BLOCKED', label: 'Blocked' },
 ];
@@ -225,6 +232,7 @@ export function facetCounts(
 } {
   const availability: Record<AvailabilityFacet, number> = {
     AVAILABLE: 0,
+    PENDING: 0,
     TENTATIVE: 0,
     CONFIRMED: 0,
     BLOCKED: 0,
@@ -258,4 +266,11 @@ export function venueColour(index: number): { fill: string; border: string; text
     border: `hsl(${hue} 55% 42%)`,
     text: `hsl(${hue} 60% 22%)`,
   };
+}
+
+/** US-54 AC-4 — "expires 18 Oct, 14:30" for a hold; null for anything else. */
+export function holdExpiryLabel(entry: Pick<CalendarEntry, 'kind' | 'holdExpiresAt'>): string | null {
+  if (entry.kind !== 'TENTATIVE' || !entry.holdExpiresAt) return null;
+  const at = new Date(entry.holdExpiresAt);
+  return `expires ${at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${timeLabel(entry.holdExpiresAt)}`;
 }

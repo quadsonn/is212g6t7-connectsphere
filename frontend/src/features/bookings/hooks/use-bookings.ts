@@ -5,6 +5,8 @@ import type {
   BookingQueueEntry,
   BookingQueueQuery,
   BookingRequestPayload,
+  HoldableEvent,
+  PlaceHoldPayload,
   VenueBooking,
 } from '@/types/api';
 import { bookingsApi } from '../api/bookings.api';
@@ -17,6 +19,7 @@ export const bookingKeys = {
   forEvent: (eventId: string) => ['bookings', 'event', eventId] as const,
   conflicts: (id: string, start: string, end: string) =>
     ['bookings', 'conflicts', id, start, end] as const,
+  holdable: (venueId: string) => ['bookings', 'holdable', venueId] as const,
 };
 
 /**
@@ -120,4 +123,40 @@ export function useCreateBookingRequest() {
     mutationFn: (payload: BookingRequestPayload) => bookingsApi.create(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: bookingKeys.all }),
   });
+}
+
+/** US-54 — the events a hold may be placed for on this venue. */
+export function useHoldableEvents(venueId: string) {
+  return useQuery<HoldableEvent[]>({
+    queryKey: bookingKeys.holdable(venueId),
+    queryFn: () => bookingsApi.holdableEvents(venueId),
+    enabled: Boolean(venueId),
+  });
+}
+
+/**
+ * US-54 — place, convert, extend and release holds. Each refreshes every
+ * booking query and the calendar, where holds show as Tentative.
+ */
+export function useHolds() {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+    // calendarKeys.all — not imported, since use-calendar imports this file.
+    void queryClient.invalidateQueries({ queryKey: ['calendar'] });
+  };
+
+  return {
+    place: useMutation({
+      mutationFn: ({ venueId, payload }: { venueId: string; payload: PlaceHoldPayload }) =>
+        bookingsApi.placeHold(venueId, payload),
+      onSuccess: invalidate,
+    }),
+    convert: useMutation({ mutationFn: (id: string) => bookingsApi.convertHold(id), onSuccess: invalidate }),
+    extend: useMutation({
+      mutationFn: ({ id, expiresAt }: { id: string; expiresAt: string }) => bookingsApi.extendHold(id, expiresAt),
+      onSuccess: invalidate,
+    }),
+    release: useMutation({ mutationFn: (id: string) => bookingsApi.releaseHold(id), onSuccess: invalidate }),
+  };
 }

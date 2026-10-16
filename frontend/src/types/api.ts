@@ -833,8 +833,12 @@ export interface VenueDraftPayload {
 export interface VenueWithWarnings extends Venue {
   warnings: VenueUpdateWarning[];
 }
-/** Mirrors the backend BookingStatus enum. REQUESTED is "pending" (US-21 AC-3). */
-export type BookingStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED';
+/**
+ * Mirrors the backend BookingStatus enum. REQUESTED is "pending" (US-21 AC-3).
+ * US-54: HELD is a tentative hold, live only until holdExpiresAt; RELEASED is
+ * a hold released by Venue Staff or by expiry.
+ */
+export type BookingStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'HELD' | 'RELEASED';
 
 /**
  * US-21 AC-4/AC-5 — something occupying a requested slot: an existing
@@ -891,6 +895,30 @@ export interface VenueBooking {
   flaggedAt: string | null;
   reviewResolvedAt: string | null;
   reviewResolvedById: string | null;
+  /** US-54: a tentative hold — when it expires, who placed it, how it ended. */
+  holdExpiresAt: string | null;
+  heldById: string | null;
+  holdWarningSentAt: string | null;
+  releasedAt: string | null;
+  releaseReason: string | null;
+}
+
+/** US-54 — GET /venues/:venueId/holdable-events: an event a hold may be placed for. */
+export interface HoldableEvent {
+  id: string;
+  name: string | null;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  expectedAttendance: number | null;
+  coordinator: { id: string; name: string } | null;
+}
+
+/** US-54 — POST /venues/:venueId/holds. */
+export interface PlaceHoldPayload {
+  eventId: string;
+  start: string;
+  end: string;
+  expiresAt: string;
 }
 
 /** US-23 — one recorded decision. Append-only: never edited after the fact. */
@@ -972,8 +1000,11 @@ export interface BookingQueueEntry extends VenueBooking {
   daysUntilStart: number;
 }
 
-/** US-16 — what occupies a calendar slot. Anything else is available. */
-export type CalendarEntryKind = 'TENTATIVE' | 'CONFIRMED' | 'BLOCKED';
+/**
+ * US-16 — what occupies a calendar slot. Anything else is available.
+ * US-54: TENTATIVE is a live hold; a pending request is PENDING.
+ */
+export type CalendarEntryKind = 'PENDING' | 'TENTATIVE' | 'CONFIRMED' | 'BLOCKED';
 
 export interface CalendarEntry {
   /** Booking id, or block id when kind is BLOCKED. */
@@ -990,6 +1021,8 @@ export interface CalendarEntry {
   /** US-51: "Conflict - needs review", alongside kind. Always false for a block. */
   needsReview: boolean;
   needsReviewReason: string | null;
+  /** US-54 AC-4: when a TENTATIVE hold expires; null otherwise. */
+  holdExpiresAt: string | null;
 }
 
 /** GET /calendar */

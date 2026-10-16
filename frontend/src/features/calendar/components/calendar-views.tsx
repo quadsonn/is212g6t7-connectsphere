@@ -14,6 +14,7 @@ import {
   daysIn,
   entriesOn,
   facetCounts,
+  holdExpiryLabel,
   sameDay,
   sortBookedFirst,
   timeLabel,
@@ -32,6 +33,7 @@ function entryTitle(entry: CalendarEntry): string {
 function entrySummary(entry: CalendarEntry, venueName?: string | null): string {
   return [
     ENTRY_STYLES[entry.kind].label,
+    holdExpiryLabel(entry),
     entry.needsReview ? NEEDS_REVIEW_LABEL : null,
     entryTitle(entry),
     venueName,
@@ -73,6 +75,7 @@ export function EntryChip({
     >
       <span className="sr-only">
         {kind.label}
+        {holdExpiryLabel(entry) ? `, ${holdExpiryLabel(entry)}` : ''}
         {entry.needsReview ? `, ${NEEDS_REVIEW_LABEL}` : ''}:{' '}
       </span>
       {entry.needsReview ? (
@@ -166,12 +169,14 @@ function layoutLanes(entries: CalendarEntry[]): { entry: CalendarEntry; lane: nu
 
 /** How each status reads in the day view, where fill colour means venue. */
 const STATUS_BORDER: Record<CalendarEntry['kind'], string> = {
-  TENTATIVE: 'border-dashed',
+  PENDING: 'border-dashed',
+  TENTATIVE: 'border-dotted',
   CONFIRMED: 'border-solid',
   BLOCKED: 'border-solid',
 };
 const STATUS_WORD: Record<CalendarEntry['kind'], string> = {
-  TENTATIVE: 'Pending',
+  PENDING: 'Pending',
+  TENTATIVE: 'Tentative',
   CONFIRMED: 'Confirmed',
   BLOCKED: 'Blocked',
 };
@@ -296,7 +301,7 @@ export function DayTimeline({
                         : c.fill,
                     borderColor: c.border,
                     color: c.text,
-                    opacity: entry.kind === 'TENTATIVE' ? 0.85 : 1,
+                    opacity: entry.kind === 'PENDING' || entry.kind === 'TENTATIVE' ? 0.85 : 1,
                   }}
                 >
                   <span className="block truncate font-semibold">{entryTitle(entry)}</span>
@@ -305,6 +310,7 @@ export function DayTimeline({
                   </span>
                   <span className="block truncate opacity-80">
                     {STATUS_WORD[entry.kind]}
+                    {holdExpiryLabel(entry) ? ` · ${holdExpiryLabel(entry)}` : ''}
                     {entry.needsReview ? ` · ${NEEDS_REVIEW_LABEL}` : ''}
                   </span>
                 </button>
@@ -639,7 +645,7 @@ export function CalendarLegend() {
         <span className={cn('inline-block size-3 rounded-sm border border-emerald-300', AVAILABLE_CLASS)} />
         Available
       </li>
-      {(['TENTATIVE', 'CONFIRMED', 'BLOCKED'] as const).map((kind) => (
+      {(['PENDING', 'TENTATIVE', 'CONFIRMED', 'BLOCKED'] as const).map((kind) => (
         <li key={kind} className="flex items-center gap-1.5">
           <span
             className={cn('inline-block size-3 rounded-sm', ENTRY_STYLES[kind].className)}

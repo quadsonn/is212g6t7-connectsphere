@@ -97,6 +97,8 @@ export function NotificationsPage() {
                   ) : null}
                   <p className="text-xs text-ink-500">
                     {n.relatedEvent ? `${n.relatedEvent.name ?? 'Untitled event'} · ` : ''}
+                    {/* US-40 AC-3: venue activity names its venue. */}
+                    {n.relatedBooking ? `${n.relatedBooking.venue.name ?? 'Unnamed venue'} · ` : ''}
                     <time dateTime={n.createdAt}>{new Date(n.createdAt).toLocaleString()}</time>
                     {n.read ? '' : ' · Unread'}
                   </p>

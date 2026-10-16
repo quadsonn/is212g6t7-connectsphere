@@ -1,9 +1,10 @@
 import { apiClient } from '@/lib/api-client';
-import type { InboxNotification } from '@/types/api';
+import type { InboxNotification, NotificationsPageQuery } from '@/types/api';
 
 /** Notifications page — the logged-in user's own notifications. */
 export const notificationsApi = {
-  list: () => apiClient.get<InboxNotification[]>('/notifications').then((r) => r.data),
+  list: (params: NotificationsPageQuery = {}) =>
+    apiClient.get<InboxNotification[]>('/notifications', { params }).then((r) => r.data),
 
   unreadCount: () =>
     apiClient.get<{ unread: number }>('/notifications/unread-count').then((r) => r.data),

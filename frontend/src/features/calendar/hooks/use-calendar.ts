@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { bookingKeys } from '@/features/bookings/hooks/use-bookings';
+import { POLL_MS } from '@/lib/polling';
 import type { CalendarQuery, CalendarView, VenueBlockPayload } from '@/types/api';
 import { calendarApi } from '../api/calendar.api';
 
@@ -10,7 +11,7 @@ export const calendarKeys = {
 };
 
 /** How often the calendar re-reads while open (AC-5). */
-export const CALENDAR_POLL_MS = 30_000;
+export const CALENDAR_POLL_MS = POLL_MS;
 
 /**
  * US-16 AC-5 — "updates in real time (or on refresh)". The calendar polls

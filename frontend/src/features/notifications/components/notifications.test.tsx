@@ -32,6 +32,7 @@ const item = (overrides: Partial<InboxNotification> = {}): InboxNotification => 
   readAt: null,
   createdAt: '2030-10-01T01:00:00.000Z',
   relatedEvent: { id: 'e1', name: 'Gala' },
+  relatedBooking: null,
   link: '/coordinator/events/e1',
   ...overrides,
 });
@@ -53,13 +54,16 @@ beforeEach(() => vi.resetAllMocks());
 afterEach(() => vi.useRealTimers());
 
 describe('Notifications: the bell', () => {
-  it('shows the unread count and links to the page', async () => {
+  it('shows the unread count, and its dropdown links to the page', async () => {
     api.unreadCount.mockResolvedValue({ unread: 3 });
+    api.list.mockResolvedValue([]);
     wrap(<NotificationBell />);
 
-    const bell = await screen.findByRole('link', { name: 'Notifications, 3 unread' });
-    expect(bell).toHaveAttribute('href', '/notifications');
+    // US-40: the bell opens a dropdown; "View all" leads to the page.
+    const bell = await screen.findByRole('button', { name: 'Notifications, 3 unread' });
     expect(within(bell).getByText('3')).toBeInTheDocument();
+    await userEvent.click(bell);
+    expect(await screen.findByRole('link', { name: 'View all' })).toHaveAttribute('href', '/notifications');
   });
 
   it('shows no badge when everything is read', async () => {
@@ -67,7 +71,7 @@ describe('Notifications: the bell', () => {
     wrap(<NotificationBell />);
 
     await waitFor(() => expect(api.unreadCount).toHaveBeenCalled());
-    expect(screen.getByRole('link', { name: 'Notifications' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
   });
 });
 

@@ -1035,6 +1035,14 @@ export interface InboxNotification {
   readAt: string | null;
   createdAt: string;
   relatedEvent: { id: string; name: string | null } | null;
-  /** The related event's page for this reader's role; null if none. */
+  /** US-40 AC-3: the booking request it is about, and so its venue. */
+  relatedBooking: { id: string; venue: { id: string; name: string | null } } | null;
+  /** Where it leads for this reader's role; null if nowhere. */
   link: string | null;
+}
+
+/** US-40 — GET /notifications paging: `cursor` is the last id already shown. */
+export interface NotificationsPageQuery {
+  limit?: number;
+  cursor?: string;
 }

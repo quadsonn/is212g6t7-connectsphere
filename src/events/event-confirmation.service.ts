@@ -66,7 +66,7 @@ export class EventConfirmationService {
       tx.venueBooking.findMany({
         where: { eventId },
         orderBy: [{ start: 'asc' }, { id: 'asc' }],
-        select: { status: true, needsReview: true, venue: { select: { name: true } } },
+        select: { status: true, needsReview: true, holdExpiresAt: true, venue: { select: { name: true } } },
       }),
       tx.equipmentRequirement.findMany({
         where: { eventId },
@@ -89,6 +89,7 @@ export class EventConfirmationService {
         venueName: b.venue.name ?? 'an unnamed venue',
         status: b.status,
         needsReview: b.needsReview,
+        holdExpiresAt: b.holdExpiresAt,
       })),
       requirements,
       reservations,

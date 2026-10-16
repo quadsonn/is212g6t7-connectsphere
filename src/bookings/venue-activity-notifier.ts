@@ -3,7 +3,6 @@ import { NotificationType, Prisma } from '@prisma/client';
 
 import { NotificationsService } from '../notifications/notifications.service';
 import { TimeWindow } from './booking-reschedule';
-import { liveBookingsWhere } from './booking-overlap';
 import { momentLabel, slot } from './slot-label';
 
 /** What changed on an approved booking (US-40 AC-1). */
@@ -72,23 +71,14 @@ export class VenueActivityNotifier {
   }
 
   /**
-   * AC-1: an event using the venue was cancelled. One notification per live
-   * booking (pending, approved or a live hold); rejected and released ones
-   * hold nothing. The booking
-   * itself is left alone — releasing it is US-44's.
+   * AC-1 / US-44 AC-5: an event using the venue was cancelled, and so this
+   * booking of it has been released. One notice per released booking, sent by
+   * BookingsService.releaseForCancelledEvent in the cancelling transaction.
    */
-  async eventCancelled(tx: Prisma.TransactionClient, eventId: string): Promise<void> {
-    const live = await tx.venueBooking.findMany({
-      where: { eventId, ...liveBookingsWhere() },
-      orderBy: [{ start: 'asc' }, { id: 'asc' }],
-      select: { id: true },
-    });
-
-    for (const { id } of live) {
-      await this.send(tx, id, NotificationType.BOOKING_EVENT_CANCELLED, (b) =>
-        `${capitalise(eventLabel(b))} has been cancelled. It had a booking of ${venueLabel(b)} for ${slot(b.start, b.end)}.`,
-      );
-    }
+  bookingReleasedForCancellation(tx: Prisma.TransactionClient, bookingId: string): Promise<void> {
+    return this.send(tx, bookingId, NotificationType.BOOKING_EVENT_CANCELLED, (b) =>
+      `${capitalise(eventLabel(b))} has been cancelled. Its booking of ${venueLabel(b)} for ${slot(b.start, b.end)} has been released.`,
+    );
   }
 
   /** AC-1: a tentative hold is about to expire (US-54's expiry job). */

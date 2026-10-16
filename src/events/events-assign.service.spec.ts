@@ -13,7 +13,7 @@ import { EquipmentReservationsService } from '../equipment/equipment-reservation
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
-import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
+import { BookingsService } from '../bookings/bookings.service';
 
 /** US-10 — assigning a Coordinator as main point of contact. */
 describe('EventsService coordinator assignment (US-10)', () => {
@@ -75,7 +75,7 @@ describe('EventsService coordinator assignment (US-10)', () => {
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
-      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
+      { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
   });
 

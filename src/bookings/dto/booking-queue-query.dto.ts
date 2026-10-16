@@ -28,8 +28,8 @@ export class BookingQueueQueryDto {
   venueId?: string;
 
   /**
-   * AC-4: narrows within the chosen view — in practice APPROVED or REJECTED
-   * on the decided view. A status outside the view returns nothing rather
+   * AC-4: narrows within the chosen view — in practice APPROVED, REJECTED
+   * or (US-44) RELEASED on the decided view. A status outside the view returns nothing rather
    * than an error, so a client can keep the filter while switching views.
    */
   @IsOptional()

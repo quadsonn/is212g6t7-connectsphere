@@ -9,7 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
-import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
+import { BookingsService } from '../bookings/bookings.service';
 
 /** US-06 — capturing layout and accessibility preferences. */
 describe('EventsService layout & accessibility (US-06)', () => {
@@ -76,7 +76,7 @@ describe('EventsService layout & accessibility (US-06)', () => {
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
-      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
+      { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
   });
 

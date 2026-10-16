@@ -1,5 +1,7 @@
 import { BookingStatus, ReservationStatus } from '@prisma/client';
 
+import { isLive } from '../bookings/booking-overlap';
+
 /**
  * US-42 — is an event ready for its Coordinator to confirm the arrangements?
  * Pure functions over plain facts, so every rule is unit-tested without a
@@ -26,7 +28,8 @@ export interface ConfirmationFacts {
    * BookingStatus so a status added later (US-54's HELD) is judged by the
    * generic rule below instead of failing to compile or slipping through.
    */
-  bookings: { venueName: string; status: string; needsReview: boolean }[];
+  /** US-54/US-44: holdExpiresAt decides whether a HELD booking still counts. */
+  bookings: { venueName: string; status: string; needsReview: boolean; holdExpiresAt?: Date | null }[];
   /** The equipment the Coordinator recorded as needed (US-28). */
   requirements: {
     equipmentId: string | null;
@@ -38,10 +41,13 @@ export interface ConfirmationFacts {
 }
 
 /**
- * Bookings that hold nothing and so are left out of "every live booking".
- * RELEASED is listed by name for when US-54 adds it.
+ * US-44 — "every live booking" is an allowlist (isLive: pending, approved, or
+ * a hold that has not expired), not "everything but REJECTED/RELEASED": an
+ * expired hold holds nothing, and a status added later stays out until it is
+ * deliberately let in.
  */
-const RELEASED_STATUSES: readonly string[] = [BookingStatus.REJECTED, 'RELEASED'];
+const occupies = (b: ConfirmationFacts['bookings'][number], now: Date) =>
+  isLive({ status: b.status as BookingStatus, holdExpiresAt: b.holdExpiresAt ?? null }, now);
 
 function venueItem(booking: ConfirmationFacts['bookings'][number]): ReadinessItem {
   const at = `Venue booking at ${booking.venueName}`;
@@ -77,8 +83,9 @@ function venueItem(booking: ConfirmationFacts['bookings'][number]): ReadinessIte
  */
 export function evaluateConfirmationReadiness(
   facts: ConfirmationFacts,
+  now: Date = new Date(),
 ): ConfirmationReadiness {
-  const live = facts.bookings.filter((b) => !RELEASED_STATUSES.includes(b.status));
+  const live = facts.bookings.filter((b) => occupies(b, now));
 
   const venueItems: ReadinessItem[] =
     live.length === 0

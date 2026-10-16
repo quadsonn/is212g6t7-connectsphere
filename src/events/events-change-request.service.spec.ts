@@ -20,7 +20,7 @@ import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { NO_DIFFERENCE_MESSAGE } from './change-request.rules';
 import { EventsChangeRequestService } from './events-change-request.service';
 import { EventsService } from './events.service';
-import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
+import { BookingsService } from '../bookings/bookings.service';
 
 /** US-37 — an Organiser requests a change to their event. */
 describe('EventsChangeRequestService (US-37)', () => {
@@ -478,7 +478,7 @@ describe('EventsService viewing an event with a pending change request (US-37)',
       access as unknown as AccessControlService,
       {} as NotificationsService,
       {} as EquipmentReservationsService,
-      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
+      { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
     return { prisma, service, user };
   };

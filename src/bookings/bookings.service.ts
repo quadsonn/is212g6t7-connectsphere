@@ -237,7 +237,9 @@ export class BookingsService implements VenueBookingLookup {
     const viewStatuses: BookingStatus[] =
       view === QueueView.PENDING
         ? [BookingStatus.REQUESTED]
-        : [BookingStatus.APPROVED, BookingStatus.REJECTED];
+        : // US-44: released bookings (event cancelled, hold released or
+          // expired) stay in the history, shown as Released.
+          [BookingStatus.APPROVED, BookingStatus.REJECTED, BookingStatus.RELEASED];
     const statuses = query.status
       ? viewStatuses.filter((s) => s === query.status)
       : viewStatuses;
@@ -779,6 +781,74 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /**
+   * US-44 — the event was cancelled, so every booking it still has on a venue
+   * is released: pending, held (live or expired) or confirmed, including ones
+   * flagged "Conflict - needs review" (AC-1). Each becomes RELEASED with the
+   * reason and a timestamp (AC-3) and stays on record (AC-4), its history gets
+   * a RELEASE entry (by `actorId`, or the system), and its venue's manager is
+   * told (AC-5). REJECTED and already RELEASED bookings are left alone, as is
+   * every other event's booking (AC-6).
+   *
+   * Runs inside the cancelling transaction (EventsService.setStatus), so the
+   * event is CANCELLED exactly when its bookings are released. Venues are
+   * locked in id order, so two cancellations sharing venues cannot deadlock.
+   * The slot is free at once (AC-2): every availability query reads only
+   * live statuses (liveBookingsWhere), and the EXCLUDE constraint covers only
+   * APPROVED and HELD.
+   *
+   * Returns the ids it released.
+   */
+  async releaseForCancelledEvent(
+    eventId: string,
+    tx: Prisma.TransactionClient,
+    actorId: string | null = null,
+    now: Date = new Date(),
+  ): Promise<string[]> {
+    const RELEASABLE = [BookingStatus.REQUESTED, BookingStatus.APPROVED, BookingStatus.HELD];
+    const candidates = await tx.venueBooking.findMany({
+      where: { eventId, status: { in: RELEASABLE } },
+      select: { venueId: true },
+    });
+    const venueIds = [...new Set(candidates.map((b) => b.venueId))].sort();
+    for (const venueId of venueIds) {
+      await this.lockVenue(tx, venueId);
+    }
+
+    // Re-read under the locks: a decision may have landed in between.
+    const bookings = await tx.venueBooking.findMany({
+      where: { eventId, status: { in: RELEASABLE } },
+      orderBy: [{ start: 'asc' }, { id: 'asc' }],
+      select: { id: true, status: true },
+    });
+
+    for (const booking of bookings) {
+      assertTransition(BookingAction.CANCEL_EVENT, booking.status, BookingStatus.RELEASED);
+      await tx.venueBooking.update({
+        where: { id: booking.id },
+        data: { status: BookingStatus.RELEASED, releaseReason: EVENT_CANCELLED_REASON, releasedAt: now },
+      });
+      await tx.bookingDecision.create({
+        data: {
+          bookingId: booking.id,
+          decidedById: actorId,
+          kind: BookingDecisionKind.RELEASE,
+          outcome: BookingStatus.RELEASED,
+          reason: EVENT_CANCELLED_REASON,
+        },
+      });
+      await this.venueActivity.bookingReleasedForCancellation(tx, booking.id);
+    }
+
+    // US-51: a released booking holds nothing, so its own flag and any it
+    // caused on its neighbours are cleared.
+    for (const venueId of venueIds) {
+      await recheckReviewFlags(venueId, tx, now);
+    }
+
+    return bookings.map((b) => b.id);
+  }
+
+  /**
    * Serialises booking writes per venue for the rest of the transaction, so
    * two requests cannot both pass the overlap check and then both insert.
    * See the concurrency note on VenueBooking in schema.prisma — this is the
@@ -842,6 +912,9 @@ export class BookingsService implements VenueBookingLookup {
     });
   }
 }
+
+/** US-44 AC-3 — why a booking was released when its event was cancelled. */
+export const EVENT_CANCELLED_REASON = 'Event cancelled';
 
 /** SQLSTATE 23P01 — exclusion_violation. */
 function isExclusionViolation(error: unknown): boolean {

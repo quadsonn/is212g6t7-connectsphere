@@ -166,11 +166,11 @@ describe('BookingsService findQueue (US-22)', () => {
   });
 
   describe('AC-7: decided requests leave the pending view', () => {
-    it('the decided view lists approved and rejected, newest submission first', async () => {
+    it('US-44: the decided view lists approved, rejected and released, newest submission first', async () => {
       await service.findQueue(staff, { view: QueueView.DECIDED }, now);
 
       expect(whereOf().status).toEqual({
-        in: [BookingStatus.APPROVED, BookingStatus.REJECTED],
+        in: [BookingStatus.APPROVED, BookingStatus.REJECTED, BookingStatus.RELEASED],
       });
       expect(prisma.venueBooking.findMany.mock.calls[0][0].orderBy).toEqual({ createdAt: 'desc' });
     });

@@ -69,11 +69,31 @@ describe('US-42 confirmation readiness rules', () => {
       expect(outstanding(f)).toEqual(['Venue booking at Hall A still pending']);
     });
 
-    it('US-42 AC-1: a HELD booking is not ready', () => {
-      const f = facts({ bookings: [booking('Hall A', 'HELD')] });
+    it('US-42 AC-1: a (live) HELD booking is not ready', () => {
+      const f = facts({ bookings: [{ ...booking('Hall A', 'HELD'), holdExpiresAt: new Date(Date.now() + 864e5) }] });
 
       expect(evaluateConfirmationReadiness(f).ready).toBe(false);
       expect(outstanding(f)).toEqual(['Venue booking at Hall A on hold']);
+    });
+
+    it('US-44: an expired hold, a released and a rejected booking hold nothing — an allowlist, not a denylist', () => {
+      const f = facts({
+        bookings: [
+          booking('Hall A'),
+          { ...booking('Hall B', 'HELD'), holdExpiresAt: new Date(Date.now() - 1000) },
+          booking('Hall C', 'RELEASED'),
+          booking('Hall D', BookingStatus.REJECTED),
+          // A status nobody has let in yet is not counted either.
+          booking('Hall E', 'SOMETHING_NEW'),
+        ],
+      });
+
+      expect(evaluateConfirmationReadiness(f).ready).toBe(true);
+      expect(outstanding(f)).toEqual([]);
+    });
+
+    it('US-44: an event whose only booking was released has no venue', () => {
+      expect(outstanding(facts({ bookings: [booking('Hall A', 'RELEASED')] }))).toEqual(['No venue booked']);
     });
 
     it('US-42 AC-2: an APPROVED booking flagged for review "needs conflict review"', () => {

@@ -57,7 +57,7 @@ import {
   EventStatusView,
   PLANNING_STATUSES,
 } from './event-status.machine';
-import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
+import { BookingsService } from '../bookings/bookings.service';
 import { evaluateRegistration } from '../registrations/registration-rules';
 import { CHANGE_REQUEST_INCLUDE } from './events-change-request.service';
 
@@ -241,7 +241,7 @@ export class EventsService {
     private readonly access: AccessControlService,
     private readonly notifications: NotificationsService,
     private readonly equipmentReservations: EquipmentReservationsService,
-    private readonly venueActivity: VenueActivityNotifier,
+    private readonly bookings: BookingsService,
   ) {}
 
   /**
@@ -1276,11 +1276,12 @@ export class EventsService {
    * Later stories (review, planning, cancellation) call this rather than
    * adding their own update statements.
    *
-   * US-33 AC-1: reaching CANCELLED releases the event's equipment
-   * reservations in the same transaction as the status change — whichever
-   * path cancels the event (#43 will add one), and with no window in which
-   * the event is cancelled but its equipment still locked. If the release
-   * fails, the cancellation rolls back with it.
+   * US-33 AC-1 / US-44: reaching CANCELLED releases the event's equipment
+   * reservations and venue bookings in the same transaction as the status
+   * change — whichever path cancels the event (US-43 will add one), and with
+   * no window in which the event is cancelled but its equipment or venues
+   * still held. If either release fails, the cancellation rolls back with it.
+   * `actorId`, when given, is recorded on each released booking's history.
    *
    * US-42 AC-4: a move to AWAITING_SAFETY_CHECK is the Coordinator confirming
    * the arrangements, so it also records when and by whom (`actorId`). Other
@@ -1335,9 +1336,8 @@ export class EventsService {
         event.id,
         client,
       );
-      // US-40 AC-1: tell each venue's manager. Notify only — releasing the
-      // venue bookings is US-44's, and will go here too.
-      await this.venueActivity.eventCancelled(client, event.id);
+      // US-44 (with US-40 AC-1's notice to each venue's manager).
+      await this.bookings.releaseForCancelledEvent(event.id, client, actorId ?? null);
     }
 
     return updated;

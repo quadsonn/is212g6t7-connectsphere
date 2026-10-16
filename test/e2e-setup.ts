@@ -8,6 +8,8 @@
 import { execSync } from 'node:child_process';
 import { config } from 'dotenv';
 
+import { assertSafeTestDatabaseUrl } from './helpers/db-guard';
+
 export default function globalSetup(): void {
   config();
 
@@ -15,7 +17,9 @@ export default function globalSetup(): void {
     process.env.TEST_DATABASE_URL ??
     'postgresql://postgres@localhost:5432/connectsphere_test?schema=public';
 
-  const database = new URL(url).pathname.replace(/^\//, '');
+  // Before createdb and migrate: a non-local URL must stop the run here, not
+  // after the migrations have been applied to it.
+  const { database } = assertSafeTestDatabaseUrl(url);
 
   try {
     execSync(`createdb ${database}`, { stdio: 'ignore' });

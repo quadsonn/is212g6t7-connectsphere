@@ -1,31 +1,38 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventStatus, PrismaClient, Role } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { EventStatus, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
-/** US-07 e2e — one describe per acceptance criterion. */
+/**
+ * US-07 e2e — one describe per acceptance criterion.
+ *
+ * Pre-condition for every test: reset the testDB, then run
+ * test/fixtures/sql/base-users.sql (see test/fixtures/sql/README.md).
+ */
 describe('US-07 coordinator reviews and approves (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
   const PASSWORD = 'correct-horse-battery-staple';
+
+  /** Fixed rows from base-users.sql. */
+  const USERS = {
+    organiser: { id: 'u-organiser', email: 'organiser@example.com' },
+    coordinatorA: { id: 'u-coordinator-a', email: 'coord.a@example.com' },
+    coordinatorB: { id: 'u-coordinator-b', email: 'coord.b@example.com' },
+    attendee: { id: 'u-attendee', email: 'attendee@example.com' },
+  } as const;
+  const ids = Object.fromEntries(
+    Object.entries(USERS).map(([key, user]) => [key, user.id]),
+  ) as Record<keyof typeof USERS, string>;
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
-
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-  };
 
   const seedEvent = async (overrides: Record<string, unknown> = {}) =>
     prisma.eventRequest.create({
@@ -51,9 +58,22 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    // Bound to 127.0.0.1 explicitly: on a dual-stack [::] listener the OS can
+    // hand out a port another local process already holds on 127.0.0.1, and
+    // Supertest then talks to that process ("Parse Error: Expected HTTP/").
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Log each base user in once, through the real endpoint. JWTs are
+    // stateless and the users are re-created with the same IDs after every
+    // reset, so these tokens stay valid for every test in the file.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    for (const [key, { email }] of Object.entries(USERS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
@@ -62,14 +82,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinatorA', 'coord.a@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('coordinatorB', 'coord.b@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('attendee', 'attendee@example.com', Role.ATTENDEE);
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
   });
 
   describe('AC-1: current status is displayed', () => {

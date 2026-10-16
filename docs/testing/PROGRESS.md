@@ -165,6 +165,16 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 ### Remaining Sprint 1 integration files to convert (7)
 `auth`, `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`
 
+## 2026-10-17: audit gap #1 fixed (Step 1) and regression test flipped (Step 2)
+
+- **Step 1** (`93316fa`, application code, team-approved): `@Trim()` was restored from `sprint3-raye-BACKUP` and extended to every Sprint 1 text field:
+  - Optional event and draft text fields are trimmed.
+  - Venue name, location and notes now store real values trimmed. Blank values still become null.
+  - Venue `operatingInfo` is trimmed.
+  - Results: unit 956/956. The 11 integration files that use these endpoints pass, except the 2 `it.failing` rows, which flipped as expected.
+- **Step 2:** the whitespace test in `events-decision.e2e-spec.ts` is back to `it.each`, commented "Fixed in 93316fa; regression test for audit gap #1". 26/26 ×3. TC-S1-11 is Fail → Pass. A "Changes since Sprint 1" section was added to `sprint1-test-cases.md`.
+- **Next (Step 3):** tests for TC-S1-27 (US-03 boundaries), TC-S1-18 (whitespace-only question) and TC-S1-07 (concurrency, gap #2).
+
 ## Open
 - **TC IDs:** done for US-07/08/09 (TC-S1-01 to 22). The remaining stories get theirs as each group is written.
-- **G1 (whitespace accepted):** the fix is parked on `sprint3-raye-BACKUP`, in `src/common/validators/trim.transform.ts` and the 5 DTOs. Landing it is an application-code change, so agree it with the team first.
+- **G1 (whitespace accepted):** fixed in `93316fa`. TC-S1-18 and TC-S1-27 still need their tests (Step 3).

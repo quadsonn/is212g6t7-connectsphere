@@ -260,12 +260,12 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Both were accepted: HTTP 200 instead of 400. That was observed directly on 2026-10-16, before the test was marked `it.failing`. Today's run confirms the 400 check still fails. |
-| Status | Fail |
-| Remarks | Known bug, audit gap #1: whitespace-only reasons are accepted. The test is marked `it.failing`, so the suite stays green until the trim fix lands. The fix is parked on `sprint3-raye-BACKUP`. |
+| Actual Result | Both refused: HTTP 400 for reject and for return. The stored request stayed SUBMITTED, with `decisionReason` and `clarificationRequest` still null. 26/26 passed in each of 3 runs. |
+| Status | Pass |
+| Remarks | Bug found by test audit; fixed (gap #1). Fixed in 93316fa. This test is now the regression test. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-decision.e2e-spec.ts::%s is blocked when the reason is whitespace-only` (reject, return; `it.failing`) |
+| Automated by | `test/events-decision.e2e-spec.ts::%s is blocked when the reason is whitespace-only` (reject, return) |
 
 ### TC-S1-12
 
@@ -331,7 +331,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Automated by | `test/events-decision.e2e-spec.ts::%s refuses a Coordinator assigned elsewhere` (reject, return)<br>`test/events-decision.e2e-spec.ts::refuses %s at the role gate` (organiser, attendee) |
 
 **US-08 AC ↔ code mismatches**
-- **AC-2:** a whitespace-only reason is accepted (TC-S1-11, audit gap #1).
+- **AC-2 (fixed):** a whitespace-only reason used to be accepted (audit gap #1). Fixed in 93316fa, and TC-S1-11 is now its regression test.
 - **AC-4, a note only:** a return's reason is stored as the outstanding clarification (`clarificationRequest`), while a rejection's is stored as `decisionReason`. Both are saved and shown, so the AC is met.
 
 ---
@@ -507,7 +507,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Automated by | `test/events-clarification.e2e-spec.ts::refuses a Coordinator who is not assigned`<br>`test/events-clarification.e2e-spec.ts::refuses a response from another Organiser` |
 
 **US-09 AC ↔ code mismatches**
-- **AC-1:** a whitespace-only question is accepted (TC-S1-18, audit gap #1).
+- **AC-1:** a whitespace-only question used to be accepted (audit gap #1). Fixed in 93316fa. TC-S1-18 still needs its integration test (GAP).
 - **AC-4:** "the Coordinator is notified" is only met by storing a notification record today. Nothing is delivered (no email, push or in-app feed). TC-S1-20 stays Not Executed until the Sprint 3 story "Be Notified of My Request Outcome" lands.
 
 ---
@@ -684,7 +684,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 
 **US-03 AC ↔ code mismatches**
 - **AC-2 (Week 7 Change 5):** new submissions currently land in a pool that every Coordinator can see and review. Change 5 sends them to the Lead's unassigned queue instead (TC-S1-25).
-- **AC-3:** whitespace-only required text is accepted (audit gap #1). The end-equals-start and "just past" boundaries are untested (TC-S1-27).
+- **AC-3:** whitespace-only required text used to be accepted (audit gap #1). Fixed in 93316fa. The whitespace, end-equals-start and "just past" boundaries still need tests (TC-S1-27, GAP).
 
 ---
 
@@ -1212,6 +1212,14 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 
 **US-06 AC ↔ code mismatches**
 - **AC-6 (Week 7 Change 5):** the existing AC-6 tests rely on a Coordinator reading an unassigned request (TC-S1-54). They will need updating when Change 5 merges.
+
+## Changes since Sprint 1
+
+Changes to the system or to these test cases made after the Sprint 1 review, newest first.
+
+| Date | Change | Commit | Test cases affected |
+|---|---|---|---|
+| 2026-10-17 | **Whitespace-only text rejected in required fields (audit gap #1).** The test audit found that `@IsNotEmpty` accepted `"   "`. A new `@Trim()` transform now runs on every Sprint 1 text field: event request, draft, reject/return reason, clarification question/response and venue draft. Whitespace-only required text is now refused; optional text is trimmed and may be empty. | `93316fa` | TC-S1-11 (Fail → Pass; its test is now a regular regression test, no longer `it.failing`). TC-S1-18 and TC-S1-27 are covered by the fix but still need their tests (GAP). |
 
 ---
 

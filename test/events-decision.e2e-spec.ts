@@ -215,9 +215,9 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       },
     );
 
-    // TC-S1-11 · setup: base-users + tc-s1-01-setup · TC status Fail while gap #1 is open (it.failing passes because '   ' is still accepted)
-    // KNOWN BUG (audit gap #1): whitespace-only accepted. Switch back to it(...) when the trim fix lands.
-    it.failing.each(['reject', 'return'])(
+    // TC-S1-11 · setup: base-users + tc-s1-01-setup · fails if a whitespace-only reason is accepted again
+    // Fixed in 93316fa; regression test for audit gap #1
+    it.each(['reject', 'return'])(
       '%s is blocked when the reason is whitespace-only',
       async (action) => {
         await given('tc-s1-01-setup');

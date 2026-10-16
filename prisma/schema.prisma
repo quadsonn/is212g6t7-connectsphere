@@ -604,10 +604,15 @@ model Notification {
   relatedEventId String?
   relatedEvent   EventRequest? @relation(fields: [relatedEventId], references: [id], onDelete: Cascade)
 
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  read      Boolean   @default(false)
+  // Notifications page: when the recipient marked it read; null while unread.
+  // Kept alongside `read` (set together) so existing readers are unaffected.
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([recipientId, read])
+  // Notifications page: a recipient's inbox, newest first.
+  @@index([recipientId, createdAt])
   @@index([relatedEventId])
 }
 

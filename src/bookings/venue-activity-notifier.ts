@@ -3,7 +3,7 @@ import { NotificationType, Prisma } from '@prisma/client';
 
 import { NotificationsService } from '../notifications/notifications.service';
 import { TimeWindow } from './booking-reschedule';
-import { LIVE_STATUSES } from './booking.types';
+import { liveBookingsWhere } from './booking-overlap';
 import { momentLabel, slot } from './slot-label';
 
 /** What changed on an approved booking (US-40 AC-1). */
@@ -73,12 +73,13 @@ export class VenueActivityNotifier {
 
   /**
    * AC-1: an event using the venue was cancelled. One notification per live
-   * (REQUESTED or APPROVED) booking; rejected ones hold nothing. The booking
+   * booking (pending, approved or a live hold); rejected and released ones
+   * hold nothing. The booking
    * itself is left alone — releasing it is US-44's.
    */
   async eventCancelled(tx: Prisma.TransactionClient, eventId: string): Promise<void> {
     const live = await tx.venueBooking.findMany({
-      where: { eventId, status: { in: LIVE_STATUSES } },
+      where: { eventId, ...liveBookingsWhere() },
       orderBy: [{ start: 'asc' }, { id: 'asc' }],
       select: { id: true },
     });
@@ -90,14 +91,14 @@ export class VenueActivityNotifier {
     }
   }
 
-  /** AC-1: a tentative hold is about to expire. UNWIRED — for US-54. */
+  /** AC-1: a tentative hold is about to expire (US-54's expiry job). */
   holdExpiring(tx: Prisma.TransactionClient, bookingId: string, expiresAt: Date): Promise<void> {
     return this.send(tx, bookingId, NotificationType.HOLD_EXPIRING, (b) =>
       `The tentative hold on ${venueLabel(b)} for ${eventLabel(b)} (${slot(b.start, b.end)}) expires at ${momentLabel(expiresAt)}.`,
     );
   }
 
-  /** AC-1: a tentative hold has expired. UNWIRED — for US-54. */
+  /** AC-1: a tentative hold has expired (US-54's releaseExpiredHolds). */
   holdExpired(tx: Prisma.TransactionClient, bookingId: string): Promise<void> {
     return this.send(tx, bookingId, NotificationType.HOLD_EXPIRED, (b) =>
       `The tentative hold on ${venueLabel(b)} for ${eventLabel(b)} (${slot(b.start, b.end)}) has expired.`,

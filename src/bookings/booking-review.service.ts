@@ -5,7 +5,8 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { PrismaService } from '../prisma/prisma.service';
-import { BOOKING_INCLUDE, BookingView, LIVE_STATUSES } from './booking.types';
+import { isLive, liveBookingsWhere } from './booking-overlap';
+import { BOOKING_INCLUDE, BookingView } from './booking.types';
 import { BufferClash, Buffers, ClashCandidate, clashingIds, newClashes } from './buffer-clashes';
 import { slot } from './slot-label';
 import { lockVenue } from './venue-lock';
@@ -167,7 +168,7 @@ export async function recheckReviewFlags(
 ): Promise<string[]> {
   const flagged = await db.venueBooking.findMany({
     where: { venueId, needsReview: true },
-    select: { id: true, status: true },
+    select: { id: true, status: true, holdExpiresAt: true },
   });
   if (flagged.length === 0) return [];
 
@@ -179,7 +180,7 @@ export async function recheckReviewFlags(
   const stillClashing = clashingIds(live, buffers);
 
   const cleared = flagged
-    .filter((b) => !LIVE_STATUSES.includes(b.status) || !stillClashing.has(b.id))
+    .filter((b) => !isLive(b, now) || !stillClashing.has(b.id))
     .map((b) => b.id);
 
   if (cleared.length > 0) {
@@ -198,7 +199,7 @@ async function loadUnfinishedLive(
   now: Date,
 ): Promise<ClashCandidate[]> {
   const rows = await db.venueBooking.findMany({
-    where: { venueId, status: { in: LIVE_STATUSES }, end: { gt: now } },
+    where: { venueId, ...liveBookingsWhere(now), end: { gt: now } },
     select: { id: true, start: true, end: true, event: { select: { name: true } } },
     orderBy: { start: 'asc' },
   });

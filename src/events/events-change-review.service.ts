@@ -17,6 +17,7 @@ import {
   BookingsService,
   RescheduledBooking,
 } from '../bookings/bookings.service';
+import { committedOverlapping, liveBookingsWhere } from '../bookings/booking-overlap';
 import { rescheduleWindow, TimeWindow, windowMoved } from '../bookings/booking-reschedule';
 import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 import {
@@ -152,7 +153,8 @@ export class EventsChangeReviewService {
       this.prisma.venueBooking.findMany({
         where: {
           eventId: event.id,
-          status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
+          // US-54: a live hold counts; an expired or released one does not.
+          ...liveBookingsWhere(),
         },
         select: {
           id: true,
@@ -226,9 +228,8 @@ export class EventsChangeReviewService {
             where: {
               venueId: booking.venue.id,
               id: { not: booking.id },
-              status: BookingStatus.APPROVED,
-              start: { lt: to.end },
-              end: { gt: to.start },
+              // US-54: another event's live hold blocks the new slot too.
+              ...committedOverlapping(to.start, to.end),
             },
             select: { event: { select: { name: true } } },
           }),

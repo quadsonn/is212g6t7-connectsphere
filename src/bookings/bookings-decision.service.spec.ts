@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BookingsService } from './bookings.service';
 import { canDecide } from './booking.types';
 import { ApproveBookingDto, RejectBookingDto, ReverseBookingDto } from './dto/booking-decision.dto';
+import { HoldNotifier } from './hold-notifier';
 import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /** US-23 — Approve/Reject Booking Request with Reason. */
@@ -25,6 +26,7 @@ describe('BookingsService decisions (US-23)', () => {
     bookingDecision: { create: jest.Mock };
     venueBlock: { findMany: jest.Mock };
     $executeRaw: jest.Mock;
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let access: { requireScope: jest.Mock };
@@ -63,6 +65,8 @@ describe('BookingsService decisions (US-23)', () => {
       bookingDecision: { create: jest.fn().mockResolvedValue({}) },
       venueBlock: { findMany: jest.fn().mockResolvedValue([]) },
       $executeRaw: jest.fn().mockResolvedValue(1),
+      // US-54: releaseExpiredHolds finds no expired holds.
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(),
     };
     prisma.$transaction.mockImplementation((fn) => fn(prisma));
@@ -74,6 +78,7 @@ describe('BookingsService decisions (US-23)', () => {
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
       { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
+      { placed: jest.fn(), expiring: jest.fn(), expired: jest.fn(), released: jest.fn(), converted: jest.fn() } as unknown as HoldNotifier,
     );
   });
 

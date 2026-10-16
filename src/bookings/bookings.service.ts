@@ -16,9 +16,12 @@ import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { overlapping, overlapsRange } from './booking-overlap';
+import { liveBookingsWhere, overlapping, overlapsRange } from './booking-overlap';
 import { rescheduleWindow, TimeWindow } from './booking-reschedule';
 import { recheckReviewFlags } from './booking-review.service';
+import { assertTransition, BookingAction } from './booking-status.machine';
+import { HOLD_RELEASED_BY_RESCHEDULE, releaseExpiredHolds, releaseHold } from './hold-expiry';
+import { HoldNotifier } from './hold-notifier';
 import { VenueActivityNotifier } from './venue-activity-notifier';
 import { lockVenue } from './venue-lock';
 import {
@@ -80,6 +83,7 @@ export class BookingsService implements VenueBookingLookup {
     private readonly access: AccessControlService,
     private readonly notifications: NotificationsService,
     private readonly venueActivity: VenueActivityNotifier,
+    private readonly holdNotifier: HoldNotifier,
   ) {}
 
   /**
@@ -128,6 +132,8 @@ export class BookingsService implements VenueBookingLookup {
 
     return this.prisma.$transaction(async (tx) => {
       await this.lockVenue(tx, venue.id);
+      // US-54: expired holds are free; release them before they are counted.
+      await releaseExpiredHolds(tx, this.holdNotifier, { venueId: venue.id });
 
       const overlapping = await this.findOverlapping(
         tx,
@@ -137,18 +143,19 @@ export class BookingsService implements VenueBookingLookup {
       );
 
       // AC-4: a confirmed booking already holds this slot — or (US-16) Venue
-      // Staff have blocked it out.
+      // Staff have blocked it out, or (US-54 AC-3) a live tentative hold does.
       const confirmed = overlapping.filter(
-        (b) => b.status === BookingStatus.APPROVED,
+        (b) => b.status === BookingStatus.APPROVED || b.status === BookingStatus.HELD,
       );
       const blocked = await this.findOverlappingBlocks(tx, venue.id, dto.start, dto.end);
       if (confirmed.length > 0 || blocked.length > 0) {
         throw new ConflictException({
           statusCode: 409,
           error: 'Conflict',
-          message:
-            confirmed.length > 0
-              ? 'the requested time overlaps a confirmed booking for this venue'
+          message: confirmed.some((b) => b.status === BookingStatus.APPROVED)
+            ? 'the requested time overlaps a confirmed booking for this venue'
+            : confirmed.length > 0
+              ? 'the requested time overlaps a tentative hold on this venue'
               : 'the requested time falls in a period blocked out for this venue',
           conflicts: [...confirmed, ...blocked],
         });
@@ -176,7 +183,7 @@ export class BookingsService implements VenueBookingLookup {
       // US-40 AC-1: tell the venue's manager, in this transaction.
       await this.venueActivity.requestSubmitted(tx, booking.id);
 
-      // AC-5: the only overlaps left are pending ones.
+      // AC-5: the only overlaps left are pending ones (REQUESTED stays soft).
       const warnings: BookingWarning[] =
         overlapping.length > 0
           ? [
@@ -399,6 +406,9 @@ export class BookingsService implements VenueBookingLookup {
     const decided = await this.withExclusionAsConflict(id, () =>
       this.prisma.$transaction(async (tx) => {
         await this.lockVenue(tx, venueId);
+        // US-54: an expired hold still sits in the EXCLUDE constraint until
+        // released; release it first so it cannot refuse this approval.
+        await releaseExpiredHolds(tx, this.holdNotifier, { venueId });
 
         // Re-read under the lock: the status may have changed since.
         const current = await tx.venueBooking.findUniqueOrThrow({ where: { id } });
@@ -492,13 +502,15 @@ export class BookingsService implements VenueBookingLookup {
     start: Date,
     end: Date,
     selfId: string | null,
+    now: Date = new Date(),
   ): Promise<BookingConflictReport> {
     const [bookings, blocks] = await Promise.all([
       db.venueBooking.findMany({
         where: {
           venueId,
           ...overlapping(start, end),
-          status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
+          // US-54: an expired hold is free, released or not.
+          ...liveBookingsWhere(now),
           ...(selfId ? { id: { not: selfId } } : {}),
         },
         orderBy: { start: 'asc' },
@@ -522,17 +534,18 @@ export class BookingsService implements VenueBookingLookup {
    * US-24 AC-5 — the 409 for a hard conflict. `conflicts` keeps the shape the
    * US-21/US-23 screens already read; the classified report is alongside it.
    */
-  private hardConflict(report: BookingConflictReport): ConflictException {
+  hardConflict(report: BookingConflictReport): ConflictException {
     return new ConflictException({
       statusCode: 409,
       error: 'Conflict',
       code: HARD_CONFLICT_CODE,
-      message:
-        report.hardConflicts.length > 0
-          ? 'another confirmed booking already holds part of this time'
+      message: report.hardConflicts.some((c) => c.status === BookingStatus.APPROVED)
+        ? 'another confirmed booking already holds part of this time'
+        : report.hardConflicts.length > 0
+          ? 'a tentative hold already holds part of this time'
           : 'this time falls in a period blocked out for this venue',
       conflicts: [
-        ...report.hardConflicts.map((c) => ({ kind: 'BOOKING' as const, status: BookingStatus.APPROVED, ...c })),
+        ...report.hardConflicts.map((c) => ({ kind: 'BOOKING' as const, ...c })),
         ...report.blocks.map((b) => ({
           kind: 'BLOCK' as const,
           bookingId: null,
@@ -546,36 +559,39 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /** US-24 AC-3 — pending overlaps, reported but never blocking. */
-  private softWarnings(report: BookingConflictReport): BookingWarning[] {
+  softWarnings(report: BookingConflictReport): BookingWarning[] {
     if (report.softConflicts.length === 0) return [];
     return [
       {
         code: 'OVERLAPS_PENDING_REQUEST',
         message: 'other pending requests overlap this time; they can no longer be approved as they stand',
-        conflicts: report.softConflicts.map((c) => ({
-          kind: 'BOOKING' as const,
-          status: BookingStatus.REQUESTED,
-          ...c,
-        })),
+        conflicts: report.softConflicts.map((c) => ({ kind: 'BOOKING' as const, ...c })),
       },
     ];
   }
 
   /**
    * US-24 — the database backstop. If two writers race past the app check, the
-   * EXCLUDE constraint (VenueBooking_no_overlapping_approved) refuses the
+   * EXCLUDE constraint (VenueBooking_no_overlapping_committed, US-54) refuses the
    * second with SQLSTATE 23P01. Prisma surfaces that as an unknown request
    * error, so it is recognised by its SQLSTATE and turned into the same 409 as
    * the app check, with a fresh report — never a 500.
    */
-  private async withExclusionAsConflict<T>(id: string, run: () => Promise<T>): Promise<T> {
+  async withExclusionAsConflict<T>(
+    target: string | { venueId: string; start: Date; end: Date },
+    run: () => Promise<T>,
+  ): Promise<T> {
     try {
       return await run();
     } catch (error) {
       if (isExclusionViolation(error)) {
-        const booking = await this.prisma.venueBooking.findUniqueOrThrow({ where: { id } });
+        // US-54: a hold being placed has no row yet; report on its slot.
+        const slot =
+          typeof target === 'string'
+            ? await this.prisma.venueBooking.findUniqueOrThrow({ where: { id: target } })
+            : { ...target, id: null };
         throw this.hardConflict(
-          await this.conflictsFor(this.prisma, booking.venueId, booking.start, booking.end, id),
+          await this.conflictsFor(this.prisma, slot.venueId, slot.start, slot.end, slot.id),
         );
       }
       throw error;
@@ -639,7 +655,7 @@ export class BookingsService implements VenueBookingLookup {
     const rows = await tx.venueBooking.findMany({
       where: {
         venueId,
-        status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
+        ...liveBookingsWhere(),
         ...overlapsRange(start, end),
       },
       orderBy: { start: 'asc' },
@@ -699,6 +715,19 @@ export class BookingsService implements VenueBookingLookup {
     from: TimeWindow,
     to: TimeWindow,
   ): Promise<RescheduledBooking[]> {
+    // US-54: live holds are not moved — they were placed for the old slot.
+    // They are released, and the Coordinator told; Venue Staff can hold the
+    // new dates if they still want to. Expired ones are left to expiry.
+    const now = new Date();
+    const holds = await tx.venueBooking.findMany({
+      where: { eventId, status: BookingStatus.HELD, holdExpiresAt: { gt: now } },
+      orderBy: [{ start: 'asc' }, { id: 'asc' }],
+    });
+    for (const hold of holds) {
+      await this.lockVenue(tx, hold.venueId);
+      await releaseHold(tx, this.holdNotifier, hold, HOLD_RELEASED_BY_RESCHEDULE, now);
+    }
+
     const live = await tx.venueBooking.findMany({
       where: { eventId, status: { in: LIVE_STATUSES } },
       orderBy: [{ start: 'asc' }, { id: 'asc' }],
@@ -718,6 +747,7 @@ export class BookingsService implements VenueBookingLookup {
       await this.lockVenue(tx, booking.venueId);
 
       const next = rescheduleWindow(booking, from, to);
+      assertTransition(BookingAction.RESCHEDULE, booking.status, BookingStatus.REQUESTED);
       await tx.venueBooking.update({
         where: { id: booking.id },
         data: {
@@ -776,7 +806,7 @@ export class BookingsService implements VenueBookingLookup {
       where: {
         venueId,
         end: { gte: now },
-        status: { in: LIVE_STATUSES },
+        ...liveBookingsWhere(now),
       },
       orderBy: { start: 'asc' },
     });
@@ -805,7 +835,7 @@ export class BookingsService implements VenueBookingLookup {
       where: {
         venueId,
         ...overlapping(from, to),
-        status: { in: LIVE_STATUSES },
+        ...liveBookingsWhere(),
       },
       select: { start: true, end: true, status: true },
       orderBy: { start: 'asc' },

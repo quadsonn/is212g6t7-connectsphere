@@ -103,7 +103,7 @@ describe('US-18 VenuesService.search', () => {
     expect(where()).toEqual({ status: VenueStatus.PUBLISHED });
   });
 
-  it('US-18 AC-1: excludes venues with an APPROVED booking overlapping the slot, in the same query', async () => {
+  it('US-18 AC-1 / US-54 AC-3: excludes venues with an APPROVED booking or a live hold overlapping the slot, in the same query', async () => {
     await service.search(coordinator, {
       from: '2027-03-10T01:00:00Z',
       to: '2027-03-10T09:00:00Z',
@@ -111,7 +111,10 @@ describe('US-18 VenuesService.search', () => {
 
     expect(where().bookings).toEqual({
       none: {
-        status: BookingStatus.APPROVED,
+        OR: [
+          { status: BookingStatus.APPROVED },
+          { status: BookingStatus.HELD, holdExpiresAt: { gt: expect.any(Date) } },
+        ],
         start: { lt: new Date('2027-03-10T09:00:00Z') },
         end: { gt: new Date('2027-03-10T01:00:00Z') },
       },

@@ -533,14 +533,17 @@ describe('EventsChangeReviewService (US-38)', () => {
       expect((await service.getForReview(coordinator, 'cr-1')).warnings).toEqual([]);
     });
 
-    it('looks only at bookings that are not rejected', async () => {
+    it('looks only at bookings that are not rejected (or released, or expired holds)', async () => {
       await service.getForReview(coordinator, 'cr-1');
 
       expect(prisma.venueBooking.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
             eventId: 'event-1',
-            status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
+            OR: [
+              { status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] } },
+              { status: BookingStatus.HELD, holdExpiresAt: { gt: expect.any(Date) } },
+            ],
           },
         }),
       );
@@ -746,7 +749,11 @@ describe('EventsChangeReviewService (US-38)', () => {
             where: {
               venueId: 'venue-1',
               id: { not: 'booking-1' },
-              status: BookingStatus.APPROVED,
+              // US-54: another event's live hold blocks the new slot too.
+              OR: [
+                { status: BookingStatus.APPROVED },
+                { status: BookingStatus.HELD, holdExpiresAt: { gt: expect.any(Date) } },
+              ],
               start: { lt: inDays(40, 18) },
               end: { gt: inDays(40, 8) },
             },

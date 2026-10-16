@@ -60,7 +60,7 @@ describe('CalendarService (US-16)', () => {
       });
     });
 
-    it('marks pending as TENTATIVE, approved as CONFIRMED and blocks as BLOCKED, in time order', async () => {
+    it('US-54: marks pending as PENDING, approved as CONFIRMED and blocks as BLOCKED, in time order', async () => {
       prisma.venueBooking.findMany.mockResolvedValue([
         { id: 'b1', venueId: 'v1', start: at(9), end: at(10), status: BookingStatus.REQUESTED, expectedAttendance: 50, event: { name: 'Talk', organiser: { name: 'Org' } } },
         { id: 'b2', venueId: 'v1', start: at(13), end: at(14), status: BookingStatus.APPROVED, expectedAttendance: 80, event: { name: 'Gala', organiser: { name: 'Org' } } },
@@ -72,18 +72,30 @@ describe('CalendarService (US-16)', () => {
       const { entries } = await service.getCalendar(staff, { from, to });
 
       expect(entries.map((e) => [e.id, e.kind])).toEqual([
-        ['b1', 'TENTATIVE'],
+        ['b1', 'PENDING'],
         ['k1', 'BLOCKED'],
         ['b2', 'CONFIRMED'],
       ]);
     });
 
-    it('leaves rejected bookings off the calendar', async () => {
+    it('leaves rejected bookings, and released or expired holds, off the calendar', async () => {
       await service.getCalendar(staff, { from, to });
 
-      expect(prisma.venueBooking.findMany.mock.calls[0][0].where.status).toEqual({
-        in: [BookingStatus.REQUESTED, BookingStatus.APPROVED],
-      });
+      expect(prisma.venueBooking.findMany.mock.calls[0][0].where.OR).toEqual([
+        { status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] } },
+        { status: BookingStatus.HELD, holdExpiresAt: { gt: expect.any(Date) } },
+      ]);
+    });
+
+    it('US-54 AC-4: a live hold is TENTATIVE and carries its expiry', async () => {
+      const expires = new Date(Date.now() + 864e5);
+      prisma.venueBooking.findMany.mockResolvedValue([
+        { id: 'h1', venueId: 'v1', start: at(9), end: at(10), status: BookingStatus.HELD, holdExpiresAt: expires, expectedAttendance: 50, event: { name: 'Talk', organiser: { name: 'Org' } } },
+      ]);
+
+      const { entries } = await service.getCalendar(staff, { from, to });
+
+      expect(entries).toEqual([expect.objectContaining({ id: 'h1', kind: 'TENTATIVE', holdExpiresAt: expires })]);
     });
   });
 

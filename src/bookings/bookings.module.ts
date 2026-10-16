@@ -7,6 +7,10 @@ import { CalendarController } from './calendar.controller';
 import { CalendarService } from './calendar.service';
 import { VenueBookingLookup } from './booking-impact';
 import { BookingReviewService } from './booking-review.service';
+import { HoldExpiryScheduler } from './hold-expiry.scheduler';
+import { HoldNotifier } from './hold-notifier';
+import { HoldsController } from './holds.controller';
+import { HoldsService } from './holds.service';
 import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /**
@@ -18,12 +22,16 @@ import { VenueActivityNotifier } from './venue-activity-notifier';
  */
 @Module({
   imports: [NotificationsModule],
-  controllers: [BookingsController, CalendarController],
+  controllers: [BookingsController, CalendarController, HoldsController],
   providers: [
     BookingsService,
     BookingReviewService,
     CalendarService,
     VenueActivityNotifier,
+    // US-54: tentative holds.
+    HoldNotifier,
+    HoldsService,
+    HoldExpiryScheduler,
     { provide: VenueBookingLookup, useExisting: BookingsService },
   ],
   exports: [VenueBookingLookup, BookingsService, BookingReviewService, VenueActivityNotifier],

@@ -8,6 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookingsService } from './bookings.service';
 import { QueueSortField, QueueView } from './dto/booking-queue-query.dto';
+import { HoldNotifier } from './hold-notifier';
 import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /** US-22 — Venue Booking Request Queue. */
@@ -36,6 +37,7 @@ describe('BookingsService findQueue (US-22)', () => {
       access as unknown as AccessControlService,
       { notifySafely: jest.fn() } as unknown as NotificationsService,
       { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
+      { placed: jest.fn(), expiring: jest.fn(), expired: jest.fn(), released: jest.fn(), converted: jest.fn() } as unknown as HoldNotifier,
     );
   });
 

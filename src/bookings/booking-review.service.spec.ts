@@ -61,7 +61,11 @@ describe('BookingReviewService (US-51)', () => {
       expect(db.venueBooking.findMany).toHaveBeenCalledTimes(1);
       expect(db.venueBooking.findMany.mock.calls[0][0].where).toEqual({
         venueId: 'venue-1',
-        status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
+        // US-54: a hold counts only until it expires.
+        OR: [
+          { status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] } },
+          { status: BookingStatus.HELD, holdExpiresAt: { gt: NOW } },
+        ],
         end: { gt: NOW },
       });
     });

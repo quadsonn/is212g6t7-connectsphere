@@ -143,6 +143,8 @@ function statusFor(booking: VenueBookingSlot): DayStatus {
     case BookingStatus.APPROVED:
       return DayStatus.BOOKED;
     case BookingStatus.REQUESTED:
+    // US-54: callers pass live rows only, so a HELD one has not expired.
+    case BookingStatus.HELD:
       return DayStatus.TENTATIVE;
     default:
       // REJECTED holds nothing. The query already excludes it; this guards

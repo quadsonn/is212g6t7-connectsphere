@@ -12,7 +12,7 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { VenueBookingLookup } from '../bookings/booking-impact';
-import { confirmedOverlapping } from '../bookings/booking-overlap';
+import { committedOverlapping } from '../bookings/booking-overlap';
 import { BookingReviewService, recheckReviewFlags } from '../bookings/booking-review.service';
 import { BufferClash } from '../bookings/buffer-clashes';
 import { lockVenue } from '../bookings/venue-lock';
@@ -219,7 +219,7 @@ export class VenuesService {
     if (query.from && query.to) {
       // AC-1: free of *confirmed* bookings in the slot.
       where.bookings = {
-        none: confirmedOverlapping(new Date(query.from), new Date(query.to)),
+        none: committedOverlapping(new Date(query.from), new Date(query.to)),
       };
     }
 

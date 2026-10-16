@@ -76,6 +76,12 @@ enum BookingStatus {
   REQUESTED
   APPROVED
   REJECTED
+  // US-54: a tentative hold Venue Staff placed for an event. Hard-blocks the
+  // slot (like APPROVED) only while holdExpiresAt is in the future — see
+  // isLiveHold() and docs/adr/0001-held-hard-blocks-at-db-level.md.
+  HELD
+  // US-54: a hold that was released by Venue Staff or expired. Holds nothing.
+  RELEASED
 }
 
 // US-23: what kind of entry a BookingDecision is. A REVERSAL overturns an
@@ -209,6 +215,10 @@ enum NotificationType {
   // US-40 AC-1: tentative holds. Defined here; US-54 builds holds and sends them.
   HOLD_EXPIRING
   HOLD_EXPIRED
+  // US-54 AC-7: sent to the event's Coordinator.
+  HOLD_PLACED
+  // US-54: a hold released before expiry (by Venue Staff, or the event moved).
+  HOLD_RELEASED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;
@@ -252,6 +262,8 @@ model User {
   venueBlocks           VenueBlock[]
   // US-51: booking conflict reviews this user resolved by hand.
   resolvedBookingReviews VenueBooking[] @relation("BookingReviewResolver")
+  // US-54: tentative holds this Venue Staff member placed.
+  heldBookings VenueBooking[] @relation("BookingHolder")
   // US-42: events whose arrangements this Coordinator confirmed, and the
   // free-text equipment lines they checked by hand.
   arrangementConfirmations   EventRequest[]         @relation("ArrangementsConfirmer")
@@ -490,6 +502,17 @@ model VenueBooking {
   reviewResolvedById String?
   reviewResolvedBy   User?     @relation("BookingReviewResolver", fields: [reviewResolvedById], references: [id], onDelete: Restrict)
 
+  // US-54: tentative hold. Set only while (or after) status is HELD. A HELD
+  // row whose holdExpiresAt has passed is free, whether or not the expiry job
+  // has released it yet (isLiveHold). holdWarningSentAt marks the 24-hour
+  // warning as sent, so the job sends it once across every running instance.
+  holdExpiresAt     DateTime?
+  heldById          String?
+  heldBy            User?     @relation("BookingHolder", fields: [heldById], references: [id], onDelete: Restrict)
+  holdWarningSentAt DateTime?
+  releasedAt        DateTime?
+  releaseReason     String?
+
   // US-23 AC-4/AC-6: every decision ever made on this request, oldest first.
   decisions BookingDecision[]
 
@@ -497,6 +520,8 @@ model VenueBooking {
   notifications Notification[]
 
   @@index([requestedById])
+  // US-54: the expiry job's scan for holds that are due.
+  @@index([status, holdExpiresAt])
   // US-51: flagged bookings on a venue, for the re-check after any change.
   @@index([venueId, needsReview])
   // Supports the (venueId, time range) conflict lookup in §5.

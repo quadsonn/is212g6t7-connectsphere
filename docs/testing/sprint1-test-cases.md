@@ -161,19 +161,19 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-07 |
 | Story/AC ref | US-07 AC-3 with US-08 AC-3 (conflict) |
 | Test Scenario | Approve and Reject are submitted for the same request at the same moment |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com in two sessions. |
-| Test Steps | 1. Send "Approve" and "Reject" (reason "No") for `e-submitted` simultaneously.<br>2. Read the request back. |
-| Test Data | Request `e-submitted`; reject reason "No" |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test, and again before each of the 20 iterations). Logged in as coord.a@example.com. Request `e-submitted` is SUBMITTED and assigned to Cody. |
+| Test Steps | 1. Reset the testDB and load the pre-condition scripts.<br>2. Send "Approve" and "Reject" (reason "Clashes with the examination period") for `e-submitted` at the same moment (`Promise.all`).<br>3. Read the stored status.<br>4. Repeat steps 1–3 for 20 iterations. |
+| Test Data | Request `e-submitted`; reject reason "Clashes with the examination period"; 20 iterations |
 | Expected Result | Exactly one decision succeeds and the other is refused. The final status matches the decision that succeeded. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | — |
-| Status | Not Executed |
-| Remarks | Known bug, audit gap #2. A manual reproduction on 2026-10-14 had both calls return 200 in 9 of 10 runs, ending REJECTED after one caller was told APPROVED. Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
-| Executed By | — |
-| Date of Execution | — |
-| Automated by | GAP |
+| Actual Result | The bug reproduced in every iteration measured: 60 of 60 across 3 probe runs of 20. Both calls returned HTTP 200 each time. The stored status was REJECTED in 58 and APPROVED in 2, so one caller was always told its decision succeeded when it did not stand. The `it.failing` test passed in each of 3 further runs, so the bug is still present. |
+| Status | Fail |
+| Remarks | Known bug, audit gap #2. `setStatus()` checks the transition against a stale read. The test is `it.failing` until the fix lands. Deterministic in practice: it fails only if all 20 iterations happen to be clean, and 0 of 60 were. Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | `test/events-review.e2e-spec.ts::lets exactly one of a simultaneous approve and reject succeed, and stores that outcome` (`it.failing`) |
 
 **US-07 AC ↔ code mismatches**
 - **AC-3 (resolved by Week 7 Change 5):** approving requires an assigned Coordinator. An unassigned request returns 409 "assign a coordinator to this request before reviewing it". That matches Change 5, where Coordinators can't review unassigned requests, so it's no longer a mismatch. TC-S1-01 to 07 state the assignment in their pre-conditions.
@@ -415,12 +415,12 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | — |
-| Status | Not Executed |
-| Remarks | Expected to fail: audit gap #1 (whitespace-only text is accepted). A DTO-level check on 2026-10-14 confirmed `"   "` passes validation. No integration test exists yet. |
-| Executed By | — |
-| Date of Execution | — |
-| Automated by | GAP |
+| Actual Result | HTTP 400 with "a question is required to request clarification". No clarification message was stored. The request stayed SUBMITTED with no outstanding question. 26/26 passed in each of 3 runs. |
+| Status | Pass |
+| Remarks | Bug found by test audit; fixed (gap #1) in 93316fa. This test is its regression test. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | `test/events-clarification.e2e-spec.ts::rejects a whitespace-only question` |
 
 ### TC-S1-19
 
@@ -507,7 +507,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Automated by | `test/events-clarification.e2e-spec.ts::refuses a Coordinator who is not assigned`<br>`test/events-clarification.e2e-spec.ts::refuses a response from another Organiser` |
 
 **US-09 AC ↔ code mismatches**
-- **AC-1:** a whitespace-only question used to be accepted (audit gap #1). Fixed in 93316fa. TC-S1-18 still needs its integration test (GAP).
+- **AC-1 (fixed):** a whitespace-only question used to be accepted (audit gap #1). Fixed in 93316fa, and TC-S1-18 is now its regression test.
 - **AC-4:** "the Coordinator is notified" is only met by storing a notification record today. Nothing is delivered (no email, push or in-app feed). TC-S1-20 stays Not Executed until the Sprint 3 story "Be Notified of My Request Outcome" lands.
 
 ---
@@ -605,19 +605,19 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-27 |
 | Story/AC ref | US-03 AC-3 (boundary) |
 | Test Scenario | Values at the edge of valid are handled correctly |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits with the end equal to the start.<br>2. Olivia submits with a start one minute in the past.<br>3. Olivia submits with attendance exactly 1.<br>4. Olivia submits with a name and purpose of only spaces. |
-| Test Data | start = end = 2030-10-01T09:00Z; start = now − 1 min; expectedAttendance 1; name "   ", purpose "  " |
-| Expected Result | Blocked: the end equals the start, the start is in the past, and the blank (whitespace) required fields are flagged. Accepted: attendance of 1. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). This applies to the integration step; the unit tests need no database and freeze the clock at 2030-06-01T12:00:00.000Z. |
+| Test Steps | 1. With the clock frozen, validate one submission per boundary: start 1 ms in the past, at the current instant and 1 ms in the future; end 1 ms before, equal to and 1 ms after the start; attendance −1, 0 and 1; each required text field as "   "; a padded name.<br>2. Over the API, Olivia submits one request with a start 1 minute in the past, an end equal to it, attendance 0 and a name of spaces. |
+| Test Data | start = now − 1 ms / now / now + 1 ms; end = start − 1 ms / start / start + 1 ms; attendance −1 / 0 / 1; name, purpose, description, category = "   "; name "  Gala  " |
+| Expected Result | Blocked, each flagged on its own field: a start in the past, an end not after the start, attendance 0 or below, and whitespace-only required text. Accepted: a start at or after the current instant, an end after the start, and attendance 1. Padded text is accepted and stored trimmed. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | — |
-| Status | Not Executed |
-| Remarks | No integration test covers these boundaries (audit G4). The whitespace case is expected to fail: audit gap #1 (whitespace-only text is accepted). |
-| Executed By | — |
-| Date of Execution | — |
-| Automated by | GAP |
+| Actual Result | Unit (15/15): the past start flagged proposedStart; the end equal to or before the start flagged proposedEnd; 0 and −1 flagged expectedAttendance; each "   " field flagged that field ("… is required"). A start at or after the instant, an end 1 ms after the start and attendance 1 were accepted, and "  Gala  " was stored as "Gala". Integration: HTTP 400 naming all four fields, with no request stored. 22/22 passed in each of 3 runs. |
+| Status | Pass |
+| Remarks | Closes audit G4 (US-03 boundaries). Whitespace-only text is the regression check for gap #1, fixed in 93316fa. "Now" is accepted because the AC blocks a past date, and the current instant is not past. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | `src/events/create-event-request.dto.spec.ts::CreateEventRequestDto boundaries (TC-S1-27, US-03 AC-3)` (15 unit tests)<br>`test/events-submit.e2e-spec.ts::blocks boundary values and flags each field: start just past, end = start, attendance 0, blank name` |
 
 ### TC-S1-28
 
@@ -684,7 +684,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 
 **US-03 AC ↔ code mismatches**
 - **AC-2 (Week 7 Change 5):** new submissions currently land in a pool that every Coordinator can see and review. Change 5 sends them to the Lead's unassigned queue instead (TC-S1-25).
-- **AC-3:** whitespace-only required text used to be accepted (audit gap #1). Fixed in 93316fa. The whitespace, end-equals-start and "just past" boundaries still need tests (TC-S1-27, GAP).
+- **AC-3 (fixed and tested):** whitespace-only required text used to be accepted (audit gap #1), fixed in 93316fa. The boundaries (end = start, start just past, attendance 0/1, whitespace) are now tested by TC-S1-27.
 
 ---
 
@@ -987,7 +987,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | **Test execution record** | |
 | Actual Result | DRAFT before and SUBMITTED after. |
 | Status | Pass |
-| Remarks | The AC's own example (submitted → under review) has no Coordinator action that sets UNDER_REVIEW on first review (see mismatches). That transition is covered by the non-showcase test "reflects a later submitted -> under review change", which writes the status directly. |
+| Remarks | The AC's own example (submitted → under review) has no Coordinator action that sets UNDER_REVIEW on first review (see mismatches). That transition is covered by the non-showcase test "reflects a later submitted -> under review change", which writes the status directly. Pending team decision on what triggers Under Review (raised with devs). |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
 | Automated by | `test/events-status-view.e2e-spec.ts::reflects a transition made through the real submit endpoint` |
@@ -1213,12 +1213,194 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 **US-06 AC ↔ code mismatches**
 - **AC-6 (Week 7 Change 5):** the existing AC-6 tests rely on a Coordinator reading an unassigned request (TC-S1-54). They will need updating when Change 5 merges.
 
+---
+
+## US-01 Log in securely (all roles)
+
+### TC-S1-55
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-55 |
+| Story/AC ref | US-01 AC-1 |
+| Test Scenario | A registered user with valid credentials is authenticated and gets a session |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com (Olivia Organiser) exists with no failed attempts. |
+| Test Steps | 1. Olivia logs in with her email and correct password.<br>2. She inspects the token she receives.<br>3. She opens a protected route (`GET /auth/me`) with that token. |
+| Test Data | organiser@example.com / correct-horse-battery-staple |
+| Expected Result | Olivia is authenticated. She receives an access token that identifies her and her role, and the token opens protected routes. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | HTTP 200 with a three-part JWT. Its `sub` was `u-organiser` and its `role` was `EVENT_ORGANISER`. `GET /auth/me` with the token returned 200. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | `test/auth.e2e-spec.ts::returns 200 with an access token`<br>`test/auth.e2e-spec.ts::issues a token carrying userId and role`<br>`test/auth.e2e-spec.ts::establishes a session that opens protected routes` |
+
+### TC-S1-56
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-56 |
+| Story/AC ref | US-01 AC-2 |
+| Test Scenario | A wrong password and an unknown email get the same generic error, and no token |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com exists; nobody@example.com does not. |
+| Test Steps | 1. Log in as organiser@example.com with a wrong password.<br>2. Log in as nobody@example.com with a password.<br>3. Compare the two responses. |
+| Test Data | organiser@example.com / wrong-password; nobody@example.com / correct-horse-battery-staple |
+| Expected Result | Both attempts are refused with the same generic message, "invalid email or password", and no token. The two responses are identical, so neither reveals which field was wrong. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Both returned HTTP 401 with message "invalid email or password" and no `accessToken`. The two bodies and status codes were identical. Neither body contained wording such as "wrong password" or "not found". |
+| Status | Pass |
+| Remarks | The unknown email is still checked against a dummy bcrypt hash, so the two failures also take a similar time. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | `test/auth.e2e-spec.ts::rejects a wrong password with 401 and no token`<br>`test/auth.e2e-spec.ts::rejects an unknown email with 401 and no token`<br>`test/auth.e2e-spec.ts::returns byte-identical bodies for both, revealing neither field` |
+
+### TC-S1-57
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-57 |
+| Story/AC ref | US-01 AC-3 (API) |
+| Test Scenario | A request without a valid token is refused at the API, and no data is returned |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. |
+| Test Steps | 1. Call `GET /auth/me` with no token.<br>2. Call it with a malformed token.<br>3. Call it with a token signed with the wrong secret.<br>4. Call `POST /auth/logout` with no token. |
+| Test Data | No header; `Bearer not-a-real-token`; a forged HS256 token for `user-1` / ATTENDEE |
+| Expected Result | Every request is refused as unauthenticated (401), and no protected data is returned. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | All four requests returned HTTP 401. The no-token response contained no `userId`. |
+| Status | Pass |
+| Remarks | The redirect to the login page is the UI half of this AC (TC-S1-58). |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | `test/auth.e2e-spec.ts::rejects a request with no token`<br>`test/auth.e2e-spec.ts::rejects a malformed token`<br>`test/auth.e2e-spec.ts::rejects a token signed with the wrong secret`<br>`test/auth.e2e-spec.ts::rejects logout without a token` |
+
+### TC-S1-58
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-58 |
+| Story/AC ref | US-01 AC-3 (UI) |
+| Test Scenario | An unauthenticated user who opens a protected page is redirected to the login page |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in; no token in the browser. |
+| Test Steps | 1. Open a protected page (for example, the Organiser's event list) in the browser. |
+| Test Data | — |
+| Expected Result | The user is redirected to the login page, and no protected content is shown. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | — |
+| Status | Not Executed |
+| Remarks | A browser redirect, to be covered by the planned Playwright E2E session. The API half is TC-S1-57. |
+| Executed By | — |
+| Date of Execution | — |
+| Automated by | Playwright (pending) |
+
+### TC-S1-59
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-59 |
+| Story/AC ref | US-01 AC-4 |
+| Test Scenario | Logging out ends the session, and the old token can't be reused |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Olivia (organiser@example.com) logs in during the test. |
+| Test Steps | 1. Olivia logs in and opens `GET /auth/me`.<br>2. She logs out.<br>3. She reuses the same token on `GET /auth/me`.<br>4. She logs in again and opens `GET /auth/me`.<br>5. With two sessions open, she logs out of one and uses the other. |
+| Test Data | organiser@example.com / correct-horse-battery-staple |
+| Expected Result | Logout ends the session. Reusing the old token is refused (401), and access needs a new login. Logging out one session leaves her other sessions alone. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | `/auth/me` returned 200, logout returned 204, and the same token then got 401. A new login issued a different token that returned 200. After logging out session A, session B still returned 200. |
+| Status | Pass |
+| Remarks | Logout revokes the token by its `jti`. Only that token is revoked. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | `test/auth.e2e-spec.ts::returns 204 and makes the token unusable afterwards`<br>`test/auth.e2e-spec.ts::requires logging in again to regain access`<br>`test/auth.e2e-spec.ts::does not revoke other sessions belonging to the same user` |
+
+### TC-S1-60
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-60 |
+| Story/AC ref | US-01 AC-5 (14/15 boundary) |
+| Test Scenario | 14 failures leave the account open; the 15th locks it, and further attempts, even with the correct password, get the helpline message |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before every test, so no failed-attempt count carries over). Not logged in. Account organiser@example.com has 0 failed attempts and no lock. |
+| Test Steps | 1. Fail 14 times in a row, then check the account and log in correctly.<br>2. (Fresh reset) Fail 15 times in a row, then try once more with a wrong password.<br>3. (Fresh reset) Fail 15 times in a row, then try with the correct password. |
+| Test Data | organiser@example.com / wrong-password ×14 or ×15; then correct-horse-battery-staple |
+| Expected Result | After 14 failures the account is not locked, and the correct password logs in. After 15 consecutive failures within 30 minutes the account is temporarily locked. Every further attempt, including one with the correct password, is refused with a message directing the user to the IT helpline, and no token is issued. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | After 14 failures: count 14, `lockedUntil` null, and the correct login returned 200. The 15th failure returned 401 "invalid email or password" and set the lock. The 16th attempt returned 429 with "Account temporarily locked due to repeated failed sign-in attempts. Please contact the IT helpline for assistance." and no token. The correct password while locked also returned 429 with no token. |
+| Status | Pass |
+| Remarks | The 15th failure itself still returns the generic 401. The helpline message appears from the next attempt, which matches "further attempts". |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | `test/auth.e2e-spec.ts::stays open for the first 14 failures`<br>`test/auth.e2e-spec.ts::locks on the 15th and points the user at the helpline`<br>`test/auth.e2e-spec.ts::refuses the correct password while locked` |
+
+### TC-S1-61
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-61 |
+| Story/AC ref | US-01 AC-5 (30-minute window edge) |
+| Test Scenario | 15 failures count toward a lock only when they fall within 30 minutes; failures spread beyond 30 minutes don't lock |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com has 0 failed attempts. The clock is frozen at T0 (Date only), with no real waiting. |
+| Test Steps | 1. (Integration) Fail 14 times at T0.<br>2. Move the clock to T0 + 30 min + 1 ms and fail a 15th time.<br>3. Check the account, then log in with the correct password.<br>4. (Unit) With 14 failures since T0, fail a 15th time at exactly T0 + 30 min.<br>5. (Unit) With 14 failures since T0, fail a 15th time at T0 + 30 min + 1 ms.<br>6. (Unit) While a lock is in force, log in with the correct password. |
+| Test Data | organiser@example.com / wrong-password; correct-horse-battery-staple. T0 = test start (integration) or 2030-06-01T12:00Z (unit). |
+| Expected Result | A 15th failure at exactly 30 minutes is still within the window and locks the account. A 15th failure after 30 minutes does not lock it, and counting starts again from that failure, so the correct password still logs in. While a lock is in force, the correct password is refused with the helpline message. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Integration: the 15th failure at T0 + 30 min + 1 ms returned 401 "invalid email or password". The stored count was 1, `lockedUntil` was null, and the correct login returned 200. Unit: at exactly 30 min the count reached 15, with `lockedUntil` = T0 + 60 min. At 30 min + 1 ms the count reset to 1 with a new window start and no lock. Under a lock, the correct password got 429 with the helpline message. |
+| Status | Pass |
+| Remarks | New tests, added this session (lockout window edge). See the mismatch note below on fixed versus sliding windows. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | `test/auth.e2e-spec.ts::does not lock when the 15 failures are spread beyond 30 minutes`<br>`src/auth/auth.service.lockout-window.spec.ts::locks when the 15th failure lands exactly 30 minutes after the first (still within the window)`<br>`src/auth/auth.service.lockout-window.spec.ts::does not lock when the 15th failure lands 1 ms after the window closes; the count restarts at 1`<br>`src/auth/auth.service.lockout-window.spec.ts::refuses the correct password with the helpline message while a lock is in force` |
+
+### TC-S1-62
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-62 |
+| Story/AC ref | US-01 AC-5 ("consecutive", "temporarily") |
+| Test Scenario | A successful login resets the failure count, and the lock is temporary |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com has 0 failed attempts and no lock. |
+| Test Steps | 1. Fail 5 times, then log in correctly, then check the account.<br>2. (Fresh reset) Fail 15 times so the account locks, and confirm the correct password gets 429.<br>3. Let the lock period pass (the test sets `lockedUntil` to the past), then log in correctly. |
+| Test Data | organiser@example.com / wrong-password ×5 or ×15; correct-horse-battery-staple |
+| Expected Result | Failures only count while consecutive: a successful login clears the count. The lock is temporary: once it has elapsed, the correct password logs in again. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | After 5 failures and a successful login, the count was 0 and the window start was null. The locked account got 429. Once `lockedUntil` was in the past, the correct login returned 200. |
+| Status | Pass |
+| Remarks | The AC doesn't state how long the lock lasts. The code locks for 30 minutes, and the expiry is simulated by moving `lockedUntil` into the past, not by waiting. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | `test/auth.e2e-spec.ts::resets the count after a successful login`<br>`test/auth.e2e-spec.ts::unlocks once the lock period has elapsed` |
+
+**US-01 AC ↔ code mismatches**
+- **AC-5, fixed versus sliding window (flagged for the team).** The code counts failures in a fixed 30-minute window that starts at the first failure, and the first failure after the window closes restarts the count at 1. If the AC means *any* 15 consecutive failures within 30 minutes (a sliding window), the code can miss a lock. Example: 1 failure at T0, 13 at T0 + 29 min, then 2 at T0 + 30.5 min. Failures 2 to 16 all fall within about 2 minutes, so a sliding window would lock. The code restarts the count at T0 + 30.5 min and ends at 2, with no lock. TC-S1-61 passes under either reading, because its failures span more than 30 minutes. The team should confirm with the customer which reading is intended. The code is unchanged.
+- **AC-5, the 15th attempt.** The 15th failure returns the generic 401 and sets the lock. The helpline message (429) appears from the 16th attempt. This matches "further attempts", but a reader expecting the 15th response itself to name the helpline would see it one attempt later.
+- **AC-5, lock duration.** The AC says "temporarily" without a duration. The code uses 30 minutes (TC-S1-62).
+
+---
+
 ## Changes since Sprint 1
 
 Changes to the system or to these test cases made after the Sprint 1 review, newest first.
 
 | Date | Change | Commit | Test cases affected |
 |---|---|---|---|
+| 2026-10-17 | **US-01 lockout window-edge tests added.** The existing tests covered the 14/15 boundary but not the 30-minute window edge. Three unit tests (frozen clock: exactly 30 min locks; 30 min + 1 ms restarts the count; the correct password is refused while locked) and one integration test (15 failures spread beyond 30 minutes don't lock). `test/auth.e2e-spec.ts` was converted to the shared test-DB pattern, with assertions unchanged. | — | TC-S1-61 (new, Pass). TC-S1-55 to 60 and 62 now load base-users.sql. |
+| 2026-10-17 | **Week 7 Change 5 handover (Event Coordinator Lead, unassigned queue).** Change 5 is being built on `Sprint3-MAIN`, so two test cases wait on it here. Five existing integration tests assert the pre-Change-5 pool, where any Coordinator sees unassigned submissions. They are handed to the Sprint 3 tester, to update when Change 5 merges:<br>`events-submit::makes the request visible to a Coordinator for review`<br>`events-draft::makes it visible to a Coordinator once submitted`<br>`events-layout::shows layout and accessibility in the review queue`<br>`events-layout::shows them when the Coordinator opens the request`<br>`events-review::approves once that request has been assigned (US-10 then US-07)` | — | TC-S1-25 (Lead's unassigned queue; Not Executed, pending Change 5 merge). TC-S1-54 (assigned Coordinator sees the preferences; linked in group 3 via tc-s1-54-setup.sql). |
+| 2026-10-17 | **Gap tests added.** TC-S1-27: US-03 boundaries, as 15 unit tests with a frozen clock plus 1 integration test. TC-S1-18: whitespace-only question. TC-S1-07: simultaneous approve and reject, which reproduces audit gap #2 in 60 of 60 iterations and is captured as `it.failing`. | — | TC-S1-27 and TC-S1-18 are now Pass. TC-S1-07 is now Fail (known bug, gap #2). |
 | 2026-10-17 | **Whitespace-only text rejected in required fields (audit gap #1).** The test audit found that `@IsNotEmpty` accepted `"   "`. A new `@Trim()` transform now runs on every Sprint 1 text field: event request, draft, reject/return reason, clarification question/response and venue draft. Whitespace-only required text is now refused; optional text is trimmed and may be empty. | `93316fa` | TC-S1-11 (Fail → Pass; its test is now a regular regression test, no longer `it.failing`). TC-S1-18 and TC-S1-27 are covered by the fix but still need their tests (GAP). |
 
 ---
@@ -1227,10 +1409,8 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 
 | Test case | Story/AC | What's missing |
 |---|---|---|
-| TC-S1-07 | US-07 AC-3, US-08 AC-3 | A concurrency test: simultaneous approve and reject (audit gap #2) |
-| TC-S1-18 | US-09 AC-1 | An integration test for a whitespace-only question (audit gap #1) |
 | TC-S1-15 | US-09 AC-1 (UI) | A Playwright check that the clarification text field exists (planned E2E session) |
 | TC-S1-25 | US-03 AC-2 | A test that a new submission appears in the Lead's unassigned queue and not to Coordinators. Pending the Change 5 merge. |
-| TC-S1-27 | US-03 AC-3 | Boundary tests: end = start, start just past, attendance = 1, whitespace-only name (gap #1) |
 | TC-S1-34 | US-04 AC-3 (UI) | A Playwright check that a draft is visually distinguishable (planned E2E session) |
 | TC-S1-54 | US-06 AC-6 | The assigned-Coordinator view, to be linked when `events-coordinator-view` is converted (group 3) |
+| TC-S1-58 | US-01 AC-3 (UI) | A Playwright check that an unauthenticated visit to a protected page redirects to login (planned E2E session) |

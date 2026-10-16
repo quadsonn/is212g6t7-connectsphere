@@ -1,19 +1,25 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
 /**
- * US-01 e2e — one describe per acceptance criterion (CLAUDE.md §10).
- * Runs against the dedicated test database configured in test/e2e-env.ts.
+ * US-01 e2e — one describe per acceptance criterion.
+ *
+ * Pre-condition for every test: reset the testDB, then run
+ * test/fixtures/sql/base-users.sql (see docs/testing/sprint1-test-cases.md).
+ * The reset runs before EVERY test, so failed-attempt counts and locks
+ * (AC-5) can never leak from one test into the next.
  */
 describe('US-01 secure login (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
+  /** u-organiser from base-users.sql. */
   const EMAIL = 'organiser@example.com';
   const PASSWORD = 'correct-horse-battery-staple';
 
@@ -28,7 +34,11 @@ describe('US-01 secure login (e2e)', () => {
     app = moduleFixture.createNestApplication();
     // Mirrors main.ts so DTO validation behaves as it does in production.
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    // Bound to 127.0.0.1 explicitly: with init() alone, or a dual-stack [::]
+    // listener, the OS can hand out a port another local process already holds
+    // on 127.0.0.1, and Supertest then talks to that process (hangs, or
+    // "Parse Error: Expected HTTP/").
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
   });
@@ -39,21 +49,12 @@ describe('US-01 secure login (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.revokedToken.deleteMany();
-    // EventRequest.organiserId is onDelete: Restrict, so events must go first.
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-    await prisma.user.create({
-      data: {
-        email: EMAIL,
-        passwordHash: await bcrypt.hash(PASSWORD, 10),
-        name: 'Test Organiser',
-        role: 'EVENT_ORGANISER',
-      },
-    });
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
   });
 
   describe('AC-1: registered user with valid credentials is authenticated', () => {
+    // TC-S1-55 · setup: base-users · fails if valid credentials stop issuing a token
     it('returns 200 with an access token', async () => {
       const res = await login(EMAIL, PASSWORD).expect(200);
 
@@ -61,6 +62,7 @@ describe('US-01 secure login (e2e)', () => {
       expect(res.body.accessToken.split('.')).toHaveLength(3);
     });
 
+    // TC-S1-55 · setup: base-users · fails if the token no longer identifies the user and role
     it('issues a token carrying userId and role', async () => {
       const res = await login(EMAIL, PASSWORD).expect(200);
 
@@ -75,6 +77,7 @@ describe('US-01 secure login (e2e)', () => {
       expect(claims.role).toBe('EVENT_ORGANISER');
     });
 
+    // TC-S1-55 · setup: base-users · fails if a fresh token cannot open a protected route
     it('establishes a session that opens protected routes', async () => {
       const { body } = await login(EMAIL, PASSWORD).expect(200);
 
@@ -86,6 +89,7 @@ describe('US-01 secure login (e2e)', () => {
   });
 
   describe('AC-2: bad credentials are rejected with a generic error', () => {
+    // TC-S1-56 · setup: base-users · fails if a wrong password gets a token or a specific message
     it('rejects a wrong password with 401 and no token', async () => {
       const res = await login(EMAIL, 'wrong-password').expect(401);
 
@@ -93,6 +97,7 @@ describe('US-01 secure login (e2e)', () => {
       expect(res.body.message).toBe('invalid email or password');
     });
 
+    // TC-S1-56 · setup: base-users · fails if an unknown email gets a token or a specific message
     it('rejects an unknown email with 401 and no token', async () => {
       const res = await login('nobody@example.com', PASSWORD).expect(401);
 
@@ -100,6 +105,7 @@ describe('US-01 secure login (e2e)', () => {
       expect(res.body.message).toBe('invalid email or password');
     });
 
+    // TC-S1-56 · setup: base-users · fails if the two failures can be told apart
     it('returns byte-identical bodies for both, revealing neither field', async () => {
       const wrongPassword = await login(EMAIL, 'wrong-password').expect(401);
       const unknownEmail = await login('nobody@example.com', PASSWORD).expect(401);
@@ -116,11 +122,13 @@ describe('US-01 secure login (e2e)', () => {
   });
 
   describe('AC-3: unauthenticated users cannot reach protected routes', () => {
+    // TC-S1-57 · setup: base-users · fails if a protected route answers without a token
     it('rejects a request with no token', async () => {
       const res = await request(app.getHttpServer()).get('/auth/me').expect(401);
       expect(res.body.userId).toBeUndefined();
     });
 
+    // TC-S1-57 · setup: base-users · fails if a malformed token is accepted
     it('rejects a malformed token', async () => {
       await request(app.getHttpServer())
         .get('/auth/me')
@@ -128,6 +136,7 @@ describe('US-01 secure login (e2e)', () => {
         .expect(401);
     });
 
+    // TC-S1-57 · setup: base-users · fails if a forged token is accepted
     it('rejects a token signed with the wrong secret', async () => {
       const forged = [
         Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'),
@@ -141,12 +150,14 @@ describe('US-01 secure login (e2e)', () => {
         .expect(401);
     });
 
+    // TC-S1-57 · setup: base-users · fails if logout works unauthenticated
     it('rejects logout without a token', async () => {
       await request(app.getHttpServer()).post('/auth/logout').expect(401);
     });
   });
 
   describe('AC-4: logout terminates the session', () => {
+    // TC-S1-59 · setup: base-users · fails if a logged-out token still works
     it('returns 204 and makes the token unusable afterwards', async () => {
       const { body } = await login(EMAIL, PASSWORD).expect(200);
       const auth = `Bearer ${body.accessToken}`;
@@ -156,6 +167,7 @@ describe('US-01 secure login (e2e)', () => {
       await request(app.getHttpServer()).get('/auth/me').set('Authorization', auth).expect(401);
     });
 
+    // TC-S1-59 · setup: base-users · fails if a new login cannot restore access
     it('requires logging in again to regain access', async () => {
       const first = await login(EMAIL, PASSWORD).expect(200);
       await request(app.getHttpServer())
@@ -172,6 +184,7 @@ describe('US-01 secure login (e2e)', () => {
         .expect(200);
     });
 
+    // TC-S1-59 · setup: base-users · fails if logout revokes more than its own token
     it('does not revoke other sessions belonging to the same user', async () => {
       const sessionA = await login(EMAIL, PASSWORD).expect(200);
       const sessionB = await login(EMAIL, PASSWORD).expect(200);
@@ -189,6 +202,7 @@ describe('US-01 secure login (e2e)', () => {
   });
 
   describe('AC-5: 15 failures in 30 minutes locks the account', () => {
+    // TC-S1-60 · setup: base-users · fails if the account locks before the 15th failure
     it('stays open for the first 14 failures', async () => {
       for (let i = 0; i < 14; i++) {
         await login(EMAIL, 'wrong-password').expect(401);
@@ -201,6 +215,7 @@ describe('US-01 secure login (e2e)', () => {
       await login(EMAIL, PASSWORD).expect(200);
     });
 
+    // TC-S1-60 · setup: base-users · fails if the 15th failure does not lock or the helpline message is missing
     it('locks on the 15th and points the user at the helpline', async () => {
       for (let i = 0; i < 14; i++) {
         await login(EMAIL, 'wrong-password').expect(401);
@@ -214,6 +229,7 @@ describe('US-01 secure login (e2e)', () => {
       expect(locked.body.accessToken).toBeUndefined();
     });
 
+    // TC-S1-60 · setup: base-users · fails if a locked account accepts the correct password
     it('refuses the correct password while locked', async () => {
       for (let i = 0; i < 15; i++) {
         await login(EMAIL, 'wrong-password').expect(401);
@@ -223,6 +239,7 @@ describe('US-01 secure login (e2e)', () => {
       expect(res.body.accessToken).toBeUndefined();
     });
 
+    // TC-S1-62 · setup: base-users · fails if non-consecutive failures still count toward the lock
     it('resets the count after a successful login', async () => {
       for (let i = 0; i < 5; i++) {
         await login(EMAIL, 'wrong-password').expect(401);
@@ -234,6 +251,7 @@ describe('US-01 secure login (e2e)', () => {
       expect(user.failedWindowStartedAt).toBeNull();
     });
 
+    // TC-S1-62 · setup: base-users · fails if the lock is permanent rather than temporary
     it('unlocks once the lock period has elapsed', async () => {
       for (let i = 0; i < 15; i++) {
         await login(EMAIL, 'wrong-password').expect(401);
@@ -244,6 +262,48 @@ describe('US-01 secure login (e2e)', () => {
         where: { email: EMAIL },
         data: { lockedUntil: new Date(Date.now() - 1000) },
       });
+
+      await login(EMAIL, PASSWORD).expect(200);
+    });
+  });
+
+  describe('AC-5: the 30-minute window edge (frozen clock)', () => {
+    // Date only: Supertest, Prisma and pg keep their real timers.
+    const freezeAt = (instant: number) =>
+      jest.useFakeTimers({
+        now: instant,
+        doNotFake: [
+          'nextTick',
+          'queueMicrotask',
+          'setImmediate',
+          'clearImmediate',
+          'setTimeout',
+          'clearTimeout',
+          'setInterval',
+          'clearInterval',
+          'hrtime',
+          'performance',
+        ],
+      });
+
+    afterEach(() => jest.useRealTimers());
+
+    // TC-S1-61 · setup: base-users · fails if failures spread beyond 30 minutes still lock the account
+    it('does not lock when the 15 failures are spread beyond 30 minutes', async () => {
+      const t0 = Date.now();
+      freezeAt(t0);
+      for (let i = 0; i < 14; i++) {
+        await login(EMAIL, 'wrong-password').expect(401);
+      }
+
+      // The 15th failure lands 1 ms after the window that began at the first.
+      jest.setSystemTime(t0 + 30 * 60_000 + 1);
+      const fifteenth = await login(EMAIL, 'wrong-password').expect(401);
+      expect(fifteenth.body.message).toBe('invalid email or password');
+
+      const user = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
+      expect(user.failedLoginAttempts).toBe(1);
+      expect(user.lockedUntil).toBeNull();
 
       await login(EMAIL, PASSWORD).expect(200);
     });

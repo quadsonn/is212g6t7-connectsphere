@@ -218,6 +218,28 @@ describe('US-03 submit new event request (e2e)', () => {
       return (res.body.message as string[]).join(' | ');
     };
 
+    // TC-S1-27 · setup: base-users · fails if a boundary value is accepted, or not flagged on its own field
+    it('blocks boundary values and flags each field: start just past, end = start, attendance 0, blank name', async () => {
+      // One minute before the server's clock: "just in the past" without
+      // depending on request latency.
+      const justPast = new Date(Date.now() - 60_000).toISOString();
+
+      const messages = await messagesFor(
+        validPayload({
+          name: '   ',
+          proposedStart: justPast,
+          proposedEnd: justPast,
+          expectedAttendance: 0,
+        }),
+      );
+
+      expect(messages).toMatch(/name is required/);
+      expect(messages).toMatch(/proposedStart must be in the future/);
+      expect(messages).toMatch(/proposedEnd must be later than proposedStart/);
+      expect(messages).toMatch(/expectedAttendance must be greater than zero/);
+      expect(await prisma.eventRequest.count()).toBe(0);
+    });
+
     // TC-S1-26 · setup: base-users · fails if an invalid field was accepted, or not flagged with its message
     it('rejects a date in the past', async () => {
       const messages = await messagesFor(

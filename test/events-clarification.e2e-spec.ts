@@ -104,6 +104,20 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   describe('AC-1: a text field is available for the question', () => {
+    // TC-S1-18 · setup: base-users + tc-s1-01-setup · fails if a whitespace-only question is accepted (regression for audit gap #1)
+    it('rejects a whitespace-only question', async () => {
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
+
+      const res = await ask(event.id, '   ').expect(400);
+
+      expect((res.body.message as string[]).join(' | ')).toMatch(/a question is required/);
+      expect(await prisma.clarificationMessage.count()).toBe(0);
+      const stored = await prisma.eventRequest.findUniqueOrThrow({ where: { id: event.id } });
+      expect(stored.status).toBe(EventStatus.SUBMITTED);
+      expect(stored.clarificationRequest).toBeNull();
+    });
+
     // TC-S1-16 · setup: base-users + tc-s1-01-setup · fails if a free-text question was refused or not stored
     it('accepts a free-text question', async () => {
       await given('tc-s1-01-setup');

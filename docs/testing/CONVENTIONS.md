@@ -43,8 +43,8 @@ Sprint 1 test evidence that Raye can explain in a live Q&A, where instructors ma
 - Do one phase per session, then commit, update `docs/testing/PROGRESS.md`, and STOP.
 
 ## Open bugs found by the audit
-1. Whitespace-only text accepted in required fields (US-03 AC-3, US-08 AC-2, US-09 AC-1). Fix parked on `sprint3-raye-BACKUP`.
-2. Simultaneous approve and reject can both succeed (US-07, US-08, US-11).
+1. ~~Whitespace-only text accepted in required fields (US-03 AC-3, US-08 AC-2, US-09 AC-1).~~ **Fixed in `93316fa`.** Regression tests: `test/events-decision.e2e-spec.ts` ("%s is blocked when the reason is whitespace-only", TC-S1-11), plus TC-S1-18 and TC-S1-27.
+2. Simultaneous approve and reject can both succeed (US-07, US-08, US-11). **Still open.** Captured as `it.failing` in `test/events-review.e2e-spec.ts` (TC-S1-07). It reproduces in 60/60 iterations.
 
 ## Sprint 1 stories
 

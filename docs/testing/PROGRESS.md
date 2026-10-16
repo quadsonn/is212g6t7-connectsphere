@@ -175,6 +175,33 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - **Step 2:** the whitespace test in `events-decision.e2e-spec.ts` is back to `it.each`, commented "Fixed in 93316fa; regression test for audit gap #1". 26/26 ×3. TC-S1-11 is Fail → Pass. A "Changes since Sprint 1" section was added to `sprint1-test-cases.md`.
 - **Next (Step 3):** tests for TC-S1-27 (US-03 boundaries), TC-S1-18 (whitespace-only question) and TC-S1-07 (concurrency, gap #2).
 
+## 2026-10-17: Step 3, gap tests
+
+| TC | New test(s) | Result |
+|---|---|---|
+| TC-S1-27 (US-03 AC-3) | `src/events/create-event-request.dto.spec.ts`: 15 boundary unit tests with a frozen clock (start −1 ms / at / +1 ms; end −1 ms / equal / +1 ms; attendance −1 / 0 / 1; "   " ×4; padded text trimmed). `events-submit::blocks boundary values and flags each field…`: 1 integration test. | Pass |
+| TC-S1-18 (US-09 AC-1) | `events-clarification::rejects a whitespace-only question` | Pass (regression for gap #1) |
+| TC-S1-07 (gap #2) | `events-review::lets exactly one of a simultaneous approve and reject succeed…`: 20 iterations of approve and reject together via `Promise.all`, with a fresh reset and setup each time. Marked `it.failing`. | Fail (known bug): reproduced in 60/60 probe iterations, with both calls 200 |
+
+- Each file passed 3 runs: review 22/22, submit 22/22, clarification 26/26. `npx jest`: 971/971.
+- The "Changes since Sprint 1" section records the gap tests and the Change 5 handover (TC-S1-25, TC-S1-54 and the 5 tests for the Sprint 3 tester).
+- TC-S1-44 has the remark "Pending team decision on what triggers Under Review".
+- CONVENTIONS.md "Open bugs": #1 is fixed, #2 is still open.
+
+## 2026-10-17: story group US-01 (Log in securely): test cases and integration conversion
+
+- **Safety:** branch `sprint3-RAYE`, connected to `localhost` / `connectsphere_test`. Only `npx jest` and `npm run test:e2e -- test/auth.e2e-spec.ts` were run.
+- **Test cases:** TC-S1-55 to TC-S1-62 (8). 7 Pass. TC-S1-58 (AC-3 UI redirect) is Not Executed, Playwright (pending), and listed in Gaps. All pre-conditions: base-users.sql only.
+- **Converted:** `test/auth.e2e-spec.ts`. It now uses `resetDb` + `base-users` before **every** test, so lockout counts can't leak between tests, and listens on `127.0.0.1`. Test bodies are byte-identical to `HEAD`: the diff shows no removed or changed `expect` lines. 21/21 passed 3 times (5.81 / 5.27 / 5.29 s; before: 5.28 s). The runtime is mostly real bcrypt compares.
+- **New tests (window edge, allowed by the session rules):**
+  - `src/auth/auth.service.lockout-window.spec.ts`: 3 unit tests with a frozen clock (exactly 30 min locks; 30 min + 1 ms restarts the count at 1; the correct password is refused while locked).
+  - `auth.e2e-spec.ts::does not lock when the 15 failures are spread beyond 30 minutes`: 1 integration test. Only Date is faked; Supertest and Prisma keep real timers.
+  - After these: auth e2e 22/22 ×3 (6.16 / 6.07 / 6.05 s; then 6.25 s). `npx jest`: 974/974.
+- **Not mapped:** the 3 `DTO validation` tests in `auth.e2e-spec.ts` (malformed email, empty password, extra fields). They check input hygiene, not a US-01 AC. They are kept but carry no TC.
+- **AC ↔ code mismatch flagged:** AC-5 fixed versus sliding 30-minute window (see the US-01 mismatch notes in sprint1-test-cases.md). The code is unchanged; this needs a team or customer decision.
+
 ## Open
-- **TC IDs:** done for US-07/08/09 (TC-S1-01 to 22). The remaining stories get theirs as each group is written.
-- **G1 (whitespace accepted):** fixed in `93316fa`. TC-S1-18 and TC-S1-27 still need their tests (Step 3).
+- **TC IDs:** done for US-07/08/09, US-03/04/05/06 and US-01 (TC-S1-01 to 62). The remaining stories get theirs as each group is written.
+- **Integration files still to convert:** `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`.
+- **AC-5 window reading:** confirm fixed versus sliding with the team/customer.
+- **G1 (whitespace accepted):** fixed in `93316fa`. TC-S1-18 and TC-S1-27 tests were added in Step 3.

@@ -291,6 +291,44 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
   });
 
+  describe('conflict: simultaneous decisions on one request', () => {
+    // TC-S1-07 · setup: base-users + tc-s1-01-setup (fresh before each of 20 iterations) · fails if approve and reject can both succeed, or the final status contradicts the decision that won
+    // KNOWN BUG (audit gap #2): both decisions succeed (setStatus() checks the transition against a stale read). Switch back to it(...) when the fix lands.
+    it.failing('lets exactly one of a simultaneous approve and reject succeed, and stores that outcome', async () => {
+      const ITERATIONS = 20;
+      const violations: string[] = [];
+
+      for (let i = 1; i <= ITERATIONS; i++) {
+        await resetDb(prisma);
+        await loadSql(prisma, 'base-users');
+        await given('tc-s1-01-setup');
+        const event = EVENT.submitted;
+
+        const [approve, reject] = await Promise.all([
+          http().post(`/events/${event.id}/approve`).set('Authorization', as('coordinatorA')),
+          http()
+            .post(`/events/${event.id}/reject`)
+            .set('Authorization', as('coordinatorA'))
+            .send({ reason: 'Clashes with the examination period' }),
+        ]);
+        const stored = await prisma.eventRequest.findUniqueOrThrow({ where: { id: event.id } });
+
+        const winners = [approve, reject].filter((r) => r.status === 200).length;
+        const loserRefused = [approve, reject].some((r) => r.status >= 400 && r.status < 500);
+        const expected =
+          approve.status === 200 ? EventStatus.APPROVED : EventStatus.REJECTED;
+
+        if (winners !== 1 || !loserRefused || stored.status !== expected) {
+          violations.push(
+            `iteration ${i}: approve ${approve.status}, reject ${reject.status}, stored ${stored.status}`,
+          );
+        }
+      }
+
+      expect(violations).toEqual([]);
+    });
+  });
+
   describe('assignment ownership and role', () => {
     // TC-S1-06 · setup: base-users + tc-s1-01-setup · fails if a Coordinator could approve an event assigned to someone else
     it('refuses a Coordinator assigned to a different event', async () => {

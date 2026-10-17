@@ -1270,18 +1270,18 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-01 AC-2 |
 | Test Scenario | A wrong password and an unknown email get the same generic error, and no token |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com exists; nobody@example.com does not. |
-| Test Steps | 1. Log in as organiser@example.com with a wrong password.<br>2. Log in as nobody@example.com with a password.<br>3. Compare the two responses. |
-| Test Data | organiser@example.com / wrong-password; nobody@example.com / correct-horse-battery-staple |
-| Expected Result | Both attempts are refused with the same generic message, "invalid email or password", and no token. The two responses are identical, so neither reveals which field was wrong. |
+| Test Steps | 1. Log in as organiser@example.com with a wrong password.<br>2. Log in as nobody@example.com with a password.<br>3. Compare the two responses.<br>4. Log in with a number as the email. |
+| Test Data | organiser@example.com / wrong-password; nobody@example.com / correct-horse-battery-staple; email `12345` (a number) |
+| Expected Result | Both attempts are refused with the same generic message, "invalid email or password", and no token. The two responses are identical, so neither reveals which field was wrong. A malformed email (not a string) is refused as invalid input with a validation message, not a server error, and no token. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Both returned HTTP 401 with message "invalid email or password" and no `accessToken`. The two bodies and status codes were identical. Neither body contained wording such as "wrong password" or "not found". |
+| Actual Result | Both returned HTTP 401 with message "invalid email or password" and no `accessToken`. The two bodies and status codes were identical. Neither body contained wording such as "wrong password" or "not found". The numeric email returned HTTP 400 with "email must be a valid email address" and no token. |
 | Status | Pass |
 | Remarks | The unknown email is still checked against a dummy bcrypt hash, so the two failures also take a similar time. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/auth.e2e-spec.ts::rejects a wrong password with 401 and no token`<br>`test/auth.e2e-spec.ts::rejects an unknown email with 401 and no token`<br>`test/auth.e2e-spec.ts::returns byte-identical bodies for both, revealing neither field` |
+| Automated by | `test/auth.e2e-spec.ts::rejects a wrong password with 401 and no token`<br>`test/auth.e2e-spec.ts::rejects an unknown email with 401 and no token`<br>`test/auth.e2e-spec.ts::returns byte-identical bodies for both, revealing neither field`<br>`test/auth.e2e-spec.ts::rejects a non-string email with 400 and a validation message` |
 
 ### TC-S1-57
 
@@ -1293,16 +1293,16 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. |
 | Test Steps | 1. Call `GET /auth/me` with no token.<br>2. Call it with a malformed token.<br>3. Call it with a token signed with the wrong secret.<br>4. Call `POST /auth/logout` with no token. |
 | Test Data | No header; `Bearer not-a-real-token`; a forged HS256 token for `user-1` / ATTENDEE |
-| Expected Result | Every request is refused as unauthenticated (401), and no protected data is returned. |
+| Expected Result | Every request is refused as unauthenticated (401), and no protected data is returned. The refusal tells the client where to log in: a `WWW-Authenticate` header and the login URL in the body. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | All four requests returned HTTP 401. The no-token response contained no `userId`. |
+| Actual Result | All four requests returned HTTP 401. The no-token response contained no `userId` or `role`, and had `WWW-Authenticate: Bearer realm="connectsphere"` and `loginUrl: "/auth/login"`. |
 | Status | Pass |
-| Remarks | The redirect to the login page is the UI half of this AC (TC-S1-58). |
+| Remarks | The browser redirect is the UI half of this AC (TC-S1-58). Since `configureApp()` (895d205), the test app registers `UnauthorizedFilter` as production does, so the 401 shape tested here is the production one. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/auth.e2e-spec.ts::rejects a request with no token`<br>`test/auth.e2e-spec.ts::rejects a malformed token`<br>`test/auth.e2e-spec.ts::rejects a token signed with the wrong secret`<br>`test/auth.e2e-spec.ts::rejects logout without a token` |
+| Automated by | `test/auth.e2e-spec.ts::rejects a request with no token`<br>`test/auth.e2e-spec.ts::points an unauthenticated caller at the login page`<br>`test/auth.e2e-spec.ts::rejects a malformed token`<br>`test/auth.e2e-spec.ts::rejects a token signed with the wrong secret`<br>`test/auth.e2e-spec.ts::rejects logout without a token` |
 
 ### TC-S1-58
 
@@ -1422,6 +1422,7 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 
 | Date | Change | Commit | Test cases affected |
 |---|---|---|---|
+| 2026-10-17 | **Test apps match production; coverage gaps filled.** `configureApp()` is now shared by `main.ts` and the 8 converted integration files, so tests see the same pipes, `UnauthorizedFilter` and CORS as production; no existing result changed. Two tests were added from coverage-s1.md: the 401 carries `WWW-Authenticate` and `loginUrl`, and a numeric email gets 400. | `895d205` (setup); this commit (tests) | TC-S1-56 and TC-S1-57 (extra test each; still Pass). |
 | 2026-10-17 | **Concurrent clarification responses made atomic (audit gap #3).** `respondToClarification()` starts its transaction with the same row lock as the review decisions (`claimForDecision`), so a second, simultaneous response gets 409 and stores nothing. The conflict message is now neutral: "this request has just been updated by someone else; reload it and try again". | this commit | TC-S1-63 (new; Fail as `it.failing` in `da1e278`, now Pass). |
 | 2026-10-17 | **Concurrent review decisions made atomic (audit gap #2).** Approve, reject, return and request clarification each start their transaction by row-locking the request only while it still holds the status that was read (`claimForDecision`, `SELECT … FOR UPDATE`). A concurrent decision waits, then gets 409 Conflict, and its reason, question and history roll back. `setStatus()` is still the only writer of status. | `61401ec` | TC-S1-07 (Fail → Pass; the race test is now a regular regression test, no longer `it.failing`, and requires the loser to get 409). |
 | 2026-10-17 | **US-01 lockout window-edge tests added.** The existing tests covered the 14/15 boundary but not the 30-minute window edge. Three unit tests (frozen clock: exactly 30 min locks; 30 min + 1 ms restarts the count; the correct password is refused while locked) and one integration test (15 failures spread beyond 30 minutes don't lock). `test/auth.e2e-spec.ts` was converted to the shared test-DB pattern, with assertions unchanged. | — | TC-S1-61 (new, Pass). TC-S1-55 to 60 and 62 now load base-users.sql. |

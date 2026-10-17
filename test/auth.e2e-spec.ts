@@ -129,6 +129,16 @@ describe('US-01 secure login (e2e)', () => {
       expect(res.body.userId).toBeUndefined();
     });
 
+    // TC-S1-57 · setup: base-users · fails if a 401 stops telling the client where to log in, or leaks protected data
+    it('points an unauthenticated caller at the login page', async () => {
+      const res = await request(app.getHttpServer()).get('/auth/me').expect(401);
+
+      expect(res.headers['www-authenticate']).toBe('Bearer realm="connectsphere"');
+      expect(res.body.loginUrl).toBe('/auth/login');
+      expect(res.body.userId).toBeUndefined();
+      expect(res.body.role).toBeUndefined();
+    });
+
     // TC-S1-57 · setup: base-users · fails if a malformed token is accepted
     it('rejects a malformed token', async () => {
       await request(app.getHttpServer())
@@ -313,6 +323,17 @@ describe('US-01 secure login (e2e)', () => {
   describe('DTO validation', () => {
     it('rejects a malformed email with 400', async () => {
       await login('not-an-email', PASSWORD).expect(400);
+    });
+
+    // TC-S1-56 · setup: base-users · fails if a non-string email crashes the login (500) instead of failing validation
+    it('rejects a non-string email with 400 and a validation message', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: 12345, password: PASSWORD })
+        .expect(400);
+
+      expect(res.body.message).toContain('email must be a valid email address');
+      expect(res.body.accessToken).toBeUndefined();
     });
 
     it('rejects an empty password with 400', async () => {

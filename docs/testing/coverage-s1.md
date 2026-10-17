@@ -1,22 +1,24 @@
 # Sprint 1 coverage check (done stories)
 
-Scope: US-01, US-03, US-04, US-05, US-06, US-07, US-08, US-09. Measured on 2026-10-17 at commit `dd5f0f8` (branch `sprint3-RAYE`). This was a read-only check: no tests or application code were changed.
+Scope: US-01, US-03, US-04, US-05, US-06, US-07, US-08, US-09. First measured on 2026-10-17 at commit `dd5f0f8` (branch `sprint3-RAYE`), as a read-only check. **Updated** after `895d205` (shared `configureApp()`) and the two TEST-gap tests: the numbers below are the re-measured ones.
 
 ## Summary
 
 | | Statements | Branches |
 |---|---|---|
 | Unit (`npx jest`, 974 tests) | 351/396 (88.6%) | 104/124 (83.9%) |
-| Integration (8 converted e2e files, 178 tests) | 369/396 (93.2%) | 98/124 (79.0%) |
-| **Combined** (covered by either suite) | **380/396 (96.0%)** | **109/124 (87.9%)** |
+| Integration (8 converted e2e files, 180 tests) | 376/396 (94.9%) | 100/124 (80.6%) |
+| **Combined** (covered by either suite) | **387/396 (97.7%)** | **111/124 (89.5%)** |
 
-The 16 statements and 15 branches that neither suite covers break down as:
+Before the update: integration 369/396 (93.2%) and 98/124 (79.0%); combined 380/396 (96.0%) and 109/124 (87.9%).
+
+The 9 statements and 13 branches that neither suite covers break down as:
 
 | Classification | Statements | Branches | Where |
 |---|---|---|---|
-| TEST | 7 | 3 | `unauthorized.filter.ts` (US-01 AC-3), `login.dto.ts` (US-01 AC-2) |
+| TEST | 0 | 0 | Both TEST gaps are filled (see [Proposed tests](#proposed-tests)). |
 | DEFERRED | 0 | 1 | `access-control.service.ts` (US-02) |
-| EXCLUDE | 9 | 11 | Configuration fallbacks, an unused decorator overload, unreachable defensive code |
+| EXCLUDE | 9 | 12 | Configuration fallbacks, an unused decorator overload, unreachable defensive code |
 
 The three bug-fix paths (audit gaps #1, #2 and #3) are all covered; see [Bug-fix paths](#bug-fix-paths).
 
@@ -29,13 +31,13 @@ S = statements, B = branches. In `events.service.ts`, `events.controller.ts` and
 | auth/auth.service.ts | 53 | 86.8 | 86.8 | **86.8** | 31 | 80.6 | 80.6 | **80.6** |
 | auth/auth.controller.ts (login, logout, me) | 7 | 42.9 | 100 | **100** | 0 | — | — | **—** |
 | auth/jwt.strategy.ts | 13 | 76.9 | 100 | **100** | 3 | 33.3 | 66.7 | **66.7** |
-| auth/dto/login.dto.ts | 6 | 83.3 | 100 | **100** | 2 | 0 | 50.0 | **50.0** |
+| auth/dto/login.dto.ts | 6 | 83.3 | 100 | **100** | 2 | 0 | 100 | **100** |
 | common/guards/jwt-auth.guard.ts | 5 | 100 | 100 | **100** | 0 | — | — | **—** |
 | common/guards/roles.guard.ts | 26 | 100 | 88.5 | **100** | 5 | 100 | 60.0 | **100** |
 | common/decorators/current-user.decorator.ts | 5 | 40.0 | 100 | **100** | 2 | 0 | 50.0 | **50.0** |
 | common/decorators/roles.decorator.ts | 5 | 100 | 100 | **100** | 0 | — | — | **—** |
 | common/decorators/require-permission.decorator.ts | 5 | 100 | 100 | **100** | 0 | — | — | **—** |
-| common/filters/unauthorized.filter.ts | 7 | 0 | 0 | **0** | 2 | 0 | 0 | **0** |
+| common/filters/unauthorized.filter.ts | 7 | 0 | 100 | **100** | 2 | 0 | 50.0 | **50.0** |
 | common/validators/trim.transform.ts | 5 | 100 | 100 | **100** | 2 | 100 | 100 | **100** |
 | common/validators/is-after.validator.ts | 13 | 84.6 | 84.6 | **84.6** | 3 | 100 | 100 | **100** |
 | common/access/access-control.service.ts | 33 | 97.0 | 87.9 | **100** | 14 | 85.7 | 64.3 | **92.9** |
@@ -55,10 +57,12 @@ A dash means the file has no branches.
 
 ### TEST: worth a test
 
-| File:line | What isn't covered | Why it matters | AC |
-|---|---|---|---|
-| `common/filters/unauthorized.filter.ts:19–28` (whole filter) | The 401 response with a `WWW-Authenticate` header and `loginUrl: '/auth/login'` in the body | This is the API half of "redirected to login". It's registered only in `main.ts`, and no integration test app registers it, so every 401 the tests see lacks `loginUrl`. The tests don't match production here. | US-01 AC-3 (TC-S1-57); the same filter serves US-02 AC-8 |
-| `auth/dto/login.dto.ts:7` | A non-string `email` (e.g. a number) skips the trim and lowercase | It proves a malformed body gets 400 rather than a crash in the transform | US-01 AC-2 (TC-S1-56) |
+None left. Both gaps found in the first check are now covered:
+
+| File:line | Now covered by | AC |
+|---|---|---|
+| `common/filters/unauthorized.filter.ts:19–28` | `auth.e2e-spec.ts::points an unauthenticated caller at the login page`. The filter was missing from the test apps; `configureApp()` (`895d205`) now registers it as `main.ts` does. | US-01 AC-3 (TC-S1-57) |
+| `auth/dto/login.dto.ts:7` (non-string branch) | `auth.e2e-spec.ts::rejects a non-string email with 400 and a validation message` | US-01 AC-2 (TC-S1-56) |
 
 ### DEFERRED: covered after the merge
 
@@ -76,6 +80,7 @@ A dash means the file has no branches.
 | `common/decorators/current-user.decorator.ts:13` (branch) | `@CurrentUser('field')`, the overload that takes a key | Unused: no handler in the codebase passes a key. |
 | `common/validators/is-after.validator.ts:46–47` (`defaultMessage`) | The default "must be later than" message | Both Sprint 1 DTOs (`create-event-request`, `draft-event-request`) supply their own message, so the default can't appear in these stories. It belongs to later stories' DTOs (bookings, venues, equipment). |
 | `events/events.service.ts:408` (branch) | `error.constraints ?? {}` in the submit-readiness check | Defensive only. The candidate DTO is flat, so class-validator always returns `constraints`; only nested validation omits them. |
+| `common/filters/unauthorized.filter.ts:28` (branch) | `typeof body === 'string'`, a 401 whose response body is a plain string | Unreachable: `UnauthorizedException` always builds an object body (`{ message, error, statusCode }`), whatever it is constructed with. |
 | `events/events.service.ts:603` and `652` (branches) | `event.name ?? 'your event request'` / `'an event request'` in the clarification notifications | Unreachable in Sprint 1: a question can only be asked on a submitted request, and submission requires a name. The notification wording also belongs to the Sprint 3 notifications story. |
 
 ## Bug-fix paths
@@ -92,10 +97,12 @@ The unit tests don't reach the `claimForDecision` 409 path, because the mocked `
 
 ## Proposed tests
 
-Not written yet; awaiting approval.
+Both proposed tests are now written and pass (3 runs, 24/24):
 
-1. **TC-S1-57 (US-01 AC-3), integration, `test/auth.e2e-spec.ts`:** register `UnauthorizedFilter` in the test app as `main.ts` does, and assert that a no-token request gets 401 with `WWW-Authenticate: Bearer realm="connectsphere"` and `loginUrl: '/auth/login'`. This is a test-harness change only; the other converted files should register the filter too, so they match production.
-2. **TC-S1-56 (US-01 AC-2), unit, login DTO:** a numeric `email` fails validation (400), rather than throwing in the transform.
+1. **TC-S1-57 (US-01 AC-3):** `test/auth.e2e-spec.ts::points an unauthenticated caller at the login page`. A no-token request gets 401 with `WWW-Authenticate: Bearer realm="connectsphere"`, `loginUrl: '/auth/login'`, and no `userId` or `role`. The harness change it needed (registering the filter) was made for all 8 converted files through `configureApp()`; no existing result changed.
+2. **TC-S1-56 (US-01 AC-2):** `test/auth.e2e-spec.ts::rejects a non-string email with 400 and a validation message`. A numeric email gets 400 with "email must be a valid email address", and no token. It's an integration test, so it goes through the real ValidationPipe, which is where a 500 would come from.
+
+No further tests are proposed: everything still uncovered is DEFERRED or EXCLUDE.
 
 ## Scope
 

@@ -218,6 +218,12 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - The `it.failing` test reported "passed unexpectedly", then was flipped to `it`. Clarification passed 27/27 in 3 runs (60/60 iterations clean). Review 22/22, decision 26/26, `npx jest` 974/974.
 - **TC-S1-63** written under US-09 (Pass), with a "Changes since Sprint 1" row. CONVENTIONS.md "Open bugs": #1, #2 and #3 are all fixed.
 
+## 2026-10-17: test apps match production; coverage TEST gaps filled
+
+- **Step 1 (`895d205`):** `src/configure-app.ts` holds the global setup (ValidationPipe, `UnauthorizedFilter`, CORS). `main.ts` and the 8 converted integration files call it; the deferred files are untouched. Before this, the test apps lacked the filter and CORS. No existing result changed: unit 974/974; the 8 files 178/178.
+- **Step 2:** two new tests in `auth.e2e-spec.ts`. TC-S1-57: the 401 carries `WWW-Authenticate` and `loginUrl`, with no protected data. TC-S1-56: a numeric email gets 400 with a validation message. 24/24 in 3 runs.
+- **Coverage re-measured:** combined 97.7% statements / 89.5% branches (was 96.0% / 87.9%). `UnauthorizedFilter` is now 100% of statements (its one remaining branch is unreachable and marked EXCLUDE), and the login DTO is 100%. No TEST gaps remain in coverage-s1.md.
+
 ## Open
 - **TC IDs:** done for US-07/08/09, US-03/04/05/06 and US-01 (TC-S1-01 to 62). The remaining stories get theirs as each group is written.
 - **Integration files still to convert:** `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`.

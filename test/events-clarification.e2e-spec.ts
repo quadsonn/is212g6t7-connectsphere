@@ -327,8 +327,8 @@ describe('US-09 clarification thread (e2e)', () => {
     });
 
     // TC-S1-63 · setup: base-users + tc-s1-01-setup (fresh before each of 20 iterations) · fails if two simultaneous responses to one question both succeed
-    // KNOWN BUG (audit gap #3): both responses succeed (respondToClarification() checks the status before its transaction). Switch back to it(...) when the fix lands.
-    it.failing('accepts exactly one of two simultaneous responses to the same question', async () => {
+    // Regression test for audit gap #3 (fixed in the same commit as this test was switched to it(...))
+    it('accepts exactly one of two simultaneous responses to the same question', async () => {
       const ITERATIONS = 20;
       const violations: string[] = [];
 

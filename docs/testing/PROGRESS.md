@@ -212,6 +212,12 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - **Bug reproduced in 57 of 60 probe iterations (19 of 20 in each of 3 runs).** Every bad iteration returned 201/201 with 2 answers stored and 2 notifications. Iteration 1, the first requests on a fresh server, was clean every time. Cause: `respondToClarification()` checks AWAITING_CLARIFICATION before its transaction.
 - Captured as `it.failing` (audit gap #3). The file passed 27/27 in 3 runs.
 
+## 2026-10-17: Step 3, part 2: audit gap #3 fixed, test flipped, TC-S1-63
+
+- **Fix:** `respondToClarification()` calls `claimForDecision()` as the first statement of its transaction. The status check before the transaction stays, so a response with nothing outstanding still gets the same 409 message as before. The conflict message is now neutral wording. `setStatus()` is still the only status writer, and the status-write audit is green. No spec mock changes were needed.
+- The `it.failing` test reported "passed unexpectedly", then was flipped to `it`. Clarification passed 27/27 in 3 runs (60/60 iterations clean). Review 22/22, decision 26/26, `npx jest` 974/974.
+- **TC-S1-63** written under US-09 (Pass), with a "Changes since Sprint 1" row. CONVENTIONS.md "Open bugs": #1, #2 and #3 are all fixed.
+
 ## Open
 - **TC IDs:** done for US-07/08/09, US-03/04/05/06 and US-01 (TC-S1-01 to 62). The remaining stories get theirs as each group is written.
 - **Integration files still to convert:** `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`.

@@ -508,9 +508,31 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Date of Execution | 2026-10-17 |
 | Automated by | `test/events-clarification.e2e-spec.ts::refuses a Coordinator who is not assigned`<br>`test/events-clarification.e2e-spec.ts::refuses a response from another Organiser` |
 
+### TC-S1-63
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-63 |
+| Story/AC ref | US-09 AC-4 (conflict) |
+| Test Scenario | The Organiser's response to one clarification question is sent twice at the same moment |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test, and again before each of the 20 iterations). `e-submitted` is owned by organiser@example.com and assigned to coord.a@example.com. Cody asks one question through the API, so the request is AWAITING_CLARIFICATION. Logged in as organiser@example.com. |
+| Test Steps | 1. Reset the testDB and load the pre-condition scripts.<br>2. Cody asks "Which room layout do you need?".<br>3. Olivia sends two responses for `e-submitted` at the same moment (`Promise.all`).<br>4. Read the stored status, the number of stored answers and the number of notifications to Cody.<br>5. Repeat steps 1–4 for 20 iterations. |
+| Test Data | Question "Which room layout do you need?"; responses "Theatre style" and "Boardroom style"; 20 iterations |
+| Expected Result | Exactly one response is accepted and the other is refused with 409 Conflict. The request is UNDER_REVIEW, the thread holds one answer, and the Coordinator is notified once. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | After the fix: in 3 runs of 20 iterations (60 in total), one response returned 201 and the other 409 every time. The status was UNDER_REVIEW, with 1 answer stored and 1 notification record for Cody. (Before the fix: both returned 201 in 57 of 60 iterations, with 2 answers and 2 notifications. Only the first iteration of each run was clean.) |
+| Status | Pass |
+| Remarks | Bug found by test audit; fixed (gap #3). `respondToClarification()` now starts its transaction with the same row lock as the review decisions (`claimForDecision`), so the loser gets 409 and its answer and notification are never saved. The notification is checked as a stored record only (see TC-S1-20). Listed after TC-S1-22 to keep it with US-09. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | `test/events-clarification.e2e-spec.ts::accepts exactly one of two simultaneous responses to the same question` |
+
 **US-09 AC ↔ code mismatches**
 - **AC-1 (fixed):** a whitespace-only question used to be accepted (audit gap #1). Fixed in 93316fa, and TC-S1-18 is now its regression test.
 - **AC-4:** "the Coordinator is notified" is only met by storing a notification record today. Nothing is delivered (no email, push or in-app feed). TC-S1-20 stays Not Executed until the Sprint 3 story "Be Notified of My Request Outcome" lands.
+- **AC-4 (fixed):** two simultaneous responses to one question were both accepted, storing two answers and notifying twice (audit gap #3). Fixed, and TC-S1-63 is now its regression test.
 
 ---
 
@@ -1400,6 +1422,7 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 
 | Date | Change | Commit | Test cases affected |
 |---|---|---|---|
+| 2026-10-17 | **Concurrent clarification responses made atomic (audit gap #3).** `respondToClarification()` starts its transaction with the same row lock as the review decisions (`claimForDecision`), so a second, simultaneous response gets 409 and stores nothing. The conflict message is now neutral: "this request has just been updated by someone else; reload it and try again". | this commit | TC-S1-63 (new; Fail as `it.failing` in `da1e278`, now Pass). |
 | 2026-10-17 | **Concurrent review decisions made atomic (audit gap #2).** Approve, reject, return and request clarification each start their transaction by row-locking the request only while it still holds the status that was read (`claimForDecision`, `SELECT … FOR UPDATE`). A concurrent decision waits, then gets 409 Conflict, and its reason, question and history roll back. `setStatus()` is still the only writer of status. | `61401ec` | TC-S1-07 (Fail → Pass; the race test is now a regular regression test, no longer `it.failing`, and requires the loser to get 409). |
 | 2026-10-17 | **US-01 lockout window-edge tests added.** The existing tests covered the 14/15 boundary but not the 30-minute window edge. Three unit tests (frozen clock: exactly 30 min locks; 30 min + 1 ms restarts the count; the correct password is refused while locked) and one integration test (15 failures spread beyond 30 minutes don't lock). `test/auth.e2e-spec.ts` was converted to the shared test-DB pattern, with assertions unchanged. | — | TC-S1-61 (new, Pass). TC-S1-55 to 60 and 62 now load base-users.sql. |
 | 2026-10-17 | **Week 7 Change 5 handover (Event Coordinator Lead, unassigned queue).** Change 5 is being built on `Sprint3-MAIN`, so two test cases wait on it here. Five existing integration tests assert the pre-Change-5 pool, where any Coordinator sees unassigned submissions. They are handed to the Sprint 3 tester, to update when Change 5 merges:<br>`events-submit::makes the request visible to a Coordinator for review`<br>`events-draft::makes it visible to a Coordinator once submitted`<br>`events-layout::shows layout and accessibility in the review queue`<br>`events-layout::shows them when the Coordinator opens the request`<br>`events-review::approves once that request has been assigned (US-10 then US-07)` | — | TC-S1-25 (Lead's unassigned queue; Not Executed, pending Change 5 merge). TC-S1-54 (assigned Coordinator sees the preferences; linked in group 3 via tc-s1-54-setup.sql). |

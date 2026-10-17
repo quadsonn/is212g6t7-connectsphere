@@ -628,6 +628,9 @@ export class EventsService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      // Audit gap #3: a second, simultaneous response is refused here.
+      await this.claimForDecision(event, tx);
+
       await tx.clarificationMessage.create({
         data: { eventId: event.id, authorId: user.userId, body: dto.response },
       });
@@ -738,6 +741,9 @@ export class EventsService {
    * finds the status changed and is refused. Throwing rolls back the loser's
    * transaction, so its reason, question and history are never saved.
    *
+   * Audit gap #3: the Organiser's clarification response uses the same claim,
+   * so two simultaneous responses store one answer and notify once.
+   *
    * Nothing is written here; setStatus() remains the only writer of status.
    */
   private async claimForDecision(
@@ -751,7 +757,7 @@ export class EventsService {
 
     if (locked.length === 0) {
       throw new ConflictException(
-        'this request was updated by another decision; reload it and try again',
+        'this request has just been updated by someone else; reload it and try again',
       );
     }
   }

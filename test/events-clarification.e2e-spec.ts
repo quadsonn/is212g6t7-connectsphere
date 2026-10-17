@@ -325,6 +325,51 @@ describe('US-09 clarification thread (e2e)', () => {
 
       await respond(event.id, '').expect(400);
     });
+
+    // TC-S1-63 · setup: base-users + tc-s1-01-setup (fresh before each of 20 iterations) · fails if two simultaneous responses to one question both succeed
+    // KNOWN BUG (audit gap #3): both responses succeed (respondToClarification() checks the status before its transaction). Switch back to it(...) when the fix lands.
+    it.failing('accepts exactly one of two simultaneous responses to the same question', async () => {
+      const ITERATIONS = 20;
+      const violations: string[] = [];
+
+      for (let i = 1; i <= ITERATIONS; i++) {
+        await resetDb(prisma);
+        await loadSql(prisma, 'base-users');
+        await given('tc-s1-01-setup');
+        const event = EVENT.submitted;
+        await ask(event.id, 'Which room layout do you need?').expect(201);
+
+        const [first, second] = await Promise.all([
+          respond(event.id, 'Theatre style'),
+          respond(event.id, 'Boardroom style'),
+        ]);
+        const stored = await prisma.eventRequest.findUniqueOrThrow({ where: { id: event.id } });
+        const answers = await prisma.clarificationMessage.count({
+          where: { eventId: event.id, authorId: ids.organiser },
+        });
+        const notified = await prisma.notification.count({
+          where: {
+            recipientId: ids.coordinatorA,
+            type: NotificationType.CLARIFICATION_ANSWERED,
+          },
+        });
+
+        const statuses = [first.status, second.status].sort();
+        if (
+          statuses[0] !== 201 ||
+          statuses[1] !== 409 ||
+          stored.status !== EventStatus.UNDER_REVIEW ||
+          answers !== 1 ||
+          notified !== 1
+        ) {
+          violations.push(
+            `iteration ${i}: responses ${first.status}/${second.status}, stored ${stored.status}, answers ${answers}, notifications ${notified}`,
+          );
+        }
+      }
+
+      expect(violations).toEqual([]);
+    });
   });
 
   describe('AC-5: a timestamped audit trail with sender and time', () => {

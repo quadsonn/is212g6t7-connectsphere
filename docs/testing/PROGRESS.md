@@ -206,6 +206,12 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - **Step 2:** the TC-S1-07 test went from `it.failing` to `it`. The loser check is tightened from "any 4xx" to "409", and the stored `decisionReason` must match the winner. It passed 3 runs of 20 iterations (22/22 each).
 - TC-S1-07 is now Pass. CONVENTIONS.md "Open bugs": #1 and #2 are both fixed.
 
+## 2026-10-17: Step 3, part 1: concurrent clarification responses (audit gap #3)
+
+- New test `events-clarification::accepts exactly one of two simultaneous responses to the same question` (TC-S1-63). Each of 20 iterations resets, loads base-users + tc-s1-01-setup, asks a question, then sends two responses with `Promise.all`. It expects one 201 and one 409, status UNDER_REVIEW, one stored answer and one Coordinator notification.
+- **Bug reproduced in 57 of 60 probe iterations (19 of 20 in each of 3 runs).** Every bad iteration returned 201/201 with 2 answers stored and 2 notifications. Iteration 1, the first requests on a fresh server, was clean every time. Cause: `respondToClarification()` checks AWAITING_CLARIFICATION before its transaction.
+- Captured as `it.failing` (audit gap #3). The file passed 27/27 in 3 runs.
+
 ## Open
 - **TC IDs:** done for US-07/08/09, US-03/04/05/06 and US-01 (TC-S1-01 to 62). The remaining stories get theirs as each group is written.
 - **Integration files still to convert:** `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`.

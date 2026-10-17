@@ -45,6 +45,7 @@ Sprint 1 test evidence that Raye can explain in a live Q&A, where instructors ma
 ## Open bugs found by the audit
 1. ~~Whitespace-only text accepted in required fields (US-03 AC-3, US-08 AC-2, US-09 AC-1).~~ **Fixed in `93316fa`.** Regression tests: `test/events-decision.e2e-spec.ts` ("%s is blocked when the reason is whitespace-only", TC-S1-11), plus TC-S1-18 and TC-S1-27.
 2. ~~Simultaneous approve and reject can both succeed (US-07, US-08, US-11).~~ **Fixed in `61401ec`.** Regression test: `test/events-review.e2e-spec.ts` ("lets exactly one of a simultaneous approve and reject succeed, and stores that outcome", TC-S1-07). The loser now gets 409.
+3. Two simultaneous clarification responses can both succeed (US-09 AC-4). **Still open.** Both are stored and the Coordinator is notified twice. Captured as `it.failing` in `test/events-clarification.e2e-spec.ts` (TC-S1-63). It reproduces in 57/60 iterations (every iteration except the first of each run).
 
 ## Sprint 1 stories
 

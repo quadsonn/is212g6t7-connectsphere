@@ -1137,3 +1137,20 @@ export interface SafetyDecisionPayload {
 
 /** POST /safety/events/:id/decision — the recorded review, plus where the event went. */
 export type SafetyDecisionResult = SafetyReview & { eventStatus: EventStatus };
+
+/** Notifications page — GET /notifications: one of the reader's own notifications. */
+export interface InboxNotification {
+  id: string;
+  type: string;
+  /** The full stored message. */
+  message: string;
+  /** The message without its reason, and the reason on its own (if any). */
+  summary: string;
+  reason: string | null;
+  read: boolean;
+  readAt: string | null;
+  createdAt: string;
+  relatedEvent: { id: string; name: string | null } | null;
+  /** The related event's page for this reader's role; null if none. */
+  link: string | null;
+}

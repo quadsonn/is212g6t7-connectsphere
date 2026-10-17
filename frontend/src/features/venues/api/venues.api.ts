@@ -30,9 +30,12 @@ export const venuesApi = {
     apiClient.get<Venue[]>('/venues/search', { params: query }).then((r) => r.data),
 
   // US-20: advisory suitability flags against one of my events.
-  suitability: (id: string, eventId: string) =>
+  // expectedAttendance overrides the event's recorded figure (booking form).
+  suitability: (id: string, eventId: string, expectedAttendance?: number) =>
     apiClient
-      .get<VenueSuitability>(`/venues/${id}/suitability`, { params: { eventId } })
+      .get<VenueSuitability>(`/venues/${id}/suitability`, {
+        params: { eventId, expectedAttendance },
+      })
       .then((r) => r.data),
 
   // US-17 AC-1/AC-2: one month of free/tentative/booked days ("YYYY-MM").

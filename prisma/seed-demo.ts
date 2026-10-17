@@ -17,6 +17,15 @@
  *    Lecture Theatre 1 (120) -> suitable: equal attendance fits (boundary)
  *    Main Auditorium (200)   -> suitable
  *
+ *  Flow 1b — accessibility suitability (Coordinator)
+ *    "Inclusive Design Forum 2027" expects 100 and needs step-free access,
+ *    wheelchair seating and a hearing loop. Its date is clear of every booking.
+ *    Main Auditorium (200)   -> suitable: offers all three
+ *    Lecture Theatre 1 (120) -> not suitable: missing wheelchair seating and
+ *                               hearing loop, each flagged on its own line
+ *    Seminar Room B (80)     -> not suitable: too small and offers none
+ *    Submitting a request for a flagged venue still succeeds (advisory only).
+ *
  *  Flow 2 — equipment commitment (Technical Support)
  *    Projector: 4 in stock, 3 already committed to "Alumni Evening 2027",
  *    which overlaps the Showcase, so exactly 1 is free at that time.
@@ -35,6 +44,7 @@
 import 'dotenv/config';
 
 import {
+  AccessibilityFeature,
   BookingStatus,
   EventStatus,
   PrismaClient,
@@ -92,14 +102,33 @@ async function main() {
     operatingInfo: 'Mon–Sun, 08:00–22:00',
   };
 
+  // Flow 1b: none / some / all of what the Inclusive Design Forum needs.
   const seminarRoom = await prisma.venue.create({
     data: { ...venueBase, name: 'Seminar Room B', location: 'Block C, Level 2', capacity: 80 },
   });
   const lectureTheatre = await prisma.venue.create({
-    data: { ...venueBase, name: 'Lecture Theatre 1', location: 'Block A, Level 1', capacity: 120 },
+    data: {
+      ...venueBase,
+      name: 'Lecture Theatre 1',
+      location: 'Block A, Level 1',
+      capacity: 120,
+      accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS, AccessibilityFeature.ACCESSIBLE_RESTROOMS],
+    },
   });
   const auditorium = await prisma.venue.create({
-    data: { ...venueBase, name: 'Main Auditorium', location: 'Central Hub', capacity: 200 },
+    data: {
+      ...venueBase,
+      name: 'Main Auditorium',
+      location: 'Central Hub',
+      capacity: 200,
+      accessibilityFeatures: [
+        AccessibilityFeature.STEP_FREE_ACCESS,
+        AccessibilityFeature.WHEELCHAIR_ACCESSIBLE_LIFT,
+        AccessibilityFeature.ACCESSIBLE_RESTROOMS,
+        AccessibilityFeature.WHEELCHAIR_SEATING,
+        AccessibilityFeature.HEARING_LOOP,
+      ],
+    },
   });
 
   // --- Events -------------------------------------------------------------
@@ -151,6 +180,27 @@ async function main() {
       proposedEnd: at('2027-04-14T22:00:00+08:00'),
       expectedAttendance: 60,
       status: EventStatus.APPROVED,
+    },
+  });
+
+  // Flow 1b: an event with recorded accessibility requirements. 100 attendees
+  // sits clear of every capacity boundary, so only accessibility decides.
+  await prisma.eventRequest.create({
+    data: {
+      ...eventBase,
+      name: 'Inclusive Design Forum 2027',
+      purpose: 'Share accessible design practice with industry and students.',
+      description: 'Panel discussion, live captioning and a hands-on workshop.',
+      proposedStart: at('2027-05-12T10:00:00+08:00'),
+      proposedEnd: at('2027-05-12T16:00:00+08:00'),
+      expectedAttendance: 100,
+      status: EventStatus.PLANNING,
+      accessibilityRequirements: [
+        AccessibilityFeature.STEP_FREE_ACCESS,
+        AccessibilityFeature.WHEELCHAIR_SEATING,
+        AccessibilityFeature.HEARING_LOOP,
+      ],
+      accessibilityNotes: 'Several panellists use wheelchairs; captioning on the main screen.',
     },
   });
 
@@ -216,7 +266,7 @@ async function main() {
   });
 
   console.log('Demo data ready (password for every account: 12345678):');
-  console.log(`  ${USERS.length} accounts, 3 venues (80 / 120 / 200), 3 events, 2 equipment types.`);
+  console.log(`  ${USERS.length} accounts, 3 venues (80 / 120 / 200), 4 events, 2 equipment types.`);
   console.log(`  Showcase event id: ${showcase.id}`);
   console.log(`  Venues: ${seminarRoom.name}, ${lectureTheatre.name}, ${auditorium.name}`);
 }

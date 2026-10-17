@@ -238,6 +238,7 @@ export class VenuesService {
     user: AuthenticatedUser,
     venueId: string,
     eventId: string,
+    expectedAttendance?: number,
   ): Promise<VenueSuitability> {
     this.access.requireScope(user, Resource.VENUE, Action.CHECK_AVAILABILITY);
 
@@ -253,7 +254,11 @@ export class VenuesService {
       throw new NotFoundException('venue not found');
     }
 
-    return assessSuitability(venue, event);
+    // AC-1: the figure typed into the booking form wins over the recorded one.
+    return assessSuitability(
+      venue,
+      expectedAttendance === undefined ? event : { ...event, expectedAttendance },
+    );
   }
 
   /**

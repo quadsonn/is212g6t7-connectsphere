@@ -1,9 +1,10 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventStatus, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/configure-app';
 import { loadSql } from './helpers/load-sql';
 import { resetDb } from './helpers/reset-db';
 
@@ -59,7 +60,8 @@ describe('US-04 save event request as draft (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    // Same global setup as main.ts (pipes, UnauthorizedFilter, CORS).
+    configureApp(app);
     // Bound to 127.0.0.1 explicitly: with init() alone, or a dual-stack [::]
     // listener, the OS can hand out a port another local process already holds
     // on 127.0.0.1, and Supertest then talks to that process (hangs, or

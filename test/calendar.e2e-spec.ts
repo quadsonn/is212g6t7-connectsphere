@@ -140,6 +140,30 @@ describe('US-16 venue availability calendar (e2e)', () => {
       expect(res.body.entries.map((e: { eventName: string }) => e.eventName)).toEqual(['In window']);
     });
 
+    // Story 16, AC-2. The Day/Week/Month switch is in the UI; this proves the
+    // server serves each window size the UI asks for.
+    it('accepts the exact windows the Day, Week and Month views ask for', async () => {
+      await seedBooking(ids.hall, 'Day two', BookingStatus.APPROVED, 2);
+
+      // Day: one day. Week: seven. Month: padded to whole weeks, up to 42 days.
+      const day = await calendar({ from: at(2, 0), to: at(3, 0) });
+      const month = await calendar({ from: at(1, 0), to: '2030-11-12T00:00:00.000Z' });
+
+      expect(day.status).toBe(200);
+      expect(day.body.entries.map((e: { eventName: string }) => e.eventName)).toEqual(['Day two']);
+      expect(month.status).toBe(200);
+      expect(month.body.entries).toHaveLength(1);
+    });
+
+    // Story 16, AC-2. A day view must show only that day's entries.
+    it('excludes an entry from a day it does not touch', async () => {
+      await seedBooking(ids.hall, 'Day two', BookingStatus.APPROVED, 2);
+
+      const res = await calendar({ from: at(3, 0), to: at(4, 0) });
+
+      expect(res.body.entries).toEqual([]);
+    });
+
     it('rejects a window over six weeks, or one that ends before it starts (400)', async () => {
       expect((await calendar({ to: '2030-12-31T00:00:00.000Z' })).status).toBe(400);
       expect((await calendar({ to: at(1, 0), from: at(5, 0) })).status).toBe(400);
@@ -181,6 +205,23 @@ describe('US-16 venue availability calendar (e2e)', () => {
         expectedAttendance: 80,
       });
     });
+
+    // Story 16, AC-4. Clicking a slot in the UI loads the booking by the id the
+    // calendar entry carries; this proves that id opens the right details.
+    it('opens the full booking for that slot (the click-through)', async () => {
+      const booking = await seedBooking(ids.hall, 'Gala', BookingStatus.APPROVED, 2);
+      const [entry] = (await calendar()).body.entries;
+
+      const res = await http().get(`/bookings/${entry.id}`).set('Authorization', as('staff'));
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        id: booking.id,
+        expectedAttendance: 80,
+        event: { name: 'Gala', organiser: { name: 'organiser' } },
+        venue: { id: ids.hall },
+      });
+    });
   });
 
   describe('AC-5: reflects changes on refresh', () => {
@@ -193,6 +234,35 @@ describe('US-16 venue availability calendar (e2e)', () => {
       const res = await calendar();
       expect(res.body.entries[0].kind).toBe('CONFIRMED');
       expect(res.headers['cache-control']).toBe('no-store');
+    });
+
+    // Story 16, AC-5 ("cancelled"). Reversing an approval is how a confirmed
+    // booking is withdrawn (Story 22); the calendar must stop showing it.
+    it('drops a booking from the calendar on the next read after it is cancelled', async () => {
+      const booking = await seedBooking(ids.hall, 'Talk', BookingStatus.REQUESTED, 2);
+      await http().post(`/bookings/${booking.id}/approve`).set('Authorization', as('staff')).send({});
+      expect((await calendar()).body.entries).toHaveLength(1);
+
+      // A reversal to rejected is how a confirmed booking is withdrawn (US-23 AC-6).
+      await http()
+        .post(`/bookings/${booking.id}/reverse`)
+        .set('Authorization', as('staff'))
+        .send({ reason: 'Event called off' });
+
+      expect((await calendar()).body.entries).toEqual([]);
+    });
+
+    // Story 16, AC-5 ("changed"). A rejected request holds no space, so it must
+    // not linger on the calendar as tentatively held.
+    it('shows a rejected request as gone, not tentative', async () => {
+      const booking = await seedBooking(ids.hall, 'Talk', BookingStatus.REQUESTED, 2);
+
+      await http()
+        .post(`/bookings/${booking.id}/reject`)
+        .set('Authorization', as('staff'))
+        .send({ reason: 'Venue unavailable' });
+
+      expect((await calendar()).body.entries).toEqual([]);
     });
   });
 

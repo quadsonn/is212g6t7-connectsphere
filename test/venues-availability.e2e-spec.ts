@@ -153,6 +153,42 @@ describe('US-17 view a venue availability calendar (e2e)', () => {
       expect(res.body.at(-1).date).toBe('2027-02-28');
     });
 
+    // Story 17, AC-2 ("loads within 2 seconds"). The test above times an almost
+    // empty month; this one times a heavily booked month, the realistic worst case.
+    it('still loads a busy month within two seconds', async () => {
+      // A realistic heavy month: three confirmed slots and three pending
+      // requests on every day. Confirmed slots never overlap, since the
+      // database refuses overlapping approved bookings (US-24 constraint).
+      const slots = [
+        ['08:00', '10:00'],
+        ['11:00', '13:00'],
+        ['14:00', '16:00'],
+      ];
+      const rows = [];
+      for (let day = 1; day <= 28; day++) {
+        const date = `2027-02-${String(day).padStart(2, '0')}`;
+        for (const [from, to] of slots) {
+          for (const status of [BookingStatus.APPROVED, BookingStatus.REQUESTED]) {
+            rows.push({
+              eventId: ids.event,
+              venueId: ids.venue,
+              start: new Date(`${date}T${from}:00+08:00`),
+              end: new Date(`${date}T${to}:00+08:00`),
+              status,
+            });
+          }
+        }
+      }
+      await prisma.venueBooking.createMany({ data: rows });
+
+      const started = Date.now();
+      const res = await availability('coordinator', ids.venue, '?month=2027-02').expect(200);
+
+      expect(Date.now() - started).toBeLessThan(2000);
+      expect(res.body).toHaveLength(28);
+      expect(res.body.every((d: { status: string }) => d.status === 'booked')).toBe(true);
+    });
+
     it('rejects a malformed month', async () => {
       await availability('coordinator', ids.venue, '?month=2027-13').expect(400);
     });

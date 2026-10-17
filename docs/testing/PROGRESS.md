@@ -200,6 +200,12 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - **Not mapped:** the 3 `DTO validation` tests in `auth.e2e-spec.ts` (malformed email, empty password, extra fields). They check input hygiene, not a US-01 AC. They are kept but carry no TC.
 - **AC ↔ code mismatch flagged:** AC-5 fixed versus sliding 30-minute window (see the US-01 mismatch notes in sprint1-test-cases.md). The code is unchanged; this needs a team or customer decision.
 
+## 2026-10-17: audit gap #2 fixed (Step 1) and race test flipped (Step 2)
+
+- **Fix `61401ec`:** `claimForDecision()` in `events.service.ts` row-locks the request (`SELECT … FOR UPDATE`, only while it still holds the status that was read) as the first statement of approve, reject, return and request clarification. Otherwise it throws 409. It's a lock rather than `updateMany` because the team's status-write audit (`events-status-audit.spec.ts`) bans `eventRequest.updateMany`. `setStatus()` is still the only status writer. The three review specs gained a `$queryRaw` mock (setup only).
+- **Step 2:** the TC-S1-07 test went from `it.failing` to `it`. The loser check is tightened from "any 4xx" to "409", and the stored `decisionReason` must match the winner. It passed 3 runs of 20 iterations (22/22 each).
+- TC-S1-07 is now Pass. CONVENTIONS.md "Open bugs": #1 and #2 are both fixed.
+
 ## Open
 - **TC IDs:** done for US-07/08/09, US-03/04/05/06 and US-01 (TC-S1-01 to 62). The remaining stories get theirs as each group is written.
 - **Integration files still to convert:** `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`.

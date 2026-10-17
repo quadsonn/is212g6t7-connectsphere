@@ -293,8 +293,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
 
   describe('conflict: simultaneous decisions on one request', () => {
     // TC-S1-07 · setup: base-users + tc-s1-01-setup (fresh before each of 20 iterations) · fails if approve and reject can both succeed, or the final status contradicts the decision that won
-    // KNOWN BUG (audit gap #2): both decisions succeed (setStatus() checks the transition against a stale read). Switch back to it(...) when the fix lands.
-    it.failing('lets exactly one of a simultaneous approve and reject succeed, and stores that outcome', async () => {
+    // Fixed in 61401ec; regression test for audit gap #2
+    it('lets exactly one of a simultaneous approve and reject succeed, and stores that outcome', async () => {
       const ITERATIONS = 20;
       const violations: string[] = [];
 
@@ -314,13 +314,21 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
         const stored = await prisma.eventRequest.findUniqueOrThrow({ where: { id: event.id } });
 
         const winners = [approve, reject].filter((r) => r.status === 200).length;
-        const loserRefused = [approve, reject].some((r) => r.status >= 400 && r.status < 500);
+        const loserRefused = [approve, reject].some((r) => r.status === 409);
         const expected =
           approve.status === 200 ? EventStatus.APPROVED : EventStatus.REJECTED;
+        // Only the winner's reason is kept: none after an approval.
+        const expectedReason =
+          approve.status === 200 ? null : 'Clashes with the examination period';
 
-        if (winners !== 1 || !loserRefused || stored.status !== expected) {
+        if (
+          winners !== 1 ||
+          !loserRefused ||
+          stored.status !== expected ||
+          stored.decisionReason !== expectedReason
+        ) {
           violations.push(
-            `iteration ${i}: approve ${approve.status}, reject ${reject.status}, stored ${stored.status}`,
+            `iteration ${i}: approve ${approve.status}, reject ${reject.status}, stored ${stored.status} / ${stored.decisionReason}`,
           );
         }
       }

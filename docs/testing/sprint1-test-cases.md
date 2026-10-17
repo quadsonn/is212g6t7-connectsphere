@@ -166,16 +166,16 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test, and again before each of the 20 iterations). Logged in as coord.a@example.com. Request `e-submitted` is SUBMITTED and assigned to Cody. |
 | Test Steps | 1. Reset the testDB and load the pre-condition scripts.<br>2. Send "Approve" and "Reject" (reason "Clashes with the examination period") for `e-submitted` at the same moment (`Promise.all`).<br>3. Read the stored status.<br>4. Repeat steps 1–3 for 20 iterations. |
 | Test Data | Request `e-submitted`; reject reason "Clashes with the examination period"; 20 iterations |
-| Expected Result | Exactly one decision succeeds and the other is refused. The final status matches the decision that succeeded. |
+| Expected Result | Exactly one decision succeeds and the other is refused with 409 Conflict. The final status, and the stored reason, match the decision that succeeded. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | The bug reproduced in every iteration measured: 60 of 60 across 3 probe runs of 20. Both calls returned HTTP 200 each time. The stored status was REJECTED in 58 and APPROVED in 2, so one caller was always told its decision succeeded when it did not stand. The `it.failing` test passed in each of 3 further runs, so the bug is still present. |
-| Status | Fail |
-| Remarks | Known bug, audit gap #2. `setStatus()` checks the transition against a stale read. The test is `it.failing` until the fix lands. Deterministic in practice: it fails only if all 20 iterations happen to be clean, and 0 of 60 were. Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
+| Actual Result | After the fix: in 3 runs of 20 iterations (60 in total), exactly one call returned HTTP 200 and the other 409 every time. The stored status matched the winner, and `decisionReason` was set only when Reject won. (Before the fix: both calls returned 200 in 60 of 60 iterations.) |
+| Status | Pass |
+| Remarks | Bug found by test audit; fixed (gap #2) in `61401ec`. Each decision now row-locks the request at the start of its transaction, and only while it still holds the status that was read, so the loser gets 409 and its writes roll back. Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-review.e2e-spec.ts::lets exactly one of a simultaneous approve and reject succeed, and stores that outcome` (`it.failing`) |
+| Automated by | `test/events-review.e2e-spec.ts::lets exactly one of a simultaneous approve and reject succeed, and stores that outcome` |
 
 **US-07 AC ↔ code mismatches**
 - **AC-3 (resolved by Week 7 Change 5):** approving requires an assigned Coordinator. An unassigned request returns 409 "assign a coordinator to this request before reviewing it". That matches Change 5, where Coordinators can't review unassigned requests, so it's no longer a mismatch. TC-S1-01 to 07 state the assignment in their pre-conditions.
@@ -1400,6 +1400,7 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 
 | Date | Change | Commit | Test cases affected |
 |---|---|---|---|
+| 2026-10-17 | **Concurrent review decisions made atomic (audit gap #2).** Approve, reject, return and request clarification each start their transaction by row-locking the request only while it still holds the status that was read (`claimForDecision`, `SELECT … FOR UPDATE`). A concurrent decision waits, then gets 409 Conflict, and its reason, question and history roll back. `setStatus()` is still the only writer of status. | `61401ec` | TC-S1-07 (Fail → Pass; the race test is now a regular regression test, no longer `it.failing`, and requires the loser to get 409). |
 | 2026-10-17 | **US-01 lockout window-edge tests added.** The existing tests covered the 14/15 boundary but not the 30-minute window edge. Three unit tests (frozen clock: exactly 30 min locks; 30 min + 1 ms restarts the count; the correct password is refused while locked) and one integration test (15 failures spread beyond 30 minutes don't lock). `test/auth.e2e-spec.ts` was converted to the shared test-DB pattern, with assertions unchanged. | — | TC-S1-61 (new, Pass). TC-S1-55 to 60 and 62 now load base-users.sql. |
 | 2026-10-17 | **Week 7 Change 5 handover (Event Coordinator Lead, unassigned queue).** Change 5 is being built on `Sprint3-MAIN`, so two test cases wait on it here. Five existing integration tests assert the pre-Change-5 pool, where any Coordinator sees unassigned submissions. They are handed to the Sprint 3 tester, to update when Change 5 merges:<br>`events-submit::makes the request visible to a Coordinator for review`<br>`events-draft::makes it visible to a Coordinator once submitted`<br>`events-layout::shows layout and accessibility in the review queue`<br>`events-layout::shows them when the Coordinator opens the request`<br>`events-review::approves once that request has been assigned (US-10 then US-07)` | — | TC-S1-25 (Lead's unassigned queue; Not Executed, pending Change 5 merge). TC-S1-54 (assigned Coordinator sees the preferences; linked in group 3 via tc-s1-54-setup.sql). |
 | 2026-10-17 | **Gap tests added.** TC-S1-27: US-03 boundaries, as 15 unit tests with a frozen clock plus 1 integration test. TC-S1-18: whitespace-only question. TC-S1-07: simultaneous approve and reject, which reproduces audit gap #2 in 60 of 60 iterations and is captured as `it.failing`. | — | TC-S1-27 and TC-S1-18 are now Pass. TC-S1-07 is now Fail (known bug, gap #2). |

@@ -126,6 +126,31 @@ describe('US-21 submit a venue booking request (e2e)', () => {
     });
   });
 
+  // Story 20 (US-21 in code), AC-1. The form checks these in the browser, but
+  // the API is the real gate, so each bad value must be refused there too.
+  describe('AC-1: invalid values are refused, not just missing ones', () => {
+    it.each([
+      ['a start in the past', { start: '2020-01-01T09:00:00.000Z', end: '2020-01-01T12:00:00.000Z' }, 'start must be in the future'],
+      ['an end before the start', { start: '2030-10-01T12:00:00.000Z', end: '2030-10-01T09:00:00.000Z' }, 'end must be later than start'],
+      ['zero attendance', { expectedAttendance: 0 }, 'expectedAttendance must be greater than zero'],
+      ['fractional attendance', { expectedAttendance: 12.5 }, 'expectedAttendance must be a whole number'],
+    ])('refuses %s (400) and creates nothing', async (_case, override, message) => {
+      const event = await seedEvent();
+
+      const res = await book({
+        eventId: event.id,
+        venueId: ids.venue,
+        ...slot(9, 12),
+        expectedAttendance: 120,
+        ...override,
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain(message);
+      expect(await prisma.venueBooking.count()).toBe(0);
+    });
+  });
+
   describe('AC-2/AC-3: requirements attached, status pending', () => {
     it('creates a REQUESTED booking carrying the event requirements', async () => {
       const event = await seedEvent();
@@ -231,6 +256,29 @@ describe('US-21 submit a venue booking request (e2e)', () => {
           conflicts: [expect.objectContaining({ bookingId: pending.id })],
         }),
       ]);
+    });
+
+    // Story 20 (US-21 in code), AC-5. "Warned that a conflicting request
+    // exists" is only useful if it says which one — event name and times.
+    it('names the conflicting request by event and time range', async () => {
+      const other = await seedEvent({ name: 'Hackathon' });
+      await prisma.venueBooking.create({
+        data: {
+          eventId: other.id,
+          venueId: ids.venue,
+          start: new Date(slot(10, 14).start),
+          end: new Date(slot(10, 14).end),
+        },
+      });
+      const event = await seedEvent();
+
+      const res = await book({ eventId: event.id, venueId: ids.venue, ...slot(9, 12), expectedAttendance: 120 });
+
+      expect(res.body.warnings[0].conflicts[0]).toMatchObject({
+        eventName: 'Hackathon',
+        start: slot(10, 14).start,
+        end: slot(10, 14).end,
+      });
     });
   });
 

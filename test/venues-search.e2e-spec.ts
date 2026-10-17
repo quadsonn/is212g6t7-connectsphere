@@ -185,6 +185,23 @@ describe('US-18 search and filter venues (e2e)', () => {
       expect(names(res.body)).toContain('Approved');
     });
 
+    // Story 18, AC-1. The tests above use a booking that matches the slot
+    // exactly; real clashes are usually partial, so each shape is checked.
+    // Slot is 09:00–17:00 Singapore time (01:00–09:00 UTC) on 10 March 2027.
+    it.each([
+      ['starts before the slot and runs into it', '2027-03-10T00:00:00.000Z', '2027-03-10T02:00:00.000Z'],
+      ['starts inside the slot and runs past it', '2027-03-10T08:00:00.000Z', '2027-03-10T10:00:00.000Z'],
+      ['sits entirely inside the slot', '2027-03-10T03:00:00.000Z', '2027-03-10T04:00:00.000Z'],
+      ['covers the whole slot and more', '2027-03-09T23:00:00.000Z', '2027-03-10T11:00:00.000Z'],
+    ])('excludes a venue whose confirmed booking %s', async (_shape, start, end) => {
+      await seedVenue('Partial');
+      await seedBooking('Partial', BookingStatus.APPROVED, start, end);
+
+      const res = await search(SLOT).expect(200);
+
+      expect(names(res.body)).not.toContain('Partial');
+    });
+
     it('rejects half a range', async () => {
       await search({ from: SLOT.from }).expect(400);
     });
@@ -263,6 +280,14 @@ describe('US-18 search and filter venues (e2e)', () => {
       const res = await search({ facilities: 'PROJECTOR,WIFI' }).expect(200);
 
       expect(names(res.body)).toEqual(['Full']);
+    });
+
+    // Story 18, AC-4. The positive case: one selected facility returns every
+    // venue that has it, however many other facilities those venues offer.
+    it('includes every venue offering the selected facility', async () => {
+      const res = await search({ facilities: 'STAGE' }).expect(200);
+
+      expect(names(res.body)).toEqual(['Full', 'NoWifi']);
     });
 
     it('rejects a value outside the Facility vocabulary', async () => {

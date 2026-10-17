@@ -177,6 +177,16 @@ describe('US-22 venue booking request queue (e2e)', () => {
       expect(names(res.body)).toEqual(['Submitted second', 'Submitted first']);
     });
 
+    // Story 21 (US-22 in code), AC-3. Latest event first, the reverse of the default.
+    it('sorts by event date, latest first, when asked', async () => {
+      await seedBooking(ids.hall, 15, 'Sooner');
+      await seedBooking(ids.hall, 30, 'Later');
+
+      const res = await queue({ sortBy: 'eventDate', sortOrder: 'desc' });
+
+      expect(names(res.body)).toEqual(['Later', 'Sooner']);
+    });
+
     it('rejects an unknown sort field (400)', async () => {
       expect((await queue({ sortBy: 'banana' })).status).toBe(400);
     });
@@ -227,6 +237,19 @@ describe('US-22 venue booking request queue (e2e)', () => {
     });
   });
 
+  // Story 21 (US-22 in code), AC-5. An event that has already started with no
+  // decision is the most overdue case — it must be flagged, not dropped.
+  describe('AC-5: an undecided request whose event has started', () => {
+    it('is still flagged urgent, with a negative day count', async () => {
+      await seedBooking(ids.hall, -1, 'Overdue');
+
+      const [entry] = (await queue()).body;
+
+      expect(entry).toMatchObject({ urgent: true, event: { name: 'Overdue' } });
+      expect(entry.daysUntilStart).toBeLessThan(0);
+    });
+  });
+
   describe('AC-6: an entry opens the full request detail', () => {
     it('GET /bookings/:id returns it with its requirements', async () => {
       const booking = await seedBooking(ids.hall, 20, 'Showcase');
@@ -243,6 +266,26 @@ describe('US-22 venue booking request queue (e2e)', () => {
   });
 
   describe('AC-7: decided requests move to the decided view', () => {
+    // Story 21 (US-22 in code), AC-7, through the real flow: the test below
+    // seeds decided rows directly; this one approves and rejects via the API.
+    it('moves a request out of Pending as soon as it is approved or rejected', async () => {
+      const approved = await seedBooking(ids.hall, 20, 'Will approve');
+      const rejected = await seedBooking(ids.room, 20, 'Will reject');
+      expect(names((await queue()).body).sort()).toEqual(['Will approve', 'Will reject']);
+
+      await http().post(`/bookings/${approved.id}/approve`).set('Authorization', as('staff')).send({});
+      await http()
+        .post(`/bookings/${rejected.id}/reject`)
+        .set('Authorization', as('staff'))
+        .send({ reason: 'Room under renovation' });
+
+      expect((await queue()).body).toEqual([]);
+      expect(names((await queue({ view: 'decided' })).body).sort()).toEqual([
+        'Will approve',
+        'Will reject',
+      ]);
+    });
+
     it('shows approved and rejected requests only under view=decided', async () => {
       await seedBooking(ids.hall, 20, 'Pending one');
       await seedBooking(ids.hall, 20, 'Approved one', BookingStatus.APPROVED);

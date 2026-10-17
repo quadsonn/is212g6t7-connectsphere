@@ -189,10 +189,33 @@ describe('US-20 venue suitability flags (e2e)', () => {
       expect(after.status).toBe(before.status);
     });
 
-    // US-21 (venue booking requests) is not on this branch or any pushed
-    // branch yet. Complete this when it merges: run a suitability check that
-    // reports NOT_SUITABLE, then submit the booking request and expect success.
-    it.todo('US-20 AC-5: a booking request still submits after suitability reports flags (needs US-21)');
+    // Story 19 (US-20 in code), AC-5. Flags are advice, not a gate: after the
+    // check says NOT_SUITABLE, the Coordinator can still submit the booking
+    // request (Story 20, US-21 in code), since they may know something the
+    // system doesn't. Replaces the it.todo left until US-21 merged.
+    it('US-20 AC-5: a booking request still submits after suitability reports flags', async () => {
+      await seedEvent('misfit', {
+        expectedAttendance: 500,
+        accessibilityRequirements: [AccessibilityFeature.HEARING_LOOP],
+      });
+
+      const check = await suitability(ids.venue, ids.misfit).expect(200);
+      expect(check.body.overall).toBe('NOT_SUITABLE');
+
+      const submitted = await http()
+        .post('/bookings')
+        .set('Authorization', as('coordinator'))
+        .send({
+          eventId: ids.misfit,
+          venueId: ids.venue,
+          start: '2027-03-10T01:00:00.000Z',
+          end: '2027-03-10T09:00:00.000Z',
+          expectedAttendance: 500,
+        });
+
+      expect(submitted.status).toBe(201);
+      expect(submitted.body.status).toBe('REQUESTED');
+    });
   });
 
   describe('AC-6: a single-venue check, fast', () => {

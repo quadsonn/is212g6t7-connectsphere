@@ -48,6 +48,11 @@ Dates and times are fixed, in Singapore time (+08:00).
 - **Robotics Showcase 2027**: Planning, **120 attendees**, 10 Mar 2027 09:00–17:00.
 - **Flow 1, venue suitability:** Seminar Room B (**80**) is not suitable.
   Lecture Theatre 1 (**120**, exactly equal) is suitable. Main Auditorium (200) is suitable.
+- **Flow 1b, accessibility:** **Inclusive Design Forum 2027** (Planning, 100 attendees,
+  12 May 2027 10:00–16:00) needs step-free access, wheelchair seating and a hearing loop.
+  Main Auditorium has all three (suitable). Lecture Theatre 1 lacks wheelchair seating and
+  hearing loop (both listed). Seminar Room B is too small and has none. A request for a
+  flagged venue can still be submitted. The flags also appear in the event page's booking form.
 - **Flow 2, equipment:** Projector 4 in stock, 3 committed to Alumni Evening at an
   overlapping time, so **exactly 1 free**. Committing 1 succeeds; committing 2 is refused.
 - **Flow 3, booking conflict:** Main Auditorium is **approved** for Alumni Evening

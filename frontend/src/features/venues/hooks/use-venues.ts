@@ -16,8 +16,8 @@ export const venueKeys = {
   all: ['venues'] as const,
   list: (query: BrowseVenuesQuery) => ['venues', 'list', query] as const,
   search: (query: VenueSearchQuery) => ['venues', 'search', query] as const,
-  suitability: (id: string, eventId: string) =>
-    ['venues', 'suitability', id, eventId] as const,
+  suitability: (id: string, eventId: string, expectedAttendance?: number) =>
+    ['venues', 'suitability', id, eventId, expectedAttendance] as const,
   detail: (id: string) => ['venues', 'detail', id] as const,
   availability: (id: string, month: string) =>
     ['venues', 'availability', id, month] as const,
@@ -46,10 +46,10 @@ export function useVenueSearch(query: VenueSearchQuery) {
 }
 
 /** US-20 — suitability of this venue for the selected event. */
-export function useVenueSuitability(id: string, eventId: string) {
+export function useVenueSuitability(id: string, eventId: string, expectedAttendance?: number) {
   return useQuery<VenueSuitability>({
-    queryKey: venueKeys.suitability(id, eventId),
-    queryFn: () => venuesApi.suitability(id, eventId),
+    queryKey: venueKeys.suitability(id, eventId, expectedAttendance),
+    queryFn: () => venuesApi.suitability(id, eventId, expectedAttendance),
     enabled: Boolean(id && eventId),
     staleTime: 0,
   });

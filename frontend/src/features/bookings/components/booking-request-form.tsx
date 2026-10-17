@@ -9,6 +9,7 @@ import { Field, Select } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState } from '@/components/ui/states';
+import { VenueSuitabilityPanel } from '@/features/venues/components/venue-suitability-panel';
 import { useVenues } from '@/features/venues/hooks/use-venues';
 import { apiErrorMessage, fieldErrors } from '@/lib/api-client';
 import { todayInVenueTime } from '@/lib/calendar';
@@ -212,6 +213,23 @@ export function BookingRequestForm({ event }: { event: CoordinatorRequestView })
           onChange={(e) => setAttendance(e.target.value)}
         />
       </Field>
+
+      {/* US-20: suitability flags before submitting, against the attendance as
+          typed. Advisory only — they never disable the submit button. */}
+      {venueId ? (
+        <section aria-label="Venue suitability" className="rounded-lg border border-ink-200 px-4 py-3">
+          <p className="mb-2 text-sm font-medium text-ink-800">Venue suitability</p>
+          <VenueSuitabilityPanel
+            venueId={venueId}
+            eventId={event.id}
+            expectedAttendance={
+              Number.isInteger(Number(attendance)) && Number(attendance) > 0
+                ? Number(attendance)
+                : undefined
+            }
+          />
+        </section>
+      ) : null}
 
       {/* AC-2: what will be attached, shown so nothing is a surprise. */}
       <div className="rounded-lg bg-ink-50 px-4 py-3 text-sm">

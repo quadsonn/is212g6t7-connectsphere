@@ -155,7 +155,7 @@ export class VenuesController {
     @Param('id') id: string,
     @Query() query: VenueSuitabilityQueryDto,
   ) {
-    return this.venuesService.getSuitability(user, id, query.eventId);
+    return this.venuesService.getSuitability(user, id, query.eventId, query.expectedAttendance);
   }
 
   /** Declared after the literal routes above so "drafts" is not read as an id. */

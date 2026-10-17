@@ -23,8 +23,21 @@ const VERDICT: Record<VenueSuitability['overall'], { label: string; className: s
  * attention. Informational only (AC-5): it has no say over requesting the
  * venue.
  */
-export function VenueSuitabilityPanel({ venueId, eventId }: { venueId: string; eventId: string }) {
-  const { data, isPending, isError, error } = useVenueSuitability(venueId, eventId);
+export function VenueSuitabilityPanel({
+  venueId,
+  eventId,
+  expectedAttendance,
+}: {
+  venueId: string;
+  eventId: string;
+  /** Overrides the event's recorded attendance, e.g. as typed in the booking form. */
+  expectedAttendance?: number;
+}) {
+  const { data, isPending, isError, error } = useVenueSuitability(
+    venueId,
+    eventId,
+    expectedAttendance,
+  );
 
   if (isPending) return <LoadingState label="Checking suitability…" />;
   if (isError) {
@@ -51,15 +64,21 @@ export function VenueSuitabilityPanel({ venueId, eventId }: { venueId: string; e
               : `${data.capacity.venueCapacity} seats · ${data.capacity.expectedAttendance} expected`}
         </Row>
 
-        {/* AC-2: a failure names each missing requirement. */}
+        {/* AC-2: a failure names each missing requirement, one item per line. */}
         <Row label="Accessibility" status={data.accessibility.status}>
-          {data.accessibility.status === 'NOT_REQUIRED'
-            ? 'None required'
-            : missing.length > 0
-              ? `Missing: ${missing.map((item) => ACCESSIBILITY_FEATURE_LABELS[item.requirement]).join(', ')}`
-              : data.accessibility.items
-                  .map((item) => ACCESSIBILITY_FEATURE_LABELS[item.requirement])
-                  .join(', ')}
+          {data.accessibility.status === 'NOT_REQUIRED' ? (
+            'None required'
+          ) : missing.length > 0 ? (
+            <ul aria-label="Missing accessibility requirements" className="space-y-0.5">
+              {missing.map((item) => (
+                <li key={item.requirement}>Missing: {ACCESSIBILITY_FEATURE_LABELS[item.requirement]}</li>
+              ))}
+            </ul>
+          ) : (
+            data.accessibility.items
+              .map((item) => ACCESSIBILITY_FEATURE_LABELS[item.requirement])
+              .join(', ')
+          )}
         </Row>
 
         <Row label="Layout" status={data.layout.status}>

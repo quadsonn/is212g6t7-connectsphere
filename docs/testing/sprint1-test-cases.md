@@ -1,5 +1,7 @@
 # Sprint 1 test cases
 
+# NOTE: "US-02, US-10, US-11, US-12 (Week 7 Changes 5/6) and US-13–15 (Changes 1/2) are deferred until those changes merge into Sprint3-MAIN. Existing team tests for these stories are kept and still pass; they'll be updated/converted and their test cases written after the merge."
+
 Written test cases for the Sprint 1 user stories, traced from story → acceptance criterion → test case → automated test. Story and AC numbering follows [CONVENTIONS.md](CONVENTIONS.md).
 
 ## How to read this file

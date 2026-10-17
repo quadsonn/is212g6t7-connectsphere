@@ -21,6 +21,7 @@ describe('EventsService review (US-07)', () => {
       findMany: jest.Mock;
       findUniqueOrThrow: jest.Mock;
     };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let access: {
@@ -63,6 +64,8 @@ describe('EventsService review (US-07)', () => {
         findMany: jest.fn().mockResolvedValue([]),
         findUniqueOrThrow: jest.fn().mockResolvedValue(event()),
       },
+      // claimForDecision: the request still holds the status it was read with.
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'event-1' }]),
       $transaction: jest.fn((cb) => cb(prisma)),
     };
     access = {

@@ -82,6 +82,33 @@ Refine as stories are estimated — this is the starting shape, not the final sc
 - **BookingStatus:** REQUESTED, APPROVED, REJECTED
 - **RegistrationStatus:** REGISTERED, WITHDRAWN
 
+## 5a. IDs: readable, prefixed (team convention)
+
+Every table's IDs are readable and prefixed: **`PREFIX-NNN`**, a 3-letter prefix per table, a dash, and a number zero-padded to 3 digits (`EQP-001`). Past 999 the number simply grows (`BSG-1000`).
+
+| Table | Prefix | | Table | Prefix |
+|---|---|---|---|---|
+| User | `USR` | | EquipmentReservation | `RSV` |
+| EventRequest | `EVT` | | EquipmentRequirement | `REQ` |
+| Venue | `VEN` | | EventChange | `CHG` |
+| VenueBooking | `BKG` | | EventChangeRequest | `CRQ` |
+| BookingDecision | `BDC` | | EventChangeRequestEquipment | `CRE` |
+| VenueBlock | `BLK` | | Registration | `REG` |
+| Equipment | `EQP` | | Notification | `NTF` |
+| **BookingSuggestion** | **`BSG`** | | **EquipmentStatusChange** | **`ESC`** |
+
+RevokedToken and ClarificationMessage have no prefix yet; choose one before moving them over.
+
+**How new IDs are generated:** `nextReadableId(db, model)` (or `nextReadableIds` for a batch) in `src/prisma/readable-id.ts`. It takes the next number from that prefix's row in the **IdCounter** table in one atomic statement, so concurrent writers never get the same ID, and a rolled-back transaction gives its number back. To use it for a table:
+1. add the table's prefix to `ID_PREFIX`;
+2. in `schema.prisma`, make the key `id String @id` with no default;
+3. create rows with `id: await nextReadableId(tx, '<Model>')`, inside the same transaction as the write;
+4. in the migration, add a CHECK constraint for the format (see `BookingSuggestion_readable_id`).
+
+**Current state, to be finished:** only **BookingSuggestion** and **EquipmentStatusChange** use the generator. Every other model still has `@default(cuid())` in `schema.prisma`. Their readable IDs exist only in the shared database's data, converted outside the codebase, so rows created by the app, the seed and the tests still get cuid IDs. Moving them to the generator needs team agreement, since it changes everyone's models and the shared seed.
+
+**Never use `cuid()` or `uuid()` for a new table.** Give it a prefix and use the generator.
+
 ## 6. Auth & authorisation (E1 — build first)
 
 - **Login** issues a signed JWT containing `userId` and `role`.

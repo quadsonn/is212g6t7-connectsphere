@@ -6,8 +6,8 @@ import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 
-/** US-28 e2e — record equipment and technical requirements for an event. */
-describe('US-28 equipment and technical requirements (e2e)', () => {
+/** US-27 e2e — record equipment and technical requirements for an event. */
+describe('US-27 equipment and technical requirements (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
@@ -273,7 +273,7 @@ describe('US-28 equipment and technical requirements (e2e)', () => {
     });
   });
 
-  describe('history (US-26)', () => {
+  describe('history (US-25)', () => {
     it('records each save with the before and after', async () => {
       const event = await seedEvent();
       await record(event.id, { equipment: EQUIPMENT }).expect(200);

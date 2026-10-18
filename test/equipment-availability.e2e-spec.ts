@@ -12,8 +12,8 @@ import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 
-/** US-30 e2e — one describe per acceptance criterion, tagged "US-30 AC-n". */
-describe('US-30 check equipment availability for a date and time (e2e)', () => {
+/** US-29 e2e — one describe per acceptance criterion, tagged "US-29 AC-n". */
+describe('US-29 check equipment availability for a date and time (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
@@ -61,7 +61,7 @@ describe('US-30 check equipment availability for a date and time (e2e)', () => {
       },
     });
 
-  /** Seeds a reservation directly — fixture data, not the US-32 commit path. */
+  /** Seeds a reservation directly — fixture data, not the US-31 commit path. */
   const reserve = (
     equipmentId: string,
     quantity: number,
@@ -139,7 +139,7 @@ describe('US-30 check equipment availability for a date and time (e2e)', () => {
     ids.otherEvent = (await seedEvent('Industry Night')).id;
   });
 
-  describe('US-30 AC-1: available units of the requested type are shown for a date and time', () => {
+  describe('US-29 AC-1: available units of the requested type are shown for a date and time', () => {
     it('returns the free count for the window', async () => {
       const res = await check(ids.mic, { start: START, end: END, quantity: 6 }).expect(200);
 
@@ -194,7 +194,7 @@ describe('US-30 check equipment availability for a date and time (e2e)', () => {
     });
   });
 
-  describe('US-30 AC-2: equipment reserved for an overlapping event is excluded', () => {
+  describe('US-29 AC-2: equipment reserved for an overlapping event is excluded', () => {
     it('subtracts units committed to an event at an overlapping time', async () => {
       await reserve(ids.mic, 10, '2030-10-01T12:00:00Z', '2030-10-01T20:00:00Z');
 
@@ -243,7 +243,7 @@ describe('US-30 check equipment availability for a date and time (e2e)', () => {
     });
   });
 
-  describe('US-30 AC-3: damaged or under-maintenance equipment is excluded', () => {
+  describe('US-29 AC-3: damaged or under-maintenance equipment is excluded', () => {
     it.each([
       ['under maintenance', 'projector', 8, 'UNDER_MAINTENANCE'],
       ['damaged (out of service)', 'reel', 15, 'OUT_OF_SERVICE'],
@@ -260,7 +260,7 @@ describe('US-30 check equipment availability for a date and time (e2e)', () => {
     });
   });
 
-  describe('US-30 AC-4: indicates when the requested quantity is not fully available', () => {
+  describe('US-29 AC-4: indicates when the requested quantity is not fully available', () => {
     beforeEach(async () => {
       await reserve(ids.pa, 4, START, END); // leaves 2 of 6 free
     });

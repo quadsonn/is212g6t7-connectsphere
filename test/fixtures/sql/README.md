@@ -151,3 +151,50 @@ The course brief suggests an in-memory SQLite test database. Ours has to be Post
 - **Case-insensitive name search** (`mode: 'insensitive'`), which Prisma does not support on SQLite.
 
 Running the tests on SQLite would mean testing a different schema from the one we ship. A dedicated, local PostgreSQL database, reset before every test, gives the same isolation as a fresh in-memory database while still testing the real constraints.
+
+## Sprint 2 scripts (`tc-s2-*`)
+
+Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../docs/testing/sprint2-test-cases.md)). Each script's header lists every row it creates and what to load before it. They add rows only; `base-users.sql` and `base-venues.sql` are unchanged.
+
+| Script | Creates | Used by (TC-S2-) |
+|---|---|---|
+| `tc-s2-01-setup.sql` | a second Venue Staff member with one published venue | 01, 02, 05, 08, 40, 41 |
+| `tc-s2-02-setup.sql` | one booking of each status on Main Hall, one booking on another staff member's venue, and one blocked period on Seminar Room | 02 |
+| `tc-s2-04-setup.sql` | two confirmed bookings on Main Hall, two and a half weeks apart, so each calendar window can be shown to include or exclude them | 04 |
+| `tc-s2-05-setup.sql` | one confirmed booking on each of two of u-venue-staff's venues, and one on another staff member's venue, all on the same day | 05 |
+| `tc-s2-06-setup.sql` | one confirmed booking on Main Hall, with attendance and an organiser, so its slot's details can be checked | 06 |
+| `tc-s2-07-setup.sql` | one pending booking request on Main Hall, to be approved, reversed or rejected through the API during the test | 07 |
+| `tc-s2-09-setup.sql` | on Main Hall on 2 October, one confirmed booking and one pending request at different times, plus an approved event with no booking yet. The test then blocks out the whole day | 09 |
+| `tc-s2-12-setup.sql` | one confirmed booking on Main Hall in March 2027 | 12 |
+| `tc-s2-13-setup.sql` | a heavily booked February 2027 on Main Hall, for the "loads within 2 seconds" check. Every day has three confirmed slots and three pending requests (168 bookings). Confirmed slots never overlap, since the database refuses overlapping APPROVED bookings (Story 23 constraint) | 13 |
+| `tc-s2-14-setup.sql` | on Main Hall in March 2027, a confirmed booking on the 10th and a pending request on the 12th, both for an event whose name and organiser the Coordinator's calendar must never reveal | 14 |
+| `tc-s2-15-setup.sql` | on Main Hall in March 2027, a pending request on the 12th and a rejected request on the 14th, and nothing confirmed | 15 |
+| `tc-s2-18-setup.sql` | two published venues and one draft that matches every filter | 18 |
+| `tc-s2-19-setup.sql` | venues around one slot, 10 Mar 2027 09:00-17:00 Singapore time (01:00-09:00 UTC) | 19 |
+| `tc-s2-20-setup.sql` | two venues either side of a minimum-capacity boundary | 20 |
+| `tc-s2-21-setup.sql` | two venues differing in one accessibility feature | 21 |
+| `tc-s2-22-setup.sql` | two venues differing in one facility | 22 |
+| `tc-s2-23-setup.sql` | five venues, each failing exactly one filter except Match | 23 |
+| `tc-s2-24-setup.sql` | venues for the name lookup, one of them a draft | 24 |
+| `tc-s2-26-setup.sql` | a realistic catalogue for the "within 2 seconds" check: 300 venues (every 10th a draft) and 600 bookings around 10 Mar 2027 | 26 |
+| `tc-s2-28-setup.sql` | one venue and one event that fits it on every check, plus a draft venue | 28, 29, 30, 31, 32, 33 |
+| `tc-s2-29-setup.sql` | an event that fails capacity by one and needs an accessibility feature the venue lacks | 29 |
+| `tc-s2-31-setup.sql` | an event the venue clearly doesn't suit, so the suitability check flags it before a booking request is submitted | 31 |
+| `tc-s2-33-setup.sql` | events the requesting Coordinator must NOT be able to check: another Coordinator's, an unassigned one, and inactive ones | 33 |
+| `tc-s2-34-setup.sql` | an APPROVED event assigned to u-coordinator-a, with layout, accessibility and equipment requirements recorded, ready to have Main Hall requested for it | 34, 35, 36, 37, 38, 39, 40 |
+| `tc-s2-36-setup.sql` | a CONFIRMED booking on Main Hall overlapping the 09:00-12:00 slot | 36 |
+| `tc-s2-37-setup.sql` | a CONFIRMED booking on Main Hall starting exactly when the 09:00-12:00 slot ends | 37 |
+| `tc-s2-38-setup.sql` | a PENDING request on Main Hall overlapping the 09:00-12:00 slot | 38 |
+| `tc-s2-40-setup.sql` | an event that has only been SUBMITTED, so no venue may be requested for it yet | 40 |
+| `tc-s2-41-setup.sql` | a pending and an approved request on my venue, and a pending one on another staff member's | 41 |
+| `tc-s2-42-setup.sql` | one pending request with every detail a reviewer needs | 42, 46 |
+| `tc-s2-43-setup.sql` | two pending requests whose event order and submission order are opposite, so each sort is distinguishable | 43 |
+| `tc-s2-44-setup.sql` | requests on two venues, at different dates and in every status, for the filters | 44, 47 |
+| `tc-s2-45-setup.sql` | pending requests far away, near (3 days), and already started (-1 day) | 45 |
+| `tc-s2-47-setup.sql` | two pending requests, to be approved and rejected through the API | 47 |
+
+Extra user added by `tc-s2-01-setup.sql` (same password as the base users):
+
+| ID | Email | Name | Role |
+|---|---|---|---|
+| `u-venue-staff-b` | venue.staff.b@example.com | Victor Venue | VENUE_STAFF |

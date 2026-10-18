@@ -21,7 +21,7 @@ import {
   rejectionReason,
 } from './equipment-reservations.service';
 
-/** US-32 (commit) and US-33 (release) — service rules, with Prisma mocked. */
+/** US-31 (commit) and US-32 (release) — service rules, with Prisma mocked. */
 describe('EquipmentReservationsService', () => {
   const tech: AuthenticatedUser = {
     userId: 'tech-1',
@@ -104,7 +104,7 @@ describe('EquipmentReservationsService', () => {
     );
   });
 
-  describe('US-32 AC-1: commit an item and quantity to an event for its date and time', () => {
+  describe('US-31 AC-1: commit an item and quantity to an event for its date and time', () => {
     it('creates a committed (APPROVED) reservation over the event’s own window', async () => {
       const result = await commit(4);
 
@@ -162,7 +162,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-32 AC-2: the committed quantity is locked against overlapping commitments', () => {
+  describe('US-31 AC-2: the committed quantity is locked against overlapping commitments', () => {
     it('runs the transaction with room to wait for the row lock', async () => {
       await commit(1);
 
@@ -181,7 +181,7 @@ describe('EquipmentReservationsService', () => {
       expect(tx.$queryRaw.mock.calls[1][1]).toBe('eq-mic');
     });
 
-    it('counts committed reservations overlapping the event’s window, via the shared US-30 query', async () => {
+    it('counts committed reservations overlapping the event’s window, via the shared US-29 query', async () => {
       await commit(1);
 
       expect(tx.equipmentReservation.findMany).toHaveBeenCalledWith({
@@ -205,7 +205,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-32 AC-3: a quantity already locked elsewhere is rejected with the reason', () => {
+  describe('US-31 AC-3: a quantity already locked elsewhere is rejected with the reason', () => {
     it('rejects one unit above what is free, and says why', async () => {
       tx.equipmentReservation.findMany.mockResolvedValue([{ quantity: 4, start, end }]);
 
@@ -256,7 +256,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-32 AC-4: the assigned Coordinator is notified once the commitment is confirmed', () => {
+  describe('US-31 AC-4: the assigned Coordinator is notified once the commitment is confirmed', () => {
     it('notifies the assigned Coordinator after the transaction commits', async () => {
       await commit(2);
 
@@ -281,7 +281,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-33 AC-1/AC-4: releasing a cancelled event’s reservations', () => {
+  describe('US-32 AC-1/AC-4: releasing a cancelled event’s reservations', () => {
     it('releases only that event’s still-held reservations, stamping when', async () => {
       const count = await service.releaseForCancelledEvent(
         'event-1',
@@ -318,7 +318,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-33 AC-3: which reservations were released, for which event', () => {
+  describe('US-32 AC-3: which reservations were released, for which event', () => {
     it('lists RELEASED reservations with their event and equipment, newest first', async () => {
       await service.findReleased(tech);
 

@@ -7,13 +7,13 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 
 /**
- * US-31 e2e — view equipment and technical requirements described for an
- * event. One describe per acceptance criterion, tagged "US-31 AC-n".
+ * US-30 e2e — view equipment and technical requirements described for an
+ * event. One describe per acceptance criterion, tagged "US-30 AC-n".
  *
  * The three requirement sources: the Organiser's free-text equipment needs,
- * and the Coordinator's requirement rows and technical support notes (US-28).
+ * and the Coordinator's requirement rows and technical support notes (US-27).
  */
-describe('US-31 view equipment and technical requirements for an event (e2e)', () => {
+describe('US-30 view equipment and technical requirements for an event (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
@@ -140,7 +140,7 @@ describe('US-31 view equipment and technical requirements for an event (e2e)', (
     ).id;
   });
 
-  describe('US-31 AC-1: requirements from the Organiser and the Coordinator are visible', () => {
+  describe('US-30 AC-1: requirements from the Organiser and the Coordinator are visible', () => {
     it('Organiser text only', async () => {
       const res = await get(`/equipment/requirements/${ids.organiserOnly}`).expect(200);
 
@@ -205,7 +205,7 @@ describe('US-31 view equipment and technical requirements for an event (e2e)', (
     });
   });
 
-  describe('US-31 AC-2: what was requested is shown, not just that a request exists', () => {
+  describe('US-30 AC-2: what was requested is shown, not just that a request exists', () => {
     it('the list carries the requirement content itself', async () => {
       const res = await get('/equipment/requirements').expect(200);
       const rows = res.body.find((e: { eventId: string }) => e.eventId === ids.rowsOnly);
@@ -227,7 +227,7 @@ describe('US-31 view equipment and technical requirements for an event (e2e)', (
     });
   });
 
-  describe('US-31 AC-3: none of the three recorded is clearly indicated', () => {
+  describe('US-30 AC-3: none of the three recorded is clearly indicated', () => {
     it('reports none recorded, with a message, for a submitted event with nothing', async () => {
       const res = await get(`/equipment/requirements/${ids.none}`).expect(200);
 
@@ -254,7 +254,7 @@ describe('US-31 view equipment and technical requirements for an event (e2e)', (
     });
   });
 
-  describe('US-31 AC-4: only submitted events with requirements; drafts are not visible', () => {
+  describe('US-30 AC-4: only submitted events with requirements; drafts are not visible', () => {
     it('a draft with all three sources is not in the list', async () => {
       expect(await listedIds()).not.toContain(ids.draft);
     });
@@ -279,7 +279,7 @@ describe('US-31 view equipment and technical requirements for an event (e2e)', (
     });
   });
 
-  describe('US-31 AC-4: "View more details" opens any submitted event; drafts hidden', () => {
+  describe('US-30 AC-4: "View more details" opens any submitted event; drafts hidden', () => {
     it('returns the full event details', async () => {
       const res = await get(`/equipment/requirements/${ids.organiserOnly}/details`).expect(200);
 

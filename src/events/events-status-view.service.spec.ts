@@ -54,7 +54,7 @@ describe('EventsService status view (US-05)', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
-      // US-37: the Organiser's single-event view looks for a pending change request.
+      // US-36: the Organiser's single-event view looks for a pending change request.
       eventChangeRequest: { findFirst: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn((cb) => cb(prisma)),
     };

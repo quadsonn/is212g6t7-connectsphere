@@ -5,8 +5,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EquipmentReservationsService } from './equipment-reservations.service';
 
-/** US-38 — an event's dates change, so the equipment it holds is given back. */
-describe('EquipmentReservationsService.releaseForRescheduledEvent (US-38)', () => {
+/** US-37 — an event's dates change, so the equipment it holds is given back. */
+describe('EquipmentReservationsService.releaseForRescheduledEvent (US-37)', () => {
   const held = (overrides: Record<string, unknown> = {}) => ({
     id: 'res-1',
     quantity: 5,

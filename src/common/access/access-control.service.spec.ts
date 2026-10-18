@@ -238,7 +238,7 @@ describe('AccessControlService (US-02)', () => {
     });
   });
 
-  describe('US-25 AC-3: RELATED scope', () => {
+  describe('US-24 AC-3: RELATED scope', () => {
     it('limits Venue Staff to events with a venue booking', () => {
       expect(service.scopedEventFilter(userWith(Role.VENUE_STAFF))).toEqual({
         venueBookings: { some: {} },
@@ -249,7 +249,7 @@ describe('AccessControlService (US-02)', () => {
       expect(service.scopedEventFilter(userWith(Role.TECHNICAL_SUPPORT_STAFF))).toEqual({
         OR: [
           { equipmentReservations: { some: {} } },
-          // US-28 AC-3: recorded requirements, before anything is reserved.
+          // US-27 AC-3: recorded requirements, before anything is reserved.
           { equipmentRequirements: { some: {} } },
           { technicalSupportNeeds: { not: null } },
         ],

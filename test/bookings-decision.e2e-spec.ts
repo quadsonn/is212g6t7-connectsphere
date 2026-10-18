@@ -14,8 +14,8 @@ import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 
-/** US-23 e2e — Approve/Reject Booking Request with Reason. */
-describe('US-23 approve/reject a booking request with reason (e2e)', () => {
+/** US-22 e2e — Approve/Reject Booking Request with Reason. */
+describe('US-22 approve/reject a booking request with reason (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
@@ -261,7 +261,7 @@ describe('US-23 approve/reject a booking request with reason (e2e)', () => {
     });
   });
 
-  describe('integration with US-21: an approved booking blocks the slot', () => {
+  describe('integration with US-20: an approved booking blocks the slot', () => {
     it('refuses to approve a second, overlapping request', async () => {
       const first = await seedBooking(9, 12, 'First');
       const second = await seedBooking(10, 13, 'Second');

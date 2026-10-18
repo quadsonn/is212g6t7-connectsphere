@@ -5,8 +5,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookingsService } from './bookings.service';
 
-/** US-38 — an event's dates change, so its live bookings move with it. */
-describe('BookingsService.rescheduleForEventChange (US-38)', () => {
+/** US-37 — an event's dates change, so its live bookings move with it. */
+describe('BookingsService.rescheduleForEventChange (US-37)', () => {
   const at = (day: number, hour: number) => new Date(Date.UTC(2030, 9, day, hour, 0, 0));
 
   const from = { start: at(1, 9), end: at(1, 17) };

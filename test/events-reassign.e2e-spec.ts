@@ -6,8 +6,8 @@ import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 
-/** US-27 e2e — reassign an event when the Coordinator's availability changes. */
-describe('US-27 reassign an event to another Coordinator (e2e)', () => {
+/** US-26 e2e — reassign an event when the Coordinator's availability changes. */
+describe('US-26 reassign an event to another Coordinator (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 

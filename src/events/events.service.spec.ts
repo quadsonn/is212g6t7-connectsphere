@@ -60,7 +60,7 @@ describe('EventsService (US-03)', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       equipmentRequirement: { findMany: jest.fn().mockResolvedValue([]) },
-      // US-37: an Organiser's event view looks for a pending change request.
+      // US-36: an Organiser's event view looks for a pending change request.
       eventChangeRequest: { findFirst: jest.fn().mockResolvedValue(null) },
       registration: {
         groupBy: jest.fn().mockResolvedValue([]),
@@ -232,7 +232,7 @@ describe('EventsService (US-03)', () => {
       const event = draftRow({ status: EventStatus.SUBMITTED });
       access.assertEventAccess.mockResolvedValue(event);
 
-      // US-28 attaches the equipment requirements alongside the record.
+      // US-27 attaches the equipment requirements alongside the record.
       await expect(service.findOneForUser(organiser, 'event-1')).resolves.toEqual({
         ...event,
         equipmentRequirements: [],

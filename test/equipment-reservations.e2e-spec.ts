@@ -16,17 +16,17 @@ import { EquipmentReservationsService } from '../src/equipment/equipment-reserva
 import { EventsService } from '../src/events/events.service';
 
 /**
- * US-32, US-33 e2e — and their interaction with US-30, since all three
- * read or write the same reservation data. US-31 has its own suite
+ * US-31, US-32 e2e — and their interaction with US-29, since all three
+ * read or write the same reservation data. US-30 has its own suite
  * (equipment-requirements.e2e-spec.ts). One describe per acceptance
  * criterion, named "US-xx AC-n" for traceability.
  *
- * US-33 is triggered by moving the event to CANCELLED through
+ * US-32 is triggered by moving the event to CANCELLED through
  * EventsService.setStatus() — the only sanctioned writer of an event's status
  * (events-status-audit.spec.ts). No cancel endpoint exists; #43 will add one
  * and call the same method.
  */
-describe('US-32/33 equipment commitment and release (e2e)', () => {
+describe('US-31/32 equipment commitment and release (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
   let events: EventsService;
@@ -172,10 +172,10 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
   });
 
   // -------------------------------------------------------------------------
-  // US-32 — reserve available equipment for an event
+  // US-31 — reserve available equipment for an event
   // -------------------------------------------------------------------------
 
-  describe('US-32 AC-1: an item and quantity can be committed to an event for its date and time', () => {
+  describe('US-31 AC-1: an item and quantity can be committed to an event for its date and time', () => {
     it('commits the quantity over the event’s own window', async () => {
       const res = await commit(ids.event, ids.mic, 4).expect(201);
 
@@ -235,8 +235,8 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
     });
   });
 
-  describe('US-32 AC-2: a committed quantity is immediately locked for overlapping periods', () => {
-    it('is excluded from the very next availability check for an overlapping window (US-30)', async () => {
+  describe('US-31 AC-2: a committed quantity is immediately locked for overlapping periods', () => {
+    it('is excluded from the very next availability check for an overlapping window (US-29)', async () => {
       await commit(ids.event, ids.mic, 4).expect(201);
 
       const res = await availability(ids.mic, 1, '2030-10-01T16:00:00.000Z', '2030-10-01T18:00:00.000Z').expect(200);
@@ -286,7 +286,7 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
     });
   });
 
-  describe('US-32 AC-3: committing a quantity already locked elsewhere is rejected with the reason', () => {
+  describe('US-31 AC-3: committing a quantity already locked elsewhere is rejected with the reason', () => {
     it('rejects one unit more than is free, stating free, requested and committed counts', async () => {
       await commit(ids.overlapping, ids.mic, 4).expect(201);
 
@@ -323,7 +323,7 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
     });
   });
 
-  describe('US-32 AC-4: the assigned Coordinator is notified once the commitment is confirmed', () => {
+  describe('US-31 AC-4: the assigned Coordinator is notified once the commitment is confirmed', () => {
     it('records an in-app notification for the assigned Coordinator', async () => {
       await commit(ids.event, ids.mic, 2).expect(201);
 
@@ -357,10 +357,10 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
   });
 
   // -------------------------------------------------------------------------
-  // US-33 — release equipment reservations for a cancelled event
+  // US-32 — release equipment reservations for a cancelled event
   // -------------------------------------------------------------------------
 
-  describe('US-33 AC-1: cancelling an event releases all of its reservations', () => {
+  describe('US-32 AC-1: cancelling an event releases all of its reservations', () => {
     it('marks every reservation the event held as RELEASED, with a timestamp', async () => {
       await commit(ids.event, ids.mic, 4).expect(201);
       await commit(ids.event, ids.pa, 2).expect(201);
@@ -418,8 +418,8 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
     });
   });
 
-  describe('US-33 AC-2: released equipment is available again for the same period', () => {
-    it('restores the units in the availability check for the same window (US-30)', async () => {
+  describe('US-32 AC-2: released equipment is available again for the same period', () => {
+    it('restores the units in the availability check for the same window (US-29)', async () => {
       await commit(ids.event, ids.mic, 10).expect(201);
       const before = await availability(ids.mic, 10).expect(200);
       expect(before.body).toMatchObject({ availableQuantity: 0, fullyAvailable: false });
@@ -434,7 +434,7 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
       });
     });
 
-    it('lets the released units be committed to an overlapping event (US-32)', async () => {
+    it('lets the released units be committed to an overlapping event (US-31)', async () => {
       await commit(ids.event, ids.mic, 10).expect(201);
       await commit(ids.overlapping, ids.mic, 10).expect(409);
 
@@ -444,7 +444,7 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
     });
   });
 
-  describe('US-33 AC-3: Technical Support can see what was released, for which cancelled event', () => {
+  describe('US-32 AC-3: Technical Support can see what was released, for which cancelled event', () => {
     it('lists released reservations with the equipment and the cancelled event', async () => {
       await commit(ids.event, ids.mic, 4).expect(201);
       await commit(ids.overlapping, ids.pa, 1).expect(201);
@@ -488,7 +488,7 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
     );
   });
 
-  describe('US-33 AC-4: release affects only that event, and never releases twice', () => {
+  describe('US-32 AC-4: release affects only that event, and never releases twice', () => {
     it('leaves other events’ reservations of the same item held', async () => {
       await commit(ids.event, ids.mic, 4).expect(201);
       await commit(ids.nextDay, ids.mic, 3).expect(201);

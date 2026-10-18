@@ -1,7 +1,7 @@
 import { applicabilityErrors, capacityWarnings } from './change-request.rules';
 
-/** US-38 — what an approval may still apply, and when to warn about capacity. */
-describe('change review rules (US-38)', () => {
+/** US-37 — what an approval may still apply, and when to warn about capacity. */
+describe('change review rules (US-37)', () => {
   const now = new Date('2026-10-06T09:00:00Z');
   const start = new Date('2026-11-01T09:00:00Z');
   const end = new Date('2026-11-01T17:00:00Z');

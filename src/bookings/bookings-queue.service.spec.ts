@@ -9,8 +9,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BookingsService } from './bookings.service';
 import { QueueSortField, QueueView } from './dto/booking-queue-query.dto';
 
-/** US-22 — Venue Booking Request Queue. */
-describe('BookingsService findQueue (US-22)', () => {
+/** US-21 — Venue Booking Request Queue. */
+describe('BookingsService findQueue (US-21)', () => {
   let prisma: { venueBooking: { findMany: jest.Mock } };
   let access: { requireScope: jest.Mock };
   let service: BookingsService;

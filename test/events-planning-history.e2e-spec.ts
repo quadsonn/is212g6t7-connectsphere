@@ -14,10 +14,10 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 
 /**
- * US-25 e2e — update event information during planning.
- * US-26 e2e — view the history of changes made to an event's information.
+ * US-24 e2e — update event information during planning.
+ * US-25 e2e — view the history of changes made to an event's information.
  */
-describe('US-25 planning edits / US-26 change history (e2e)', () => {
+describe('US-24 planning edits / US-25 change history (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
@@ -140,7 +140,7 @@ describe('US-25 planning edits / US-26 change history (e2e)', () => {
     await seedUser('attendee', 'attendee@example.com', Role.ATTENDEE);
   });
 
-  describe('US-25 AC-1: edits during planning are saved', () => {
+  describe('US-24 AC-1: edits during planning are saved', () => {
     it('saves the programme and attendance to the event record', async () => {
       const event = await seedEvent();
 
@@ -220,7 +220,7 @@ describe('US-25 planning edits / US-26 change history (e2e)', () => {
     });
   });
 
-  describe('US-25 AC-2: changes to confirmed arrangements are flagged for review', () => {
+  describe('US-24 AC-2: changes to confirmed arrangements are flagged for review', () => {
     it('flags an attendance change when the venue booking is approved', async () => {
       const event = await seedEvent();
       await bookVenue(event.id, BookingStatus.APPROVED);
@@ -277,7 +277,7 @@ describe('US-25 planning edits / US-26 change history (e2e)', () => {
     });
   });
 
-  describe('US-25 AC-3: relevant users see the latest saved information', () => {
+  describe('US-24 AC-3: relevant users see the latest saved information', () => {
     it('shows Venue Staff the updated event when it has a booking', async () => {
       const event = await seedEvent();
       await bookVenue(event.id, BookingStatus.APPROVED);
@@ -339,7 +339,7 @@ describe('US-25 planning edits / US-26 change history (e2e)', () => {
     });
   });
 
-  describe('US-26 AC-1: a chronological list of changes', () => {
+  describe('US-25 AC-1: a chronological list of changes', () => {
     it('lists changes oldest first', async () => {
       const event = await seedEvent();
       await edit(event.id, { expectedAttendance: 350 }).expect(200);
@@ -395,7 +395,7 @@ describe('US-25 planning edits / US-26 change history (e2e)', () => {
     });
   });
 
-  describe('US-26 AC-2: each entry shows what, previous/new, who and when', () => {
+  describe('US-25 AC-2: each entry shows what, previous/new, who and when', () => {
     it('records every changed field with its previous and new value', async () => {
       const event = await seedEvent();
 
@@ -425,7 +425,7 @@ describe('US-25 planning edits / US-26 change history (e2e)', () => {
     });
   });
 
-  describe('US-26 AC-3: no changes recorded', () => {
+  describe('US-25 AC-3: no changes recorded', () => {
     it('says so explicitly', async () => {
       const event = await seedEvent();
 

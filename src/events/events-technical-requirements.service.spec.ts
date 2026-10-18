@@ -13,8 +13,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { describeRequirement } from './event-change.rules';
 import { EventsService } from './events.service';
 
-/** US-28 — recording equipment and technical requirements. */
-describe('EventsService technical requirements (US-28)', () => {
+/** US-27 — recording equipment and technical requirements. */
+describe('EventsService technical requirements (US-27)', () => {
   let prisma: {
     eventRequest: { update: jest.Mock; findUniqueOrThrow: jest.Mock };
     equipmentRequirement: {
@@ -154,7 +154,7 @@ describe('EventsService technical requirements (US-28)', () => {
     });
   });
 
-  describe('US-37: lines can be linked to the equipment catalogue', () => {
+  describe('US-36: lines can be linked to the equipment catalogue', () => {
     it('stores the catalogue link and names the line from the catalogue', async () => {
       await service.setTechnicalRequirements(coordinator, 'event-1', {
         equipment: [{ equipmentId: 'cat-projector', equipmentType: 'typed by hand', quantity: 2 }],
@@ -239,7 +239,7 @@ describe('EventsService technical requirements (US-28)', () => {
     });
   });
 
-  describe('history and review (US-26, US-25 AC-2)', () => {
+  describe('history and review (US-25, US-24 AC-2)', () => {
     it('records the change, unflagged when nothing is reserved', async () => {
       await service.setTechnicalRequirements(coordinator, 'event-1', { equipment: [projectors] });
 

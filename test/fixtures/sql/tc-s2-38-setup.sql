@@ -1,0 +1,18 @@
+-- tc-s2-38-setup.sql: a PENDING request on Main Hall overlapping the 09:00-12:00 slot.
+--
+-- Pre-condition for TC-S2-38 (Story 20 AC-5). Load AFTER base-users.sql,
+-- base-venues.sql and tc-s2-34-setup.sql. All times UTC, 1 Oct 2030.
+--
+--   e-s2-hackathon  APPROVED event "Hackathon"
+--   b-s2-38-pending  Main Hall  10:00-14:00  REQUESTED
+
+INSERT INTO "EventRequest" ("id", "organiserId", "coordinatorId", "name", "purpose", "description", "category",
+  "proposedStart", "proposedEnd", "expectedAttendance", "preferredLayout", "accessibilityRequirements",
+  "accessibilityNotes", "equipmentNeeds", "status", "createdAt", "updatedAt") VALUES
+  ('e-s2-hackathon', 'u-organiser', 'u-coordinator-a', 'Hackathon', 'Welcome', 'Programme', 'Student engagement',
+     '2030-10-01 09:00:00', '2030-10-01 12:00:00', 120, 'THEATRE'::"RoomLayout",
+     ARRAY['HEARING_LOOP']::"AccessibilityFeature"[], 'Two hearing aid users', '2 wireless mics',
+     'APPROVED'::"EventStatus", '2026-09-02 09:00:00', '2026-09-02 09:00:00');
+
+INSERT INTO "VenueBooking" ("id", "eventId", "venueId", "start", "end", "status", "createdAt", "updatedAt") VALUES
+  ('b-s2-38-pending', 'e-s2-hackathon', 'v-main-hall', '2030-10-01 10:00:00', '2030-10-01 14:00:00', 'REQUESTED'::"BookingStatus", '2026-09-03 09:00:00', '2026-09-03 09:00:00');

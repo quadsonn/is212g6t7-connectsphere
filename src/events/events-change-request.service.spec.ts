@@ -21,8 +21,8 @@ import { NO_DIFFERENCE_MESSAGE } from './change-request.rules';
 import { EventsChangeRequestService } from './events-change-request.service';
 import { EventsService } from './events.service';
 
-/** US-37 — an Organiser requests a change to their event. */
-describe('EventsChangeRequestService (US-37)', () => {
+/** US-36 — an Organiser requests a change to their event. */
+describe('EventsChangeRequestService (US-36)', () => {
   const DAY = 24 * 60 * 60 * 1000;
   const inDays = (days: number, hour = 9) => {
     const date = new Date(Date.now() + days * DAY);
@@ -411,8 +411,8 @@ describe('EventsChangeRequestService (US-37)', () => {
   });
 });
 
-/** US-37 AC: the original details still show, with the pending request alongside. */
-describe('EventsService viewing an event with a pending change request (US-37)', () => {
+/** US-36 AC: the original details still show, with the pending request alongside. */
+describe('EventsService viewing an event with a pending change request (US-36)', () => {
   const organiser: AuthenticatedUser = {
     userId: 'organiser-1',
     role: Role.EVENT_ORGANISER,
@@ -517,7 +517,7 @@ describe('EventsService viewing an event with a pending change request (US-37)',
   });
 
   it.each(['findMyRequest', 'findOneForUser'] as const)(
-    '%s shows the Organiser the latest decision, including a rejection reason (US-38 AC-5)',
+    '%s shows the Organiser the latest decision, including a rejection reason (US-37 AC-5)',
     async (method) => {
       const { prisma, service } = build(null, organiser, rejected);
 

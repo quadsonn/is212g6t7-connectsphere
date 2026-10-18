@@ -12,9 +12,9 @@ const errorsFor = async <T extends object>(
   return errors.map((e) => e.property);
 };
 
-/** US-34 AC-2 and US-36 AC-2 — the boundary validation. */
+/** US-33 AC-2 and US-35 AC-2 — the boundary validation. */
 describe('registration DTOs', () => {
-  describe('RegisterDto (US-34 AC-2)', () => {
+  describe('RegisterDto (US-33 AC-2)', () => {
     const valid = { eventId: 'event-1', phone: '+65 9123 4567' };
 
     it('accepts the required fields alone', async () => {
@@ -68,7 +68,7 @@ describe('registration DTOs', () => {
     });
   });
 
-  describe('WithdrawDto (US-36 AC-2)', () => {
+  describe('WithdrawDto (US-35 AC-2)', () => {
     it('accepts an explicit confirmation', async () => {
       expect(await errorsFor(WithdrawDto, { confirm: true })).toEqual([]);
     });

@@ -5,13 +5,13 @@ import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 
 /**
- * US-24 — migration 20261005140014_us24_no_overlapping_approved_bookings.
+ * US-23 — migration 20261005140014_us24_no_overlapping_approved_bookings.
  *
  * Runs the real migration file against old-shaped rows in a throwaway schema
  * of the test database, so the public schema (already migrated) is untouched.
  * `prisma db execute` runs it, as the migration is a multi-statement script.
  */
-describe('US-24 no-overlapping-approved migration', () => {
+describe('US-23 no-overlapping-approved migration', () => {
   const SCHEMA = 'us24_migration_test';
   const MIGRATION = join(
     __dirname,
@@ -97,7 +97,7 @@ describe('US-24 no-overlapping-approved migration', () => {
     rmSync(workDir, { recursive: true, force: true });
   });
 
-  it('US-24: adds the constraint when existing data is clean (back-to-back and pending overlaps are fine)', async () => {
+  it('US-23: adds the constraint when existing data is clean (back-to-back and pending overlaps are fine)', async () => {
     const error = run([
       ['a', 'v1', '09:00', '12:00', 'APPROVED'],
       ['b', 'v1', '12:00', '15:00', 'APPROVED'], // back-to-back
@@ -111,7 +111,7 @@ describe('US-24 no-overlapping-approved migration', () => {
     expect(await rowCount()).toBe(5);
   }, 60_000);
 
-  it('US-24: stops and lists existing overlapping APPROVED bookings, changing nothing', async () => {
+  it('US-23: stops and lists existing overlapping APPROVED bookings, changing nothing', async () => {
     const error = run([
       ['keep-1', 'v1', '09:00', '12:00', 'APPROVED'],
       ['clash-1', 'v1', '11:00', '13:00', 'APPROVED'],
@@ -128,7 +128,7 @@ describe('US-24 no-overlapping-approved migration', () => {
     expect(await rowCount()).toBe(5);
   }, 60_000);
 
-  it('US-24: also reports APPROVED bookings whose end is before their start', async () => {
+  it('US-23: also reports APPROVED bookings whose end is before their start', async () => {
     const error = run([['backwards', 'v1', '12:00', '09:00', 'APPROVED']]);
 
     expect(error).toMatch(/ending before they start/);

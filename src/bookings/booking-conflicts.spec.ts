@@ -9,8 +9,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { classifyConflicts, HARD_CONFLICT_CODE } from './booking.types';
 import { BookingsService } from './bookings.service';
 
-/** US-24 — classifying overlaps, and the database backstop's error mapping. */
-describe('US-24 overlapping booking detection', () => {
+/** US-23 — classifying overlaps, and the database backstop's error mapping. */
+describe('US-23 overlapping booking detection', () => {
   const at = (hour: number) => new Date(`2030-10-01T${String(hour).padStart(2, '0')}:00:00Z`);
   const row = (id: string, status: BookingStatus, from = 9, to = 12) => ({
     id,
@@ -21,7 +21,7 @@ describe('US-24 overlapping booking detection', () => {
   });
 
   describe('classifyConflicts', () => {
-    it('US-24 AC-2: an APPROVED overlap is a hard conflict', () => {
+    it('US-23 AC-2: an APPROVED overlap is a hard conflict', () => {
       const report = classifyConflicts('self', [row('a', BookingStatus.APPROVED)], []);
 
       expect(report.hardConflicts).toEqual([
@@ -31,7 +31,7 @@ describe('US-24 overlapping booking detection', () => {
       expect(report.hasHardConflict).toBe(true);
     });
 
-    it('US-24 AC-3: a REQUESTED overlap is only a soft conflict', () => {
+    it('US-23 AC-3: a REQUESTED overlap is only a soft conflict', () => {
       const report = classifyConflicts('self', [row('p', BookingStatus.REQUESTED)], []);
 
       expect(report.softConflicts.map((c) => c.bookingId)).toEqual(['p']);
@@ -39,13 +39,13 @@ describe('US-24 overlapping booking detection', () => {
       expect(report.hasHardConflict).toBe(false);
     });
 
-    it('US-24: ignores REJECTED bookings', () => {
+    it('US-23: ignores REJECTED bookings', () => {
       const report = classifyConflicts('self', [row('r', BookingStatus.REJECTED)], []);
 
       expect(report).toEqual({ hardConflicts: [], softConflicts: [], blocks: [], hasHardConflict: false });
     });
 
-    it('US-24: never reports the booking being checked against itself', () => {
+    it('US-23: never reports the booking being checked against itself', () => {
       const report = classifyConflicts(
         'self',
         [row('self', BookingStatus.APPROVED), row('other', BookingStatus.REQUESTED)],
@@ -56,7 +56,7 @@ describe('US-24 overlapping booking detection', () => {
       expect(report.softConflicts.map((c) => c.bookingId)).toEqual(['other']);
     });
 
-    it('US-24: hard outranks soft — a hard conflict is reported even alongside soft ones', () => {
+    it('US-23: hard outranks soft — a hard conflict is reported even alongside soft ones', () => {
       const report = classifyConflicts(
         'self',
         [row('p', BookingStatus.REQUESTED), row('a', BookingStatus.APPROVED)],
@@ -68,7 +68,7 @@ describe('US-24 overlapping booking detection', () => {
       expect(report.softConflicts.map((c) => c.bookingId)).toEqual(['p']);
     });
 
-    it('US-24: a blocked-out period (US-16) counts as hard', () => {
+    it('US-23: a blocked-out period (US-16) counts as hard', () => {
       const report = classifyConflicts('self', [], [
         { blockId: 'b', reason: 'Maintenance', start: at(9), end: at(12) },
       ]);
@@ -77,7 +77,7 @@ describe('US-24 overlapping booking detection', () => {
       expect(report.blocks.map((b) => b.blockId)).toEqual(['b']);
     });
 
-    it('US-24: a proposed slot (no booking yet) excludes nothing', () => {
+    it('US-23: a proposed slot (no booking yet) excludes nothing', () => {
       const report = classifyConflicts(null, [row('a', BookingStatus.APPROVED)], []);
 
       expect(report.hardConflicts).toHaveLength(1);
@@ -114,7 +114,7 @@ describe('US-24 overlapping booking detection', () => {
       );
     };
 
-    it('US-24: turns an exclusion violation into the hard-conflict 409, not a 500', async () => {
+    it('US-23: turns an exclusion violation into the hard-conflict 409, not a 500', async () => {
       const error = await service(exclusionError())
         .approve(staff, 'b1', {})
         .catch((e: unknown) => e);
@@ -127,7 +127,7 @@ describe('US-24 overlapping booking detection', () => {
       );
     });
 
-    it('US-24: leaves any other database error alone', async () => {
+    it('US-23: leaves any other database error alone', async () => {
       const other = new Prisma.PrismaClientUnknownRequestError('something else', { clientVersion: 'test' });
 
       await expect(service(other).approve(staff, 'b1', {})).rejects.toBe(other);

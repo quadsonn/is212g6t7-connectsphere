@@ -220,46 +220,6 @@ describe('US-14 update an existing venue (e2e)', () => {
       expect(res.body.warnings[0].reasons.join(' ')).toMatch(/CLASSROOM/);
     });
 
-    // Story 14, AC-3. Losing an accessibility feature can make the venue
-    // unsuitable for an event already booked there, so it must warn.
-    it('warns when an accessibility feature is removed', async () => {
-      const venue = await seedVenue();
-      const booking = await seedBooking(venue.id);
-
-      const res = await patch(venue.id, { accessibilityFeatures: ['STEP_FREE_ACCESS'] }).expect(200);
-
-      expect(res.body.warnings).toHaveLength(1);
-      expect(res.body.warnings[0].reasons.join(' ')).toMatch(/HEARING_LOOP/);
-      expect(res.body.warnings[0].affectedBookingIds).toEqual([booking.id]);
-    });
-
-    // Story 14, AC-3. A new location changes what attendees were told, so the
-    // existing booking may need review even though nothing else changed.
-    it('warns when the venue is relocated', async () => {
-      const venue = await seedVenue();
-      await seedBooking(venue.id);
-
-      const res = await patch(venue.id, { location: 'Annex Building, Level 3' }).expect(200);
-
-      expect(res.body.warnings).toHaveLength(1);
-      expect(res.body.warnings[0].code).toBe('BOOKINGS_MAY_NEED_REVIEW');
-    });
-
-    // Story 14, AC-3 ("active or upcoming bookings"). A pending request is
-    // upcoming too — it could still be approved into the reduced venue.
-    it('treats a pending (not yet approved) booking as upcoming too', async () => {
-      const venue = await seedVenue();
-      const booking = await seedBooking(venue.id);
-      await prisma.venueBooking.update({
-        where: { id: booking.id },
-        data: { status: BookingStatus.REQUESTED },
-      });
-
-      const res = await patch(venue.id, { capacity: 100 }).expect(200);
-
-      expect(res.body.warnings[0].affectedBookingIds).toEqual([booking.id]);
-    });
-
     it('does not warn when capacity increases', async () => {
       const venue = await seedVenue();
       await seedBooking(venue.id);

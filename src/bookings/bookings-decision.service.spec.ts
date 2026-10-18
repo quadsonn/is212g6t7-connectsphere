@@ -12,8 +12,8 @@ import { BookingsService } from './bookings.service';
 import { canDecide } from './booking.types';
 import { ApproveBookingDto, RejectBookingDto, ReverseBookingDto } from './dto/booking-decision.dto';
 
-/** US-23 — Approve/Reject Booking Request with Reason. */
-describe('BookingsService decisions (US-23)', () => {
+/** US-22 — Approve/Reject Booking Request with Reason. */
+describe('BookingsService decisions (US-22)', () => {
   let prisma: {
     venueBooking: {
       findFirst: jest.Mock;

@@ -14,8 +14,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
 
-/** US-27 — the responsible Coordinator hands an event to a colleague. */
-describe('EventsService reassignment (US-27)', () => {
+/** US-26 — the responsible Coordinator hands an event to a colleague. */
+describe('EventsService reassignment (US-26)', () => {
   let prisma: {
     eventRequest: { update: jest.Mock };
     eventChange: { create: jest.Mock };

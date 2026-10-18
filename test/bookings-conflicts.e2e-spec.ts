@@ -6,8 +6,8 @@ import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 
-/** US-24 e2e — Overlapping Booking Detection (Venue Staff). */
-describe('US-24 overlapping booking detection (e2e)', () => {
+/** US-23 e2e — Overlapping Booking Detection (Venue Staff). */
+describe('US-23 overlapping booking detection (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
@@ -126,7 +126,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
       ['overlaps by one minute', '11:59', '13:00', true],
       ['is fully contained by it', '10:00', '11:00', true],
       ['fully contains it', '08:00', '13:00', true],
-    ])('US-24: a confirmed booking that %s conflicts: %s–%s → %s', async (_label, from, to, expected) => {
+    ])('US-23: a confirmed booking that %s conflicts: %s–%s → %s', async (_label, from, to, expected) => {
       const target = await seedBooking('target', '09:00', '12:00');
       await seedBooking('neighbour', from, to, BookingStatus.APPROVED);
 
@@ -136,7 +136,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
       expect(res.body.hardConflicts).toHaveLength(expected ? 1 : 0);
     });
 
-    it('US-24: shows event name and time range for each conflict', async () => {
+    it('US-23: shows event name and time range for each conflict', async () => {
       const target = await seedBooking('target', '09:00', '12:00');
       await seedBooking('Gala', '10:00', '11:00', BookingStatus.APPROVED);
 
@@ -152,7 +152,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
       ]);
     });
 
-    it('US-24 AC-2/AC-3: hard and soft are separate; REJECTED and the booking itself are ignored', async () => {
+    it('US-23 AC-2/AC-3: hard and soft are separate; REJECTED and the booking itself are ignored', async () => {
       const target = await seedBooking('target', '09:00', '12:00');
       await seedBooking('confirmed', '09:30', '10:00', BookingStatus.APPROVED);
       await seedBooking('pending', '10:30', '11:00', BookingStatus.REQUESTED);
@@ -166,7 +166,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
       expect(JSON.stringify(res.body)).not.toContain(ids.turnedDown);
     });
 
-    it('US-24: lists a blocked-out period (US-16) as a hard conflict', async () => {
+    it('US-23: lists a blocked-out period (US-16) as a hard conflict', async () => {
       const target = await seedBooking('target', '09:00', '12:00');
       await prisma.venueBlock.create({
         data: { venueId: ids.venue, start: t('11:00'), end: t('15:00'), reason: 'Maintenance', createdById: ids.staff },
@@ -180,7 +180,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
       expect(res.body.hasHardConflict).toBe(true);
     });
 
-    it('US-24: reports nothing for a free slot', async () => {
+    it('US-23: reports nothing for a free slot', async () => {
       const target = await seedBooking('target', '09:00', '12:00');
 
       const res = await conflicts(target.id).expect(200);
@@ -190,13 +190,13 @@ describe('US-24 overlapping booking detection (e2e)', () => {
   });
 
   describe('scope: only the venue’s own Venue Staff', () => {
-    it('US-24: another Venue Staff member cannot see or check this booking (404)', async () => {
+    it('US-23: another Venue Staff member cannot see or check this booking (404)', async () => {
       const target = await seedBooking('target', '09:00', '12:00');
 
       await conflicts(target.id, 'otherStaff').expect(404);
     });
 
-    it('US-24: a Coordinator cannot use the Venue Staff check (403)', async () => {
+    it('US-23: a Coordinator cannot use the Venue Staff check (403)', async () => {
       const target = await seedBooking('target', '09:00', '12:00');
 
       await conflicts(target.id, 'coordinator').expect(403);
@@ -204,7 +204,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
   });
 
   describe('AC-5/AC-7: approval re-checks at the moment of approval', () => {
-    it('US-24: approving over an APPROVED overlap is refused with 409 and leaves the request pending', async () => {
+    it('US-23: approving over an APPROVED overlap is refused with 409 and leaves the request pending', async () => {
       const target = await seedBooking('target', '09:00', '12:00');
       await seedBooking('confirmed', '11:00', '13:00', BookingStatus.APPROVED);
 
@@ -216,7 +216,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
       expect(await prisma.bookingDecision.count({ where: { bookingId: target.id } })).toBe(0);
     });
 
-    it('US-24: approving with only a pending overlap succeeds, with a warning', async () => {
+    it('US-23: approving with only a pending overlap succeeds, with a warning', async () => {
       const target = await seedBooking('target', '09:00', '12:00');
       await seedBooking('pending', '11:00', '13:00');
 
@@ -231,7 +231,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
       ]);
     });
 
-    it('US-24 AC-7: a conflict that appears after the page loaded is still caught', async () => {
+    it('US-23 AC-7: a conflict that appears after the page loaded is still caught', async () => {
       const target = await seedBooking('target', '09:00', '12:00');
       const pending = await seedBooking('pending', '11:00', '13:00');
 
@@ -248,7 +248,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
   });
 
   describe('concurrency', () => {
-    it('US-24: two simultaneous approvals of overlapping requests — exactly one wins, the other gets 409', async () => {
+    it('US-23: two simultaneous approvals of overlapping requests — exactly one wins, the other gets 409', async () => {
       const a = await seedBooking('a', '09:00', '12:00');
       const b = await seedBooking('b', '10:00', '13:00');
 
@@ -258,7 +258,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
       expect(await prisma.venueBooking.count({ where: { status: BookingStatus.APPROVED } })).toBe(1);
     });
 
-    it('US-24: the database itself refuses a second overlapping APPROVED booking (EXCLUDE, 23P01)', async () => {
+    it('US-23: the database itself refuses a second overlapping APPROVED booking (EXCLUDE, 23P01)', async () => {
       // Bypasses the service and its lock entirely, so this proves the constraint.
       await seedBooking('first', '09:00', '12:00', BookingStatus.APPROVED);
       const second = await seedBooking('second', '11:00', '13:00');
@@ -271,7 +271,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
       expect(await statusOf(second.id)).toBe(BookingStatus.REQUESTED);
     });
 
-    it('US-24: the constraint still allows back-to-back APPROVED bookings and overlapping pending ones', async () => {
+    it('US-23: the constraint still allows back-to-back APPROVED bookings and overlapping pending ones', async () => {
       await seedBooking('morning', '09:00', '12:00', BookingStatus.APPROVED);
       await seedBooking('afternoon', '12:00', '15:00', BookingStatus.APPROVED);
       await seedBooking('pendingA', '10:00', '11:00');

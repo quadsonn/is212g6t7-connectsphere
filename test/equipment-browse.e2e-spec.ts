@@ -6,8 +6,8 @@ import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 
-/** US-29 e2e — one describe per acceptance criterion, tagged "US-29 AC-n". */
-describe('US-29 view the equipment catalogue (e2e)', () => {
+/** US-28 e2e — one describe per acceptance criterion, tagged "US-28 AC-n". */
+describe('US-28 view the equipment catalogue (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
@@ -82,7 +82,7 @@ describe('US-29 view the equipment catalogue (e2e)', () => {
     });
   });
 
-  describe('US-29 AC-1: the list shows key details at a glance', () => {
+  describe('US-28 AC-1: the list shows key details at a glance', () => {
     it('returns type, description, quantity and location for every item', async () => {
       const res = await http().get('/equipment').set('Authorization', as('tech')).expect(200);
 
@@ -109,7 +109,7 @@ describe('US-29 view the equipment catalogue (e2e)', () => {
     });
   });
 
-  describe('US-29 AC-2: selecting an item shows its full details', () => {
+  describe('US-28 AC-2: selecting an item shows its full details', () => {
     it('includes operational status, not present in the list response alone', async () => {
       const list = await http().get('/equipment').set('Authorization', as('tech')).expect(200);
       const projector = list.body.find((item: { type: string }) => item.type === 'Projector (4K)');
@@ -147,7 +147,7 @@ describe('US-29 view the equipment catalogue (e2e)', () => {
     });
   });
 
-  describe('US-29 AC-3: an item can be located without scrolling the whole list', () => {
+  describe('US-28 AC-3: an item can be located without scrolling the whole list', () => {
     it('looks up by a case-insensitive type substring', async () => {
       const res = await http()
         .get('/equipment')
@@ -184,7 +184,7 @@ describe('US-29 view the equipment catalogue (e2e)', () => {
     });
   });
 
-  describe('US-29 AC-4: the catalogue reflects the latest saved data', () => {
+  describe('US-28 AC-4: the catalogue reflects the latest saved data', () => {
     it('is not cached — a newly added item appears immediately', async () => {
       const before = await http().get('/equipment').set('Authorization', as('tech')).expect(200);
       expect(before.body).toHaveLength(3);

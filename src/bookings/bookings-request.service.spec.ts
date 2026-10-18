@@ -17,8 +17,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BookingsService } from './bookings.service';
 import { CreateBookingRequestDto } from './dto/create-booking-request.dto';
 
-/** US-21 — submit a request to book a venue with timing and requirements. */
-describe('BookingsService createRequest (US-21)', () => {
+/** US-20 — submit a request to book a venue with timing and requirements. */
+describe('BookingsService createRequest (US-20)', () => {
   let prisma: {
     eventRequest: { findFirst: jest.Mock };
     venue: { findFirst: jest.Mock };

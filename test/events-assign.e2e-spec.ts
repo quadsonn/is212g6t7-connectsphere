@@ -328,7 +328,7 @@ describe('US-10 assign a Coordinator (e2e)', () => {
     });
 
     it('shows the Coordinator to an Attendee too, alongside the rest of the public view', async () => {
-      // Attendees only see events they can register for now (US-34), and the
+      // Attendees only see events they can register for now (US-33), and the
       // default window opens two months before the start — so this event has
       // to be inside it, not years ahead like the shared seed.
       const start = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);

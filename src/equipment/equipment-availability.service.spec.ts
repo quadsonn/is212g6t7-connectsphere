@@ -7,8 +7,8 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
 import { EquipmentService } from './equipment.service';
 
-/** US-30 — checking one item's availability for a date and time. */
-describe('EquipmentService checkAvailability (US-30)', () => {
+/** US-29 — checking one item's availability for a date and time. */
+describe('EquipmentService checkAvailability (US-29)', () => {
   let prisma: {
     equipment: { findFirst: jest.Mock };
     equipmentReservation: { findMany: jest.Mock };
@@ -48,7 +48,7 @@ describe('EquipmentService checkAvailability (US-30)', () => {
     );
   });
 
-  describe('US-30 AC-1: available units for a given date and time', () => {
+  describe('US-29 AC-1: available units for a given date and time', () => {
     it('reports the free count for the window asked about', async () => {
       await expect(check(2)).resolves.toEqual({
         equipmentId: 'eq-pa',
@@ -83,7 +83,7 @@ describe('EquipmentService checkAvailability (US-30)', () => {
     });
   });
 
-  describe('US-30 AC-2: equipment reserved for an overlapping event is excluded', () => {
+  describe('US-29 AC-2: equipment reserved for an overlapping event is excluded', () => {
     it('queries committed reservations of this item overlapping the window', async () => {
       await check(1);
 
@@ -108,7 +108,7 @@ describe('EquipmentService checkAvailability (US-30)', () => {
     });
   });
 
-  describe('US-30 AC-3: damaged or under-maintenance equipment is excluded', () => {
+  describe('US-29 AC-3: damaged or under-maintenance equipment is excluded', () => {
     it.each([EquipmentStatus.UNDER_MAINTENANCE, EquipmentStatus.OUT_OF_SERVICE])(
       'reports no free units for an item %s',
       async (operationalStatus) => {
@@ -124,7 +124,7 @@ describe('EquipmentService checkAvailability (US-30)', () => {
     );
   });
 
-  describe('US-30 AC-4: indicates when the requested quantity is not fully available', () => {
+  describe('US-29 AC-4: indicates when the requested quantity is not fully available', () => {
     beforeEach(() => {
       prisma.equipmentReservation.findMany.mockResolvedValue([{ quantity: 4, start, end }]);
     });

@@ -20,7 +20,7 @@ import {
   RegistrationsService,
 } from './registrations.service';
 
-/** US-34, US-35 and US-36 — service rules, with Prisma mocked. */
+/** US-33, US-34 and US-35 — service rules, with Prisma mocked. */
 describe('RegistrationsService', () => {
   const attendee: AuthenticatedUser = {
     userId: 'att-1',
@@ -123,7 +123,7 @@ describe('RegistrationsService', () => {
     );
   });
 
-  describe('register (US-34)', () => {
+  describe('register (US-33)', () => {
     it('AC-3: saves a REGISTERED registration, returns it and notifies', async () => {
       const result = await service.register(attendee, dto);
 
@@ -258,7 +258,7 @@ describe('RegistrationsService', () => {
     });
   });
 
-  describe('getOptions (US-34 AC-1/AC-5/AC-6/AC-7)', () => {
+  describe('getOptions (US-33 AC-1/AC-5/AC-6/AC-7)', () => {
     it('offers registration for an open, confirmed event with room', async () => {
       const result = await service.getOptions(attendee, 'event-1');
 
@@ -310,7 +310,7 @@ describe('RegistrationsService', () => {
     });
   });
 
-  describe('findMine (US-35)', () => {
+  describe('findMine (US-34)', () => {
     it('AC-1: lists event name, date/time, venue and status', async () => {
       prisma.registration.findMany.mockResolvedValue([row()]);
 
@@ -376,7 +376,7 @@ describe('RegistrationsService', () => {
     });
   });
 
-  describe('findOne (US-35 AC-4)', () => {
+  describe('findOne (US-34 AC-4)', () => {
     it('returns the caller\'s own registration', async () => {
       tx.registration.findUnique.mockResolvedValue(row());
       prisma.registration.findUnique.mockResolvedValue(row());
@@ -403,7 +403,7 @@ describe('RegistrationsService', () => {
     });
   });
 
-  describe('withdraw (US-36)', () => {
+  describe('withdraw (US-35)', () => {
     beforeEach(() => {
       tx.registration.findUnique.mockResolvedValue(row());
       tx.registration.update.mockResolvedValue(

@@ -14,8 +14,8 @@ import {
   toRequirementsView,
 } from './equipment-requirements.service';
 
-/** US-31 — viewing an event's equipment and technical requirements. */
-describe('EquipmentRequirementsService (US-31)', () => {
+/** US-30 — viewing an event's equipment and technical requirements. */
+describe('EquipmentRequirementsService (US-30)', () => {
   const tech: AuthenticatedUser = {
     userId: 'tech-1',
     role: Role.TECHNICAL_SUPPORT_STAFF,
@@ -55,7 +55,7 @@ describe('EquipmentRequirementsService (US-31)', () => {
     );
   });
 
-  describe('US-31 AC-1/AC-2: recorded requirements are shown, including what was requested', () => {
+  describe('US-30 AC-1/AC-2: recorded requirements are shown, including what was requested', () => {
     it('Organiser text only — returned in full', () => {
       expect(toRequirementsView({ ...bare, equipmentNeeds: 'Six mics, two projectors.' })).toEqual({
         eventId: 'event-1',
@@ -126,7 +126,7 @@ describe('EquipmentRequirementsService (US-31)', () => {
     });
   });
 
-  describe('US-31 AC-3: none of the three recorded is clearly indicated', () => {
+  describe('US-30 AC-3: none of the three recorded is clearly indicated', () => {
     it.each([
       ['all null', null, null],
       ['all empty', '', ''],
@@ -151,7 +151,7 @@ describe('EquipmentRequirementsService (US-31)', () => {
     });
   });
 
-  describe('US-31 AC-4: only submitted events with a requirement source; drafts hidden', () => {
+  describe('US-30 AC-4: only submitted events with a requirement source; drafts hidden', () => {
     it('the visibility rule excludes drafts and needs at least one of the three sources', () => {
       const where = REQUIREMENTS_VISIBLE_WHERE as { status: { in: EventStatus[] }; OR: unknown[] };
 
@@ -220,7 +220,7 @@ describe('EquipmentRequirementsService (US-31)', () => {
     });
   });
 
-  describe('US-31 AC-4: "View more details" opens any submitted event; drafts hidden', () => {
+  describe('US-30 AC-4: "View more details" opens any submitted event; drafts hidden', () => {
     const detailsRow = {
       id: 'event-1',
       name: 'Capstone Showcase',

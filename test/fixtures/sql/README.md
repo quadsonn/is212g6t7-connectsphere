@@ -200,14 +200,24 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-58-setup.sql` | a blocked-out period on Main Hall overlapping the tc-s2-48 request | 58 |
 | `tc-s2-61-setup.sql` | a confirmed booking on Main Hall overlapping the tc-s2-48 request | 61, 64 |
 | `tc-s2-64-setup.sql` | back-to-back confirmed bookings and two identical pending ones, which the no-overlap constraint must allow | 64 |
-| `tc-s2-68-setup.sql` | an event in planning, assigned to u-coordinator-a, with nothing booked or changed yet | 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80 |
-| `tc-s2-70-setup.sql` | two events assigned to u-coordinator-a that are not in planning (one under review, one approved) | 70 |
+| `tc-s2-68-setup.sql` | an event in planning, assigned to u-coordinator-a, with nothing booked or changed yet | 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 89, 90, 91, 92, 93, 94, 95, 96 |
+| `tc-s2-70-setup.sql` | two events assigned to u-coordinator-a that are not in planning (one under review, one approved) | 70, 92 |
 | `tc-s2-71-setup.sql` | an approved Main Hall booking for the tc-s2-68 event | 71, 72, 73, 74 |
 | `tc-s2-72-setup.sql` | a projector in the catalogue and an approved reservation of it for the tc-s2-68 event | 72 |
 | `tc-s2-73-setup.sql` | a Main Hall booking for the tc-s2-68 event, still only requested | 73 |
-| `tc-s2-74-setup.sql` | a projector and a requested reservation for the tc-s2-68 event, plus an unrelated event in planning | 74 |
+| `tc-s2-74-setup.sql` | a projector and a requested reservation for the tc-s2-68 event, plus an unrelated event in planning | 74, 94 |
 | `tc-s2-76-setup.sql` | three recorded changes to the tc-s2-68 event, stored out of date order | 76 |
 | `tc-s2-77-setup.sql` | a request returned to its Organiser for changes | 77 |
+| `tc-s2-83-setup.sql` | an event in planning, assigned to u-coordinator-a, ready to be handed to another Coordinator | 83, 84, 85, 86, 87, 88 |
+| `tc-s2-84-setup.sql` | a completed event, still assigned to u-coordinator-a | 84 |
+| `tc-s2-94-setup.sql` | three more events in planning with nothing recorded, for Technical Support's list | 94 |
+| `tc-s2-95-setup.sql` | an event in planning that is open for registration, so an Attendee can view it | 95 |
+| `tc-s2-97-setup.sql` | a small equipment catalogue: three items, one under maintenance, one with no description or location | 97, 98, 99, 100, 101 |
+| `tc-s2-103-setup.sql` | four equipment items, one in each operational status (two operational), and an event to reserve against | 103, 104, 105, 106, 107, 108, 109, 110, 111, 112 |
+| `tc-s2-106-setup.sql` | confirmed reservations overlapping the 09:00-17:00 window: 10 microphones from 12:00, and 4 of 6 PA systems | 106, 111, 112 |
+| `tc-s2-107-setup.sql` | confirmed microphone reservations outside the window, two of them back-to-back with it | 107 |
+| `tc-s2-108-setup.sql` | microphone reservations over the window that hold nothing: requested, rejected and released | 108 |
+| `tc-s2-109-setup.sql` | two confirmed microphone reservations inside the window that never overlap each other | 109 |
 
 Extra users added by Sprint 2 scripts (same password as the base users):
 

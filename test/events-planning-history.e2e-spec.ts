@@ -172,7 +172,7 @@ describe('Story 24 planning edits / Story 25 change history (integration)', () =
     });
 
     // TC-S2-70 · US-24 AC-1 · setup: base-users + base-venues + tc-s2-68-setup · fails if the Organiser could make planning edits
-    // Code: the permission matrix gives Organisers no planning update, so the guard answers 403.
+    // Code: the route is @Roles(EVENT_COORDINATOR), so RolesGuard answers 403 before the service runs.
     it('refuses the Organiser, even for their own event (403)', async () => {
       await edit({ expectedAttendance: 350 }, 'organiser').expect(403);
       expect((await stored()).expectedAttendance).toBe(320);
@@ -360,7 +360,7 @@ describe('Story 24 planning edits / Story 25 change history (integration)', () =
     });
 
     // TC-S2-78 · US-25 · setup: base-users + base-venues + tc-s2-68-setup · fails if a role other than Coordinator could read the history
-    // Code: the history route is restricted to Coordinators by the permission guard.
+    // Code: the history route is @Roles(EVENT_COORDINATOR), so RolesGuard answers 403.
     it.each(['organiser', 'venueStaff', 'tech', 'attendee'] as const)('is refused to %s (403)', async (who) => {
       await history(who).expect(403);
     });

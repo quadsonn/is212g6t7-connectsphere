@@ -1,7 +1,7 @@
 -- tc-s2-74-setup.sql: a projector reservation for the tc-s2-68 event, still
 -- REQUESTED, and a second planning event nobody has booked anything for.
 --
--- Pre-condition for TC-S2-74 (Story 24 AC-3): Technical Support see the event
+-- Pre-condition for TC-S2-74 (Story 24 AC-3) and TC-S2-94 (Story 27 AC-3): Technical Support see the event
 -- through the reservation, and staff never see the unrelated event.
 -- Load AFTER base-users.sql and tc-s2-68-setup.sql.
 --

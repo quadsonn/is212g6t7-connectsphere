@@ -1,7 +1,7 @@
 -- tc-s2-70-setup.sql: events assigned to u-coordinator-a that are NOT in planning.
 --
--- Pre-condition for TC-S2-70 (Story 24 AC-1): planning edits are refused
--- until planning starts. Load AFTER base-users.sql.
+-- Pre-condition for TC-S2-70 (Story 24 AC-1) and TC-S2-92 (Story 27): planning
+-- edits and requirements are refused until planning starts. Load AFTER base-users.sql.
 --
 --   e-s2-under-review  UNDER_REVIEW  "Still under review"
 --   e-s2-approved      APPROVED      "Approved, not yet planning"

@@ -1639,7 +1639,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Date of Execution | 2026-10-18 |
 | Automated by | `test/events-planning-history.e2e-spec.ts::shows Venue Staff the updated event when it has a booking`<br>`test/events-planning-history.e2e-spec.ts::shows Technical Support the updated equipment needs`<br>`test/events-planning-history.e2e-spec.ts::lists only related events for Venue Staff`<br>`test/events-planning-history.e2e-spec.ts::hides an event with no booking from Venue Staff (404)`<br>`test/events-planning-history.e2e-spec.ts::shows the assigned Coordinator the update too` |
 
-## Story 25: View history of changes to an event (Event Coordinator)
+## Story 25: View history of changes made to an event's information (Event Coordinator)
 
 ### TC-S2-75
 
@@ -1766,3 +1766,662 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
 | Automated by | `test/events-planning-history.e2e-spec.ts::says so explicitly` |
+
+## Story 26: Have an event reassigned when my availability changes (Event Coordinator)
+
+### TC-S2-83
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-83 |
+| Story/AC ref | Story 26 AC-1 |
+| Test Scenario | Requesting reassignment offers the other Coordinators to choose from |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). |
+| Test Steps | 1. Open the reassignment choices for "Freshman Orientation 2030". |
+| Test Data | Event in planning, assigned to Cody; base users (two Coordinators, one of every other role) |
+| Expected Result | Only Casey Coordinator is offered: not Cody, and no user without the Coordinator role. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-reassign.e2e-spec.ts::lists the other Coordinators only, not the requester` |
+
+### TC-S2-84
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-84 |
+| Story/AC ref | Story 26 AC-1 |
+| Test Scenario | Only the responsible Coordinator can request reassignment, and only while the event is active |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql + tc-s2-84-setup.sql on testDB (reset before test). Logged in as coord.b@example.com; organiser@example.com; venue.staff@example.com; coord.a@example.com. |
+| Test Steps | 1. As Casey (not responsible), open the choices and reassign.<br>2. As the Organiser and Venue Staff, do the same.<br>3. As Cody, reassign the COMPLETED event. |
+| Test Data | tc-s2-83 event; "Finished event" (COMPLETED, tc-s2-84) |
+| Expected Result | Casey, the Organiser and Venue Staff are refused (403) and the event keeps its Coordinator. The finished event is refused (409). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | AC-1 starts from "the Coordinator's availability has changed": the system has no record of availability, so any responsible Coordinator may ask. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-reassign.e2e-spec.ts::refuses a Coordinator who is not responsible for the event (403)`<br>`test/events-reassign.e2e-spec.ts::refuses %s (403)`<br>`test/events-reassign.e2e-spec.ts::refuses a finished event (409)` |
+
+### TC-S2-85
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-85 |
+| Story/AC ref | Story 26 AC-2 |
+| Test Scenario | Confirming the reassignment makes the new Coordinator the assigned one |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; coord.b@example.com. |
+| Test Steps | 1. As Cody, reassign the event to Casey.<br>2. Open the event in each Coordinator's assigned view. |
+| Test Data | tc-s2-83 event |
+| Expected Result | The event's Coordinator is Casey; its status is still PLANNING. Casey can open it; Cody can no longer (404). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-reassign.e2e-spec.ts::hands the event to the selected Coordinator`<br>`test/events-reassign.e2e-spec.ts::moves the event between the two Coordinators' queues` |
+
+### TC-S2-86
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-86 |
+| Story/AC ref | Story 26 AC-2 |
+| Test Scenario | Only a valid, different Coordinator can be chosen |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Reassign to Cody himself, to the Organiser, to an unknown id, and with no Coordinator. |
+| Test Data | tc-s2-83 event |
+| Expected Result | Himself, the Organiser and no choice are refused (400); the unknown id is not found (404). The event stays with Cody. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-reassign.e2e-spec.ts::rejects reassigning to yourself (400)`<br>`test/events-reassign.e2e-spec.ts::rejects a user who is not a Coordinator (400)`<br>`test/events-reassign.e2e-spec.ts::rejects an unknown user (404)`<br>`test/events-reassign.e2e-spec.ts::requires a coordinatorId (400)` |
+
+### TC-S2-87
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-87 |
+| Story/AC ref | Story 26 AC-3 |
+| Test Scenario | The previous and new Coordinators are both notified |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; coord.b@example.com. |
+| Test Steps | 1. As Cody, reassign the event to Casey.<br>2. (Reset) As Casey, try to reassign it. |
+| Test Data | tc-s2-83 event |
+| Expected Result | One reassignment notification each for Cody and Casey. The refused attempt notifies nobody. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-reassign.e2e-spec.ts::notifies the previous and the new Coordinator`<br>`test/events-reassign.e2e-spec.ts::notifies nobody when the reassignment is refused` |
+
+### TC-S2-88
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-88 |
+| Story/AC ref | Story 26 AC-4 |
+| Test Scenario | The reassignment is recorded in the event's change history |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; coord.b@example.com. |
+| Test Steps | 1. As Cody, reassign the event to Casey.<br>2. As Casey, open the event's history. |
+| Test Data | tc-s2-83 event |
+| Expected Result | One entry: Coordinator changed from Cody Coordinator to Casey Coordinator, made by Cody. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-reassign.e2e-spec.ts::shows who handed it over, from whom, to whom` |
+
+## Story 27: Record equipment and technical requirements needed for an event (Event Coordinator)
+
+### TC-S2-89
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-89 |
+| Story/AC ref | Story 27 AC-1 |
+| Test Scenario | Required equipment (type and quantity) is saved against the event |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Save 2 × Laser projector and 6 × Wireless microphone ("Lapel").<br>2. Save again with only 3 × Laser projector.<br>3. Save an empty list. |
+| Test Data | Event in planning (tc-s2-68) |
+| Expected Result | Both lines are saved with their quantities and notes. The second save replaces the list (one line, 3). The empty save clears it. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-technical-requirements.e2e-spec.ts::saves each line against the event`<br>`test/events-technical-requirements.e2e-spec.ts::replaces the list on a later save`<br>`test/events-technical-requirements.e2e-spec.ts::clears the list when sent empty` |
+
+### TC-S2-90
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-90 |
+| Story/AC ref | Story 27 AC-1 |
+| Test Scenario | Invalid equipment lines are refused |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Save a line with no type; with quantity 0; with quantity 1.5.<br>2. Save a line whose type is three spaces.<br>3. Save "Mic" and "mic" together. |
+| Test Data | Event in planning (tc-s2-68) |
+| Expected Result | Each is refused (400) and nothing is saved; the duplicate is refused with a message to combine the quantities. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | The empty type, zero and fractional quantities and the duplicate are refused, but a type of three spaces is accepted (200) and saved as an empty type. |
+| Status | Fail |
+| Remarks | Bug: a type of only spaces is accepted and saved as an empty type, because EquipmentRequirementDto does not trim before checking. Captured with it.failing; fix by adding @Trim() above @IsNotEmpty(). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-technical-requirements.e2e-spec.ts::rejects %s (400) and saves nothing`<br>`test/events-technical-requirements.e2e-spec.ts::rejects a type made only of spaces (400)`<br>`test/events-technical-requirements.e2e-spec.ts::rejects the same type twice, whatever its case (400)` |
+
+### TC-S2-91
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-91 |
+| Story/AC ref | Story 27 AC-2 |
+| Test Scenario | The technical support needed is saved against the event |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Save "On-site AV technician; hybrid setup with Zoom". |
+| Test Data | Event in planning (tc-s2-68) |
+| Expected Result | The description is saved on the event and returned. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-technical-requirements.e2e-spec.ts::saves the description against the event` |
+
+### TC-S2-92
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-92 |
+| Story/AC ref | Story 27 AC-1, AC-2 |
+| Test Scenario | Only the assigned Coordinator records requirements, and only during planning |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql + tc-s2-70-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; coord.b@example.com; tech.support@example.com; organiser@example.com. |
+| Test Steps | 1. Save requirements on the APPROVED (not yet planning) event.<br>2. Save them as Casey, as Technical Support and as the Organiser. |
+| Test Data | tc-s2-68 and tc-s2-70 events |
+| Expected Result | Not in planning: refused (409). Casey: not found (404). Technical Support and the Organiser: refused (403). Nothing is saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-technical-requirements.e2e-spec.ts::refuses an event that is not in planning (409)`<br>`test/events-technical-requirements.e2e-spec.ts::hides the event from a Coordinator it is not assigned to (404)`<br>`test/events-technical-requirements.e2e-spec.ts::refuses %s (403)` |
+
+### TC-S2-93
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-93 |
+| Story/AC ref | Story 27 AC-3 |
+| Test Scenario | Technical Support (and the Coordinator) see the recorded requirements on the event |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech); coord.a@example.com. |
+| Test Steps | 1. As the Coordinator, record equipment and "Hybrid setup".<br>2. Open the event as Technical Support, then in the Coordinator's assigned view. |
+| Test Data | Event in planning (tc-s2-68) |
+| Expected Result | Technical Support see the support needs and both equipment lines; the Coordinator's view lists both lines. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-technical-requirements.e2e-spec.ts::shows them on the event`<br>`test/events-technical-requirements.e2e-spec.ts::shows them to the Coordinator on the detail view` |
+
+### TC-S2-94
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-94 |
+| Story/AC ref | Story 27 AC-3 |
+| Test Scenario | Events with recorded requirements appear in Technical Support's list |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql + tc-s2-94-setup.sql + tc-s2-74-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Record equipment on "With equipment" and support on "Support only".<br>2. List events as Technical Support.<br>3. (Reset with tc-s2-74) List again. |
+| Test Data | tc-s2-94: three planning events with nothing recorded; tc-s2-74: a requested reservation for the tc-s2-68 event |
+| Expected Result | The list holds exactly "With equipment" and "Support only" (not "Nothing recorded", nor the tc-s2-68 event with only the Organiser's notes). With tc-s2-74, the event with only a reservation is listed. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | The Organiser's free-text equipment notes alone do not put an event in this list; Story 30 covers those on its own page. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-technical-requirements.e2e-spec.ts::lists an event once it has requirements, even with nothing reserved`<br>`test/events-technical-requirements.e2e-spec.ts::still lists an event that only has a reservation` |
+
+### TC-S2-95
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-95 |
+| Story/AC ref | Story 27 AC-3 |
+| Test Scenario | Attendees never see the equipment or technical requirements |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql + tc-s2-95-setup.sql on testDB (reset before test). Logged in as attendee@example.com. |
+| Test Steps | 1. As the Coordinator, record requirements on "Open day".<br>2. Open it as an Attendee. |
+| Test Data | "Open day" (planning, open for registration, tc-s2-95) |
+| Expected Result | The Attendee sees the event without any equipment or technical support fields. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-technical-requirements.e2e-spec.ts::never shows them to an Attendee` |
+
+### TC-S2-96
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-96 |
+| Story/AC ref | Story 27 AC-1, AC-2 (with Story 25) |
+| Test Scenario | Each requirements save is recorded in the event's history |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Save two equipment lines, then one line and "Hybrid".<br>2. Open the event's history. |
+| Test Data | Event in planning (tc-s2-68) |
+| Expected Result | Two entries. The second shows equipment from "2 × Laser projector, 6 × Wireless microphone (Lapel)" to "3 × Laser projector", and support from empty to "Hybrid". |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-technical-requirements.e2e-spec.ts::records each save with the before and after` |
+
+## Story 28: View the equipment catalogue to know what's available (Technical Support Staff)
+
+### TC-S2-97
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-97 |
+| Story/AC ref | Story 28 AC-1 |
+| Test Scenario | Every item is listed with its type, description, quantity and location |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-97-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Open the equipment catalogue. |
+| Test Data | tc-s2-97: Wireless microphone, Projector (4K), Folding table (no description or location) |
+| Expected Result | All three are listed, each with type, description, quantity and location; the folding table shows them as empty. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-browse.e2e-spec.ts::returns every item with its key details`<br>`test/equipment-browse.e2e-spec.ts::lists an item with no description or location, showing them as empty` |
+
+### TC-S2-98
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-98 |
+| Story/AC ref | Story 28 Access |
+| Test Scenario | Only Technical Support can browse the catalogue |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-97-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; organiser@example.com; attendee@example.com. |
+| Test Steps | 1. Open the catalogue as each of those roles, and without logging in. |
+| Test Data | tc-s2-97 |
+| Expected Result | Other roles are refused (403); no login is refused (401). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-browse.e2e-spec.ts::refuses %s (403)`<br>`test/equipment-browse.e2e-spec.ts::refuses a request without a token (401)` |
+
+### TC-S2-99
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-99 |
+| Story/AC ref | Story 28 AC-2 |
+| Test Scenario | Selecting an item shows its full details, including operational status |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-97-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech); coord.a@example.com. |
+| Test Steps | 1. Open "Projector (4K)".<br>2. Open it as the Coordinator.<br>3. Open an unknown item. |
+| Test Data | tc-s2-97 |
+| Expected Result | The detail shows type, description, location, quantity and status Under maintenance (the list does not). The Coordinator is refused (403); the unknown item is not found (404). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-browse.e2e-spec.ts::includes the operational status`<br>`test/equipment-browse.e2e-spec.ts::refuses a Coordinator (403)`<br>`test/equipment-browse.e2e-spec.ts::reports an unknown item as not found (404)` |
+
+### TC-S2-100
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-100 |
+| Story/AC ref | Story 28 AC-3 |
+| Test Scenario | An item can be found without scrolling: lookup by type and sorting |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-97-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Look up "PROJECTOR", then "drone".<br>2. Sort by type A-Z, then by quantity largest first.<br>3. Sort by an unknown field. |
+| Test Data | tc-s2-97 |
+| Expected Result | "PROJECTOR" finds only Projector (4K); "drone" finds nothing. By type: Folding table, Projector (4K), Wireless microphone. By quantity: Folding table, Wireless microphone, Projector (4K). The unknown field is refused (400). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-browse.e2e-spec.ts::looks up by a case-insensitive part of the type`<br>`test/equipment-browse.e2e-spec.ts::returns an empty list when nothing matches`<br>`test/equipment-browse.e2e-spec.ts::sorts by type, A to Z`<br>`test/equipment-browse.e2e-spec.ts::sorts by total quantity`<br>`test/equipment-browse.e2e-spec.ts::rejects a sort field outside the fixed list (400)` |
+
+### TC-S2-101
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-101 |
+| Story/AC ref | Story 28 AC-4 |
+| Test Scenario | The catalogue shows the latest saved data whenever it is loaded |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-97-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Open the catalogue.<br>2. Add an item, then open it again.<br>3. Change the projector's status to Operational, then reopen it. |
+| Test Data | tc-s2-97 |
+| Expected Result | The new item appears on the next load (4 items); the projector shows Operational. Responses are marked not to be cached. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-browse.e2e-spec.ts::shows a newly saved item on the next load, and is not cached`<br>`test/equipment-browse.e2e-spec.ts::shows a changed operational status when the item is reopened` |
+
+### TC-S2-102
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-102 |
+| Story/AC ref | Story 28 AC-1, AC-2, AC-3 |
+| Test Scenario | Browse, look up, sort and open items in the catalogue |
+| Pre-conditions | Log in as tech.support@example.com on the running app. The catalogue has several items, at least one without a description or location. |
+| Test Steps | 1. Open Equipment catalogue.<br>2. Type part of an item's type in the lookup.<br>3. Sort by type, then by quantity.<br>4. Click an item. |
+| Test Data | Seed data on the running app |
+| Expected Result | Each row shows type, description, quantity and location at a glance. The lookup narrows the list as you type; each sort reorders it. Clicking an item opens its full details, including its operational status. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result |  |
+| Status | Not Executed |
+| Remarks | Manual: the AC is about the user interface. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | Manual |
+
+## Story 29: Check equipment availability for an event's date and time (Technical Support Staff)
+
+### TC-S2-103
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-103 |
+| Story/AC ref | Story 29 AC-1 |
+| Test Scenario | See how many units of an item are free for a date and time |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-103-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Check Wireless microphone for 1 Oct 2030 09:00-17:00, 6 wanted. |
+| Test Data | tc-s2-103: 24 microphones, nothing reserved |
+| Expected Result | 24 available of 24, fully available, shortfall 0. The response is not cached. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-availability.e2e-spec.ts::returns the free count for the window` |
+
+### TC-S2-104
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-104 |
+| Story/AC ref | Story 29 Access |
+| Test Scenario | Only Technical Support can check availability |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-103-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; organiser@example.com; attendee@example.com; venue.staff@example.com. |
+| Test Steps | 1. Check as each of those roles, and without logging in. |
+| Test Data | tc-s2-103 |
+| Expected Result | Other roles are refused (403); no login is refused (401). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-availability.e2e-spec.ts::refuses %s (403)`<br>`test/equipment-availability.e2e-spec.ts::refuses a request without a token (401)` |
+
+### TC-S2-105
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-105 |
+| Story/AC ref | Story 29 AC-1 |
+| Test Scenario | The check needs a valid window, quantity and item |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-103-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Check with the end before the start; with no start; with start "not-a-date".<br>2. Check with quantity 0, -1 and 1.5.<br>3. Check an unknown item. |
+| Test Data | tc-s2-103 |
+| Expected Result | Each invalid input is refused (400); the unknown item is not found (404). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-availability.e2e-spec.ts::rejects an end that is not after the start (400)`<br>`test/equipment-availability.e2e-spec.ts::rejects a missing or malformed date (400)`<br>`test/equipment-availability.e2e-spec.ts::rejects a quantity of %s (400)`<br>`test/equipment-availability.e2e-spec.ts::reports an unknown item as not found (404)` |
+
+### TC-S2-106
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-106 |
+| Story/AC ref | Story 29 AC-2 |
+| Test Scenario | Units reserved for an overlapping event are excluded, and only that item's |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-103-setup.sql + tc-s2-106-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Check Wireless microphone for 09:00-17:00. |
+| Test Data | tc-s2-106: 10 microphones reserved 12:00-20:00; 4 PA systems reserved 09:00-17:00 |
+| Expected Result | 10 reserved, 14 available (the PA reservation does not count against microphones). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-availability.e2e-spec.ts::subtracts this item's units reserved at an overlapping time, and only those` |
+
+### TC-S2-107
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-107 |
+| Story/AC ref | Story 29 AC-2 |
+| Test Scenario | Reservations at other times, including back-to-back, are not excluded |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-103-setup.sql + tc-s2-107-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Check Wireless microphone for 09:00-17:00. |
+| Test Data | tc-s2-107: 10 microphones each at 05:00-09:00, 17:00-19:00 and the next day |
+| Expected Result | 0 reserved, 24 available. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-availability.e2e-spec.ts::ignores reservations at other times, including back-to-back ones` |
+
+### TC-S2-108
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-108 |
+| Story/AC ref | Story 29 AC-2 |
+| Test Scenario | Only confirmed reservations are excluded |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-103-setup.sql + tc-s2-108-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Check Wireless microphone for 09:00-17:00. |
+| Test Data | tc-s2-108: 5 microphones each requested, rejected and released for the whole window |
+| Expected Result | 0 reserved, 24 available. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | "Already reserved" is read as a confirmed (approved) reservation; a request still awaiting approval holds nothing. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-availability.e2e-spec.ts::does not count requested, rejected or released reservations` |
+
+### TC-S2-109
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-109 |
+| Story/AC ref | Story 29 AC-2 |
+| Test Scenario | Reservations that never overlap each other are not added together |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-103-setup.sql + tc-s2-109-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Check Wireless microphone for 09:00-17:00. |
+| Test Data | tc-s2-109: 10 microphones 09:00-12:00 and 10 more 13:00-17:00 |
+| Expected Result | 10 reserved (the most in use at once), 14 available, not 20 reserved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-availability.e2e-spec.ts::counts the peak in use, not the sum, across separate time slots` |
+
+### TC-S2-110
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-110 |
+| Story/AC ref | Story 29 AC-3 |
+| Test Scenario | Damaged or under-maintenance equipment is excluded |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-103-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Check Projector (4K) and Extension reel for 09:00-17:00. |
+| Test Data | tc-s2-103: projector (8) under maintenance; reel (15) out of service |
+| Expected Result | Neither has any units available; all are counted as unavailable; neither is fully available. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-availability.e2e-spec.ts::reports no free units for an item %s` |
+
+### TC-S2-111
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-111 |
+| Story/AC ref | Story 29 AC-4 |
+| Test Scenario | The shortfall is shown when the request exceeds what is free |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-103-setup.sql + tc-s2-106-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Check Portable PA system for 09:00-17:00 wanting 1, 2, 3 and 6.<br>2. Check Extension reel wanting 3. |
+| Test Data | tc-s2-106: 4 of 6 PA systems reserved, leaving 2 |
+| Expected Result | PA: 1 and 2 are fully available (shortfall 0); 3 is short by 1; 6 is short by 4. Reel: short by the whole 3. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-availability.e2e-spec.ts::a request %s the free count (%s wanted): fully available %s, shortfall %s`<br>`test/equipment-availability.e2e-spec.ts::reports the whole request as the shortfall for damaged equipment` |
+
+### TC-S2-112
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-112 |
+| Story/AC ref | Story 29 AC-5 |
+| Test Scenario | Several equipment types are checked for the same request, each with its own result |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-103-setup.sql + tc-s2-106-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. For 09:00-17:00, check 12 microphones, 3 PA systems and 1 projector together. |
+| Test Data | tc-s2-106 |
+| Expected Result | Microphone: 14 available, no shortfall. PA: 2 available, short by 1. Projector: 0 available, short by 1. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | The API checks one type per request; the availability page sends one request per equipment row (TC-S2-113, manual). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-availability.e2e-spec.ts::answers each type for the same window with its own count and shortfall` |
+
+### TC-S2-113
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-113 |
+| Story/AC ref | Story 29 AC-1, AC-4, AC-5 |
+| Test Scenario | Check several equipment types for one date and time |
+| Pre-conditions | Log in as tech.support@example.com. The catalogue has at least two operational items, one with some units reserved for an overlapping time. |
+| Test Steps | 1. Open Check availability.<br>2. Enter a date and start/end time.<br>3. Choose one item and a quantity; add a second row with another item and a quantity larger than is free.<br>4. Check availability. |
+| Test Data | Seed data on the running app |
+| Expected Result | Each row shows its own free count for that time. The row asking for more than is free shows the shortfall; the other shows it is fully available. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result |  |
+| Status | Not Executed |
+| Remarks | Manual: the AC is about the user interface. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | Manual |

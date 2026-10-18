@@ -200,7 +200,7 @@ describe('Story 23 overlapping booking detection (integration)', () => {
     });
 
     // TC-S2-60 · US-23 · setup: base-users + base-venues + tc-s2-48-setup · fails if a Coordinator could use the Venue Staff check
-    // Code: the route is restricted to Venue Staff by the permission guard.
+    // Code: the route needs BOOKING/DECIDE (@RequirePermission), which only Venue Staff hold, so the guard answers 403.
     it('refuses a Coordinator (403)', async () => {
       await given('tc-s2-48-setup');
 

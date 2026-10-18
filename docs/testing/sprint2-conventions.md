@@ -86,3 +86,6 @@ These ACs are not (fully) implemented, or don't behave as the AC asks. The test 
 | 23 | AC-6 | Buffer time is not applied. Superseded: a code comment in `BookingsService.conflictsFor()` records that the customer said it isn't needed (TC-S2-66, Status N/A). |
 | 23 | AC-7 | A booking request's time can't be edited, so there is no edit to re-check (TC-S2-67, Status Fail). |
 | 24 | AC-2 | Changes are flagged for review, but the AC doesn't say who reviews them or how the flag is cleared; neither is built. |
+| 26 | AC-1 | The system has no record of a Coordinator's availability; any responsible Coordinator may ask for reassignment (TC-S2-84, noted in Remarks). |
+| 27 | AC-1 | **Bug:** an equipment type of only spaces is accepted and saved as an empty type; `EquipmentRequirementDto` lacks `@Trim()` (TC-S2-90, Status Fail, `it.failing`). |
+| 29 | AC-2 | Only confirmed (approved) reservations are excluded; a reservation still awaiting approval holds nothing. Confirm this reading with the team (TC-S2-108, Remarks). |

@@ -46,14 +46,17 @@ export const VENUE_STATUS_STYLES: Record<VenueStatus, StatusStyle> = {
   PUBLISHED: { label: 'Published', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
 };
 
-/** US-29 AC-2 — an equipment item's operational status. */
+/**
+ * US-29 AC-2 — an equipment item's operational status, in US-45's words:
+ * OPERATIONAL is "Available" and OUT_OF_SERVICE is "Damaged".
+ */
 export const EQUIPMENT_STATUS_STYLES: Record<EquipmentStatus, StatusStyle> = {
-  OPERATIONAL: { label: 'Operational', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
+  OPERATIONAL: { label: 'Available', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
   UNDER_MAINTENANCE: {
     label: 'Under maintenance',
     className: 'bg-amber-50 text-amber-900 ring-amber-400',
   },
-  OUT_OF_SERVICE: { label: 'Out of service', className: 'bg-red-50 text-red-800 ring-red-300' },
+  OUT_OF_SERVICE: { label: 'Damaged', className: 'bg-red-50 text-red-800 ring-red-300' },
 };
 
 /**

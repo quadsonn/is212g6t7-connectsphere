@@ -576,7 +576,10 @@ export interface BrowseVenuesQuery {
   sortOrder?: 'asc' | 'desc';
 }
 
-/** US-29 — condition of an equipment item, shown in its full detail view. */
+/**
+ * US-29 — condition of an equipment item, shown in its full detail view.
+ * US-45 names them Available, Under Maintenance and Damaged (lib/status.ts).
+ */
 export type EquipmentStatus = 'OPERATIONAL' | 'UNDER_MAINTENANCE' | 'OUT_OF_SERVICE';
 
 /**
@@ -591,9 +594,52 @@ export interface EquipmentListItem {
   totalQuantity: number;
 }
 
+/** US-45 AC-2 — a recorded status change and the reason given for it. */
+export interface EquipmentStatusChange {
+  id: string;
+  fromStatus: EquipmentStatus;
+  toStatus: EquipmentStatus;
+  reason: string;
+  changedAt: string;
+  changedBy: { id: string; name: string };
+}
+
 /** US-29 AC-2 — GET /equipment/:id, the full record. */
 export interface Equipment extends EquipmentListItem {
   operationalStatus: EquipmentStatus;
+  /** US-45: why the item has its current status; null if never changed. */
+  latestStatusChange: EquipmentStatusChange | null;
+}
+
+/** US-45 — PATCH /equipment/:id/status. A reason is always required (AC-2). */
+export interface ChangeEquipmentStatusPayload {
+  status: EquipmentStatus;
+  reason: string;
+}
+
+/**
+ * US-45 AC-5 — a reservation of the item that has not ended yet, from
+ * GET /equipment/:id/upcoming-reservations or the status change's response.
+ */
+export interface UpcomingReservation {
+  id: string;
+  quantity: number;
+  start: string;
+  end: string;
+  status: ReservationStatus;
+  event: {
+    id: string;
+    name: string | null;
+    status: EventStatus;
+    coordinator: { id: string; name: string } | null;
+  };
+}
+
+/** US-45 — what a status change returns. */
+export interface EquipmentStatusChangeResult {
+  equipment: Equipment;
+  /** AC-5: reservations affected by the change; empty when none are. */
+  affectedReservations: UpcomingReservation[];
 }
 
 /** US-29 AC-3 — catalogue search and sort. */

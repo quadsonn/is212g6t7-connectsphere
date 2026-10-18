@@ -1,17 +1,29 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
+import { nextReadableId } from '../prisma/readable-id';
 import { BrowseEquipmentDto, EquipmentSortField, SortOrder } from './dto/browse-equipment.dto';
+import { ChangeEquipmentStatusDto } from './dto/change-equipment-status.dto';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import {
   computeItemAvailability,
   holdingReservationsWhere,
   ItemAvailability,
 } from './equipment-availability';
+import {
+  affectsReservations,
+  statusChangeError,
+  upcomingReservationsWhere,
+} from './equipment-status';
 
 /**
  * US-29 AC-1 — the four fields a catalogue row shows at a glance.
@@ -35,12 +47,64 @@ export const EQUIPMENT_DETAIL_SELECT = {
   operationalStatus: true,
 } as const satisfies Prisma.EquipmentSelect;
 
+/** US-45 AC-2 — a recorded status change, with its reason and who made it. */
+export const STATUS_CHANGE_SELECT = {
+  id: true,
+  fromStatus: true,
+  toStatus: true,
+  reason: true,
+  changedAt: true,
+  changedBy: { select: { id: true, name: true } },
+} as const satisfies Prisma.EquipmentStatusChangeSelect;
+
+/** US-45 AC-5 — a reservation the status change puts at risk, and its event. */
+export const UPCOMING_RESERVATION_SELECT = {
+  id: true,
+  quantity: true,
+  start: true,
+  end: true,
+  status: true,
+  event: {
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      coordinator: { select: { id: true, name: true } },
+    },
+  },
+} as const satisfies Prisma.EquipmentReservationSelect;
+
 export type EquipmentListItem = Prisma.EquipmentGetPayload<{
   select: typeof EQUIPMENT_LIST_SELECT;
 }>;
+export type StatusChangeRecord = Prisma.EquipmentStatusChangeGetPayload<{
+  select: typeof STATUS_CHANGE_SELECT;
+}>;
+export type UpcomingReservation = Prisma.EquipmentReservationGetPayload<{
+  select: typeof UPCOMING_RESERVATION_SELECT;
+}>;
+
+/**
+ * US-29 AC-2 — the full detail. US-45 adds the most recent status change, so
+ * the reason an item is damaged or under maintenance is shown with it; null
+ * for an item whose status has never been changed.
+ */
 export type EquipmentDetail = Prisma.EquipmentGetPayload<{
   select: typeof EQUIPMENT_DETAIL_SELECT;
-}>;
+}> & { latestStatusChange: StatusChangeRecord | null };
+
+/** US-45 — what a status change returns. */
+export interface StatusChangeResult {
+  equipment: EquipmentDetail;
+  /** AC-5: reservations affected by the change; empty when none are. */
+  affectedReservations: UpcomingReservation[];
+}
+
+/**
+ * US-45 — the change waits on the equipment row lock while a US-32 commit of
+ * the same item finishes, so it uses the same limits as the commit.
+ */
+const STATUS_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 15_000 } as const;
 
 /** US-30 — one item's availability for the window that was asked about. */
 export type AvailabilityReport = ItemAvailability & { start: Date; end: Date };
@@ -116,9 +180,8 @@ export class EquipmentService {
 
   /** US-29 AC-2 — one item's full detail, including operational status. */
   async findOneForUser(user: AuthenticatedUser, id: string): Promise<EquipmentDetail> {
-    const item = await this.prisma.equipment.findFirst({
-      where: { AND: [{ id }, this.visibilityFilter(user)] },
-      select: EQUIPMENT_DETAIL_SELECT,
+    const item = await this.findDetail(this.prisma, {
+      AND: [{ id }, this.visibilityFilter(user)],
     });
 
     if (!item) {
@@ -126,6 +189,143 @@ export class EquipmentService {
     }
 
     return item;
+  }
+
+  /**
+   * US-45 AC-5 — the reservations that marking this item Damaged or Under
+   * Maintenance would affect, so the warning can be shown before the change
+   * is saved. Read-only; changeStatus() works the list out again under the
+   * lock, so the answer it returns is the one that held when it was saved.
+   */
+  async findUpcomingReservations(
+    user: AuthenticatedUser,
+    equipmentId: string,
+  ): Promise<UpcomingReservation[]> {
+    const visibility = this.visibilityFilter(user);
+
+    const item = await this.prisma.equipment.findFirst({
+      where: { AND: [{ id: equipmentId }, visibility] },
+      select: { id: true },
+    });
+
+    if (!item) {
+      throw new NotFoundException('equipment not found');
+    }
+
+    return this.prisma.equipmentReservation.findMany({
+      where: upcomingReservationsWhere(equipmentId, new Date()),
+      orderBy: [{ start: 'asc' }, { id: 'asc' }],
+      select: UPCOMING_RESERVATION_SELECT,
+    });
+  }
+
+  /**
+   * US-45 — the only place Equipment.operationalStatus is written
+   * (events-status-audit.spec.ts enforces it).
+   *
+   * AC-1/AC-3: any status may move to any other; statusChangeError() refuses
+   * only a no-op. AC-2: the reason is required by the DTO and stored with the
+   * change. AC-4 needs nothing here: availability (US-30) and commitment
+   * (US-32) already count a non-OPERATIONAL item as having no free units.
+   * AC-5: the affected reservations come back with the result.
+   *
+   * The item's row is locked FOR UPDATE, the same lock a US-32 commit takes,
+   * so a commit and a status change of one item run one at a time: either the
+   * commit lands first and is listed as affected here, or it runs after and
+   * sees the item as unavailable.
+   *
+   * Existing reservations are left as they are — the story asks for a warning,
+   * not for them to be released.
+   */
+  async changeStatus(
+    user: AuthenticatedUser,
+    equipmentId: string,
+    dto: ChangeEquipmentStatusDto,
+  ): Promise<StatusChangeResult> {
+    this.access.requireScope(user, Resource.EQUIPMENT, Action.UPDATE);
+
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<{ id: string }[]>`
+        SELECT "id" FROM "Equipment" WHERE "id" = ${equipmentId} FOR UPDATE`;
+
+      if (locked.length === 0) {
+        throw new NotFoundException('equipment not found');
+      }
+
+      const { operationalStatus: from } = await tx.equipment.findUniqueOrThrow({
+        where: { id: equipmentId },
+        select: { operationalStatus: true },
+      });
+
+      const error = statusChangeError(from, dto.status);
+      if (error) {
+        throw new ConflictException(error);
+      }
+
+      // The change is recorded against the caller (AC-2). A signed token can
+      // outlive its user — deleted, or issued by another database — and that
+      // must ask them to log in again rather than fail on the foreign key.
+      const author = await tx.user.findUnique({
+        where: { id: user.userId },
+        select: { id: true },
+      });
+      if (!author) {
+        throw new UnauthorizedException('your account no longer exists, please log in again');
+      }
+
+      await tx.equipment.update({
+        where: { id: equipmentId },
+        data: { operationalStatus: dto.status },
+      });
+
+      await tx.equipmentStatusChange.create({
+        data: {
+          id: await nextReadableId(tx, 'EquipmentStatusChange'),
+          equipmentId,
+          fromStatus: from,
+          toStatus: dto.status,
+          reason: dto.reason,
+          changedById: user.userId,
+        },
+      });
+
+      const affectedReservations = affectsReservations(dto.status)
+        ? await tx.equipmentReservation.findMany({
+            where: upcomingReservationsWhere(equipmentId, new Date()),
+            orderBy: [{ start: 'asc' }, { id: 'asc' }],
+            select: UPCOMING_RESERVATION_SELECT,
+          })
+        : [];
+
+      const equipment = await this.findDetail(tx, { id: equipmentId });
+
+      return { equipment: equipment!, affectedReservations };
+    }, STATUS_TRANSACTION_OPTIONS);
+  }
+
+  /** The detail fields plus the latest status change, flattened. */
+  private async findDetail(
+    client: Prisma.TransactionClient,
+    where: Prisma.EquipmentWhereInput,
+  ): Promise<EquipmentDetail | null> {
+    const item = await client.equipment.findFirst({
+      where,
+      select: {
+        ...EQUIPMENT_DETAIL_SELECT,
+        statusChanges: {
+          orderBy: [{ changedAt: 'desc' }, { id: 'desc' }],
+          take: 1,
+          select: STATUS_CHANGE_SELECT,
+        },
+      },
+    });
+
+    if (!item) {
+      return null;
+    }
+
+    const { statusChanges, ...detail } = item;
+    return { ...detail, latestStatusChange: statusChanges[0] ?? null };
   }
 
   /**

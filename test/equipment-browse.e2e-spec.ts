@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-29 e2e — one describe per acceptance criterion, tagged "US-29 AC-n". */
 describe('US-29 view the equipment catalogue (e2e)', () => {
@@ -33,7 +34,7 @@ describe('US-29 view the equipment catalogue (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });
@@ -126,6 +127,8 @@ describe('US-29 view the equipment catalogue (e2e)', () => {
         location: 'AV Store, Level 2',
         totalQuantity: 8,
         operationalStatus: 'UNDER_MAINTENANCE',
+        // US-45: the reason for the status, once one has been recorded.
+        latestStatusChange: null,
       });
       expect(projector).not.toHaveProperty('operationalStatus');
     });

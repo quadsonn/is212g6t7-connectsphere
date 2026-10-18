@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -18,6 +19,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { BrowseEquipmentDto } from './dto/browse-equipment.dto';
+import { ChangeEquipmentStatusDto } from './dto/change-equipment-status.dto';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { CommitReservationDto } from './dto/commit-reservation.dto';
 import { EquipmentRequirementsService } from './equipment-requirements.service';
@@ -25,7 +27,7 @@ import { EquipmentReservationsService } from './equipment-reservations.service';
 import { EquipmentService } from './equipment.service';
 
 /**
- * US-29 to US-33 — Technical Support's equipment features.
+ * US-29 to US-33, US-45 — Technical Support's equipment features.
  *
  * Every route is restricted with @Roles(TECHNICAL_SUPPORT_STAFF): these
  * stories are for that role only. @Roles rather than @RequirePermission
@@ -135,5 +137,35 @@ export class EquipmentController {
     @Query() query: CheckAvailabilityDto,
   ) {
     return this.equipmentService.checkAvailability(user, id, query);
+  }
+
+  /**
+   * US-45 AC-5 — reservations of this item that have not ended yet: what
+   * marking it Damaged or Under Maintenance would affect. Read before the
+   * change so the warning is shown while it can still be cancelled.
+   */
+  @Get(':id/upcoming-reservations')
+  @Roles(Role.TECHNICAL_SUPPORT_STAFF)
+  @Header('Cache-Control', 'no-store')
+  findUpcomingReservations(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.equipmentService.findUpcomingReservations(user, id);
+  }
+
+  /**
+   * US-45 AC-1/AC-2/AC-3 — mark an item Damaged or Under Maintenance, or back
+   * to Available, with a reason. 200 with the updated item and the affected
+   * reservations (AC-5); 409 when the item already has that status.
+   */
+  @Patch(':id/status')
+  @Roles(Role.TECHNICAL_SUPPORT_STAFF)
+  changeStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ChangeEquipmentStatusDto,
+  ) {
+    return this.equipmentService.changeStatus(user, id, dto);
   }
 }

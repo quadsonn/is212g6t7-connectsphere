@@ -29,7 +29,7 @@ export function EquipmentCatalogue() {
     <>
       <PageHeader
         title="Equipment catalogue"
-        description="Everything on the shelf, and where to find it."
+        description="Everything on the shelf, and where to find it. Select an item to see or change its status."
       />
 
       <Card>

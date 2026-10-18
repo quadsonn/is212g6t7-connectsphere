@@ -578,15 +578,17 @@ export class SafetyService {
   ): Promise<void> {
     if (!event.coordinatorId) return;
 
-    const name = `"${event.name ?? 'your event'}"`;
+    // Short, like the other notices: the inbox shows the event beside it and
+    // titles it "Safety check". The reason goes last, after " Reason: ", so
+    // the inbox shows it on its own line (splitReason).
     const reason = review.reason ? ` Reason: ${review.reason}` : '';
 
     const message =
       review.outcome === SafetyOutcome.APPROVED
-        ? `The safety check for ${name} was approved. The event is confirmed.`
+        ? 'Approved. The event is confirmed.'
         : review.outcome === SafetyOutcome.CHANGES_REQUESTED
-          ? `The Safety Officer requested changes to ${name}; it returns to ${review.returnStage?.toLowerCase()} planning.${reason} Make the changes, then send it back for a safety check.`
-          : `The Safety Officer rejected ${name}; it cannot proceed until it is reworked.${reason} Resume planning, make the changes, then send it back for a safety check.`;
+          ? `Changes requested to the ${review.returnStage?.toLowerCase()} planning. Make them, then send it back for a safety check.${reason}`
+          : `Rejected. Resume planning, rework it, then send it back for a safety check.${reason}`;
 
     await this.notifications.notifySafely({
       recipientId: event.coordinatorId,

@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { AppModule } from './../src/app.module';
 import { PrismaService } from './../src/prisma/prisma.service';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /**
  * Scaffold smoke test: the application bootstraps. PrismaService is stubbed so
@@ -21,7 +22,7 @@ describe('Application (e2e)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
-    await app.init();
+    await listenOnLoopback(app);
   });
 
   afterAll(async () => {

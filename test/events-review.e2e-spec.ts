@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-07 e2e — one describe per acceptance criterion. */
 describe('US-07 coordinator reviews and approves (e2e)', () => {
@@ -51,7 +52,7 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });

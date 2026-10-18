@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-16 e2e — Venue Availability Calendar. */
 describe('US-16 venue availability calendar (e2e)', () => {
@@ -72,7 +73,7 @@ describe('US-16 venue availability calendar (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
     prisma = new PrismaClient();
   });
 

@@ -14,6 +14,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { EquipmentReservationsService } from '../src/equipment/equipment-reservations.service';
 import { EventsService } from '../src/events/events.service';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /**
  * US-32, US-33 e2e — and their interaction with US-30, since all three
@@ -105,7 +106,7 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
     events = app.get(EventsService);

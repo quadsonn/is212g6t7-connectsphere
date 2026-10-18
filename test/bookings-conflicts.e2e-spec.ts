@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-24 e2e — Overlapping Booking Detection (Venue Staff). */
 describe('US-24 overlapping booking detection (e2e)', () => {
@@ -79,7 +80,7 @@ describe('US-24 overlapping booking detection (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });

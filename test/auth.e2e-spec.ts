@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /**
  * US-01 e2e — one describe per acceptance criterion (CLAUDE.md §10).
@@ -28,7 +29,7 @@ describe('US-01 secure login (e2e)', () => {
     app = moduleFixture.createNestApplication();
     // Mirrors main.ts so DTO validation behaves as it does in production.
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });

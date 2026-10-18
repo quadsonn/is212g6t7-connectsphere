@@ -6,6 +6,7 @@ import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { UnauthorizedFilter } from '../src/common/filters/unauthorized.filter';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /**
  * US-02 e2e — one describe per acceptance criterion. Every check goes through
@@ -45,7 +46,7 @@ describe('US-02 role-based and ownership access control (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.useGlobalFilters(new UnauthorizedFilter());
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
 

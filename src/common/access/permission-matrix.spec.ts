@@ -56,6 +56,13 @@ describe('Permission matrix (US-02)', () => {
       expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.SUBMIT)).toBe(Scope.OWN);
     });
 
+    it('lets only an Organiser cancel, and only their own events (US-43)', () => {
+      expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.CANCEL)).toBe(Scope.OWN);
+      for (const role of Object.values(Role).filter((r) => r !== Role.EVENT_ORGANISER)) {
+        expect(isPermitted(role, Resource.EVENT, Action.CANCEL)).toBe(false);
+      }
+    });
+
     it('lets a Coordinator review events assigned to them', () => {
       expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.REVIEW)).toBe(Scope.ASSIGNED);
     });

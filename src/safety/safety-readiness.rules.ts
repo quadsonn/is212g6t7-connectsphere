@@ -46,7 +46,9 @@ export function evaluateReadiness(facts: ReadinessFacts): Readiness {
   const reasons: NotReadyReason[] = [];
 
   const live = facts.bookings.filter(
-    (booking) => booking.status !== BookingStatus.REJECTED,
+    (booking) =>
+      booking.status !== BookingStatus.REJECTED &&
+      booking.status !== BookingStatus.RELEASED,
   );
 
   if (live.some((booking) => booking.status === BookingStatus.REQUESTED)) {

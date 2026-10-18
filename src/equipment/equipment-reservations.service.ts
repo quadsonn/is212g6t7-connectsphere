@@ -197,6 +197,16 @@ export class EquipmentReservationsService {
   }
 
   /**
+   * US-43 — how many reservations a cancellation is about to release, so the
+   * Organiser can be told. Read before the release, which is what changes it.
+   */
+  countReleasable(eventId: string, tx: Prisma.TransactionClient): Promise<number> {
+    return tx.equipmentReservation.count({
+      where: { eventId, status: { in: [...RELEASABLE_STATUSES] } },
+    });
+  }
+
+  /**
    * US-33 AC-1/AC-4 — release every reservation the event still holds.
    *
    * Called by EventsService.setStatus() inside the same transaction as the

@@ -26,8 +26,10 @@ import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
 import { UpdatePlanningDto } from './dto/update-planning.dto';
 import { TechnicalRequirementsDto } from './dto/technical-requirements.dto';
+import { CancelEventDto } from './dto/cancel-event.dto';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { RejectChangeRequestDto } from './dto/reject-change-request.dto';
+import { EventsCancellationService } from './events-cancellation.service';
 import { EventsChangeReviewService } from './events-change-review.service';
 import { EventsChangeRequestService } from './events-change-request.service';
 import { EventsService } from './events.service';
@@ -44,6 +46,7 @@ export class EventsController {
     private readonly eventsService: EventsService,
     private readonly changeRequests: EventsChangeRequestService,
     private readonly changeReviews: EventsChangeReviewService,
+    private readonly cancellation: EventsCancellationService,
   ) {}
 
   /**
@@ -239,6 +242,22 @@ export class EventsController {
     @Body() dto: CreateChangeRequestDto,
   ) {
     return this.changeRequests.request(user, id, dto);
+  }
+
+  /**
+   * US-43 — the Organiser cancels their own event. POST with a body rather than
+   * DELETE: the event is kept (as CANCELLED), and the reason and confirmation
+   * travel with the request.
+   */
+  @Post(':id/cancel')
+  @Roles(Role.EVENT_ORGANISER)
+  @HttpCode(HttpStatus.OK)
+  cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CancelEventDto,
+  ) {
+    return this.cancellation.cancel(user, id, dto);
   }
 
   /** US-04 AC-4 — DRAFT -> SUBMITTED, through setStatus(). */

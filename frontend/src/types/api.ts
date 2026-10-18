@@ -242,7 +242,10 @@ export interface FieldChange {
     | keyof PlanningUpdatePayload
     | 'coordinator'
     | 'equipmentRequirements'
-    | 'technicalSupportNeeds';
+    | 'technicalSupportNeeds'
+    // US-43: a cancellation is recorded as the status move plus its reason.
+    | 'status'
+    | 'cancellationReason';
   previous: string | number | boolean | string[] | null;
   next: string | number | boolean | string[] | null;
 }
@@ -276,6 +279,8 @@ export interface EventStatusView {
 
 /** GET /events/mine — the Organiser's status view (US-05). */
 export interface OrganiserRequestView extends EventRequest {
+  /** The assigned Coordinator, resolved to contact details; null until assigned. */
+  coordinator?: ContactSummary | null;
   statusView: EventStatusView;
   /** Derived server-side from clarificationRequest; never stored. */
   clarificationRequested: boolean;
@@ -285,7 +290,8 @@ export interface OrganiserRequestView extends EventRequest {
   latestChangeDecision?: ChangeRequest | null;
 }
 
-export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+/** CLOSED (US-43): withdrawn without a decision because the event was cancelled. */
+export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CLOSED';
 
 /** US-37 — one line of a proposed equipment list. */
 export interface ChangeRequestEquipmentLine {
@@ -804,8 +810,25 @@ export interface VenueDraftPayload {
 export interface VenueWithWarnings extends Venue {
   warnings: VenueUpdateWarning[];
 }
-/** Mirrors the backend BookingStatus enum. REQUESTED is "pending" (US-21 AC-3). */
-export type BookingStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED';
+/**
+ * Mirrors the backend BookingStatus enum. REQUESTED is "pending" (US-21 AC-3);
+ * RELEASED (US-43) is a booking given back because its event was cancelled.
+ */
+export type BookingStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'RELEASED';
+
+/** US-43 — what an Organiser sends to cancel an event. */
+export interface CancelEventPayload {
+  reason: string;
+  confirm: true;
+}
+
+/** US-43 — what the cancellation released and who was told. */
+export interface CancellationResult {
+  event: EventRequest;
+  released: { venueBookings: number; equipmentReservations: number };
+  closedChangeRequests: number;
+  notified: number;
+}
 
 /**
  * US-21 AC-4/AC-5 — something occupying a requested slot: an existing

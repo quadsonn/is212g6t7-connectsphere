@@ -671,6 +671,42 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /**
+   * US-43 — release every booking the event still holds, tentative or approved.
+   *
+   * Called inside the transaction that sets the event to CANCELLED, so an event
+   * can never be cancelled with a venue still held (or the reverse). Every venue
+   * of a multi-venue event is released: the scope is the event, not one venue.
+   * Availability and conflict checks count only REQUESTED and APPROVED, so a
+   * RELEASED slot shows as free with no further change. REJECTED bookings hold
+   * nothing and stay as the decision they were; a repeat call finds nothing
+   * live and returns 0.
+   */
+  async releaseForCancelledEvent(
+    eventId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<number> {
+    const event = await tx.eventRequest.findUnique({
+      where: { id: eventId },
+      select: { status: true },
+    });
+
+    // A guard on the contract, not a user-facing rule: releasing a live
+    // event's venues would silently free slots it still needs.
+    if (event?.status !== 'CANCELLED') {
+      throw new ConflictException(
+        'venue bookings can only be released for a cancelled event',
+      );
+    }
+
+    const result = await tx.venueBooking.updateMany({
+      where: { eventId, status: { in: LIVE_STATUSES } },
+      data: { status: BookingStatus.RELEASED, releasedAt: new Date() },
+    });
+
+    return result.count;
+  }
+
+  /**
    * US-38 — an event's dates changed, so move its live bookings with it.
    *
    * Each REQUESTED or APPROVED booking is shifted by the same amount the event

@@ -73,6 +73,8 @@ export const BOOKING_STATUS_STYLES: Record<BookingStatus, StatusStyle> = {
   REQUESTED: { label: 'Pending', className: 'bg-amber-50 text-amber-900 ring-amber-400' },
   APPROVED: { label: 'Approved', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
   REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-800 ring-red-300' },
+  // US-43: given back because the event was cancelled — neutral, not a refusal.
+  RELEASED: { label: 'Released', className: 'bg-ink-100 text-ink-700 ring-ink-300' },
 };
 
 /** Statuses shown in the Coordinator's retained request list. */
@@ -118,6 +120,14 @@ export const CHANGEABLE_EVENT_STATUSES: EventStatus[] = [
   'SAFETY_REJECTED',
   'CONFIRMED',
 ];
+
+/**
+ * US-43 AC-1 — statuses in which an Organiser is offered "Cancel event": from
+ * submission until the event is over. Mirrors CANCELLABLE_STATUSES in the
+ * backend (events/event-cancellation.rules.ts), which is what enforces it,
+ * along with the start-time check; this only decides whether to offer it.
+ */
+export const CANCELLABLE_EVENT_STATUSES: EventStatus[] = CHANGEABLE_EVENT_STATUSES;
 
 /**
  * US-17 — availability calendar days. Each also carries an icon and label in

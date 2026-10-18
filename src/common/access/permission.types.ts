@@ -40,6 +40,8 @@ export enum Action {
   DECIDE = 'DECIDE',
   /** US-37: propose a change to an event that has already been submitted. */
   REQUEST_CHANGE = 'REQUEST_CHANGE',
+  /** US-43: cancel an event, releasing the venues and equipment it holds. */
+  CANCEL = 'CANCEL',
   REGISTER = 'REGISTER',
   WITHDRAW = 'WITHDRAW',
 }

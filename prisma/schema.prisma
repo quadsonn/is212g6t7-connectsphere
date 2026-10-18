@@ -93,6 +93,9 @@ enum BookingStatus {
   REQUESTED
   APPROVED
   REJECTED
+  // US-43: given back because the event was cancelled. Holds nothing, and is
+  // distinct from REJECTED (a Venue Staff decision) so the history stays true.
+  RELEASED
 }
 
 // US-23: what kind of entry a BookingDecision is. A REVERSAL overturns an
@@ -221,6 +224,8 @@ enum NotificationType {
   EVENT_ASSIGNED
   // Requirement change 6: the Safety Officer decided; carries the reasons.
   SAFETY_CHECK_DECIDED
+  // US-43: the event was cancelled; carries the Organiser's reason.
+  EVENT_CANCELLED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;
@@ -229,6 +234,8 @@ enum ChangeRequestStatus {
   PENDING
   APPROVED
   REJECTED
+  // US-43: withdrawn without a decision because the event was cancelled.
+  CLOSED
 }
 
 // ---------------------------------------------------------------------------
@@ -487,6 +494,9 @@ model VenueBooking {
 
   // US-23 AC-4/AC-6: every decision ever made on this request, oldest first.
   decisions BookingDecision[]
+
+  // US-43: when the booking was released. Null unless RELEASED.
+  releasedAt DateTime?
 
   @@index([requestedById])
   // Supports the (venueId, time range) conflict lookup in §5.

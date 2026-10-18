@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
+  CancelEventPayload,
+  CancellationResult,
   CatalogueOption,
   ChangeRequest,
   ChangeRequestApproval,
@@ -288,6 +290,22 @@ export function useRequestChange(id: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: eventKeys.detail(id) });
       void queryClient.invalidateQueries({ queryKey: eventKeys.mine });
+    },
+  });
+}
+
+/**
+ * US-43 — cancel an event. A cancellation touches the event, its bookings and
+ * reservations, the calendars and other people's notifications, so every cached
+ * query is refreshed rather than a hand-picked few.
+ */
+export function useCancelEvent(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<CancellationResult, unknown, CancelEventPayload>({
+    mutationFn: (body) => eventsApi.cancel(id, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
     },
   });
 }

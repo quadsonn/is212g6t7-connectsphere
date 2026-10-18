@@ -1,5 +1,7 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  CancelEventPayload,
+  CancellationResult,
   CatalogueOption,
   ChangeRequest,
   ChangeRequestApproval,
@@ -65,6 +67,10 @@ export const eventsApi = {
   /** US-37 — propose a change to one of the Organiser's submitted events. */
   requestChange: (id: string, body: ChangeRequestPayload) =>
     apiClient.post<ChangeRequest>(`/events/${id}/change-requests`, body).then((r) => r.data),
+
+  /** US-43 — cancel one of the Organiser's events, releasing what it holds. */
+  cancel: (id: string, body: CancelEventPayload) =>
+    apiClient.post<CancellationResult>(`/events/${id}/cancel`, body).then((r) => r.data),
 
   /** US-38 AC-1 — pending change requests on the Coordinator's own events. */
   listPendingChangeRequests: () =>

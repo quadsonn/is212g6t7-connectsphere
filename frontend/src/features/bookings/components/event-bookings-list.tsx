@@ -27,6 +27,9 @@ export function EventBookingsList({
           >
             <div className="min-w-0 space-y-0.5">
               <p className="font-medium text-ink-900">{booking.venue.name}</p>
+              {booking.venue.location ? (
+                <p className="text-ink-700">{booking.venue.location}</p>
+              ) : null}
               <p className="text-ink-500">{formatDateRange(booking.start, booking.end)}</p>
               {latest ? (
                 <p className="text-ink-700">

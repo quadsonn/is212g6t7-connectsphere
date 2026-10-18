@@ -7,6 +7,7 @@ import { EventsAssignmentController } from './events-assignment.controller';
 import { EventsAssignmentService } from './events-assignment.service';
 import { EventsChangeRequestService } from './events-change-request.service';
 import { EventsChangeReviewService } from './events-change-review.service';
+import { EventsCancellationService } from './events-cancellation.service';
 import { EventsController } from './events.controller';
 import { EventsService } from './events.service';
 
@@ -24,6 +25,7 @@ import { EventsService } from './events.service';
     EventsAssignmentService,
     EventsChangeRequestService,
     EventsChangeReviewService,
+    EventsCancellationService,
   ],
   exports: [EventsService],
 })

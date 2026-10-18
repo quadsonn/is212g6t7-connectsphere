@@ -92,3 +92,4 @@ These ACs are not (fully) implemented, or don't behave as the AC asks. The test 
 | 30 | AC-4 | "Submitted events" is read as any status except DRAFT, so rejected or cancelled events with requirements are still listed. Confirm with the team (TC-S2-115, Remarks). |
 | 31 | — | Not in the ACs: committing equipment also notifies the event's Coordinator. Tested because the code does it (TC-S2-129). |
 | 32 | AC-1 | No endpoint or screen cancels an event, so reservations can only be released by code calling `EventsService.setStatus()` (TC-S2-135, Status Fail). |
+| 35 | AC-6 | Not a code gap: the story says re-registering "follows #34", but registering is Story 33 in the user-story document. |

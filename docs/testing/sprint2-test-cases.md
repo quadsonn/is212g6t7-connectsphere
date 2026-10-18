@@ -3084,3 +3084,788 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Executed By |  |
 | Date of Execution |  |
 | Automated by | Manual |
+
+## Story 34: View my registration status (Attendee)
+
+### TC-S2-145
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-145 |
+| Story/AC ref | Story 34 AC-1 |
+| Test Scenario | "My Registrations" lists each registration with event name, date/time, venue and status |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-142-setup.sql + tc-s2-145-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Open My registrations. |
+| Test Data | tc-s2-145: Autumn Concert (Main Hall, registered), Pottery Workshop (no venue, withdrawn 10 Sep 2026) |
+| Expected Result | Both are listed, soonest event first: Pottery Workshop 15 Sep 2030 09:00-12:00, no venue, Withdrawn; Autumn Concert 1 Oct 2030 18:00-21:00, Main Hall, Registered. Not cached. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-status.e2e-spec.ts::lists both registrations with their details and status` |
+
+### TC-S2-146
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-146 |
+| Story/AC ref | Story 34 AC-2 |
+| Test Scenario | Event details shown are always the current ones |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-142-setup.sql + tc-s2-145-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Rename and move the Autumn Concert, then open My registrations.<br>2. Approve a Seminar Room booking for the Pottery Workshop, then open that registration. |
+| Test Data | tc-s2-145 |
+| Expected Result | The concert shows its new name and 2 Oct times. The workshop shows Seminar Room as its venue. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-status.e2e-spec.ts::shows a renamed, retimed event as it is now`<br>`test/registrations-status.e2e-spec.ts::shows a venue once its booking is approved` |
+
+### TC-S2-147
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-147 |
+| Story/AC ref | Story 34 AC-3 |
+| Test Scenario | "No Events Registered" is shown when I have no registrations |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-142-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Open My registrations with no registrations. |
+| Test Data | base users only (other Attendees have registrations) |
+| Expected Result | An empty list with the message "No Events Registered". |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-status.e2e-spec.ts::says "No Events Registered"` |
+
+### TC-S2-148
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-148 |
+| Story/AC ref | Story 34 AC-4 |
+| Test Scenario | I can only view my own registrations; another Attendee's is denied |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-142-setup.sql + tc-s2-145-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Open My registrations.<br>2. Open Bea's registration by its id.<br>3. Open my own registration; open an unknown id. |
+| Test Data | tc-s2-142 (Bea's registration g-s2-full-b); tc-s2-145 |
+| Expected Result | My list holds only my two registrations. Bea's is denied (403) "you can only view your own registrations". My own opens; the unknown id is not found (404). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-status.e2e-spec.ts::never lists another Attendee's registrations`<br>`test/registrations-status.e2e-spec.ts::denies opening another Attendee's registration (403)`<br>`test/registrations-status.e2e-spec.ts::opens my own registration`<br>`test/registrations-status.e2e-spec.ts::reports an unknown registration as not found (404)` |
+
+### TC-S2-149
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-149 |
+| Story/AC ref | Story 34 Access |
+| Test Scenario | Only Attendees can use My registrations |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-142-setup.sql on testDB (reset before test). Logged in as organiser@example.com; coord.a@example.com; tech.support@example.com; venue.staff@example.com. |
+| Test Steps | 1. Open My registrations and a registration as each role, and without logging in. |
+| Test Data | tc-s2-142 |
+| Expected Result | Other roles are refused (403); no login is refused (401). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-status.e2e-spec.ts::refuses %s (403)`<br>`test/registrations-status.e2e-spec.ts::refuses a request without a token (401)` |
+
+### TC-S2-150
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-150 |
+| Story/AC ref | Story 34 AC-1, AC-3 |
+| Test Scenario | See My registrations on the screen |
+| Pre-conditions | Log in as attendee@example.com on the running app, once with no registrations and once with an active and a withdrawn one. |
+| Test Steps | 1. Open My registrations. |
+| Test Data | Seed data on the running app |
+| Expected Result | With none: "No Events Registered". Otherwise each registration shows the event name, date/time, venue and a Registered or Withdrawn status. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result |  |
+| Status | Not Executed |
+| Remarks | Manual: the AC is about the user interface. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | Manual |
+
+## Story 35: Withdraw my registration (Attendee)
+
+### TC-S2-151
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-151 |
+| Story/AC ref | Story 35 AC-1 |
+| Test Scenario | The withdraw option is available on active registrations before the cutoff |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-142-setup.sql + tc-s2-151-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Open the Charity Dinner registration.<br>2. Open My registrations. |
+| Test Data | tc-s2-151: Charity Dinner (cutoff 30 Sep 2030), Late Lecture (cutoff passed), Film Night (withdrawn) |
+| Expected Result | Charity Dinner can be withdrawn, showing the cutoff 30 Sep 2030. In the list only Charity Dinner can be withdrawn. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-withdraw.e2e-spec.ts::offers withdrawal, showing the cutoff`<br>`test/registrations-withdraw.e2e-spec.ts::marks which registrations in "My Registrations" can be withdrawn` |
+
+### TC-S2-152
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-152 |
+| Story/AC ref | Story 35 AC-2 |
+| Test Scenario | Withdrawal requires confirmation; cancelling leaves the registration unchanged |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-142-setup.sql + tc-s2-151-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Withdraw Charity Dinner with no confirmation (prompt cancelled), with confirm false, and with confirm "yes". |
+| Test Data | tc-s2-151 |
+| Expected Result | Each is refused (400) "withdrawal must be confirmed (confirm: true)"; the registration stays Registered. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | The prompt itself is on screen: TC-S2-158 (manual). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-withdraw.e2e-spec.ts::refuses %s (400) and leaves the registration as it was` |
+
+### TC-S2-153
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-153 |
+| Story/AC ref | Story 35 AC-3 |
+| Test Scenario | On confirmation, the status changes to Withdrawn |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-142-setup.sql + tc-s2-151-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Withdraw Charity Dinner, confirmed.<br>2. (Reset) Withdraw it twice at the same moment. |
+| Test Data | tc-s2-151 |
+| Expected Result | It becomes Withdrawn with the time recorded, and a notification says the registration was withdrawn. Of two simultaneous withdrawals, one succeeds and one is refused (409). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-withdraw.e2e-spec.ts::changes the status to WITHDRAWN and records when`<br>`test/registrations-withdraw.e2e-spec.ts::lets only one of two simultaneous withdrawals through` |
+
+### TC-S2-154
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-154 |
+| Story/AC ref | Story 35 AC-4 |
+| Test Scenario | After a withdrawal, the registration count drops by one and the place is free for others |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-142-setup.sql + tc-s2-151-setup.sql on testDB (reset before test). Logged in as attendee.b@example.com; attendee@example.com. |
+| Test Steps | 1. Check Sold Out Talk's options (full).<br>2. As Bea, withdraw from it.<br>3. Check again, and register as Ann. |
+| Test Data | tc-s2-142: Sold Out Talk, 2 of 2 taken |
+| Expected Result | Before: 2 registered, full. After Bea withdraws: 1 registered and registration is open; Ann registers (201). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-withdraw.e2e-spec.ts::frees the place at a full event for another Attendee` |
+
+### TC-S2-155
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-155 |
+| Story/AC ref | Story 35 AC-5 |
+| Test Scenario | After the cutoff, withdrawal is unavailable and the cutoff is shown |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-142-setup.sql + tc-s2-151-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Open the Late Lecture registration.<br>2. Try to withdraw it. |
+| Test Data | tc-s2-151 (cutoff 1 Jan 2020) |
+| Expected Result | Withdrawal is unavailable: "The withdrawal cutoff of 2020-01-01T00:00:00.000Z has passed.", with the cutoff shown. Withdrawing is refused (409) with the same reason; still Registered. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-withdraw.e2e-spec.ts::withholds the option and shows the cutoff`<br>`test/registrations-withdraw.e2e-spec.ts::refuses a withdrawal after the cutoff (409)` |
+
+### TC-S2-156
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-156 |
+| Story/AC ref | Story 35 AC-6 |
+| Test Scenario | Withdrawn registrations show no withdraw option; re-registering follows Story 33 |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-142-setup.sql + tc-s2-151-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Open the Film Night registration (withdrawn); try to withdraw it.<br>2. Register for Film Night again. |
+| Test Data | tc-s2-151 |
+| Expected Result | No withdraw option ("This registration has already been withdrawn."); withdrawing is refused (409). Registering again succeeds and re-activates the same registration (Registered, new phone, no withdrawal time). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | The story says re-registering follows "#34"; in the user-story document registering is Story 33. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-withdraw.e2e-spec.ts::offers no withdraw option, and refuses withdrawing again (409)`<br>`test/registrations-withdraw.e2e-spec.ts::lets the Attendee register again, re-activating the same registration` |
+
+### TC-S2-157
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-157 |
+| Story/AC ref | Story 35 Access |
+| Test Scenario | Only my own registration can be withdrawn, by Attendees only |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-142-setup.sql + tc-s2-151-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee); other roles. |
+| Test Steps | 1. As Ann, withdraw Bea's registration.<br>2. Withdraw as each other role, and without logging in. |
+| Test Data | tc-s2-142; tc-s2-151 |
+| Expected Result | Bea's is refused (403) and stays Registered. Other roles are refused (403); no login is refused (401). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-withdraw.e2e-spec.ts::refuses to withdraw another Attendee's registration (403)`<br>`test/registrations-withdraw.e2e-spec.ts::refuses %s (403)`<br>`test/registrations-withdraw.e2e-spec.ts::refuses a request without a token (401)` |
+
+### TC-S2-158
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-158 |
+| Story/AC ref | Story 35 AC-1, AC-2, AC-5, AC-6 |
+| Test Scenario | Withdraw from the screen, with a confirmation prompt |
+| Pre-conditions | Log in as attendee@example.com. One registration before its cutoff, one after, one withdrawn. |
+| Test Steps | 1. Open My registrations.<br>2. Click Withdraw on the first, then Cancel in the prompt.<br>3. Click Withdraw again and confirm.<br>4. Look at the other two. |
+| Test Data | Seed data on the running app |
+| Expected Result | Cancelling leaves it Registered. Confirming changes it to Withdrawn. The past-cutoff registration shows its cutoff instead of Withdraw; the withdrawn one has no Withdraw option. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result |  |
+| Status | Not Executed |
+| Remarks | Manual: the AC is about the user interface. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | Manual |
+
+## Story 36: Request an event change (Event Organiser)
+
+### TC-S2-159
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-159 |
+| Story/AC ref | Story 36 AC-1, AC-6 |
+| Test Scenario | The form shows the current date, time, attendance and equipment, and offers the catalogue |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Open "Tech Talk".<br>2. Open the equipment catalogue picker. |
+| Test Data | tc-s2-159: Tech Talk 1 Oct 2030 09:00-17:00, 120 expected, 2 × Projector (catalogue), 1 × Banner stand (free text) |
+| Expected Result | The event shows its dates, 120 expected and both equipment lines, with no pending request. The picker lists Projection screen, Projector and Wireless microphone (id, type, description, location only). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::shows the event's current values`<br>`test/events-change-request.e2e-spec.ts::offers the equipment catalogue to pick from` |
+
+### TC-S2-160
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-160 |
+| Story/AC ref | Story 36 AC-1 |
+| Test Scenario | A reason is required |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Request attendance 150 with no reason, an empty reason, and a reason of spaces. |
+| Test Data | tc-s2-159 |
+| Expected Result | Each is refused (400) "reason is required"; nothing is saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::refuses %s (400) and saves nothing` |
+
+### TC-S2-161
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-161 |
+| Story/AC ref | Story 36 AC-2 |
+| Test Scenario | At least one field must differ from the current value |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Request with nothing proposed; with attendance 120; with the same dates; with the same equipment. |
+| Test Data | tc-s2-159 |
+| Expected Result | Each is refused (400) "at least one field must differ from the event’s current value"; nothing is saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::refuses %s (400)` |
+
+### TC-S2-162
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-162 |
+| Story/AC ref | Story 36 AC-3 |
+| Test Scenario | Proposed dates cannot be in the past, and the end must be after the start |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Request a start in 2020; an end in 2020; an end before the proposed start; an end before the current start; a start after the current end; "next Tuesday".<br>2. Request 2 Oct 2030 10:00-18:00. |
+| Test Data | tc-s2-159 |
+| Expected Result | Each invalid date is refused (400) naming the problem; nothing is saved. The valid new date is accepted (201). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::refuses %s (400)`<br>`test/events-change-request.e2e-spec.ts::accepts a new date and time in the future` |
+
+### TC-S2-163
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-163 |
+| Story/AC ref | Story 36 AC-4 |
+| Test Scenario | Expected attendance must be a positive whole number |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Request attendance 0, -5, 2.5 and "lots". |
+| Test Data | tc-s2-159 |
+| Expected Result | Each is refused (400); nothing is saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::refuses %p (400)` |
+
+### TC-S2-164
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-164 |
+| Story/AC ref | Story 36 AC-5 |
+| Test Scenario | Equipment changes can add items, remove items and change quantities |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Request 3 × Projector and 4 × Wireless microphone.<br>2. (Reset) Request an empty equipment list. |
+| Test Data | tc-s2-159 |
+| Expected Result | Both are saved: the first with the new list (quantity changed, item added), the second as "remove everything". |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::saves a new list that changes a quantity and adds an item`<br>`test/events-change-request.e2e-spec.ts::saves a request to remove every item` |
+
+### TC-S2-165
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-165 |
+| Story/AC ref | Story 36 AC-6 |
+| Test Scenario | Equipment items are selected from the catalogue |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Request an item that is not in the catalogue.<br>2. Request the same item twice. |
+| Test Data | tc-s2-159 |
+| Expected Result | Refused (400) "equipment item q-s2-cr-hoverboard is not in the catalogue"; the duplicate is refused with a message to combine the quantities. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::refuses an item that is not in the catalogue (400)`<br>`test/events-change-request.e2e-spec.ts::refuses the same item twice (400)` |
+
+### TC-S2-166
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-166 |
+| Story/AC ref | Story 36 AC-7 |
+| Test Scenario | Equipment quantities must be positive whole numbers |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Request a microphone quantity of 0, -1 and 1.5. |
+| Test Data | tc-s2-159 |
+| Expected Result | Each is refused (400); nothing is saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::refuses a quantity of %p (400)` |
+
+### TC-S2-167
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-167 |
+| Story/AC ref | Story 36 AC-8 |
+| Test Scenario | A submitted request is saved as Pending and linked to the event |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Request attendance 150 (with the start unchanged).<br>2. Request again while it is pending.<br>3. (Reset) Send two requests at the same moment. |
+| Test Data | tc-s2-159 |
+| Expected Result | Saved as Pending on Tech Talk, by Olivia, with the reason and only the changed attendance (start stored as unchanged). A second request is refused (409) until the first is decided; of two simultaneous requests only one is saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::saves it as PENDING on the event, storing only what changes`<br>`test/events-change-request.e2e-spec.ts::refuses a second request while one is pending (409)`<br>`test/events-change-request.e2e-spec.ts::lets only one of two simultaneous requests through` |
+
+### TC-S2-168
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-168 |
+| Story/AC ref | Story 36 AC-9 |
+| Test Scenario | The original details still show, with the pending request alongside |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Request attendance 150 and a move to 2 Oct.<br>2. Open the event. |
+| Test Data | tc-s2-159 |
+| Expected Result | The event still shows 120 expected and 1 Oct; the pending request (150, 2 Oct, its reason) is shown beside it. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::keeps the event as it was and shows the request beside it` |
+
+### TC-S2-169
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-169 |
+| Story/AC ref | Story 36 AC-10 |
+| Test Scenario | Change requests are only for submitted or confirmed events |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql + tc-s2-169-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Request a change to the confirmed, draft, cancelled, completed and rejected events. |
+| Test Data | tc-s2-169 |
+| Expected Result | Confirmed: accepted (201). Each other: refused (409) "event is <STATUS>; change requests are only available for submitted or confirmed events". |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | Every status from Submitted to Confirmed (including Returned and Planning) is allowed, on the team's reading of "submitted or confirmed". |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::accepts a request for a confirmed event`<br>`test/events-change-request.e2e-spec.ts::refuses a %s event (409)` |
+
+### TC-S2-170
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-170 |
+| Story/AC ref | Story 36 AC-11 |
+| Test Scenario | Organisers can only request changes to their own events |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql + tc-s2-170-setup.sql on testDB (reset before test). Logged in as other.organiser@example.com (Oscar Organiser); coord.a@example.com; attendee@example.com. |
+| Test Steps | 1. As Oscar, request a change to Tech Talk, then to his own event.<br>2. Request as a Coordinator and an Attendee. |
+| Test Data | tc-s2-170: Oscar and his submitted event |
+| Expected Result | Tech Talk is not found for Oscar (404), nothing saved; his own event is accepted (201). Other roles are refused (403). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-request.e2e-spec.ts::hides another Organiser's event (404)`<br>`test/events-change-request.e2e-spec.ts::accepts the Organiser\`<br>`test/events-change-request.e2e-spec.ts::refuses %s (403)` |
+
+### TC-S2-171
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-171 |
+| Story/AC ref | Story 36 AC-1, AC-5, AC-9 |
+| Test Scenario | Request a change from the Organiser's event page |
+| Pre-conditions | Log in as organiser@example.com. A submitted event with some catalogue equipment. |
+| Test Steps | 1. Open the event and start a change request.<br>2. Change the attendance and one equipment quantity, add an item from the catalogue, enter a reason, submit.<br>3. Look at the event page. |
+| Test Data | Seed data on the running app |
+| Expected Result | The form starts from the current date, time, attendance and equipment; items are picked from the catalogue. After submitting, the original details still show, with the pending request beside them. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result |  |
+| Status | Not Executed |
+| Remarks | Manual: the AC is about the user interface. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | Manual |
+
+## Story 37: Review change requests (Event Coordinator)
+
+### TC-S2-172
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-172 |
+| Story/AC ref | Story 37 AC-1 |
+| Test Scenario | Pending change requests on my own events are listed, oldest first |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-159-setup.sql + tc-s2-172-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator); coord.b@example.com. |
+| Test Steps | 1. Open Change requests as Cody, then as Casey. |
+| Test Data | tc-s2-172: Cody has two pending (8 and 10 Sep 2026) and one decided; Casey has one pending |
+| Expected Result | Cody sees "Clashes with exams" (Open House) then "More sign-ups than expected", each with the event and requester, and not the decided one or Casey's. Casey sees only hers. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-review.e2e-spec.ts::lists only my pending requests, oldest first`<br>`test/events-change-review.e2e-spec.ts::shows another Coordinator only theirs` |
+
+### TC-S2-173
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-173 |
+| Story/AC ref | Story 37 AC-2 |
+| Test Scenario | A request shows the event as it is now beside what is proposed, with the reason |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-159-setup.sql + tc-s2-172-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). |
+| Test Steps | 1. Open the attendance request.<br>2. Open the date request. |
+| Test Data | tc-s2-172 |
+| Expected Result | Attendance: proposed 350 beside the current 120, dates and equipment, the reason and Olivia as requester. Dates: the new window 2 Oct 2030 09:00-17:00. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-review.e2e-spec.ts::shows current and proposed values, the reason and the requester`<br>`test/events-change-review.e2e-spec.ts::shows the new window a date change would give the event` |
+
+### TC-S2-174
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-174 |
+| Story/AC ref | Story 37 AC-6 |
+| Test Scenario | A warning shows when the proposed attendance exceeds a booked venue |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-159-setup.sql + tc-s2-172-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). |
+| Test Steps | 1. Open the attendance request.<br>2. Open the date request. |
+| Test Data | tc-s2-172: Tech Talk booked in Main Hall (capacity 300) |
+| Expected Result | Attendance: "The proposed attendance of 350 exceeds the capacity of Main Hall (300)." Dates: no capacity warning. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-review.e2e-spec.ts::warns that 350 exceeds Main Hall (300)`<br>`test/events-change-review.e2e-spec.ts::raises no capacity warning when attendance is not changing` |
+
+### TC-S2-175
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-175 |
+| Story/AC ref | Story 37 AC-3, AC-5 |
+| Test Scenario | Rejecting needs a reason |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-159-setup.sql + tc-s2-172-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). |
+| Test Steps | 1. Reject the attendance request with no reason, and with spaces.<br>2. Reject it with "Main Hall cannot hold 350". |
+| Test Data | tc-s2-172 |
+| Expected Result | Without a real reason: refused (400), still Pending. With one: Rejected by Cody with the reason; the event still expects 120. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-review.e2e-spec.ts::refuses a rejection with %s (400)`<br>`test/events-change-review.e2e-spec.ts::rejects with the reason, leaving the event unchanged` |
+
+### TC-S2-176
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-176 |
+| Story/AC ref | Story 37 AC-5 |
+| Test Scenario | The Organiser sees the decision and its reason |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-159-setup.sql + tc-s2-172-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. As Cody, reject the attendance request with a reason.<br>2. As Olivia, open Tech Talk. |
+| Test Data | tc-s2-172 |
+| Expected Result | No pending request; the latest decision shows Rejected with "Main Hall cannot hold 350". |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-review.e2e-spec.ts::shows the rejection and reason on the Organiser\` |
+
+### TC-S2-177
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-177 |
+| Story/AC ref | Story 37 AC-4 |
+| Test Scenario | Approving applies the change and records it in the event's history |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-159-setup.sql + tc-s2-172-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). |
+| Test Steps | 1. Approve the attendance request.<br>2. Approve the date request. |
+| Test Data | tc-s2-172 |
+| Expected Result | Attendance becomes 350; the request is Approved by Cody; the history entry (what: 120 → 350, who: Cody, when: its time) is flagged for review because Main Hall was confirmed. The Open House moves to 2 Oct 09:00-17:00. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-review.e2e-spec.ts::applies a new attendance and records it in the history`<br>`test/events-change-review.e2e-spec.ts::applies new dates` |
+
+### TC-S2-178
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-178 |
+| Story/AC ref | Story 37 AC-4 |
+| Test Scenario | Approving an equipment change replaces the catalogue lines, keeping notes and free-text lines |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-159-setup.sql + tc-s2-172-setup.sql + tc-s2-178-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). |
+| Test Steps | 1. Approve the Robotics Expo equipment request. |
+| Test Data | tc-s2-178: 2 × Projector ("HDMI") and 1 × Banner stand; request 3 × Projector, 4 × Wireless microphone |
+| Expected Result | The event now has 3 × Projector (still "HDMI"), 4 × Wireless microphone and 1 × Banner stand. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-review.e2e-spec.ts::replaces the catalogue equipment, keeping notes and free-text lines` |
+
+### TC-S2-179
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-179 |
+| Story/AC ref | Story 37 AC-3, AC-4 |
+| Test Scenario | A request is decided only once |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-159-setup.sql + tc-s2-172-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). |
+| Test Steps | 1. Reject the attendance request, then approve it.<br>2. (Reset) Approve and reject it at the same moment. |
+| Test Data | tc-s2-172 |
+| Expected Result | The second decision is refused (409) "this change request has already been decided" and the event is unchanged. Of the simultaneous pair, exactly one succeeds and the event matches it. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-review.e2e-spec.ts::refuses a second decision (409)`<br>`test/events-change-review.e2e-spec.ts::lets only one of a simultaneous approve and reject through` |
+
+### TC-S2-180
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-180 |
+| Story/AC ref | Story 37 Access |
+| Test Scenario | Only the event's assigned Coordinator can review its requests |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-159-setup.sql + tc-s2-172-setup.sql on testDB (reset before test). Logged in as coord.b@example.com; organiser@example.com; attendee@example.com. |
+| Test Steps | 1. As Casey, open, approve and reject Cody's request.<br>2. Open an unknown request.<br>3. Use the routes as the Organiser and an Attendee. |
+| Test Data | tc-s2-172 |
+| Expected Result | Casey gets not found (404) each time and the request stays Pending. The unknown request is not found (404). Other roles are refused (403). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-change-review.e2e-spec.ts::hides another Coordinator's request (404)`<br>`test/events-change-review.e2e-spec.ts::reports an unknown request as not found (404)`<br>`test/events-change-review.e2e-spec.ts::refuses %s (403)` |
+
+### TC-S2-181
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-181 |
+| Story/AC ref | Story 37 AC-1, AC-2, AC-6 |
+| Test Scenario | Review a change request on the Coordinator screens |
+| Pre-conditions | Log in as coord.a@example.com. A pending request that proposes more attendees than the booked venue holds. |
+| Test Steps | 1. Open Change requests.<br>2. Open the request.<br>3. Reject it without a reason, then with one. |
+| Test Data | Seed data on the running app |
+| Expected Result | The list shows the pending request; the review shows current and proposed values side by side, the reason and a capacity warning. Reject needs a reason before it can be submitted. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result |  |
+| Status | Not Executed |
+| Remarks | Manual: the AC is about the user interface. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | Manual |

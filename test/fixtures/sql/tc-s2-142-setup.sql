@@ -1,7 +1,9 @@
 -- tc-s2-142-setup.sql: two more Attendees, an event that is full and one with
 -- a single place left.
 --
--- Pre-condition for TC-S2-142 (Story 33 AC-7). Load AFTER base-users.sql.
+-- Pre-condition for TC-S2-142 (Story 33 AC-7), and the base for Stories 34
+-- and 35 (TC-S2-145 to TC-S2-157), which need the extra Attendees.
+-- Load AFTER base-users.sql.
 -- Both events: CONFIRMED, registration open (1 Jan 2026 - 28 Sep 2030),
 -- 1 Oct 2030 09:00-17:00 UTC.
 --

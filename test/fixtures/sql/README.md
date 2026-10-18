@@ -227,13 +227,20 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-134-setup.sql` | a reservation for the main event already released on 1 Jan 2030 | 134 |
 | `tc-s2-136-setup.sql` | a confirmed event open for registration now (capacity 100) | 136, 137, 138, 139, 140, 141, 142, 143 |
 | `tc-s2-137-setup.sql` | events where registering is not allowed: registration off, still planning, draft, not yet open, already closed | 137, 141 |
-| `tc-s2-142-setup.sql` | two more Attendees, a full event (2 of 2) and one with a single place left | 142 |
+| `tc-s2-142-setup.sql` | two more Attendees, a full event (2 of 2) and one with a single place left | 142, 145, 146, 147, 148, 149, 151, 152, 153, 154, 155, 156, 157 |
+| `tc-s2-145-setup.sql` | u-attendee's registrations: one active (venue confirmed), one withdrawn (no venue) | 145, 146, 148 |
+| `tc-s2-151-setup.sql` | u-attendee's registrations before and after their withdrawal cutoff, and one already withdrawn | 151, 152, 153, 154, 155, 156, 157 |
+| `tc-s2-159-setup.sql` | an equipment catalogue and a submitted event with catalogue and free-text equipment | 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 172, 173, 174, 175, 176, 177, 178, 179, 180 |
+| `tc-s2-169-setup.sql` | u-organiser's events in every status a change request is or isn't allowed for | 169 |
+| `tc-s2-170-setup.sql` | a second Organiser (u-organiser-b) and their own submitted event | 170 |
+| `tc-s2-172-setup.sql` | pending change requests on u-coordinator-a's and u-coordinator-b's events, one already decided, and a Main Hall booking | 172, 173, 174, 175, 176, 177, 178, 179, 180 |
+| `tc-s2-178-setup.sql` | a pending request to change an event's equipment list | 178 |
 
 Extra users added by Sprint 2 scripts (same password as the base users):
 
 | ID | Email | Name | Role |
 |---|---|---|---|
 | `u-venue-staff-b` | venue.staff.b@example.com | Victor Venue | VENUE_STAFF (`tc-s2-01-setup.sql`) |
-| `u-organiser-b` | other.organiser@example.com | Oscar Organiser | EVENT_ORGANISER (`tc-s2-52-setup.sql`) |
+| `u-organiser-b` | other.organiser@example.com | Oscar Organiser | EVENT_ORGANISER (`tc-s2-52-setup.sql`, and again in `tc-s2-170-setup.sql`; never load both) |
 | `u-attendee-b` | attendee.b@example.com | Bea Attendee | ATTENDEE (`tc-s2-142-setup.sql`) |
 | `u-attendee-c` | attendee.c@example.com | Cal Attendee | ATTENDEE (`tc-s2-142-setup.sql`) |

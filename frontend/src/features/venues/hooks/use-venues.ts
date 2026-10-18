@@ -6,6 +6,7 @@ import type {
   BrowseVenuesQuery,
   DayAvailability,
   Venue,
+  VenueOccupancy,
   VenueDraftPayload,
   VenueSearchQuery,
   VenueSuitability,
@@ -21,6 +22,7 @@ export const venueKeys = {
   detail: (id: string) => ['venues', 'detail', id] as const,
   availability: (id: string, month: string) =>
     ['venues', 'availability', id, month] as const,
+  occupancy: (id: string, day: string) => ['venues', 'occupancy', id, day] as const,
 };
 
 /** US-15 — the catalogue, optionally searched and sorted server-side. */
@@ -61,6 +63,19 @@ export function useVenue(id: string) {
     queryKey: venueKeys.detail(id),
     queryFn: () => venuesApi.getById(id),
     enabled: Boolean(id),
+  });
+}
+
+/**
+ * US-50 AC-3 — what occupies a venue on one selected day, each booking split
+ * into setup, event time and turnaround. Fetched only once a day is picked.
+ */
+export function useVenueOccupancy(id: string, day: string | null) {
+  return useQuery<VenueOccupancy[]>({
+    queryKey: venueKeys.occupancy(id, day ?? ''),
+    queryFn: () => venuesApi.occupancy(id, day!),
+    enabled: Boolean(id && day),
+    staleTime: 30_000,
   });
 }
 

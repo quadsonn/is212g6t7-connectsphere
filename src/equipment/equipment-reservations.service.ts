@@ -34,12 +34,22 @@ export const RELEASABLE_STATUSES: readonly ReservationStatus[] = [
   ReservationStatus.APPROVED,
 ];
 
-/** US-38 — an equipment reservation released because its event was rescheduled. */
-export interface ReleasedForReschedule {
+/**
+ * US-48 AC-7 — a reservation rebooked for an approved change request: the
+ * original (now RELEASED) and its replacement for the new time.
+ */
+export interface RebookedReservation {
+  /** The original, released once the replacement existed. */
   reservationId: string;
+  /** The new reservation for the new details. */
+  replacementId: string;
+  equipmentId: string;
   equipmentType: string;
   quantity: number;
-  previousStatus: ReservationStatus;
+  /** Kept: a committed reservation stays committed. */
+  status: ReservationStatus;
+  from: { start: Date; end: Date };
+  to: { start: Date; end: Date };
 }
 
 /**
@@ -78,6 +88,8 @@ export const RELEASED_SELECT = {
   end: true,
   status: true,
   releasedAt: true,
+  // US-48: set when an approved change moved it; the units were rebooked.
+  replacedById: true,
   equipment: { select: { id: true, type: true } },
   event: { select: { id: true, name: true, status: true } },
 } as const satisfies Prisma.EquipmentReservationSelect;
@@ -190,6 +202,7 @@ export class EquipmentReservationsService {
 
   /**
    * US-33 AC-1/AC-4 — release every reservation the event still holds.
+   * US-47 reuses it for an event rejected as unfulfillable.
    *
    * Called by EventsService.setStatus() inside the same transaction as the
    * status change to CANCELLED, so the event can never be cancelled with its
@@ -211,10 +224,11 @@ export class EquipmentReservationsService {
     });
 
     // A guard on the contract, not a user-facing rule: releasing a live
-    // event's equipment would silently free units it still needs.
-    if (event?.status !== EventStatus.CANCELLED) {
+    // event's equipment would silently free units it still needs. US-47: a
+    // request rejected as unfulfillable gives its equipment back the same way.
+    if (event?.status !== EventStatus.CANCELLED && event?.status !== EventStatus.REJECTED) {
       throw new ConflictException(
-        'equipment can only be released for a cancelled event',
+        'equipment can only be released for a cancelled or rejected event',
       );
     }
 
@@ -227,46 +241,66 @@ export class EquipmentReservationsService {
   }
 
   /**
-   * US-38 — the event moved to new dates, so release what it holds.
+   * US-48 AC-7 — an approved change request moved the event, so rebook each
+   * reservation it still holds or awaits for the event's new times, then
+   * release the originals.
    *
-   * A reservation commits units for one window, and availability for the new
-   * window is unknown, so each is released and Technical Support commits again
-   * (commit() re-checks availability against the event's new dates). The
-   * event's equipment requirements are untouched, so they know what to book.
+   * Replaces US-38's release, which gave the units back for Technical Support
+   * to commit again. Per the customer, the Coordinator's approval is what
+   * matters and Technical Support are informed offline, so a committed
+   * (APPROVED) reservation stays committed for the new time. Same item, same
+   * quantity; equipment has no transit or turnaround time, so the new window
+   * is the event's own (as US-32 commits it).
    *
-   * Runs in the caller's transaction, with the change to the event's dates.
-   * Returns what was released, for the Coordinator to see. Like the release for
-   * a cancelled event, it only moves reservations still holding or awaiting
-   * units, so repeating it is a no-op.
+   * Inside the caller's transaction: every replacement is created first, then
+   * the originals are released — RELEASED, kept, each linked to its
+   * replacement. Availability at the new time was checked before this runs
+   * (US-48's check), with the item rows locked like a US-32 commit.
    */
-  async releaseForRescheduledEvent(
+  async rebookForEventChange(
     eventId: string,
+    to: { start: Date; end: Date },
     tx: Prisma.TransactionClient,
-  ): Promise<ReleasedForReschedule[]> {
+  ): Promise<RebookedReservation[]> {
     const held = await tx.equipmentReservation.findMany({
       where: { eventId, status: { in: [...RELEASABLE_STATUSES] } },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      select: {
-        id: true,
-        quantity: true,
-        status: true,
-        equipment: { select: { type: true } },
-      },
+      include: { equipment: { select: { type: true } } },
     });
 
-    if (held.length > 0) {
-      await tx.equipmentReservation.updateMany({
-        where: { id: { in: held.map((row) => row.id) } },
-        data: { status: ReservationStatus.RELEASED, releasedAt: new Date() },
+    const rebooked: RebookedReservation[] = [];
+    for (const row of held) {
+      const replacement = await tx.equipmentReservation.create({
+        data: {
+          eventId,
+          equipmentId: row.equipmentId,
+          quantity: row.quantity,
+          start: to.start,
+          end: to.end,
+          status: row.status,
+        },
+      });
+      rebooked.push({
+        reservationId: row.id,
+        replacementId: replacement.id,
+        equipmentId: row.equipmentId,
+        equipmentType: row.equipment.type,
+        quantity: row.quantity,
+        status: row.status,
+        from: { start: row.start, end: row.end },
+        to: { start: to.start, end: to.end },
       });
     }
 
-    return held.map((row) => ({
-      reservationId: row.id,
-      equipmentType: row.equipment.type,
-      quantity: row.quantity,
-      previousStatus: row.status,
-    }));
+    const releasedAt = new Date();
+    for (const r of rebooked) {
+      await tx.equipmentReservation.update({
+        where: { id: r.reservationId },
+        data: { status: ReservationStatus.RELEASED, releasedAt, replacedById: r.replacementId },
+      });
+    }
+
+    return rebooked;
   }
 
   /** US-33 AC-3 — which reservations were released, and for which event. */
@@ -325,8 +359,11 @@ export class EquipmentReservationsService {
     };
   }
 
-  /** Row-locks the item so concurrent commitments of it run one at a time. */
-  private async lockEquipment(
+  /**
+   * Row-locks the item so concurrent commitments of it run one at a time.
+   * Public so a change request approval (US-48) takes the same lock.
+   */
+  async lockEquipment(
     tx: Prisma.TransactionClient,
     equipmentId: string,
   ): Promise<void> {

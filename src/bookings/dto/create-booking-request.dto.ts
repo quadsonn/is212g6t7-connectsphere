@@ -1,10 +1,16 @@
+import { AccessibilityFeature, RoomLayout } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayUnique,
+  IsArray,
   IsDate,
+  IsEnum,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsPositive,
   IsString,
+  MaxLength,
   MinDate,
 } from 'class-validator';
 
@@ -18,9 +24,10 @@ import { IsAfterField } from '../../common/validators/is-after.validator';
  * conflict detection compares; the form splits them back into a date and two
  * times for the person filling it in.
  *
- * AC-2's requirements are deliberately NOT accepted here: they are copied from
- * the event the Coordinator already recorded them on, so the request cannot
- * disagree with the event it is for.
+ * AC-2's requirements are copied from the event the Coordinator already
+ * recorded them on. US-53 AC-2: an event needing several spaces (a hall and
+ * breakout rooms) needs different requirements per venue, so each may be set
+ * on the request instead; anything left out is still copied.
  */
 export class CreateBookingRequestDto {
   @IsString()
@@ -49,4 +56,46 @@ export class CreateBookingRequestDto {
   @IsPositive({ message: 'expectedAttendance must be greater than zero' })
   @Type(() => Number)
   expectedAttendance: number;
+
+  /**
+   * US-52 AC-3: set when this request replaces a booking whose venue became
+   * unavailable. The request is otherwise an ordinary one — same checks, and
+   * Venue Staff still decide on it; approving it releases the original.
+   */
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty({ message: 'replacesBookingId must be a booking id' })
+  replacesBookingId?: string;
+
+  // US-53 AC-2 — this venue's own requirements. Each is optional: omitted
+  // means "as the event (or, for a replacement, the replaced booking)
+  // records it"; null clears it for this venue.
+
+  @IsOptional()
+  @IsEnum(RoomLayout, { message: `preferredLayout must be one of: ${Object.values(RoomLayout).join(', ')}` })
+  preferredLayout?: RoomLayout | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  layoutNotes?: string | null;
+
+  @IsOptional()
+  @IsArray({ message: 'accessibilityRequirements must be a list' })
+  @ArrayUnique()
+  @IsEnum(AccessibilityFeature, {
+    each: true,
+    message: `each accessibility requirement must be one of: ${Object.values(AccessibilityFeature).join(', ')}`,
+  })
+  accessibilityRequirements?: AccessibilityFeature[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  accessibilityNotes?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  equipmentNeeds?: string | null;
 }

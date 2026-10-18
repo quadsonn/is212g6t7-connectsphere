@@ -23,6 +23,7 @@ import { AskClarificationDto } from './dto/ask-clarification.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
 import { RespondClarificationDto } from './dto/respond-clarification.dto';
 import { RejectRequestDto } from './dto/reject-request.dto';
+import { RejectUnfulfillableDto } from './dto/reject-unfulfillable.dto';
 import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
 import { UpdatePlanningDto } from './dto/update-planning.dto';
@@ -32,6 +33,7 @@ import { RejectChangeRequestDto } from './dto/reject-change-request.dto';
 import { EventsChangeReviewService } from './events-change-review.service';
 import { EventsChangeRequestService } from './events-change-request.service';
 import { EventsService } from './events.service';
+import { EventsUnfulfillableService } from './events-unfulfillable.service';
 
 /**
  * Guard order: JwtAuthGuard establishes the principal, RolesGuard applies the
@@ -45,6 +47,7 @@ export class EventsController {
     private readonly eventsService: EventsService,
     private readonly changeRequests: EventsChangeRequestService,
     private readonly changeReviews: EventsChangeReviewService,
+    private readonly unfulfillable: EventsUnfulfillableService,
   ) {}
 
   /**
@@ -141,6 +144,22 @@ export class EventsController {
     @Body() dto: RespondClarificationDto,
   ) {
     return this.eventsService.respondToClarification(user, id, dto);
+  }
+
+  /**
+   * US-47 — reject an approved request that cannot be fulfilled (no suitable
+   * venue, no available equipment, or both), releasing what it holds.
+   * Separate from US-08's review rejection below.
+   */
+  @Post(':id/reject-unfulfillable')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  rejectUnfulfillable(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: RejectUnfulfillableDto,
+  ) {
+    return this.unfulfillable.reject(user, id, dto);
   }
 
   /**

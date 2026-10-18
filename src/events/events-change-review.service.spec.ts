@@ -4,6 +4,7 @@ import {
   ChangeRequestStatus,
   EquipmentStatus,
   EventStatus,
+  Prisma,
   ReservationStatus,
   Role,
 } from '@prisma/client';
@@ -13,7 +14,9 @@ import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { BookingsService } from '../bookings/bookings.service';
 import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ChangeArrangementCheckService } from './change-arrangement-check.service';
 import { EventsChangeReviewService } from './events-change-review.service';
 import { EventsService } from './events.service';
 
@@ -89,6 +92,8 @@ describe('EventsChangeReviewService (US-38)', () => {
     venueBooking: { findMany: jest.Mock };
     venueBlock: { findMany: jest.Mock };
     equipmentReservation: { findMany: jest.Mock };
+    equipment: { findUniqueOrThrow: jest.Mock };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let access: {
@@ -97,8 +102,13 @@ describe('EventsChangeReviewService (US-38)', () => {
     isAssignedCoordinator: jest.Mock;
   };
   let events: { recordChange: jest.Mock; confirmedArrangements: jest.Mock };
-  let bookings: { rescheduleForEventChange: jest.Mock };
-  let reservations: { releaseForRescheduledEvent: jest.Mock };
+  let bookings: {
+    rebookForEventChange: jest.Mock;
+    conflictsFor: jest.Mock;
+    lockVenue: jest.Mock;
+  };
+  let reservations: { rebookForEventChange: jest.Mock; lockEquipment: jest.Mock };
+  let notifications: { notifySafely: jest.Mock };
   let service: EventsChangeReviewService;
   let stored: ReturnType<typeof request>;
   let currentEvent: ReturnType<typeof event>;
@@ -137,6 +147,19 @@ describe('EventsChangeReviewService (US-38)', () => {
       venueBooking: { findMany: jest.fn().mockResolvedValue([]) },
       venueBlock: { findMany: jest.fn().mockResolvedValue([]) },
       equipmentReservation: { findMany: jest.fn().mockResolvedValue([]) },
+      // US-48 AC-3: an item on the proposed list, operational and plentiful.
+      equipment: {
+        findUniqueOrThrow: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve({
+            id: where.id,
+            type: where.id,
+            totalQuantity: 100,
+            operationalStatus: EquipmentStatus.OPERATIONAL,
+          }),
+        ),
+      },
+      // US-48 AC-7: the approval's row lock on the event.
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'event-1' }]),
       $transaction: jest.fn((cb) => cb(prisma)),
     };
     access = {
@@ -148,14 +171,31 @@ describe('EventsChangeReviewService (US-38)', () => {
       recordChange: jest.fn().mockResolvedValue({ id: 'change-1' }),
       confirmedArrangements: jest.fn().mockResolvedValue([]),
     };
-    bookings = { rescheduleForEventChange: jest.fn().mockResolvedValue([]) };
-    reservations = { releaseForRescheduledEvent: jest.fn().mockResolvedValue([]) };
+    bookings = {
+      rebookForEventChange: jest.fn().mockResolvedValue([]),
+      // US-50: clashes at the new time come from the shared, buffer-aware check.
+      conflictsFor: jest.fn().mockResolvedValue({
+        hardConflicts: [],
+        softConflicts: [],
+        blocks: [],
+        hasHardConflict: false,
+      }),
+      lockVenue: jest.fn().mockResolvedValue(undefined),
+    };
+    reservations = {
+      rebookForEventChange: jest.fn().mockResolvedValue([]),
+      lockEquipment: jest.fn().mockResolvedValue(undefined),
+    };
+    notifications = { notifySafely: jest.fn().mockResolvedValue(undefined) };
     service = new EventsChangeReviewService(
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       events as unknown as EventsService,
       bookings as unknown as BookingsService,
       reservations as unknown as EquipmentReservationsService,
+      // US-48: the real check, over the same mocks.
+      new ChangeArrangementCheckService(bookings as unknown as BookingsService),
+      notifications as unknown as NotificationsService,
     );
   });
 
@@ -555,41 +595,78 @@ describe('EventsChangeReviewService (US-38)', () => {
    * An approved date or time change must not leave bookings and reservations on
    * the old dates (the briefing: no contradictory information).
    */
-  describe('rescheduling: approving a date or time change moves the arrangements', () => {
+  // US-48 AC-7 replaced US-38's move (bookings back to REQUESTED, equipment
+  // released) with a rebook for the new details; these tests follow it.
+  describe('rescheduling: approving a date or time change rebooks the arrangements (US-48 AC-7)', () => {
     const newStart = inDays(40, 9);
     const newEnd = inDays(40, 17);
     const dateChange = () =>
       request({ proposedAttendance: null, proposedStart: newStart, proposedEnd: newEnd });
 
     describe('on approval', () => {
-      it('moves the venue bookings and releases the equipment, in the same transaction', async () => {
+      it('US-48 AC-7: rebooks the venue bookings and equipment reservations, in the same transaction', async () => {
         stored = dateChange();
 
         await service.approve(coordinator, 'cr-1');
 
-        expect(bookings.rescheduleForEventChange).toHaveBeenCalledWith(
+        expect(bookings.rebookForEventChange).toHaveBeenCalledWith(
           prisma,
           'event-1',
           { start: eventStart, end: eventEnd },
           { start: newStart, end: newEnd },
+          null,
         );
-        expect(reservations.releaseForRescheduledEvent).toHaveBeenCalledWith('event-1', prisma);
+        expect(reservations.rebookForEventChange).toHaveBeenCalledWith(
+          'event-1',
+          { start: newStart, end: newEnd },
+          prisma,
+        );
         expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       });
 
-      it('reports what was moved and released', async () => {
+      it('US-48 AC-7: passes the proposed attendance to the rebooked venue bookings', async () => {
+        stored = request({ proposedAttendance: 150, proposedStart: newStart, proposedEnd: newEnd });
+
+        await service.approve(coordinator, 'cr-1');
+
+        expect(bookings.rebookForEventChange.mock.calls[0][4]).toBe(150);
+      });
+
+      it('US-48 AC-7: reports what was rebooked, and records it in the event history', async () => {
         stored = dateChange();
-        const moved = [{ bookingId: 'booking-1' }];
-        const released = [{ reservationId: 'res-1' }];
-        bookings.rescheduleForEventChange.mockResolvedValue(moved);
-        reservations.releaseForRescheduledEvent.mockResolvedValue(released);
+        const venueMove = {
+          bookingId: 'booking-1',
+          replacementId: 'booking-2',
+          venueName: 'Main Hall',
+          from: { start: eventStart, end: eventEnd },
+          to: { start: newStart, end: newEnd },
+        };
+        const equipmentMove = {
+          reservationId: 'res-1',
+          replacementId: 'res-2',
+          equipmentType: 'Projector',
+          quantity: 2,
+          from: { start: eventStart, end: eventEnd },
+          to: { start: newStart, end: newEnd },
+        };
+        bookings.rebookForEventChange.mockResolvedValue([venueMove]);
+        reservations.rebookForEventChange.mockResolvedValue([equipmentMove]);
 
         const result = await service.approve(coordinator, 'cr-1');
 
         expect(result.arrangements).toEqual({
-          venueBookings: moved,
-          equipmentReservations: released,
+          venueBookings: [venueMove],
+          equipmentReservations: [equipmentMove],
         });
+        const [, , , changes] = recorded();
+        expect(changes.map((c: { field: string }) => c.field)).toEqual([
+          'proposedStart',
+          'proposedEnd',
+          'venueBookings',
+          'equipmentReservations',
+        ]);
+        expect(changes[2].previous).toEqual([expect.stringMatching(/^Main Hall: /)]);
+        expect(changes[3].next).toEqual([expect.stringMatching(/^2 × Projector: /)]);
       });
 
       it('keeps the existing end when only the start moves', async () => {
@@ -597,19 +674,20 @@ describe('EventsChangeReviewService (US-38)', () => {
 
         await service.approve(coordinator, 'cr-1');
 
-        expect(bookings.rescheduleForEventChange).toHaveBeenCalledWith(
+        expect(bookings.rebookForEventChange).toHaveBeenCalledWith(
           prisma,
           'event-1',
           { start: eventStart, end: eventEnd },
           { start: inDays(30, 10), end: eventEnd },
+          null,
         );
       });
 
       it('leaves bookings and equipment alone for an attendance-only change', async () => {
         await service.approve(coordinator, 'cr-1');
 
-        expect(bookings.rescheduleForEventChange).not.toHaveBeenCalled();
-        expect(reservations.releaseForRescheduledEvent).not.toHaveBeenCalled();
+        expect(bookings.rebookForEventChange).not.toHaveBeenCalled();
+        expect(reservations.rebookForEventChange).not.toHaveBeenCalled();
       });
 
       it('leaves them alone for an equipment-only change', async () => {
@@ -617,8 +695,8 @@ describe('EventsChangeReviewService (US-38)', () => {
 
         await service.approve(coordinator, 'cr-1');
 
-        expect(bookings.rescheduleForEventChange).not.toHaveBeenCalled();
-        expect(reservations.releaseForRescheduledEvent).not.toHaveBeenCalled();
+        expect(bookings.rebookForEventChange).not.toHaveBeenCalled();
+        expect(reservations.rebookForEventChange).not.toHaveBeenCalled();
       });
 
       it('leaves them alone when the event already has the proposed dates', async () => {
@@ -630,23 +708,23 @@ describe('EventsChangeReviewService (US-38)', () => {
 
         await service.approve(coordinator, 'cr-1');
 
-        expect(bookings.rescheduleForEventChange).not.toHaveBeenCalled();
+        expect(bookings.rebookForEventChange).not.toHaveBeenCalled();
       });
 
-      it('moves nothing when another decision wins the race', async () => {
+      it('rebooks nothing when another decision wins the race', async () => {
         stored = dateChange();
         prisma.eventChangeRequest.updateMany.mockResolvedValue({ count: 0 });
 
         await expect(service.approve(coordinator, 'cr-1')).rejects.toThrow(ConflictException);
-        expect(bookings.rescheduleForEventChange).not.toHaveBeenCalled();
-        expect(reservations.releaseForRescheduledEvent).not.toHaveBeenCalled();
+        expect(bookings.rebookForEventChange).not.toHaveBeenCalled();
+        expect(reservations.rebookForEventChange).not.toHaveBeenCalled();
       });
 
-      it('moves nothing when the approval is refused', async () => {
+      it('rebooks nothing when the approval is refused', async () => {
         stored = request({ proposedAttendance: null, proposedStart: inDays(-2, 9) });
 
         await expect(service.approve(coordinator, 'cr-1')).rejects.toThrow(ConflictException);
-        expect(bookings.rescheduleForEventChange).not.toHaveBeenCalled();
+        expect(bookings.rebookForEventChange).not.toHaveBeenCalled();
       });
 
       it('does not touch arrangements when the request is rejected', async () => {
@@ -654,23 +732,29 @@ describe('EventsChangeReviewService (US-38)', () => {
 
         await service.reject(coordinator, 'cr-1', { reason: 'No' });
 
-        expect(bookings.rescheduleForEventChange).not.toHaveBeenCalled();
-        expect(reservations.releaseForRescheduledEvent).not.toHaveBeenCalled();
+        expect(bookings.rebookForEventChange).not.toHaveBeenCalled();
+        expect(reservations.rebookForEventChange).not.toHaveBeenCalled();
       });
     });
 
-    describe('before deciding: the impact and any clash at the new time', () => {
-      const booking = () => ({
+    // US-48 replaced US-38's "impact and clash warnings" with the check of the
+    // arrangements against the proposed details (AC-1..AC-6).
+    describe('before deciding: the arrangement check (US-48 AC-1..AC-6)', () => {
+      const booking = (overrides: Record<string, unknown> = {}) => ({
         id: 'booking-1',
         status: BookingStatus.APPROVED,
         start: inDays(30, 8),
         end: inDays(30, 18),
+        venueId: 'venue-1',
         venue: { id: 'venue-1', name: 'Main Hall', capacity: 200 },
+        ...overrides,
       });
       const reservation = () => ({
         id: 'res-1',
         quantity: 5,
         status: ReservationStatus.APPROVED,
+        start: eventStart,
+        end: eventEnd,
         equipment: {
           id: 'projector',
           type: 'Projector',
@@ -678,142 +762,346 @@ describe('EventsChangeReviewService (US-38)', () => {
           operationalStatus: EquipmentStatus.OPERATIONAL,
         },
       });
+      const hard = (eventName: string, bookingId = 'rival') => ({
+        hardConflicts: [{ bookingId, eventName, start: newStart, end: newEnd }],
+        softConflicts: [],
+        blocks: [],
+        hasHardConflict: true,
+      });
 
-      // The event's own bookings are looked up by eventId, rivals by venueId.
-      const mockBookings = (own: unknown[], rivals: unknown[] = []) =>
+      // The event's own rows are looked up by eventId; other events' by AND.
+      const mockBookings = (own: unknown[]) =>
         prisma.venueBooking.findMany.mockImplementation(({ where }) =>
-          Promise.resolve(where.eventId ? own : rivals),
+          Promise.resolve(where.eventId ? own : []),
+        );
+      const mockReservations = (own: unknown[], others: unknown[] = []) =>
+        prisma.equipmentReservation.findMany.mockImplementation(({ where }) =>
+          Promise.resolve(where.AND ? others : own),
         );
 
       beforeEach(() => {
         stored = dateChange();
       });
 
-      it('lists each booking moving with the same offset, keeping setup and teardown time', async () => {
+      it('US-48 AC-6: lists each booking that would move, by the event’s offset', async () => {
         mockBookings([booking()]);
 
-        const { impact } = await service.getForReview(coordinator, 'cr-1');
+        const { check } = await service.getForReview(coordinator, 'cr-1');
 
-        expect(impact.newWindow).toEqual({ start: newStart, end: newEnd });
-        expect(impact.venueBookings).toEqual([
+        expect(check.newWindow).toEqual({ start: newStart, end: newEnd });
+        expect(check.venueBookings).toEqual([
           {
             bookingId: 'booking-1',
+            venueId: 'venue-1',
             venueName: 'Main Hall',
             status: BookingStatus.APPROVED,
-            from: { start: inDays(30, 8), end: inDays(30, 18) },
-            to: { start: inDays(40, 8), end: inDays(40, 18) },
+            current: { start: inDays(30, 8), end: inDays(30, 18) },
+            proposed: { start: inDays(40, 8), end: inDays(40, 18) },
+            moves: true,
+            available: true,
+            conflicts: [],
+            capacityWarning: null,
           },
         ]);
       });
 
-      it('lists the equipment that would be released', async () => {
-        prisma.equipmentReservation.findMany.mockResolvedValueOnce([reservation()]);
+      it('US-48 AC-6: lists the reservations that would move to the new time', async () => {
+        mockReservations([reservation()]);
 
-        const { impact } = await service.getForReview(coordinator, 'cr-1');
+        const { check } = await service.getForReview(coordinator, 'cr-1');
 
-        expect(impact.equipmentReservations).toEqual([
+        expect(check.equipmentReservations).toEqual([
           {
-            reservationId: 'res-1',
+            equipmentId: 'projector',
             equipmentType: 'Projector',
+            reservationIds: ['res-1'],
             quantity: 5,
             status: ReservationStatus.APPROVED,
+            current: { start: eventStart, end: eventEnd },
+            proposed: { start: newStart, end: newEnd },
+            available: true,
+            reason: null,
           },
         ]);
       });
 
-      it('warns when a confirmed booking already holds the venue at the new time', async () => {
-        mockBookings([booking()], [{ event: { name: 'Gala' } }]);
+      it('US-48 AC-2/AC-4: a confirmed booking at the new time is a conflict, with its reason', async () => {
+        mockBookings([booking()]);
+        bookings.conflictsFor.mockResolvedValue(hard('Gala'));
 
-        const { warnings } = await service.getForReview(coordinator, 'cr-1');
+        const { check } = await service.getForReview(coordinator, 'cr-1');
 
-        expect(warnings).toEqual([
+        expect(check.canApprove).toBe(false);
+        expect(check.conflicts).toEqual([
           {
-            type: 'VENUE_CONFLICT',
-            message: 'Main Hall is already booked for "Gala" at the new time.',
+            kind: 'VENUE_BOOKING',
+            label: 'Venue booking at Main Hall',
+            reason:
+              'Main Hall is already booked for "Gala" at the new time (setup and turnaround included).',
           },
         ]);
       });
 
-      it('checks rivals only against confirmed bookings of the same venue, not itself', async () => {
+      it('US-48 AC-2: asks the shared buffer-aware check, at the moved window, excluding itself', async () => {
         mockBookings([booking()]);
 
         await service.getForReview(coordinator, 'cr-1');
 
-        expect(prisma.venueBooking.findMany).toHaveBeenCalledWith(
+        expect(bookings.conflictsFor).toHaveBeenCalledWith(
+          prisma,
+          'venue-1',
+          inDays(40, 8),
+          inDays(40, 18),
+          'booking-1',
+        );
+      });
+
+      it('US-48: the event never conflicts with its own other bookings', async () => {
+        mockBookings([booking(), booking({ id: 'booking-2', venueId: 'venue-1' })]);
+        bookings.conflictsFor.mockImplementation((_db, _venue, _s, _e, self) =>
+          Promise.resolve(hard('Hackathon', self === 'booking-1' ? 'booking-2' : 'booking-1')),
+        );
+
+        const { check } = await service.getForReview(coordinator, 'cr-1');
+
+        expect(check.canApprove).toBe(true);
+        expect(check.venueBookings.every((b) => b.available)).toBe(true);
+      });
+
+      it('US-48 AC-2/AC-4: a blocked-out period at the new time is a conflict', async () => {
+        mockBookings([booking()]);
+        bookings.conflictsFor.mockResolvedValue({
+          hardConflicts: [],
+          softConflicts: [],
+          blocks: [{ blockId: 'b', reason: 'Renovation', start: newStart, end: newEnd }],
+          hasHardConflict: true,
+        });
+
+        const { check } = await service.getForReview(coordinator, 'cr-1');
+
+        expect(check.conflicts.map((c) => c.reason)).toEqual([
+          'Main Hall is unavailable at the new time (Renovation).',
+        ]);
+      });
+
+      it('US-48 AC-3/AC-4: too little equipment free at the new time is a conflict, with how many', async () => {
+        mockReservations([reservation()], [{ quantity: 3, start: newStart, end: newEnd }]);
+
+        const { check } = await service.getForReview(coordinator, 'cr-1');
+
+        expect(check.conflicts).toEqual([
+          {
+            kind: 'EQUIPMENT_RESERVATION',
+            label: '5 × Projector reservation',
+            reason: 'Only 3 of 5 Projector free for the new time.',
+          },
+        ]);
+      });
+
+      it('US-48: counts only other events’ reservations, never this event’s own', async () => {
+        mockReservations([reservation()]);
+
+        await service.getForReview(coordinator, 'cr-1');
+
+        const othersQuery = prisma.equipmentReservation.findMany.mock.calls.find(
+          ([args]) => args.where.AND,
+        )![0];
+        expect(othersQuery.where.AND).toContainEqual({ eventId: { not: 'event-1' } });
+      });
+
+      it('US-48 AC-4: reports everything as working when it all still fits', async () => {
+        mockBookings([booking()]);
+        mockReservations([reservation()]);
+
+        const { check, warnings } = await service.getForReview(coordinator, 'cr-1');
+
+        expect(check.canApprove).toBe(true);
+        expect(check.conflicts).toEqual([]);
+        expect(check.works.map((w) => w.label)).toEqual([
+          'Venue booking at Main Hall',
+          '5 × Projector reservation',
+        ]);
+        expect(warnings).toEqual([]);
+      });
+
+      it('US-48: moves nothing, and checks no venue, when the request moves no dates', async () => {
+        stored = request();
+        mockBookings([booking()]);
+
+        const { check } = await service.getForReview(coordinator, 'cr-1');
+
+        expect(check.newWindow).toBeNull();
+        expect(check.venueBookings.map((b) => b.moves)).toEqual([false]);
+        expect(check.equipmentReservations).toEqual([]);
+        expect(bookings.conflictsFor).not.toHaveBeenCalled();
+      });
+
+      it('US-48 AC-1: only reads — opening a request writes nothing', async () => {
+        mockBookings([booking()]);
+        mockReservations([reservation()]);
+
+        await service.getForReview(coordinator, 'cr-1');
+
+        expect(prisma.eventRequest.update).not.toHaveBeenCalled();
+        expect(prisma.eventChangeRequest.updateMany).not.toHaveBeenCalled();
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+        expect(bookings.rebookForEventChange).not.toHaveBeenCalled();
+        expect(reservations.rebookForEventChange).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('approving re-runs the check (US-48 AC-7/AC-8/AC-9)', () => {
+      beforeEach(() => {
+        stored = dateChange();
+        prisma.venueBooking.findMany.mockImplementation(({ where }) =>
+          Promise.resolve(
+            where.eventId
+              ? [
+                  {
+                    id: 'booking-1',
+                    status: BookingStatus.APPROVED,
+                    start: eventStart,
+                    end: eventEnd,
+                    venueId: 'venue-1',
+                    venue: { id: 'venue-1', name: 'Main Hall', capacity: 200 },
+                  },
+                ]
+              : [],
+          ),
+        );
+      });
+
+      it('US-48 AC-7: locks the event, its venues and its equipment before checking', async () => {
+        prisma.equipmentReservation.findMany.mockImplementation(({ where }) =>
+          Promise.resolve(
+            where.AND
+              ? []
+              : [
+                  {
+                    id: 'res-1',
+                    equipmentId: 'projector',
+                    quantity: 2,
+                    status: ReservationStatus.APPROVED,
+                    start: eventStart,
+                    end: eventEnd,
+                    equipment: {
+                      id: 'projector',
+                      type: 'Projector',
+                      totalQuantity: 6,
+                      operationalStatus: EquipmentStatus.OPERATIONAL,
+                    },
+                  },
+                ],
+          ),
+        );
+
+        await service.approve(coordinator, 'cr-1');
+
+        expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+        expect(bookings.lockVenue).toHaveBeenCalledWith(prisma, 'venue-1');
+        expect(reservations.lockEquipment).toHaveBeenCalledWith(prisma, 'projector');
+      });
+
+      it('US-48 AC-8: a conflict at approval is refused with 409, changing nothing — the request stays pending', async () => {
+        bookings.conflictsFor.mockResolvedValue({
+          hardConflicts: [{ bookingId: 'rival', eventName: 'Gala', start: newStart, end: newEnd }],
+          softConflicts: [],
+          blocks: [],
+          hasHardConflict: true,
+        });
+
+        const error = await service.approve(coordinator, 'cr-1').catch((e) => e);
+
+        expect(error).toBeInstanceOf(ConflictException);
+        expect(error.getResponse()).toEqual({
+          statusCode: 409,
+          error: 'Conflict',
+          code: 'CHANGE_REQUEST_CHECK_FAILED',
+          message: expect.stringContaining('Main Hall is already booked for "Gala"'),
+          conflicts: [
+            expect.objectContaining({
+              kind: 'VENUE_BOOKING',
+              reason: expect.stringContaining('Main Hall is already booked for "Gala"'),
+            }),
+          ],
+        });
+        expect(prisma.eventRequest.update).not.toHaveBeenCalled();
+        expect(bookings.rebookForEventChange).not.toHaveBeenCalled();
+        expect(reservations.rebookForEventChange).not.toHaveBeenCalled();
+        expect(events.recordChange).not.toHaveBeenCalled();
+        // Refused before the claim: the request is never written, not even rejected.
+        expect(prisma.eventChangeRequest.updateMany).not.toHaveBeenCalled();
+      });
+
+      it('US-48 AC-8: the database backstop (US-24) is refused the same way, not rejected', async () => {
+        bookings.rebookForEventChange.mockRejectedValue(
+          new Prisma.PrismaClientUnknownRequestError('violates exclusion constraint 23P01', {
+            clientVersion: 'test',
+          }),
+        );
+
+        const error = await service.approve(coordinator, 'cr-1').catch((e) => e);
+
+        expect(error.getResponse()).toMatchObject({
+          code: 'CHANGE_REQUEST_CHECK_FAILED',
+          conflicts: [
+            expect.objectContaining({
+              reason: 'A venue booking was confirmed at the new time while this request was being approved.',
+            }),
+          ],
+        });
+        // Only the (rolled-back) claim was attempted; no rejection was written.
+        expect(prisma.eventChangeRequest.updateMany).toHaveBeenCalledTimes(1);
+        expect(prisma.eventChangeRequest.updateMany.mock.calls[0][0].data.status).toBe(
+          ChangeRequestStatus.APPROVED,
+        );
+        expect(notifications.notifySafely).not.toHaveBeenCalled();
+      });
+
+      it('US-48 AC-9: notifies the Organiser of an approval', async () => {
+        await service.approve(coordinator, 'cr-1');
+
+        expect(notifications.notifySafely).toHaveBeenCalledWith({
+          recipientId: 'organiser-1',
+          type: 'CHANGE_REQUEST_DECIDED',
+          message: 'Your change request for "Hackathon" was approved; the event has been updated.',
+          relatedEventId: 'event-1',
+        });
+      });
+
+      it('US-48 AC-9: a refused approval decides nothing, so notifies no one', async () => {
+        bookings.conflictsFor.mockResolvedValue({
+          hardConflicts: [],
+          softConflicts: [],
+          blocks: [{ blockId: 'b', reason: 'Renovation', start: newStart, end: newEnd }],
+          hasHardConflict: true,
+        });
+
+        await expect(service.approve(coordinator, 'cr-1')).rejects.toThrow(ConflictException);
+
+        expect(notifications.notifySafely).not.toHaveBeenCalled();
+      });
+
+      it('US-48 AC-9: notifies the Organiser of a Coordinator’s rejection, with the reason', async () => {
+        await service.reject(coordinator, 'cr-1', { reason: 'The hall is needed elsewhere.' });
+
+        expect(notifications.notifySafely).toHaveBeenCalledWith(
           expect.objectContaining({
-            where: {
-              venueId: 'venue-1',
-              id: { not: 'booking-1' },
-              status: BookingStatus.APPROVED,
-              start: { lt: inDays(40, 18) },
-              end: { gt: inDays(40, 8) },
-            },
+            recipientId: 'organiser-1',
+            message:
+              'Your change request for "Hackathon" was rejected. Reason: The hall is needed elsewhere.',
           }),
         );
       });
 
-      it('warns when the venue is blocked out at the new time', async () => {
-        mockBookings([booking()]);
-        prisma.venueBlock.findMany.mockResolvedValue([{ reason: 'Renovation' }]);
+      it('US-48 AC-8: an unexpected failure rolls back and leaves the request pending', async () => {
+        bookings.rebookForEventChange.mockRejectedValue(new Error('connection lost'));
 
-        const { warnings } = await service.getForReview(coordinator, 'cr-1');
+        await expect(service.approve(coordinator, 'cr-1')).rejects.toThrow('connection lost');
 
-        expect(warnings).toEqual([
-          {
-            type: 'VENUE_BLOCKED',
-            message: 'Main Hall is blocked out at the new time (Renovation).',
-          },
-        ]);
-      });
-
-      it('warns when there is not enough equipment free at the new time', async () => {
-        prisma.equipmentReservation.findMany
-          .mockResolvedValueOnce([reservation()])
-          .mockResolvedValueOnce([{ quantity: 3, start: newStart, end: newEnd }]);
-
-        const { warnings } = await service.getForReview(coordinator, 'cr-1');
-
-        expect(warnings).toEqual([
-          {
-            type: 'EQUIPMENT_UNAVAILABLE',
-            message: '5 × Projector may not be available at the new time (3 free).',
-          },
-        ]);
-      });
-
-      it('does not count the reservation being moved against itself', async () => {
-        prisma.equipmentReservation.findMany
-          .mockResolvedValueOnce([reservation()])
-          .mockResolvedValueOnce([]);
-
-        await service.getForReview(coordinator, 'cr-1');
-
-        expect(prisma.equipmentReservation.findMany.mock.calls[1][0].where.AND).toContainEqual({
-          id: { not: 'res-1' },
-        });
-      });
-
-      it('reports no warnings when everything still fits', async () => {
-        mockBookings([booking()]);
-        prisma.equipmentReservation.findMany
-          .mockResolvedValueOnce([reservation()])
-          .mockResolvedValueOnce([]);
-
-        expect((await service.getForReview(coordinator, 'cr-1')).warnings).toEqual([]);
-      });
-
-      it('reports no impact when the request moves no dates', async () => {
-        stored = request();
-        mockBookings([booking()]);
-
-        const view = await service.getForReview(coordinator, 'cr-1');
-
-        expect(view.impact).toEqual({
-          newWindow: null,
-          venueBookings: [],
-          equipmentReservations: [],
-        });
-        expect(prisma.venueBlock.findMany).not.toHaveBeenCalled();
+        // No rejection was recorded: only the (rolled-back) claim was attempted.
+        expect(prisma.eventChangeRequest.updateMany).toHaveBeenCalledTimes(1);
+        expect(notifications.notifySafely).not.toHaveBeenCalled();
       });
     });
   });

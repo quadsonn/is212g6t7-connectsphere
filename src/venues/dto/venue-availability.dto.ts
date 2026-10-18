@@ -1,4 +1,4 @@
-import { Expose } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
 import { IsOptional, Matches } from 'class-validator';
 
 import { DayStatus } from '../availability';
@@ -37,4 +37,33 @@ export class DayAvailabilityDto {
 
   @Expose()
   status!: DayStatus;
+}
+
+/**
+ * US-50 AC-3 — one part of what a booking occupies: its setup time, the event
+ * time itself, or its turnaround time. Shown separately on the calendar.
+ */
+export class OccupancySegmentDto {
+  @Expose()
+  kind!: 'SETUP' | 'EVENT' | 'TURNAROUND';
+
+  @Expose()
+  start!: Date;
+
+  @Expose()
+  end!: Date;
+}
+
+/**
+ * US-50 AC-3 — one booking's occupancy of the venue, anonymous like the rest
+ * of US-17: when, and whether tentative or booked — never which event. Only
+ * @Expose'd properties leave the server.
+ */
+export class VenueOccupancyDto {
+  @Expose()
+  status!: DayStatus;
+
+  @Expose()
+  @Type(() => OccupancySegmentDto)
+  segments!: OccupancySegmentDto[];
 }

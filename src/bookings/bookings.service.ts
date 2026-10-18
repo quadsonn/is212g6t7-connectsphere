@@ -1,13 +1,16 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AccessibilityFeature,
   BookingDecisionKind,
   BookingStatus,
   NotificationType,
   Prisma,
+  RoomLayout,
   VenueStatus,
 } from '@prisma/client';
 
@@ -16,7 +19,16 @@ import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { overlapping, overlapsRange } from './booking-overlap';
+import { capacityShortfall } from '../venues/capacity';
+import {
+  bookingsOccupyingWhere,
+  buffersOf,
+  clashingBlocksWhere,
+  clashingBookingsWhere,
+  VenueBuffers,
+} from './venue-occupancy';
+import { attachSuggestions } from './booking-suggestions';
+import { ACTIVE_BOOKING_STATUSES, VenueArrangement, venueArrangement } from './venue-arrangement';
 import { rescheduleWindow, TimeWindow } from './booking-reschedule';
 import {
   VenueBookingImpact,
@@ -32,6 +44,54 @@ const LIVE_STATUSES: BookingStatus[] = [
   BookingStatus.REQUESTED,
   BookingStatus.APPROVED,
 ];
+
+/** The requirement fields a request copies from an event or an earlier request. */
+export interface RequirementSnapshot {
+  preferredLayout: RoomLayout | null;
+  layoutNotes: string | null;
+  accessibilityRequirements: AccessibilityFeature[];
+  accessibilityNotes: string | null;
+  equipmentNeeds: string | null;
+}
+
+/**
+ * US-53 AC-2 — the request's own requirements, where it sets them, over the
+ * ones it would otherwise copy. `undefined` keeps the copy; `null` clears it.
+ */
+function withOwnRequirements(
+  copied: RequirementSnapshot,
+  own: Partial<RequirementSnapshot>,
+): RequirementSnapshot {
+  return {
+    preferredLayout: own.preferredLayout !== undefined ? own.preferredLayout : copied.preferredLayout,
+    layoutNotes: own.layoutNotes !== undefined ? own.layoutNotes : copied.layoutNotes,
+    accessibilityRequirements: own.accessibilityRequirements ?? copied.accessibilityRequirements,
+    accessibilityNotes:
+      own.accessibilityNotes !== undefined ? own.accessibilityNotes : copied.accessibilityNotes,
+    equipmentNeeds: own.equipmentNeeds !== undefined ? own.equipmentNeeds : copied.equipmentNeeds,
+  };
+}
+
+function requirementsOf(source: RequirementSnapshot): RequirementSnapshot {
+  return {
+    preferredLayout: source.preferredLayout,
+    layoutNotes: source.layoutNotes,
+    accessibilityRequirements: source.accessibilityRequirements,
+    accessibilityNotes: source.accessibilityNotes,
+    equipmentNeeds: source.equipmentNeeds,
+  };
+}
+
+/**
+ * Internal options for createRequest, set by callers that build a request
+ * from an earlier one (US-41) — never from the request body.
+ */
+export interface CreateRequestOptions {
+  /** Copy requirements from this earlier request instead of the event. */
+  requirementsFrom?: RequirementSnapshot;
+  /** Runs inside the request's transaction, after it is created. */
+  onCreated?: (tx: Prisma.TransactionClient, booking: BookingView) => Promise<void>;
+}
 import {
   BOOKABLE_EVENT_STATUSES,
   BOOKING_INCLUDE,
@@ -61,16 +121,19 @@ import { CreateBookingRequestDto } from './dto/create-booking-request.dto';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Shown beside a booking that was moved with its event (US-38). */
-const RESCHEDULED_NOTE =
-  'The event was rescheduled; this booking moved to the new dates and needs to be approved again.';
-
-/** US-38 — a booking that was moved, and where it was and is now. */
-export interface RescheduledBooking {
+/**
+ * US-48 AC-7 — a booking rebooked for an approved change request: the
+ * original (now RELEASED) and its replacement, and where each is.
+ */
+export interface RebookedBooking {
+  /** The original, released once the replacement existed. */
   bookingId: string;
+  /** The new booking for the new details. */
+  replacementId: string;
   venueId: string;
   venueName: string | null;
-  previousStatus: BookingStatus;
+  /** Kept: an approved booking stays approved (customer: no re-approval). */
+  status: BookingStatus;
   from: TimeWindow;
   to: TimeWindow;
 }
@@ -102,6 +165,7 @@ export class BookingsService implements VenueBookingLookup {
   async createRequest(
     user: AuthenticatedUser,
     dto: CreateBookingRequestDto,
+    options: CreateRequestOptions = {},
   ): Promise<BookingRequestResult> {
     this.access.requireScope(user, Resource.BOOKING, Action.CREATE);
 
@@ -129,6 +193,30 @@ export class BookingsService implements VenueBookingLookup {
     if (!venue) {
       throw new NotFoundException('venue not found');
     }
+
+    // Capacity is a hard block, not a warning: a venue too small for the
+    // expected attendance cannot be requested. Every request comes through
+    // here — the form, an accepted suggestion (US-41 AC-6) and a replacement
+    // (US-52) — so none of them can bypass it. The shared rule
+    // (venues/capacity.ts), the same one US-48's re-check applies.
+    const shortfall = capacityShortfall(venue, dto.expectedAttendance);
+    if (shortfall) {
+      throw new ConflictException({
+        statusCode: 409,
+        error: 'Conflict',
+        code: 'CAPACITY_EXCEEDED',
+        message: shortfall.message,
+        capacity: shortfall.capacity,
+        expectedAttendance: shortfall.attendance,
+      });
+    }
+
+    // US-52 AC-3: a replacement names the booking it replaces, which must be
+    // one of this event's, marked as needing a replacement and not yet
+    // replaced. It carries that booking's requirements, not the event's.
+    const replaced = dto.replacesBookingId
+      ? await this.findReplaceable(event.id, dto.replacesBookingId)
+      : null;
 
     return this.prisma.$transaction(async (tx) => {
       await this.lockVenue(tx, venue.id);
@@ -166,16 +254,19 @@ export class BookingsService implements VenueBookingLookup {
           start: dto.start,
           end: dto.end,
           expectedAttendance: dto.expectedAttendance,
-          // AC-2: attached so Venue Staff need not open the event.
-          preferredLayout: event.preferredLayout,
-          layoutNotes: event.layoutNotes,
-          accessibilityRequirements: event.accessibilityRequirements,
-          accessibilityNotes: event.accessibilityNotes,
-          equipmentNeeds: event.equipmentNeeds,
+          // AC-2: attached so Venue Staff need not open the event. US-41/US-52:
+          // a request made from an earlier one carries that one's requirements.
+          // US-53 AC-2: any set on this request are this venue's own.
+          ...withOwnRequirements(requirementsOf(options.requirementsFrom ?? replaced ?? event), dto),
+          replacesBookingId: replaced?.id ?? null,
           // status omitted — REQUESTED is the schema default (AC-3).
         },
         include: BOOKING_INCLUDE,
       });
+
+      // US-41: e.g. claiming the accepted suggestion, in this transaction so
+      // the request and the claim land together or not at all.
+      await options.onCreated?.(tx, booking);
 
       // AC-5: the only overlaps left are pending ones.
       const warnings: BookingWarning[] =
@@ -332,6 +423,94 @@ export class BookingsService implements VenueBookingLookup {
     });
   }
 
+  /**
+   * US-53 AC-5 — whether this event's venues are arranged: at least one
+   * active booking, and every active one approved. Derived from the bookings
+   * on each call; nothing is stored.
+   *
+   * The Coordinator responsible for the event only; anyone else's event reads
+   * as not found.
+   */
+  async arrangementForEvent(user: AuthenticatedUser, eventId: string): Promise<VenueArrangement> {
+    this.access.requireScope(user, Resource.BOOKING, Action.CREATE);
+
+    const event = await this.prisma.eventRequest.findFirst({
+      where: { id: eventId, coordinatorId: user.userId },
+      select: { venueBookings: { select: { status: true } } },
+    });
+    if (!event) {
+      throw new NotFoundException('event request not found');
+    }
+
+    return venueArrangement(event.venueBookings);
+  }
+
+  /**
+   * US-53 AC-6 — the Coordinator cancels a pending request or releases an
+   * approved booking: it becomes RELEASED (it holds nothing, and its slot is
+   * free again) and its record is kept.
+   *
+   * Only that one booking changes — never the event's other bookings, and
+   * never the event itself (Week 7 change 3). Taken under the venue's lock,
+   * like every other booking write on it, so it cannot cross an approval.
+   */
+  async release(user: AuthenticatedUser, id: string): Promise<BookingView> {
+    this.access.requireScope(user, Resource.BOOKING, Action.CREATE);
+
+    // The responsible Coordinator only; anything else reads as not found.
+    const booking = await this.prisma.venueBooking.findFirst({
+      where: { id, event: { coordinatorId: user.userId } },
+      select: { id: true, venueId: true },
+    });
+    if (!booking) {
+      throw new NotFoundException('booking request not found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockVenue(tx, booking.venueId);
+
+      const current = await tx.venueBooking.findUniqueOrThrow({ where: { id: booking.id } });
+      if (!ACTIVE_BOOKING_STATUSES.includes(current.status)) {
+        throw new ConflictException(
+          `a ${current.status.toLowerCase()} booking cannot be released`,
+        );
+      }
+
+      return tx.venueBooking.update({
+        where: { id: booking.id },
+        data: { status: BookingStatus.RELEASED, releasedAt: new Date() },
+        include: BOOKING_INCLUDE,
+      });
+    });
+  }
+
+  /**
+   * US-47 AC-5 — the event was rejected as unfulfillable, so release every
+   * venue booking it still holds or asks for: pending ones (tentative holds)
+   * and approved ones alike, since a rejected event must not keep occupying a
+   * venue. Each becomes RELEASED with its record kept.
+   *
+   * Runs in the caller's transaction, with the rejection itself. Each venue
+   * is locked first, in a fixed order, so a concurrent approval either lands
+   * first (and is released here) or waits and finds the booking released.
+   */
+  async releaseForEvent(tx: Prisma.TransactionClient, eventId: string): Promise<number> {
+    const live = await tx.venueBooking.findMany({
+      where: { eventId, status: { in: LIVE_STATUSES } },
+      select: { venueId: true },
+    });
+
+    for (const venueId of [...new Set(live.map((b) => b.venueId))].sort()) {
+      await this.lockVenue(tx, venueId);
+    }
+
+    const released = await tx.venueBooking.updateMany({
+      where: { eventId, status: { in: LIVE_STATUSES } },
+      data: { status: BookingStatus.RELEASED, releasedAt: new Date() },
+    });
+    return released.count;
+  }
+
   /** US-23 AC-3 — approve, with an optional note. */
   approve(
     user: AuthenticatedUser,
@@ -347,7 +526,10 @@ export class BookingsService implements VenueBookingLookup {
     );
   }
 
-  /** US-23 AC-2 — reject; the DTO guarantees a reason. */
+  /**
+   * US-23 AC-2 — reject; the DTO guarantees a reason.
+   * US-41 AC-1 — optionally with alternative venues.
+   */
   reject(
     user: AuthenticatedUser,
     id: string,
@@ -359,6 +541,7 @@ export class BookingsService implements VenueBookingLookup {
       BookingDecisionKind.DECISION,
       BookingStatus.REJECTED,
       dto.reason.trim(),
+      dto.alternativeVenueIds ?? [],
     );
   }
 
@@ -372,7 +555,22 @@ export class BookingsService implements VenueBookingLookup {
     const outcome =
       booking.status === BookingStatus.APPROVED ? BookingStatus.REJECTED : BookingStatus.APPROVED;
 
-    return this.recordDecision(user, id, BookingDecisionKind.REVERSAL, outcome, dto.reason.trim());
+    // US-41: alternatives belong to a rejection, not to an approval.
+    const alternatives = dto.alternativeVenueIds ?? [];
+    if (alternatives.length > 0 && outcome !== BookingStatus.REJECTED) {
+      throw new BadRequestException(
+        'alternative venues can only be suggested when rejecting a request',
+      );
+    }
+
+    return this.recordDecision(
+      user,
+      id,
+      BookingDecisionKind.REVERSAL,
+      outcome,
+      dto.reason.trim(),
+      alternatives,
+    );
   }
 
   /**
@@ -391,13 +589,27 @@ export class BookingsService implements VenueBookingLookup {
     kind: BookingDecisionKind,
     outcome: BookingStatus,
     reason: string | null,
+    alternativeVenueIds: readonly string[] = [],
   ): Promise<BookingDecisionResult> {
-    const { venueId } = await this.findDecidable(user, id);
+    const { venueId, replacesBookingId } = await this.findDecidable(user, id);
     let warnings: BookingWarning[] = [];
+
+    // US-52 AC-5: approving a replacement also writes the original booking,
+    // so its venue is locked too — both in one fixed order, so two such
+    // approvals can never wait on each other's locks.
+    const replacedVenueId = replacesBookingId
+      ? (await this.prisma.venueBooking.findUnique({
+          where: { id: replacesBookingId },
+          select: { venueId: true },
+        }))?.venueId
+      : undefined;
+    const venuesToLock = [...new Set([venueId, replacedVenueId ?? venueId])].sort();
 
     const decided = await this.withExclusionAsConflict(id, () =>
       this.prisma.$transaction(async (tx) => {
-        await this.lockVenue(tx, venueId);
+        for (const lockId of venuesToLock) {
+          await this.lockVenue(tx, lockId);
+        }
 
         // Re-read under the lock: the status may have changed since.
         const current = await tx.venueBooking.findUniqueOrThrow({ where: { id } });
@@ -416,6 +628,27 @@ export class BookingsService implements VenueBookingLookup {
         // the approval outright: there is no override, and nothing here moves or
         // cancels another booking. Soft conflicts (pending requests) only warn.
         if (outcome === BookingStatus.APPROVED) {
+          // Capacity is a hard block on approval too, a decision or a
+          // reversal alike: a request over its venue's capacity — submitted
+          // before the rule, or the venue's capacity cut since — can only be
+          // rejected. The same rule as submission and US-48's re-check
+          // (venues/capacity.ts), read under the lock.
+          const venue = await tx.venue.findUnique({
+            where: { id: venueId },
+            select: { name: true, capacity: true },
+          });
+          const shortfall = venue ? capacityShortfall(venue, current.expectedAttendance) : null;
+          if (shortfall) {
+            throw new ConflictException({
+              statusCode: 409,
+              error: 'Conflict',
+              code: 'CAPACITY_EXCEEDED',
+              message: `Cannot approve: ${shortfall.message}`,
+              capacity: shortfall.capacity,
+              expectedAttendance: shortfall.attendance,
+            });
+          }
+
           const report = await this.conflictsFor(tx, venueId, current.start, current.end, id);
           if (report.hasHardConflict) {
             throw this.hardConflict(report);
@@ -423,19 +656,44 @@ export class BookingsService implements VenueBookingLookup {
           warnings = this.softWarnings(report);
         }
 
-        await tx.bookingDecision.create({
+        const decision = await tx.bookingDecision.create({
           data: { bookingId: id, decidedById: user.userId, kind, outcome, reason },
         });
 
-        return tx.venueBooking.update({
+        // US-41 AC-1/AC-4/AC-7: recorded with this decision, after checking
+        // each venue is free — so a refused suggestion refuses the rejection.
+        if (alternativeVenueIds.length > 0) {
+          await attachSuggestions(
+            tx,
+            { decisionId: decision.id, booking: current },
+            alternativeVenueIds,
+            (venue) => this.conflictsFor(tx, venue, current.start, current.end, null),
+          );
+        }
+
+        const updated = await tx.venueBooking.update({
           where: { id },
           data: { status: outcome, decisionReason: reason },
           include: BOOKING_INCLUDE,
         });
+
+        // US-52 AC-5: a confirmed replacement releases the booking it replaces
+        // — in this transaction, so one never happens without the other.
+        if (outcome === BookingStatus.APPROVED && current.replacesBookingId) {
+          await this.releaseReplaced(tx, current.replacesBookingId, id);
+        }
+
+        return updated;
       }),
     );
 
-    await this.notifyDecision(decided, kind);
+    // US-41 AC-5: the suggestions just attached travel with the rejection.
+    const suggested =
+      alternativeVenueIds.length > 0
+        ? (decided.decisions.at(-1)?.suggestions ?? []).map((s) => s.venue.name ?? 'unnamed venue')
+        : [];
+
+    await this.notifyDecision(decided, kind, suggested);
 
     return { ...decided, warnings };
   }
@@ -455,14 +713,15 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /**
-   * US-24 — every live booking and block on the venue overlapping
+   * US-24 — every live booking and block on the venue clashing with
    * [start, end), classified. One indexed query per table (the
    * [venueId, start, end] indexes), whatever the number of bookings — never a
    * check per booking. `selfId` is excluded from its own report; null checks a
    * proposed slot that has no booking yet.
    *
-   * Buffer/turnaround time between bookings is intentionally not applied: the
-   * customer clarified it is not needed, superseding the AC that mentions it.
+   * US-50 (Week 7 change 1): the venue's setup and turnaround time are now
+   * applied — a clash is an overlap of occupied windows (venue-occupancy.ts).
+   * This replaces the earlier clarification that buffers were not needed.
    */
   async conflictsFor(
     db: Prisma.TransactionClient,
@@ -471,11 +730,12 @@ export class BookingsService implements VenueBookingLookup {
     end: Date,
     selfId: string | null,
   ): Promise<BookingConflictReport> {
+    const buffers = await this.buffersFor(db, venueId);
     const [bookings, blocks] = await Promise.all([
       db.venueBooking.findMany({
         where: {
           venueId,
-          ...overlapping(start, end),
+          ...clashingBookingsWhere({ start, end }, buffers),
           status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
           ...(selfId ? { id: { not: selfId } } : {}),
         },
@@ -483,7 +743,7 @@ export class BookingsService implements VenueBookingLookup {
         select: { id: true, status: true, start: true, end: true, event: { select: { name: true } } },
       }),
       db.venueBlock.findMany({
-        where: { venueId, ...overlapsRange(start, end) },
+        where: { venueId, ...clashingBlocksWhere({ start, end }, buffers) },
         orderBy: { start: 'asc' },
         select: { id: true, reason: true, start: true, end: true },
       }),
@@ -561,10 +821,63 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /**
+   * US-52 AC-3 — the booking a replacement request names: one of this event's,
+   * marked as needing a replacement, and not already replaced. Another
+   * event's booking reads as not found.
+   */
+  private async findReplaceable(eventId: string, bookingId: string) {
+    const original = await this.prisma.venueBooking.findFirst({
+      where: { id: bookingId, eventId },
+    });
+    if (!original) {
+      throw new NotFoundException('booking to replace not found');
+    }
+    if (!original.replacementNeededAt) {
+      throw new ConflictException('that booking has not been marked as needing a replacement');
+    }
+    if (original.replacedByBookingId) {
+      throw new ConflictException('a replacement for that booking has already been confirmed');
+    }
+    return original;
+  }
+
+  /**
+   * US-52 AC-5 — the replacement was approved, so release the original: it no
+   * longer holds its venue (RELEASED), keeps its record, and is linked to the
+   * replacement. That link is what clears the "Venue unavailable" flag.
+   *
+   * Only that one booking changes, never the event's others (Week 7 change 3).
+   * If another replacement was already confirmed for it, this one is simply a
+   * further approved booking: the first confirmation released the original.
+   * An original that Venue Staff already rejected holds nothing to release,
+   * so it keeps its status and only gains the link.
+   */
+  private async releaseReplaced(
+    tx: Prisma.TransactionClient,
+    originalId: string,
+    replacementId: string,
+  ): Promise<void> {
+    const original = await tx.venueBooking.findUniqueOrThrow({ where: { id: originalId } });
+    if (original.replacedByBookingId) {
+      return;
+    }
+
+    await tx.venueBooking.update({
+      where: { id: original.id },
+      data: {
+        replacedByBookingId: replacementId,
+        ...(LIVE_STATUSES.includes(original.status)
+          ? { status: BookingStatus.RELEASED, releasedAt: new Date() }
+          : {}),
+      },
+    });
+  }
+
+  /**
    * A booking this Venue Staff member may decide on: one for a venue they
    * manage. Anything else reads as not found.
    */
-  private async findDecidable(user: AuthenticatedUser, id: string) {
+  async findDecidable(user: AuthenticatedUser, id: string) {
     this.access.requireScope(user, Resource.BOOKING, Action.DECIDE);
 
     const booking = await this.prisma.venueBooking.findFirst({
@@ -581,11 +894,19 @@ export class BookingsService implements VenueBookingLookup {
    * After commit and best-effort: a failed notification must not undo the
    * decision (see NotificationsService).
    */
-  private async notifyDecision(booking: BookingView, kind: BookingDecisionKind): Promise<void> {
+  private async notifyDecision(
+    booking: BookingView,
+    kind: BookingDecisionKind,
+    suggestedVenues: readonly string[] = [],
+  ): Promise<void> {
     const verb = booking.status === BookingStatus.APPROVED ? 'approved' : 'rejected';
     const prefix = kind === BookingDecisionKind.REVERSAL ? 'Decision reversed: ' : '';
     const reason = booking.decisionReason ? ` Reason: ${booking.decisionReason}` : '';
-    const message = `${prefix}the booking of ${booking.venue.name ?? 'a venue'} for "${booking.event.name ?? 'your event'}" was ${verb}.${reason}`;
+    const alternatives =
+      suggestedVenues.length > 0
+        ? ` Alternative venues suggested: ${suggestedVenues.join(', ')}.`
+        : '';
+    const message = `${prefix}the booking of ${booking.venue.name ?? 'a venue'} for "${booking.event.name ?? 'your event'}" was ${verb}.${reason}${alternatives}`;
 
     const recipients = new Set(
       [booking.requestedById, booking.event.organiser.id].filter((r): r is string => Boolean(r)),
@@ -604,9 +925,10 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /**
-   * Live (pending or approved) bookings on a venue that overlap [start, end).
-   * Back-to-back slots do not overlap: one ending at 12:00 and the next
-   * starting at 12:00 is fine.
+   * Live (pending or approved) bookings on a venue that clash with
+   * [start, end), setup and turnaround included (US-50). Back-to-back
+   * occupied windows do not clash: one ending at 12:00 and the next starting
+   * at 12:00 is fine.
    */
   private async findOverlapping(
     tx: Prisma.TransactionClient,
@@ -614,11 +936,12 @@ export class BookingsService implements VenueBookingLookup {
     start: Date,
     end: Date,
   ): Promise<BookingConflict[]> {
+    const buffers = await this.buffersFor(tx, venueId);
     const rows = await tx.venueBooking.findMany({
       where: {
         venueId,
         status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
-        ...overlapsRange(start, end),
+        ...clashingBookingsWhere({ start, end }, buffers),
       },
       orderBy: { start: 'asc' },
       include: { event: { select: { name: true } } },
@@ -634,15 +957,19 @@ export class BookingsService implements VenueBookingLookup {
     }));
   }
 
-  /** US-16 — blocked-out periods on a venue that overlap [start, end). */
+  /**
+   * US-16 — blocked-out periods on a venue that overlap [start, end), or
+   * (US-50) the setup and turnaround time around it.
+   */
   async findOverlappingBlocks(
     tx: Prisma.TransactionClient,
     venueId: string,
     start: Date,
     end: Date,
   ): Promise<BookingConflict[]> {
+    const buffers = await this.buffersFor(tx, venueId);
     const blocks = await tx.venueBlock.findMany({
-      where: { venueId, ...overlapsRange(start, end) },
+      where: { venueId, ...clashingBlocksWhere({ start, end }, buffers) },
       orderBy: { start: 'asc' },
     });
 
@@ -659,64 +986,106 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /**
-   * US-38 — an event's dates changed, so move its live bookings with it.
+   * US-48 AC-7 — an approved change request moved the event, so rebook each of
+   * its live bookings for the new details, then release the originals.
    *
-   * Each REQUESTED or APPROVED booking is shifted by the same amount the event
-   * moved and put back to REQUESTED: the slot was approved for the old dates,
-   * and Venue Staff must decide again for the new ones. That decision re-checks
-   * conflicts (recordDecision), so a clash at the new time surfaces there
-   * rather than being assumed away here. Rejected bookings hold nothing and are
-   * left alone.
+   * Replaces US-38's move, which shifted each booking in place and sent it back
+   * to REQUESTED. Per the customer, the Coordinator's approval is what
+   * matters: Venue Staff are informed offline and do not decide again, so a
+   * rebooked APPROVED booking stays APPROVED, its decision history carried
+   * over. A REQUESTED one stays REQUESTED.
    *
-   * Runs inside the caller's transaction, so the event's dates and its bookings
-   * change together or not at all.
+   * Each new booking keeps its venue and requirements, and moves by the same
+   * amount as the event (rescheduleWindow), keeping the setup and teardown
+   * time it allows. Its expected attendance is the proposed one, if any.
+   *
+   * Order, inside the caller's transaction (all or nothing with the event):
+   *  1. create every replacement, as REQUESTED;
+   *  2. release every original — RELEASED, kept, linked to its replacement;
+   *  3. restore APPROVED on the replacements of approved originals.
+   * The database refuses two overlapping APPROVED bookings at one venue
+   * (US-24), and an original and its replacement — or two of the event's own
+   * bookings — may overlap, so nothing is approved until the originals are
+   * released. Availability was checked before this runs (US-48's check).
    */
-  async rescheduleForEventChange(
+  async rebookForEventChange(
     tx: Prisma.TransactionClient,
     eventId: string,
     from: TimeWindow,
     to: TimeWindow,
-  ): Promise<RescheduledBooking[]> {
+    proposedAttendance: number | null,
+  ): Promise<RebookedBooking[]> {
     const live = await tx.venueBooking.findMany({
       where: { eventId, status: { in: LIVE_STATUSES } },
       orderBy: [{ start: 'asc' }, { id: 'asc' }],
-      select: {
-        id: true,
-        venueId: true,
-        status: true,
-        start: true,
-        end: true,
+      include: {
         venue: { select: { name: true } },
+        decisions: { orderBy: { createdAt: 'asc' } },
       },
     });
 
-    const moved: RescheduledBooking[] = [];
+    for (const venueId of [...new Set(live.map((b) => b.venueId))].sort()) {
+      await this.lockVenue(tx, venueId);
+    }
+
+    const rebooked: RebookedBooking[] = [];
 
     for (const booking of live) {
-      await this.lockVenue(tx, booking.venueId);
-
       const next = rescheduleWindow(booking, from, to);
-      await tx.venueBooking.update({
-        where: { id: booking.id },
+      const replacement = await tx.venueBooking.create({
         data: {
+          eventId,
+          venueId: booking.venueId,
           start: next.start,
           end: next.end,
-          status: BookingStatus.REQUESTED,
-          decisionReason: RESCHEDULED_NOTE,
+          requestedById: booking.requestedById,
+          expectedAttendance: proposedAttendance ?? booking.expectedAttendance,
+          decisionReason: booking.decisionReason,
+          ...requirementsOf(booking),
+          // status omitted — REQUESTED until the originals are released.
         },
       });
 
-      moved.push({
+      if (booking.decisions.length > 0) {
+        await tx.bookingDecision.createMany({
+          data: booking.decisions.map((d) => ({
+            bookingId: replacement.id,
+            decidedById: d.decidedById,
+            kind: d.kind,
+            outcome: d.outcome,
+            reason: d.reason,
+            createdAt: d.createdAt,
+          })),
+        });
+      }
+
+      rebooked.push({
         bookingId: booking.id,
+        replacementId: replacement.id,
         venueId: booking.venueId,
         venueName: booking.venue.name,
-        previousStatus: booking.status,
+        status: booking.status,
         from: { start: booking.start, end: booking.end },
         to: next,
       });
     }
 
-    return moved;
+    const releasedAt = new Date();
+    for (const r of rebooked) {
+      await tx.venueBooking.update({
+        where: { id: r.bookingId },
+        data: { status: BookingStatus.RELEASED, releasedAt, replacedByBookingId: r.replacementId },
+      });
+    }
+
+    for (const r of rebooked.filter((r) => r.status === BookingStatus.APPROVED)) {
+      await tx.venueBooking.update({
+        where: { id: r.replacementId },
+        data: { status: BookingStatus.APPROVED },
+      });
+    }
+
+    return rebooked;
   }
 
   /**
@@ -772,20 +1141,41 @@ export class BookingsService implements VenueBookingLookup {
     from: Date,
     to: Date,
   ): Promise<VenueBookingSlot[]> {
-    return this.prisma.venueBooking.findMany({
+    // US-50 AC-1: a booking whose setup or turnaround reaches into the range
+    // occupies part of it, so it is included, with its buffers.
+    const buffers = await this.buffersFor(this.prisma, venueId);
+    const rows = await this.prisma.venueBooking.findMany({
       where: {
         venueId,
-        ...overlapping(from, to),
+        ...bookingsOccupyingWhere({ start: from, end: to }, buffers),
         status: { in: LIVE_STATUSES },
       },
       select: { start: true, end: true, status: true },
       orderBy: { start: 'asc' },
     });
+    return rows.map((row) => ({ ...row, buffers }));
+  }
+
+  /**
+   * US-50 AC-4 — a venue's setup and turnaround time, zero when not
+   * configured (or the venue is not found: its booking checks then behave as
+   * they always did). Public so other booking checks (US-16 blocks, US-52)
+   * read buffers the same way.
+   */
+  async buffersFor(db: Prisma.TransactionClient, venueId: string): Promise<VenueBuffers> {
+    const venue = await db.venue.findUnique({
+      where: { id: venueId },
+      select: { setupMinutes: true, turnaroundMinutes: true },
+    });
+    return buffersOf(venue);
   }
 }
 
-/** SQLSTATE 23P01 — exclusion_violation. */
-function isExclusionViolation(error: unknown): boolean {
+/**
+ * SQLSTATE 23P01 — exclusion_violation. Exported so a rebook (US-48) reads the
+ * US-24 backstop the same way.
+ */
+export function isExclusionViolation(error: unknown): boolean {
   return (
     (error instanceof Prisma.PrismaClientUnknownRequestError ||
       error instanceof Prisma.PrismaClientKnownRequestError) &&

@@ -105,6 +105,8 @@ describe('US-24 overlapping booking detection', () => {
           ]),
         },
         venueBlock: { findMany: jest.fn().mockResolvedValue([]) },
+        // US-50: the venue's buffers; none configured.
+        venue: { findUnique: jest.fn().mockResolvedValue(null) },
         $transaction: jest.fn().mockRejectedValue(transactionError),
       };
       return new BookingsService(

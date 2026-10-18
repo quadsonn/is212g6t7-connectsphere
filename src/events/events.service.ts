@@ -56,6 +56,7 @@ import {
   EDITABLE_STATUSES,
   EventStatusView,
   PLANNING_STATUSES,
+  REVIEW_REJECTION_STATUSES,
 } from './event-status.machine';
 import { evaluateRegistration } from '../registrations/registration-rules';
 import { CHANGE_REQUEST_INCLUDE } from './events-change-request.service';
@@ -662,11 +663,19 @@ export class EventsService {
     id: string,
     dto: RejectRequestDto,
   ): Promise<CoordinatorRequestView> {
-    return this.decide(user, id, EventStatus.REJECTED, {
-      decisionReason: dto.reason,
-      // A rejection supersedes any outstanding question.
-      clarificationRequest: null,
-    });
+    return this.decide(
+      user,
+      id,
+      EventStatus.REJECTED,
+      {
+        decisionReason: dto.reason,
+        // A rejection supersedes any outstanding question.
+        clarificationRequest: null,
+      },
+      // US-47 opened REJECTED to events being arranged; this review rejection
+      // stays limited to the statuses it always could reject from.
+      REVIEW_REJECTION_STATUSES,
+    );
   }
 
   /**
@@ -703,10 +712,16 @@ export class EventsService {
       decisionReason?: string | null;
       clarificationRequest?: string | null;
     },
+    allowedFrom?: readonly EventStatus[],
   ): Promise<CoordinatorRequestView> {
     const event = await this.access.assertEventAccess(user, id, Action.REVIEW);
 
     this.assertIsAssignedTo(user, event);
+
+    // Same refusal setStatus() gives for an edge it does not allow.
+    if (allowedFrom && !allowedFrom.includes(event.status)) {
+      throw new ConflictException(`cannot change status from ${event.status} to ${next}`);
+    }
 
     const decided = await this.prisma.$transaction(async (tx) => {
       await tx.eventRequest.update({

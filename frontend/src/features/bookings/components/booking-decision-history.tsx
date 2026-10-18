@@ -5,7 +5,8 @@ import type { BookingDecision } from '@/types/api';
 /**
  * US-23 AC-4/AC-6 — every decision on a request, oldest first, with who made
  * it and when. A reversal appears as its own entry beneath the decision it
- * overturned; nothing earlier is ever rewritten.
+ * overturned; nothing earlier is ever rewritten. US-41 AC-7: any
+ * alternative venues suggested with a decision are listed with it.
  */
 export function BookingDecisionHistory({ decisions }: { decisions: BookingDecision[] }) {
   if (decisions.length === 0) {
@@ -21,6 +22,13 @@ export function BookingDecisionHistory({ decisions }: { decisions: BookingDecisi
             {BOOKING_STATUS_STYLES[d.outcome].label}
           </p>
           {d.reason ? <p className="mt-0.5 text-ink-800">{d.reason}</p> : null}
+          {/* US-41 AC-7: the alternatives suggested with this decision. */}
+          {d.suggestions.length > 0 ? (
+            <p className="mt-0.5 text-ink-700">
+              Suggested instead:{' '}
+              {d.suggestions.map((s) => s.venue.name ?? 'Unnamed venue').join(', ')}
+            </p>
+          ) : null}
           <p className="mt-1 text-xs text-ink-500">
             {d.decidedBy.name} ({humanise(d.decidedBy.role)}) ·{' '}
             {new Date(d.createdAt).toLocaleString()}

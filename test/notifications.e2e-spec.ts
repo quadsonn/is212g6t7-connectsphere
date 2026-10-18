@@ -5,13 +5,14 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /**
  * Notifications page e2e — a user reads and marks their own notifications.
  *
  * Notification rows are inserted directly, with the exact message text each
  * story sends, so this suite depends on nothing but the inbox itself: it
- * proves the page shows what US-58, US-47, US-48 and US-41 record. Each of
+ * proves the page shows what US-52, US-47, US-48 and US-41 record. Each of
  * those stories' own suites proves it actually sends its notification.
  *
  * The types used all exist on the shared base; the page does not display the
@@ -40,7 +41,7 @@ describe('Notifications page (e2e)', () => {
 
   /** The messages the stories send, word for word. */
   const MESSAGES = {
-    // US-58 AC-1 (VenueUnavailabilityService) → the event's Coordinator.
+    // US-52 AC-1 (VenueUnavailabilityService) → the event's Coordinator.
     venueUnavailable:
       'Main Hall is unavailable from 2030-09-30T00:00:00.000Z to 2030-10-02T00:00:00.000Z, affecting the booking for "gala" on 2030-10-01T01:00:00.000Z – 2030-10-01T05:00:00.000Z. Reason: Flood damage. The event has not been cancelled; request a replacement venue.',
     // US-47 AC-6 (EventsUnfulfillableService) → the Organiser.
@@ -88,7 +89,7 @@ describe('Notifications page (e2e)', () => {
     }).compile();
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
     prisma = new PrismaClient();
   });
 
@@ -128,7 +129,7 @@ describe('Notifications page (e2e)', () => {
     ).id;
   });
 
-  describe('US-58 AC-1: the Coordinator sees that a booked venue became unavailable, with the reason', () => {
+  describe('US-52 AC-1: the Coordinator sees that a booked venue became unavailable, with the reason', () => {
     it('shows the notification, its reason, the event and a link to it', async () => {
       await notify('coordinator', NotificationType.VENUE_CHANGED_BOOKINGS_AFFECTED, MESSAGES.venueUnavailable);
 

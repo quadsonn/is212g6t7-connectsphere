@@ -6,8 +6,8 @@ import {
 import {
   BookingStatus,
   ChangeRequestStatus,
+  NotificationType,
   Prisma,
-  ReservationStatus,
 } from '@prisma/client';
 
 import { AccessControlService } from '../common/access/access-control.service';
@@ -15,24 +15,24 @@ import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import {
   BookingsService,
-  RescheduledBooking,
+  isExclusionViolation,
+  RebookedBooking,
 } from '../bookings/bookings.service';
-import { rescheduleWindow, TimeWindow, windowMoved } from '../bookings/booking-reschedule';
-import {
-  computeItemAvailability,
-  holdingReservationsWhere,
-} from '../equipment/equipment-availability';
+import { TimeWindow, windowMoved } from '../bookings/booking-reschedule';
 import {
   EquipmentReservationsService,
-  ReleasedForReschedule,
+  RebookedReservation,
   RELEASABLE_STATUSES,
 } from '../equipment/equipment-reservations.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  applicabilityErrors,
-  capacityWarnings,
-  isChangeable,
-} from './change-request.rules';
+  ArrangementCheck,
+  ArrangementSummaryItem,
+  refusedApprovalMessage,
+} from './change-arrangement-check';
+import { ChangeArrangementCheckService } from './change-arrangement-check.service';
+import { applicabilityErrors, isChangeable } from './change-request.rules';
 import { RejectChangeRequestDto } from './dto/reject-change-request.dto';
 import {
   describeRequirement,
@@ -40,6 +40,7 @@ import {
   FieldChange,
   sameValue,
   affectedArrangements,
+  movedArrangementChanges,
 } from './event-change.rules';
 import { CHANGE_REQUEST_INCLUDE } from './events-change-request.service';
 import { EventsService } from './events.service';
@@ -52,38 +53,32 @@ const REQUIREMENTS_ORDER: Prisma.EquipmentRequirementOrderByWithRelationInput[] 
 const ALREADY_DECIDED = 'this change request has already been decided';
 
 /**
- * US-38 — what approving a date or time change does to the event's existing
- * arrangements: bookings move and wait for Venue Staff again, equipment
- * reservations are released for Technical Support to commit again.
+ * US-48 AC-7/AC-8 — thrown inside the approval transaction when the re-run
+ * check finds a conflict, so everything rolls back; approve() then refuses
+ * with a 409 listing the conflicts and leaves the request pending.
  */
-export interface RescheduleImpact {
-  /** The event's window if approved; null when the request moves no dates. */
-  newWindow: TimeWindow | null;
-  venueBookings: {
-    bookingId: string;
-    venueName: string | null;
-    status: BookingStatus;
-    from: TimeWindow;
-    to: TimeWindow;
-  }[];
-  equipmentReservations: {
-    reservationId: string;
-    equipmentType: string;
-    quantity: number;
-    status: ReservationStatus;
-  }[];
+class ArrangementCheckFailed extends Error {
+  constructor(readonly check: ArrangementCheck) {
+    super('arrangement check failed');
+  }
 }
 
-/** A clash at the new time, shown before the Coordinator decides. */
-export interface ImpactWarning {
-  type: 'VENUE_CONFLICT' | 'VENUE_BLOCKED' | 'EQUIPMENT_UNAVAILABLE';
-  message: string;
-}
+/**
+ * US-48 — the approval waits on row locks (a US-32 commit, a booking decision),
+ * so it gets the same limits as a commit rather than Prisma's 5s default.
+ */
+const APPROVAL_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 15_000 } as const;
 
-/** What an approval actually moved and released. */
+/** Live bookings: still asking for or holding a venue. */
+const LIVE_BOOKING_STATUSES: BookingStatus[] = [BookingStatus.REQUESTED, BookingStatus.APPROVED];
+
+/**
+ * US-48 AC-7 — what an approval rebooked for the new details. Each original
+ * was released once its replacement existed, and is linked to it.
+ */
 export interface ReschedulingResult {
-  venueBookings: RescheduledBooking[];
-  equipmentReservations: ReleasedForReschedule[];
+  venueBookings: RebookedBooking[];
+  equipmentReservations: RebookedReservation[];
 }
 
 /**
@@ -104,6 +99,8 @@ export class EventsChangeReviewService {
     private readonly events: EventsService,
     private readonly bookings: BookingsService,
     private readonly reservations: EquipmentReservationsService,
+    private readonly arrangements: ChangeArrangementCheckService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** AC-1 — pending requests on this Coordinator's own events, oldest first. */
@@ -136,37 +133,23 @@ export class EventsChangeReviewService {
   /**
    * AC-2 / AC-6 — one request for review: the event as it is now beside what
    * is proposed, the Organiser's reason, and any capacity warning.
+   *
+   * US-48 AC-1..AC-4, AC-6: with the check of the event's arrangements against
+   * the proposed details — what still works, what would conflict and why, and
+   * what approval would move. Read-only: opening a request changes nothing.
+   * The capacity warning (`warnings`) comes from the same check.
    */
   async getForReview(user: AuthenticatedUser, requestId: string) {
     const { request, event } = await this.load(user, requestId);
 
-    const [equipmentRequirements, bookings] = await Promise.all([
+    const [equipmentRequirements, check] = await Promise.all([
       this.prisma.equipmentRequirement.findMany({
         where: { eventId: event.id },
         orderBy: REQUIREMENTS_ORDER,
         select: { id: true, equipmentId: true, equipmentType: true, quantity: true },
       }),
-      // A rejected booking holds nothing, so it cannot be outgrown.
-      this.prisma.venueBooking.findMany({
-        where: {
-          eventId: event.id,
-          status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
-        },
-        select: {
-          id: true,
-          status: true,
-          start: true,
-          end: true,
-          venue: { select: { id: true, name: true, capacity: true } },
-        },
-      }),
+      this.arrangements.check(this.prisma, request, event),
     ]);
-
-    const { impact, warnings: impactWarnings } = await this.assessReschedule(
-      request,
-      event,
-      bookings,
-    );
 
     return {
       request,
@@ -179,141 +162,8 @@ export class EventsChangeReviewService {
         expectedAttendance: event.expectedAttendance,
         equipmentRequirements,
       },
-      warnings: [
-        ...capacityWarnings(request.proposedAttendance, bookings),
-        ...impactWarnings,
-      ],
-      impact,
-    };
-  }
-
-  /**
-   * What approving this request would do to the event's existing arrangements,
-   * and whether those arrangements would still work at the new time. Shown
-   * before the Coordinator decides, so a clash is known up front.
-   *
-   * Only a change to the event's dates or times has any effect on bookings and
-   * reservations; otherwise there is nothing to report.
-   */
-  private async assessReschedule(
-    request: {
-      proposedStart: Date | null;
-      proposedEnd: Date | null;
-    },
-    event: { id: string; proposedStart: Date | null; proposedEnd: Date | null },
-    bookings: { id: string; status: BookingStatus; start: Date; end: Date; venue: { id: string; name: string | null } }[],
-  ): Promise<{ impact: RescheduleImpact; warnings: ImpactWarning[] }> {
-    const none = {
-      impact: { newWindow: null, venueBookings: [], equipmentReservations: [] },
-      warnings: [],
-    };
-
-    const window = this.newWindow(request, event);
-    if (!window) return none;
-
-    const warnings: ImpactWarning[] = [];
-
-    const venueBookings = await Promise.all(
-      bookings.map(async (booking) => {
-        const to = rescheduleWindow(booking, window.from, window.to);
-
-        // Same two questions bookings ask when a slot is requested: does a
-        // confirmed booking hold it, and is it blocked out?
-        const [clashes, blocks] = await Promise.all([
-          this.prisma.venueBooking.findMany({
-            where: {
-              venueId: booking.venue.id,
-              id: { not: booking.id },
-              status: BookingStatus.APPROVED,
-              start: { lt: to.end },
-              end: { gt: to.start },
-            },
-            select: { event: { select: { name: true } } },
-          }),
-          this.prisma.venueBlock.findMany({
-            where: {
-              venueId: booking.venue.id,
-              start: { lt: to.end },
-              end: { gt: to.start },
-            },
-            select: { reason: true },
-          }),
-        ]);
-
-        const venue = booking.venue.name ?? 'The booked venue';
-        for (const clash of clashes) {
-          warnings.push({
-            type: 'VENUE_CONFLICT',
-            message: `${venue} is already booked for "${clash.event.name ?? 'another event'}" at the new time.`,
-          });
-        }
-        for (const block of blocks) {
-          warnings.push({
-            type: 'VENUE_BLOCKED',
-            message: `${venue} is blocked out at the new time${block.reason ? ` (${block.reason})` : ''}.`,
-          });
-        }
-
-        return {
-          bookingId: booking.id,
-          venueName: booking.venue.name,
-          status: booking.status,
-          from: { start: booking.start, end: booking.end },
-          to,
-        };
-      }),
-    );
-
-    const held = await this.prisma.equipmentReservation.findMany({
-      where: { eventId: event.id, status: { in: [...RELEASABLE_STATUSES] } },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      select: {
-        id: true,
-        quantity: true,
-        status: true,
-        equipment: {
-          select: { id: true, type: true, totalQuantity: true, operationalStatus: true },
-        },
-      },
-    });
-
-    const equipmentReservations = await Promise.all(
-      held.map(async (reservation) => {
-        const others = await this.prisma.equipmentReservation.findMany({
-          where: {
-            AND: [
-              holdingReservationsWhere([reservation.equipment.id], window.to),
-              { id: { not: reservation.id } },
-            ],
-          },
-          select: { quantity: true, start: true, end: true },
-        });
-
-        const availability = computeItemAvailability({
-          equipment: reservation.equipment,
-          requestedQuantity: reservation.quantity,
-          reservations: others,
-          window: window.to,
-        });
-        if (!availability.fullyAvailable) {
-          warnings.push({
-            type: 'EQUIPMENT_UNAVAILABLE',
-            message: `${reservation.quantity} × ${reservation.equipment.type} may not be available at the new time (${availability.availableQuantity} free).`,
-          });
-        }
-
-        return {
-          reservationId: reservation.id,
-          equipmentType: reservation.equipment.type,
-          quantity: reservation.quantity,
-          status: reservation.status,
-        };
-      }),
-    );
-
-    return {
-      impact: { newWindow: window.to, venueBookings, equipmentReservations },
-      warnings,
+      warnings: check.warnings,
+      check,
     };
   }
 
@@ -371,121 +221,257 @@ export class EventsChangeReviewService {
     const confirmed = await this.events.confirmedArrangements(event.id);
     const decidedAt = new Date();
 
-    return this.prisma.$transaction(async (tx) => {
-      // Claim the request first: a second Coordinator action racing this one
-      // finds it no longer PENDING and stops here, rolling nothing forward.
-      const claimed = await tx.eventChangeRequest.updateMany({
-        where: { id: request.id, status: ChangeRequestStatus.PENDING },
+    let approved: Awaited<ReturnType<typeof this.applyApproval>>;
+    try {
+      approved = await this.prisma.$transaction(
+        (tx) => this.applyApproval(tx, user, request, event.id, confirmed, decidedAt),
+        APPROVAL_TRANSACTION_OPTIONS,
+      );
+    } catch (error) {
+      // US-48 AC-8: the check failed at the moment of approving — something
+      // changed after the page loaded. The transaction has rolled back, so the
+      // event, its bookings and reservations are as they were, and the request
+      // is left PENDING: the Coordinator re-checks and decides. Nothing is
+      // recorded and no one is notified, since nothing was decided. The same
+      // holds for a direct API call, and for the database backstop (US-24):
+      // another approval taking a venue between the check and the rebook.
+      const conflicts: ArrangementSummaryItem[] | null =
+        error instanceof ArrangementCheckFailed
+          ? error.check.conflicts
+          : isExclusionViolation(error)
+            ? [
+                {
+                  kind: 'VENUE_BOOKING',
+                  label: 'Venue booking',
+                  reason:
+                    'A venue booking was confirmed at the new time while this request was being approved.',
+                },
+              ]
+            : null;
+      if (!conflicts) throw error;
+
+      throw new ConflictException({
+        statusCode: 409,
+        error: 'Conflict',
+        code: 'CHANGE_REQUEST_CHECK_FAILED',
+        message: refusedApprovalMessage(conflicts),
+        conflicts,
+      });
+    }
+
+    // US-48 AC-9: after commit, best-effort.
+    await this.notifyOrganiser(event, 'approved', null);
+    return approved;
+  }
+
+  /**
+   * US-48 AC-7 — the approval itself, inside one transaction: lock what may
+   * move, re-run the check, and only if it passes update the event, rebook its
+   * arrangements, release the originals and record it all. Any failure —
+   * the check, or a step after it — rolls the whole thing back.
+   */
+  private async applyApproval(
+    tx: Prisma.TransactionClient,
+    user: AuthenticatedUser,
+    request: Awaited<ReturnType<EventsChangeReviewService['load']>>['request'],
+    eventId: string,
+    confirmed: Awaited<ReturnType<EventsService['confirmedArrangements']>>,
+    decidedAt: Date,
+  ) {
+    // Row locks, as a US-32 commit takes them, in a fixed order — the
+    // event, then each venue, then each equipment item — so the check below
+    // and the rebook that follows see a world nothing else is changing.
+    await this.lockArrangements(tx, eventId, request);
+
+    // AC-7/AC-8: the check runs again, on the event as it now is.
+    const current = await tx.eventRequest.findUniqueOrThrow({ where: { id: eventId } });
+    const check = await this.arrangements.check(tx, request, current);
+    if (!check.canApprove) {
+      throw new ArrangementCheckFailed(check);
+    }
+
+    // Claim the request first: a second Coordinator action racing this one
+    // finds it no longer PENDING and stops here, rolling nothing forward.
+    const claimed = await tx.eventChangeRequest.updateMany({
+      where: { id: request.id, status: ChangeRequestStatus.PENDING },
+      data: {
+        status: ChangeRequestStatus.APPROVED,
+        decidedById: user.userId,
+        decidedAt,
+      },
+    });
+    if (claimed.count === 0) {
+      throw new ConflictException(ALREADY_DECIDED);
+    }
+
+    // The event as read under its lock above; the claim did not change it.
+    const before = current;
+
+    const changes: FieldChange[] = diffEventFields(before, {
+      proposedStart: request.proposedStart ?? undefined,
+      proposedEnd: request.proposedEnd ?? undefined,
+      expectedAttendance: request.proposedAttendance ?? undefined,
+    });
+
+    if (changes.length > 0) {
+      await tx.eventRequest.update({
+        where: { id: eventId },
         data: {
-          status: ChangeRequestStatus.APPROVED,
-          decidedById: user.userId,
-          decidedAt,
+          ...(request.proposedStart ? { proposedStart: request.proposedStart } : {}),
+          ...(request.proposedEnd ? { proposedEnd: request.proposedEnd } : {}),
+          ...(request.proposedAttendance !== null
+            ? { expectedAttendance: request.proposedAttendance }
+            : {}),
         },
       });
-      if (claimed.count === 0) {
-        throw new ConflictException(ALREADY_DECIDED);
+    }
+
+    // US-48 AC-7: a new date or time rebooks the event's venue bookings and
+    // equipment reservations for it and releases the originals, in this
+    // same transaction (see the two methods). This replaces US-38's move,
+    // which sent bookings back to REQUESTED and released the equipment.
+    // An attendance-only change has nothing to rebook.
+    const arrangements: ReschedulingResult = {
+      venueBookings: [],
+      equipmentReservations: [],
+    };
+    const moved = this.newWindow(request, before);
+    if (moved) {
+      arrangements.venueBookings = await this.bookings.rebookForEventChange(
+        tx,
+        eventId,
+        moved.from,
+        moved.to,
+        request.proposedAttendance,
+      );
+      arrangements.equipmentReservations = await this.reservations.rebookForEventChange(
+        eventId,
+        moved.to,
+        tx,
+      );
+      // AC-7: what moved goes into the event's change history.
+      changes.push(...movedArrangementChanges(arrangements));
+    }
+
+    if (request.equipmentChanged) {
+      const existing = await tx.equipmentRequirement.findMany({
+        where: { eventId: eventId },
+        orderBy: REQUIREMENTS_ORDER,
+      });
+      const notes = new Map(
+        existing.filter((row) => row.equipmentId).map((row) => [row.equipmentId, row.notes]),
+      );
+
+      await tx.equipmentRequirement.deleteMany({
+        where: { eventId: eventId, equipmentId: { not: null } },
+      });
+      if (request.equipment.length > 0) {
+        await tx.equipmentRequirement.createMany({
+          data: request.equipment.map((line) => ({
+            eventId: eventId,
+            equipmentId: line.equipmentId,
+            equipmentType: line.equipment.type,
+            quantity: line.quantity,
+            notes: notes.get(line.equipmentId) ?? null,
+          })),
+        });
       }
 
-      const before = await tx.eventRequest.findUniqueOrThrow({
-        where: { id: event.id },
+      const after = await tx.equipmentRequirement.findMany({
+        where: { eventId: eventId },
+        orderBy: REQUIREMENTS_ORDER,
       });
 
-      const changes: FieldChange[] = diffEventFields(before, {
-        proposedStart: request.proposedStart ?? undefined,
-        proposedEnd: request.proposedEnd ?? undefined,
-        expectedAttendance: request.proposedAttendance ?? undefined,
-      });
-
-      if (changes.length > 0) {
-        await tx.eventRequest.update({
-          where: { id: event.id },
-          data: {
-            ...(request.proposedStart ? { proposedStart: request.proposedStart } : {}),
-            ...(request.proposedEnd ? { proposedEnd: request.proposedEnd } : {}),
-            ...(request.proposedAttendance !== null
-              ? { expectedAttendance: request.proposedAttendance }
-              : {}),
-          },
+      const previousLines = existing.map(describeRequirement);
+      const nextLines = after.map(describeRequirement);
+      if (!sameValue(previousLines, nextLines)) {
+        changes.push({
+          field: 'equipmentRequirements',
+          previous: previousLines,
+          next: nextLines,
         });
       }
+    }
 
-      // A new date or time moves the event's bookings and gives back its
-      // equipment, in this same transaction (see the two methods for why).
-      const arrangements: ReschedulingResult = {
-        venueBookings: [],
-        equipmentReservations: [],
-      };
-      const moved = this.newWindow(request, before);
-      if (moved) {
-        arrangements.venueBookings = await this.bookings.rescheduleForEventChange(
-          tx,
-          event.id,
-          moved.from,
-          moved.to,
-        );
-        arrangements.equipmentReservations =
-          await this.reservations.releaseForRescheduledEvent(event.id, tx);
-      }
+    // A request whose values the event already has changes nothing, and an
+    // empty history entry would only be noise.
+    const change =
+      changes.length > 0
+        ? await this.events.recordChange(
+            tx,
+            eventId,
+            user.userId,
+            changes,
+            affectedArrangements(changes, confirmed),
+          )
+        : null;
 
-      if (request.equipmentChanged) {
-        const existing = await tx.equipmentRequirement.findMany({
-          where: { eventId: event.id },
-          orderBy: REQUIREMENTS_ORDER,
-        });
-        const notes = new Map(
-          existing.filter((row) => row.equipmentId).map((row) => [row.equipmentId, row.notes]),
-        );
+    const decided = await tx.eventChangeRequest.findUniqueOrThrow({
+      where: { id: request.id },
+      include: CHANGE_REQUEST_INCLUDE,
+    });
 
-        await tx.equipmentRequirement.deleteMany({
-          where: { eventId: event.id, equipmentId: { not: null } },
-        });
-        if (request.equipment.length > 0) {
-          await tx.equipmentRequirement.createMany({
-            data: request.equipment.map((line) => ({
-              eventId: event.id,
-              equipmentId: line.equipmentId,
-              equipmentType: line.equipment.type,
-              quantity: line.quantity,
-              notes: notes.get(line.equipmentId) ?? null,
-            })),
-          });
-        }
+    return { request: decided, change, arrangements };
+  }
 
-        const after = await tx.equipmentRequirement.findMany({
-          where: { eventId: event.id },
-          orderBy: REQUIREMENTS_ORDER,
-        });
+  /**
+   * US-48 AC-7 — lock the event row, the venue of each live booking, and each
+   * equipment item that may move or is proposed, in that order. The event row
+   * first matches a US-32 commit (event, then item), so the two can wait on
+   * each other but never deadlock.
+   */
+  private async lockArrangements(
+    tx: Prisma.TransactionClient,
+    eventId: string,
+    request: { equipment: { equipmentId: string }[] },
+  ): Promise<void> {
+    await tx.$queryRaw`SELECT "id" FROM "EventRequest" WHERE "id" = ${eventId} FOR UPDATE`;
 
-        const previousLines = existing.map(describeRequirement);
-        const nextLines = after.map(describeRequirement);
-        if (!sameValue(previousLines, nextLines)) {
-          changes.push({
-            field: 'equipmentRequirements',
-            previous: previousLines,
-            next: nextLines,
-          });
-        }
-      }
+    const [bookings, reservations] = await Promise.all([
+      tx.venueBooking.findMany({
+        where: { eventId, status: { in: LIVE_BOOKING_STATUSES } },
+        select: { venueId: true },
+      }),
+      tx.equipmentReservation.findMany({
+        where: { eventId, status: { in: [...RELEASABLE_STATUSES] } },
+        select: { equipmentId: true },
+      }),
+    ]);
 
-      // A request whose values the event already has changes nothing, and an
-      // empty history entry would only be noise.
-      const change =
-        changes.length > 0
-          ? await this.events.recordChange(
-              tx,
-              event.id,
-              user.userId,
-              changes,
-              affectedArrangements(changes, confirmed),
-            )
-          : null;
+    for (const venueId of [...new Set(bookings.map((b) => b.venueId))].sort()) {
+      await this.bookings.lockVenue(tx, venueId);
+    }
+    const items = new Set([
+      ...reservations.map((r) => r.equipmentId),
+      ...request.equipment.map((line) => line.equipmentId),
+    ]);
+    for (const equipmentId of [...items].sort()) {
+      await this.reservations.lockEquipment(tx, equipmentId);
+    }
+  }
 
-      const decided = await tx.eventChangeRequest.findUniqueOrThrow({
-        where: { id: request.id },
-        include: CHANGE_REQUEST_INCLUDE,
-      });
-
-      return { request: decided, change, arrangements };
+  /**
+   * US-48 AC-9 — tell the Organiser how their request was decided, with the
+   * reason when it was rejected. Only for a real decision — a successful
+   * approval or the Coordinator's rejection; a refused approval decides
+   * nothing and sends nothing. In-app, after commit, best-effort. No one
+   * else is notified by this story (Venue Staff, Technical Support and
+   * Attendees are #40, #49 and #38).
+   */
+  private async notifyOrganiser(
+    event: { id: string; name: string | null; organiserId: string },
+    outcome: 'approved' | 'rejected',
+    reason: string | null,
+  ): Promise<void> {
+    const name = event.name ?? 'your event';
+    await this.notifications.notifySafely({
+      recipientId: event.organiserId,
+      type: NotificationType.CHANGE_REQUEST_DECIDED,
+      message:
+        outcome === 'approved'
+          ? `Your change request for "${name}" was approved; the event has been updated.`
+          : `Your change request for "${name}" was rejected. Reason: ${reason}`,
+      relatedEventId: event.id,
     });
   }
 
@@ -498,7 +484,7 @@ export class EventsChangeReviewService {
     requestId: string,
     dto: RejectChangeRequestDto,
   ) {
-    const { request } = await this.load(user, requestId);
+    const { request, event } = await this.load(user, requestId);
     this.assertPending(request.status);
 
     const claimed = await this.prisma.eventChangeRequest.updateMany({
@@ -514,10 +500,15 @@ export class EventsChangeReviewService {
       throw new ConflictException(ALREADY_DECIDED);
     }
 
-    return this.prisma.eventChangeRequest.findUniqueOrThrow({
+    const decided = await this.prisma.eventChangeRequest.findUniqueOrThrow({
       where: { id: request.id },
       include: CHANGE_REQUEST_INCLUDE,
     });
+
+    // US-48 AC-9: the Organiser hears the outcome and why.
+    await this.notifyOrganiser(event, 'rejected', dto.reason);
+
+    return decided;
   }
 
   /**

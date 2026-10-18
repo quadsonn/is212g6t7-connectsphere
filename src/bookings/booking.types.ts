@@ -14,6 +14,18 @@ export const BOOKABLE_EVENT_STATUSES: readonly EventStatus[] = [
   EventStatus.AWAITING_ARRANGEMENTS,
 ];
 
+/**
+ * US-41 — one suggested alternative as it is shown: the venue, and the request
+ * created from it once the Coordinator accepted it (AC-6).
+ */
+export const SUGGESTION_SELECT = {
+  id: true,
+  venue: { select: { id: true, name: true, location: true, capacity: true } },
+  acceptedBookingId: true,
+  acceptedAt: true,
+  createdAt: true,
+} as const satisfies Prisma.BookingSuggestionSelect;
+
 /** The relations every booking read carries, so callers never see bare ids. */
 export const BOOKING_INCLUDE = {
   venue: { select: { id: true, name: true, location: true, capacity: true } },
@@ -27,9 +39,16 @@ export const BOOKING_INCLUDE = {
   },
   requestedBy: { select: { id: true, name: true, email: true } },
   // US-23 AC-4/AC-5: the full decision history, oldest first, attributed.
+  // US-41 AC-5/AC-7: each decision with the alternatives attached to it.
   decisions: {
     orderBy: { createdAt: 'asc' },
-    include: { decidedBy: { select: { id: true, name: true, email: true, role: true } } },
+    include: {
+      decidedBy: { select: { id: true, name: true, email: true, role: true } },
+      suggestions: {
+        orderBy: { createdAt: 'asc' },
+        select: SUGGESTION_SELECT,
+      },
+    },
   },
 } as const satisfies Prisma.VenueBookingInclude;
 

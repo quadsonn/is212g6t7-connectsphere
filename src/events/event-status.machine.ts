@@ -61,14 +61,16 @@ export const ALLOWED_TRANSITIONS: Readonly<
   // US-08: the Organiser amends in place and resubmits.
   [EventStatus.RETURNED]: [EventStatus.SUBMITTED, EventStatus.CANCELLED],
 
-  // Approved work moves into arrangement.
-  [EventStatus.APPROVED]: [EventStatus.PLANNING, EventStatus.CANCELLED],
+  // Approved work moves into arrangement. US-47: or is rejected when no
+  // suitable venue or equipment can be found (UNFULFILLABLE_REJECTION_STATUSES).
+  [EventStatus.APPROVED]: [EventStatus.PLANNING, EventStatus.REJECTED, EventStatus.CANCELLED],
 
   // US-11: PLANNING may go straight to CONFIRMED when nothing needs booking,
   // or wait on venue/equipment decisions first.
   [EventStatus.PLANNING]: [
     EventStatus.AWAITING_ARRANGEMENTS,
     EventStatus.CONFIRMED,
+    EventStatus.REJECTED,
     EventStatus.CANCELLED,
   ],
 
@@ -77,6 +79,7 @@ export const ALLOWED_TRANSITIONS: Readonly<
   [EventStatus.AWAITING_ARRANGEMENTS]: [
     EventStatus.CONFIRMED,
     EventStatus.PLANNING,
+    EventStatus.REJECTED,
     EventStatus.CANCELLED,
   ],
 
@@ -186,6 +189,28 @@ export const EQUIPMENT_COMMITTABLE_STATUSES: readonly EventStatus[] =
       status !== EventStatus.CANCELLED &&
       status !== EventStatus.COMPLETED,
   );
+
+/**
+ * US-08: the statuses a review may reject from — the request is still being
+ * reviewed. Rejecting later, once arrangement has begun, is US-47's.
+ */
+export const REVIEW_REJECTION_STATUSES: readonly EventStatus[] = [
+  EventStatus.SUBMITTED,
+  EventStatus.UNDER_REVIEW,
+  EventStatus.AWAITING_CLARIFICATION,
+];
+
+/**
+ * US-47: the statuses an event may be rejected from as unfulfillable — it
+ * passed review and is being arranged, but no suitable venue or equipment can
+ * be found. Not CONFIRMED (its arrangements are in place) and not the review
+ * statuses, which US-08's reject covers.
+ */
+export const UNFULFILLABLE_REJECTION_STATUSES: readonly EventStatus[] = [
+  EventStatus.APPROVED,
+  EventStatus.PLANNING,
+  EventStatus.AWAITING_ARRANGEMENTS,
+];
 
 /**
  * US-11 AC-2: statuses that represent a Coordinator decision the Organiser is

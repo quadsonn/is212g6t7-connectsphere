@@ -17,7 +17,7 @@ describe('CalendarService (US-16)', () => {
     $transaction: jest.Mock;
   };
   let access: { requireScope: jest.Mock };
-  let bookings: { lockVenue: jest.Mock };
+  let bookings: { lockVenue: jest.Mock; buffersFor: jest.Mock };
   let service: CalendarService;
 
   const staff: AuthenticatedUser = { userId: 'staff-1', role: Role.VENUE_STAFF, jti: 'j1' };
@@ -42,7 +42,11 @@ describe('CalendarService (US-16)', () => {
     };
     prisma.$transaction.mockImplementation((fn) => fn(prisma));
     access = { requireScope: jest.fn().mockReturnValue(Scope.ANY) };
-    bookings = { lockVenue: jest.fn().mockResolvedValue(undefined) };
+    bookings = {
+      lockVenue: jest.fn().mockResolvedValue(undefined),
+      // US-50: no buffers configured.
+      buffersFor: jest.fn().mockResolvedValue({ setupMinutes: 0, turnaroundMinutes: 0 }),
+    };
     service = new CalendarService(
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,

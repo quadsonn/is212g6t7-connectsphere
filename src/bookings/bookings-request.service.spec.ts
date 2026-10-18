@@ -21,7 +21,7 @@ import { CreateBookingRequestDto } from './dto/create-booking-request.dto';
 describe('BookingsService createRequest (US-21)', () => {
   let prisma: {
     eventRequest: { findFirst: jest.Mock };
-    venue: { findFirst: jest.Mock };
+    venue: { findFirst: jest.Mock; findUnique: jest.Mock };
     venueBooking: { findMany: jest.Mock; findFirst: jest.Mock; create: jest.Mock };
     venueBlock: { findMany: jest.Mock };
     $executeRaw: jest.Mock;
@@ -71,7 +71,11 @@ describe('BookingsService createRequest (US-21)', () => {
   beforeEach(() => {
     prisma = {
       eventRequest: { findFirst: jest.fn().mockResolvedValue(event()) },
-      venue: { findFirst: jest.fn().mockResolvedValue({ id: 'venue-1' }) },
+      venue: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'venue-1' }),
+        // US-50: the venue's buffers; none configured.
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       venueBooking: {
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue({ id: 'booking-1' }),
@@ -342,6 +346,73 @@ describe('BookingsService createRequest (US-21)', () => {
       await expect(service.findOneForUser(coordinator, 'booking-1')).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+  });
+
+  describe('Capacity AC-1/AC-2: a venue too small for the expected attendance cannot be requested', () => {
+    const venue = (capacity: number | null) =>
+      prisma.venue.findFirst.mockResolvedValue({ id: 'venue-1', name: 'Alumni Lounge', capacity });
+
+    it('Capacity AC-1/AC-2: refuses 499 attendees for a venue holding 90, saying why, and writes nothing', async () => {
+      venue(90);
+
+      const refused = service.createRequest(coordinator, { ...dto(), expectedAttendance: 499 });
+
+      await expect(refused).rejects.toBeInstanceOf(ConflictException);
+      await expect(refused).rejects.toMatchObject({
+        response: {
+          code: 'CAPACITY_EXCEEDED',
+          message: 'Alumni Lounge holds 90, but expected attendance is 499.',
+          capacity: 90,
+          expectedAttendance: 499,
+        },
+      });
+      expect(prisma.venueBooking.create).not.toHaveBeenCalled();
+    });
+
+    it('Capacity AC-1: refuses attendance one over capacity', async () => {
+      venue(90);
+
+      await expect(
+        service.createRequest(coordinator, { ...dto(), expectedAttendance: 91 }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('Capacity AC-1: allows attendance equal to capacity', async () => {
+      venue(90);
+
+      const created = await service.createRequest(coordinator, { ...dto(), expectedAttendance: 90 });
+
+      expect(created.status).toBe(BookingStatus.REQUESTED);
+    });
+
+    it('Capacity AC-1: allows attendance below capacity', async () => {
+      venue(90);
+
+      const created = await service.createRequest(coordinator, { ...dto(), expectedAttendance: 50 });
+
+      expect(created.status).toBe(BookingStatus.REQUESTED);
+    });
+
+    it('Capacity AC-1: refuses a replacement request (US-52) that is over capacity too', async () => {
+      venue(90);
+
+      await expect(
+        service.createRequest(coordinator, {
+          ...dto(),
+          expectedAttendance: 499,
+          replacesBookingId: 'booking-1',
+        }),
+      ).rejects.toMatchObject({ response: { code: 'CAPACITY_EXCEEDED' } });
+      expect(prisma.venueBooking.create).not.toHaveBeenCalled();
+    });
+
+    it('does not guess for a venue with no capacity recorded (the US-48 rule)', async () => {
+      venue(null);
+
+      const created = await service.createRequest(coordinator, { ...dto(), expectedAttendance: 499 });
+
+      expect(created.status).toBe(BookingStatus.REQUESTED);
     });
   });
 });

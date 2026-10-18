@@ -38,7 +38,7 @@ describe('Notifications page: presenting a notification', () => {
       });
     });
 
-    it('US-58 AC-1: keeps everything after the reason', () => {
+    it('US-52 AC-1: keeps everything after the reason', () => {
       expect(
         splitReason(
           'Main Hall is unavailable from A to B, affecting the booking for "Gala" on C – D. Reason: Flood. The event has not been cancelled; request a replacement venue.',

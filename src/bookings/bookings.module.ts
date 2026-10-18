@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BookingsController } from './bookings.controller';
+import { BookingSuggestionsService } from './booking-suggestions.service';
 import { BookingsService } from './bookings.service';
+import { VenueUnavailabilityService } from './venue-unavailability.service';
 import { CalendarController } from './calendar.controller';
 import { CalendarService } from './calendar.service';
 import { VenueBookingLookup } from './booking-impact';
@@ -19,9 +21,13 @@ import { VenueBookingLookup } from './booking-impact';
   controllers: [BookingsController, CalendarController],
   providers: [
     BookingsService,
+    BookingSuggestionsService,
     CalendarService,
+    VenueUnavailabilityService,
     { provide: VenueBookingLookup, useExisting: BookingsService },
   ],
-  exports: [VenueBookingLookup, BookingsService],
+  // VenueUnavailabilityService: the #57 hook (US-52) — exported for the
+  // module that will mark venues unavailable.
+  exports: [VenueBookingLookup, BookingsService, VenueUnavailabilityService],
 })
 export class BookingsModule {}

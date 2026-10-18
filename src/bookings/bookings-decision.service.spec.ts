@@ -22,6 +22,7 @@ describe('BookingsService decisions (US-23)', () => {
       update: jest.Mock;
     };
     bookingDecision: { create: jest.Mock };
+    venue: { findUnique: jest.Mock };
     venueBlock: { findMany: jest.Mock };
     $executeRaw: jest.Mock;
     $transaction: jest.Mock;
@@ -60,6 +61,8 @@ describe('BookingsService decisions (US-23)', () => {
           .mockImplementation(({ data }) => Promise.resolve(decided(data.status, data.decisionReason))),
       },
       bookingDecision: { create: jest.fn().mockResolvedValue({}) },
+      // US-50: the venue's buffers; none configured.
+      venue: { findUnique: jest.fn().mockResolvedValue(null) },
       venueBlock: { findMany: jest.fn().mockResolvedValue([]) },
       $executeRaw: jest.fn().mockResolvedValue(1),
       $transaction: jest.fn(),

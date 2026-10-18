@@ -13,6 +13,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-21 e2e — submit a request to book a venue with timing and requirements. */
 describe('US-21 submit a venue booking request (e2e)', () => {
@@ -71,7 +72,7 @@ describe('US-21 submit a venue booking request (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });
@@ -149,6 +150,52 @@ describe('US-21 submit a venue booking request (e2e)', () => {
         event: { id: event.id, name: 'Orientation' },
         warnings: [],
       });
+    });
+  });
+
+  describe('Capacity AC-1/AC-2: a venue too small for the expected attendance cannot be requested', () => {
+    const lounge = async (capacity: number) =>
+      (
+        await prisma.venue.create({
+          data: {
+            name: 'Alumni Lounge',
+            location: 'Level 2',
+            capacity,
+            facilities: [],
+            accessibilityFeatures: [],
+            status: VenueStatus.PUBLISHED,
+            managedById: ids.staff,
+          },
+        })
+      ).id;
+
+    it('Capacity AC-1/AC-2: refuses 499 attendees for a venue holding 90 (409), saying why, and creates nothing', async () => {
+      const event = await seedEvent({ expectedAttendance: 499 });
+      const venueId = await lounge(90);
+
+      const res = await book({ eventId: event.id, venueId, ...slot(9, 12), expectedAttendance: 499 });
+
+      expect(res.status).toBe(409);
+      expect(res.body).toMatchObject({
+        code: 'CAPACITY_EXCEEDED',
+        message: 'Alumni Lounge holds 90, but expected attendance is 499.',
+        capacity: 90,
+        expectedAttendance: 499,
+      });
+      expect(await prisma.venueBooking.count()).toBe(0);
+    });
+
+    it.each([
+      ['equal to', 90],
+      ['below', 60],
+    ])('Capacity AC-1: allows attendance %s capacity', async (_label, attendance) => {
+      const event = await seedEvent({ expectedAttendance: attendance });
+      const venueId = await lounge(90);
+
+      const res = await book({ eventId: event.id, venueId, ...slot(9, 12), expectedAttendance: attendance });
+
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe(BookingStatus.REQUESTED);
     });
   });
 

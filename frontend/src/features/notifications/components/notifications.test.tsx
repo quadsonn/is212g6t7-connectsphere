@@ -72,7 +72,7 @@ describe('Notifications: the bell', () => {
 });
 
 describe('Notifications: the page', () => {
-  it('US-58 AC-1: shows the Coordinator the venue-unavailable notification with its reason, event and time', async () => {
+  it('US-52 AC-1: shows the Coordinator the venue-unavailable notification with its reason, event and time', async () => {
     api.list.mockResolvedValue([item()]);
     wrap(<NotificationsPage />);
 

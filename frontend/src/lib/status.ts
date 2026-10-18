@@ -67,6 +67,8 @@ export const BOOKING_STATUS_STYLES: Record<BookingStatus, StatusStyle> = {
   REQUESTED: { label: 'Pending', className: 'bg-amber-50 text-amber-900 ring-amber-400' },
   APPROVED: { label: 'Approved', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
   REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-800 ring-red-300' },
+  // US-52 AC-5: replaced by a confirmed booking elsewhere; the record is kept.
+  RELEASED: { label: 'Released', className: 'bg-ink-100 text-ink-700 ring-ink-300' },
 };
 
 /** Statuses shown in the Coordinator's retained request list. */
@@ -83,6 +85,17 @@ export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
   'CANCELLED',
   'REJECTED',
   'RETURNED',
+];
+
+/**
+ * US-47 — statuses an event may be rejected from as unfulfillable. Mirrors
+ * UNFULFILLABLE_REJECTION_STATUSES in the backend, which enforces it; this
+ * only decides whether to offer the action.
+ */
+export const UNFULFILLABLE_REJECTION_STATUSES: EventStatus[] = [
+  'APPROVED',
+  'PLANNING',
+  'AWAITING_ARRANGEMENTS',
 ];
 
 /**

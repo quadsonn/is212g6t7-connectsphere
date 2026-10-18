@@ -17,6 +17,8 @@ import type {
   PublicEventView,
   TechnicalRequirementsPayload,
   RelatedEventView,
+  RejectUnfulfillablePayload,
+  UnfulfillableRejection,
 } from '@/types/api';
 
 /**
@@ -120,6 +122,12 @@ export const eventsApi = {
   reject: (id: string, reason: string) =>
     apiClient
       .post<EventRequest>(`/events/${id}/reject`, { reason })
+      .then((r) => r.data),
+
+  /** US-47 — reject an approved request that cannot be fulfilled. */
+  rejectUnfulfillable: (id: string, payload: RejectUnfulfillablePayload) =>
+    apiClient
+      .post<UnfulfillableRejection>(`/events/${id}/reject-unfulfillable`, payload)
       .then((r) => r.data),
 
   returnForAmendment: (id: string, reason: string) =>

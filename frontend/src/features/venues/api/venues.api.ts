@@ -4,6 +4,7 @@ import type {
   DayAvailability,
   Venue,
   VenueDraftPayload,
+  VenueOccupancy,
   VenueSearchQuery,
   VenueSuitability,
   VenueWithWarnings,
@@ -40,6 +41,15 @@ export const venuesApi = {
   availability: (id: string, month: string) =>
     apiClient
       .get<DayAvailability[]>(`/venues/${id}/availability`, { params: { month } })
+      .then((r) => r.data),
+
+  // US-50 AC-3: what occupies the venue on one day, setup and turnaround
+  // separate from the event time. Coordinators only, like availability.
+  occupancy: (id: string, day: string) =>
+    apiClient
+      .get<VenueOccupancy[]>(`/venues/${id}/availability/slots`, {
+        params: { from: day, to: day },
+      })
       .then((r) => r.data),
 
   // US-13 AC-1/AC-2: save a new venue, complete or not.

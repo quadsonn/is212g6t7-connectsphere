@@ -10,6 +10,7 @@ import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
 import { overlapsRange } from './booking-overlap';
+import { bookingsOccupyingWhere } from './venue-occupancy';
 import { BookingConflict } from './booking.types';
 import { BookingsService } from './bookings.service';
 import { CalendarQueryDto, CreateVenueBlockDto } from './dto/calendar.dto';
@@ -176,11 +177,16 @@ export class CalendarService {
         },
       });
 
+      // US-50: a booking whose setup or turnaround falls in the period is
+      // affected too (venue-occupancy.ts).
       const overlapping = await tx.venueBooking.findMany({
         where: {
           venueId: venue.id,
           status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
-          ...overlapsRange(dto.start, dto.end),
+          ...bookingsOccupyingWhere(
+            { start: dto.start, end: dto.end },
+            await this.bookings.buffersFor(tx, venue.id),
+          ),
         },
         include: { event: { select: { name: true } } },
         orderBy: { start: 'asc' },

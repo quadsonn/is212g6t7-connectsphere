@@ -38,9 +38,9 @@ export function linkFor(role: string, relatedEventId: string | null): string | n
 
 /**
  * The reason, where the message carries one. Every sender that gives a reason
- * writes it as "… Reason: <reason>" (US-23, US-47, US-48, US-58). Everything
+ * writes it as "… Reason: <reason>" (US-23, US-47, US-48, US-52). Everything
  * after "Reason: " is kept as the reason, including any sentences that follow
- * it (US-41's suggested alternatives, US-58's "request a replacement"), so
+ * it (US-41's suggested alternatives, US-52's "request a replacement"), so
  * nothing in the message is lost.
  */
 export function splitReason(message: string): { summary: string; reason: string | null } {

@@ -143,6 +143,21 @@ export class VenuesController {
   }
 
   /**
+   * US-50 AC-3 — the bookings occupying this venue over the same range, each
+   * as separate setup, event and turnaround segments. Anonymous, like US-17.
+   */
+  @Get(':id/availability/slots')
+  @RequirePermission(Resource.VENUE, Action.CHECK_AVAILABILITY)
+  @Header('Cache-Control', 'no-store')
+  getOccupancy(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query() query: VenueAvailabilityQueryDto,
+  ) {
+    return this.venuesService.getOccupancy(user, id, query);
+  }
+
+  /**
    * US-20 — per-requirement suitability flags for one venue against one of
    * the Coordinator's events. Advisory only: never a precondition for
    * requesting the venue (AC-5).

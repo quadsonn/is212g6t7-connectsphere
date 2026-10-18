@@ -13,11 +13,14 @@ import { ChangeHistory } from '@/features/events/components/change-history';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { PlanningEditForm } from '@/features/events/components/planning-edit-form';
 import { ReassignEvent } from '@/features/events/components/reassign-event';
+import { RejectUnfulfillable } from '@/features/events/components/reject-unfulfillable';
 import { TechnicalRequirementsCard } from '@/features/events/components/technical-requirements';
 import { ARRANGEMENT_LABELS } from '@/features/events/lib/change-format';
 import { BookingRequestForm } from '@/features/bookings/components/booking-request-form';
 import { EventBookingsList } from '@/features/bookings/components/event-bookings-list';
-import { useEventBookings } from '@/features/bookings/hooks/use-bookings';
+import { VenueArrangementBadge } from '@/features/bookings/components/venue-arrangement-badge';
+import { VenueUnavailablePanel } from '@/features/bookings/components/venue-unavailable-panel';
+import { useEventBookings, useReleaseBooking } from '@/features/bookings/hooks/use-bookings';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import {
   useAssignCoordinator,
@@ -26,7 +29,11 @@ import {
   useStartPlanning,
 } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
-import { ASSIGNABLE_EVENT_STATUSES, PLANNING_EVENT_STATUSES } from '@/lib/status';
+import {
+  ASSIGNABLE_EVENT_STATUSES,
+  PLANNING_EVENT_STATUSES,
+  UNFULFILLABLE_REJECTION_STATUSES,
+} from '@/lib/status';
 import type { PlanningUpdateResult } from '@/types/api';
 import { formatDateRange, humanise } from '@/lib/utils';
 import type { EventStatus } from '@/types/api';
@@ -52,6 +59,8 @@ export function CoordinatorEventDetail() {
   const { approve, requestClarification, reject, returnForAmendment } = useReviewEvent();
   const assignCoordinator = useAssignCoordinator();
   const { data: eventBookings = [] } = useEventBookings(id);
+  // US-53 AC-5/AC-6: derived "venue arranged", and releasing one booking.
+  const releaseBooking = useReleaseBooking();
   const [decision, setDecision] = useState<Decision>('');
   const [decisionText, setDecisionText] = useState('');
   const startPlanning = useStartPlanning();
@@ -374,16 +383,27 @@ export function CoordinatorEventDetail() {
             </CardContent>
           </Card>
 
+          {/* US-52: bookings whose venue became unavailable, and their replacement. */}
+          <VenueUnavailablePanel event={event} canRequest={canBook} />
+
           {canBook || eventBookings.length > 0 ? (
             <Card>
               <CardHeader>
                 <CardTitle>Venue booking</CardTitle>
+                {canBook ? <VenueArrangementBadge eventId={event.id} /> : null}
               </CardHeader>
               <CardContent className="space-y-5">
                 {eventBookings.length > 0 ? (
                   <EventBookingsList
                     bookings={eventBookings}
                     detailPath={(bookingId) => `/coordinator/bookings/${bookingId}`}
+                    onRelease={canBook ? (bookingId) => releaseBooking.mutate(bookingId) : undefined}
+                    releasingId={releaseBooking.isPending ? releaseBooking.variables : null}
+                  />
+                ) : null}
+                {releaseBooking.error ? (
+                  <ErrorState
+                    message={apiErrorMessage(releaseBooking.error, 'Could not release this booking.')}
                   />
                 ) : null}
                 {canBook ? <BookingRequestForm event={event} /> : null}
@@ -391,6 +411,11 @@ export function CoordinatorEventDetail() {
             </Card>
           ) : null}
           <ChangeHistory eventId={event.id} />
+
+          {/* US-47: reject a request that cannot be fulfilled. */}
+          {UNFULFILLABLE_REJECTION_STATUSES.includes(event.status) && isAssignedToMe ? (
+            <RejectUnfulfillable eventId={event.id} />
+          ) : null}
 
           {canDecide ? (
             <Card>

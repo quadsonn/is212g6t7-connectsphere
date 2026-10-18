@@ -19,6 +19,8 @@ const booking = {
   status: 'REQUESTED',
   start: '2030-10-01T09:00:00.000Z',
   end: '2030-10-01T12:00:00.000Z',
+  expectedAttendance: 80,
+  venue: { id: 'main', name: 'Main Hall', location: null, capacity: 200 },
 } as VenueBooking;
 
 const NONE: BookingConflictReport = { hardConflicts: [], softConflicts: [], blocks: [], hasHardConflict: false };

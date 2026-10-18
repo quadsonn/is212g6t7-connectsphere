@@ -25,6 +25,9 @@ export const CHANGE_FIELD_LABELS: Record<FieldChange['field'], string> = {
   coordinator: 'Coordinator',
   equipmentRequirements: 'Equipment requirements',
   technicalSupportNeeds: 'Technical support',
+  // US-48 AC-7: rebooked by an approved change request.
+  venueBookings: 'Venue bookings',
+  equipmentReservations: 'Equipment reservations',
 };
 
 /** US-25 AC-2 — the arrangement a flagged change puts at risk. */
@@ -62,7 +65,9 @@ export function formatChangeValue(
         ? 'None'
         : list.map((feature) => ACCESSIBILITY_FEATURE_LABELS[feature] ?? humanise(feature)).join(', ');
     }
-    case 'equipmentRequirements': {
+    case 'equipmentRequirements':
+    case 'venueBookings':
+    case 'equipmentReservations': {
       const list = value as string[];
       return list.length === 0 ? 'None' : list.join('\n');
     }

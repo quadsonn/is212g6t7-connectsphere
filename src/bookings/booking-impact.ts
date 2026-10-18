@@ -1,5 +1,7 @@
 import { BookingStatus } from '@prisma/client';
 
+import { VenueBuffers } from './venue-occupancy';
+
 /**
  * A booking that a venue change might invalidate.
  *
@@ -26,6 +28,11 @@ export interface VenueBookingSlot {
   start: Date;
   end: Date;
   status: BookingStatus;
+  /**
+   * US-50: the venue's setup and turnaround around this booking. Absent means
+   * none (AC-4) — the slot then occupies exactly start–end.
+   */
+  buffers?: VenueBuffers;
 }
 
 /**
@@ -51,8 +58,9 @@ export abstract class VenueBookingLookup {
   ): Promise<VenueBookingImpact[]>;
 
   /**
-   * US-17 — live bookings on this venue that overlap [from, to), as
-   * anonymous slots. Past bookings are included: the calendar shows them.
+   * US-17 — live bookings on this venue occupying part of [from, to) —
+   * setup and turnaround included (US-50) — as anonymous slots carrying the
+   * venue's buffers. Past bookings are included: the calendar shows them.
    */
   abstract findBookingSlotsForVenue(
     venueId: string,

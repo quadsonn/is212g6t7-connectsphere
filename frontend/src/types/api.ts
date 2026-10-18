@@ -240,7 +240,10 @@ export interface FieldChange {
     | keyof PlanningUpdatePayload
     | 'coordinator'
     | 'equipmentRequirements'
-    | 'technicalSupportNeeds';
+    | 'technicalSupportNeeds'
+    // US-48 AC-7: what an approved change request rebooked.
+    | 'venueBookings'
+    | 'equipmentReservations';
   previous: string | number | boolean | string[] | null;
   next: string | number | boolean | string[] | null;
 }
@@ -339,55 +342,104 @@ export interface CapacityWarning {
   message: string;
 }
 
-/** A clash found at the proposed new time (venue or equipment). */
-export interface ImpactWarning {
-  type: 'VENUE_CONFLICT' | 'VENUE_BLOCKED' | 'EQUIPMENT_UNAVAILABLE';
-  message: string;
-}
-
-export type ReviewWarning = CapacityWarning | ImpactWarning;
-
 export interface TimeWindowIso {
   start: string;
   end: string;
 }
 
-/**
- * What approving a date or time change would do to the event's existing
- * arrangements: bookings move and wait for Venue Staff again, equipment
- * reservations are released for Technical Support to commit again.
- */
-export interface RescheduleImpact {
-  newWindow: TimeWindowIso | null;
-  venueBookings: {
-    bookingId: string;
-    venueName: string | null;
-    status: string;
-    from: TimeWindowIso;
-    to: TimeWindowIso;
-  }[];
-  equipmentReservations: {
-    reservationId: string;
-    equipmentType: string;
-    quantity: number;
-    status: string;
-  }[];
+/** US-48 AC-2/AC-6 — one of the event's live venue bookings, at the proposed details. */
+export interface VenueBookingCheck {
+  bookingId: string;
+  venueId: string;
+  venueName: string | null;
+  status: BookingStatus;
+  current: TimeWindowIso;
+  proposed: TimeWindowIso;
+  /** AC-6: approval would rebook it at `proposed`. */
+  moves: boolean;
+  available: boolean;
+  conflicts: string[];
+  /** AC-2: a warning only; never blocks approval. */
+  capacityWarning: string | null;
 }
 
-/** What an approval actually moved and released. */
+/** US-48 AC-6 — an item's reservations by this event that approval would rebook. */
+export interface ReservationCheck {
+  equipmentId: string;
+  equipmentType: string;
+  reservationIds: string[];
+  quantity: number;
+  status: ReservationStatus;
+  current: TimeWindowIso;
+  proposed: TimeWindowIso;
+  available: boolean;
+  reason: string | null;
+}
+
+/** US-48 AC-3 — one line of the proposed equipment list. */
+export interface EquipmentLineCheck {
+  equipmentId: string;
+  equipmentType: string;
+  quantity: number;
+  availableQuantity: number;
+  available: boolean;
+  reason: string | null;
+}
+
+/** US-48 AC-4 — one line of the summary; `reason` is set for a conflict. */
+export interface ArrangementSummaryItem {
+  kind: 'VENUE_BOOKING' | 'EQUIPMENT_RESERVATION' | 'EQUIPMENT';
+  label: string;
+  reason: string | null;
+}
+
+/**
+ * US-48 AC-1..AC-4, AC-6 — the event's arrangements checked against the
+ * request's proposed details. Read-only.
+ */
+export interface ArrangementCheck {
+  newWindow: TimeWindowIso | null;
+  venueBookings: VenueBookingCheck[];
+  equipmentReservations: ReservationCheck[];
+  equipment: EquipmentLineCheck[];
+  warnings: CapacityWarning[];
+  works: ArrangementSummaryItem[];
+  conflicts: ArrangementSummaryItem[];
+  /** Capacity never blocks; any conflict does. */
+  canApprove: boolean;
+}
+
+/**
+ * US-48 AC-8 — the 409 when the check fails at the moment of approving.
+ * Nothing changed; the request is still pending.
+ */
+export interface ChangeRequestCheckFailedBody {
+  code: 'CHANGE_REQUEST_CHECK_FAILED';
+  message: string;
+  conflicts: ArrangementSummaryItem[];
+}
+
+/**
+ * US-48 AC-7 — what an approval rebooked: each original (now released) and
+ * the booking or reservation that replaced it for the new details.
+ */
 export interface ReschedulingResult {
   venueBookings: {
     bookingId: string;
+    replacementId: string;
     venueName: string | null;
-    previousStatus: string;
+    status: string;
     from: TimeWindowIso;
     to: TimeWindowIso;
   }[];
   equipmentReservations: {
     reservationId: string;
+    replacementId: string;
     equipmentType: string;
     quantity: number;
-    previousStatus: string;
+    status: string;
+    from: TimeWindowIso;
+    to: TimeWindowIso;
   }[];
 }
 
@@ -408,8 +460,10 @@ export interface ChangeRequestReview {
       quantity: number;
     }[];
   };
-  warnings: ReviewWarning[];
-  impact: RescheduleImpact;
+  /** US-38 AC-6: capacity warnings, from the check. */
+  warnings: CapacityWarning[];
+  /** US-48: the arrangement check against the proposed details. */
+  check: ArrangementCheck;
 }
 
 /** US-38 AC-4 — the decided request, and the history entry an approval wrote. */
@@ -527,6 +581,25 @@ export interface DayAvailability {
   /** ISO date in Singapore time, e.g. "2026-10-03". */
   date: string;
   status: DayStatus;
+}
+
+/**
+ * US-50 AC-3 — one part of what a booking occupies: the venue's setup time
+ * before it, the event time, or the turnaround time after it.
+ */
+export interface OccupancySegment {
+  kind: 'SETUP' | 'EVENT' | 'TURNAROUND';
+  start: string;
+  end: string;
+}
+
+/**
+ * US-50 AC-3 — GET /venues/:id/availability/slots: one booking's occupancy,
+ * anonymous like the day calendar — when, and whether tentative or booked.
+ */
+export interface VenueOccupancy {
+  status: Exclude<DayStatus, 'free'>;
+  segments: OccupancySegment[];
 }
 
 /**
@@ -750,6 +823,8 @@ export interface ReleasedReservation {
   end: string;
   status: ReservationStatus;
   releasedAt: string;
+  /** US-48: set when an approved change moved it — the units were rebooked. */
+  replacedById: string | null;
   equipment: { id: string; type: string };
   event: { id: string; name: string | null; status: EventStatus };
 }
@@ -827,8 +902,11 @@ export interface VenueDraftPayload {
 export interface VenueWithWarnings extends Venue {
   warnings: VenueUpdateWarning[];
 }
-/** Mirrors the backend BookingStatus enum. REQUESTED is "pending" (US-21 AC-3). */
-export type BookingStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED';
+/**
+ * Mirrors the backend BookingStatus enum. REQUESTED is "pending" (US-21 AC-3).
+ * RELEASED (US-52 AC-5): given up once a replacement for it was confirmed.
+ */
+export type BookingStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'RELEASED';
 
 /**
  * US-21 AC-4/AC-5 — something occupying a requested slot: an existing
@@ -876,6 +954,31 @@ export interface VenueBooking {
   requestedBy: ContactSummary | null;
   /** US-23 AC-4/AC-6: every decision and reversal, oldest first. */
   decisions: BookingDecision[];
+  /**
+   * US-52: set when the venue became unavailable for a period overlapping this
+   * booking. "Venue unavailable" = set, with no confirmed replacement yet.
+   */
+  replacementNeededAt: string | null;
+  unavailableFrom: string | null;
+  unavailableUntil: string | null;
+  unavailableReason: string | null;
+  /** US-52 AC-3: on a replacement request, the booking it replaces. */
+  replacesBookingId: string | null;
+  /** US-52 AC-5: on the original, the replacement whose approval released it. */
+  replacedByBookingId: string | null;
+  releasedAt: string | null;
+}
+
+/** US-52 AC-2 — GET /bookings/replacements-needed: a booking still to replace. */
+export interface ReplacementNeeded extends VenueBooking {
+  replacementRequests: {
+    id: string;
+    status: BookingStatus;
+    start: string;
+    end: string;
+    createdAt: string;
+    venue: { id: string; name: string | null };
+  }[];
 }
 
 /** US-23 — one recorded decision. Append-only: never edited after the fact. */
@@ -886,6 +989,52 @@ export interface BookingDecision {
   reason: string | null;
   createdAt: string;
   decidedBy: ContactSummary & { role: Role };
+  /** US-41 AC-7: alternatives attached to this decision (rejections only). */
+  suggestions: BookingSuggestion[];
+}
+
+/** US-41 — an alternative venue Venue Staff suggested on a rejection. */
+export interface BookingSuggestion {
+  id: string;
+  venue: { id: string; name: string | null; location: string | null; capacity: number | null };
+  /** AC-6: the request created when the Coordinator accepted it; null until then. */
+  acceptedBookingId: string | null;
+  acceptedAt: string | null;
+  createdAt: string;
+}
+
+/** US-41 AC-2 — one proposed venue, from GET /bookings/:id/alternatives. */
+export interface AlternativeCandidate {
+  venueId: string;
+  name: string | null;
+  location: string | null;
+  capacity: number | null;
+  /** Seats left once the expected attendance is seated; null if unknown. */
+  spareCapacity: number | null;
+  /** Whether the venue supports the requested layout. */
+  layout: 'MET' | 'UNMET' | 'NOT_REQUIRED' | 'NOT_RECORDED';
+}
+
+/** US-41 AC-2 — the ranked candidates for one request, best match first. */
+export interface AlternativesReport {
+  bookingId: string;
+  start: string;
+  end: string;
+  expectedAttendance: number | null;
+  candidates: AlternativeCandidate[];
+  /**
+   * AC-3 — the other venues that may be chosen by hand: free and big enough
+   * (Capacity AC-3), but not meeting every requirement.
+   */
+  others: ManualAlternative[];
+}
+
+/** US-41 AC-3 — a venue Venue Staff may choose by hand. */
+export interface ManualAlternative {
+  venueId: string;
+  name: string | null;
+  location: string | null;
+  capacity: number | null;
 }
 
 /** POST /bookings */
@@ -895,6 +1044,26 @@ export interface BookingRequestPayload {
   start: string;
   end: string;
   expectedAttendance: number;
+  /** US-52 AC-3: the booking this request replaces. */
+  replacesBookingId?: string;
+  /**
+   * US-53 AC-2: this venue's own requirements. Omitted = copied from the
+   * event (or the replaced booking); null clears one for this venue.
+   */
+  preferredLayout?: RoomLayout | null;
+  layoutNotes?: string | null;
+  accessibilityRequirements?: AccessibilityFeature[];
+  accessibilityNotes?: string | null;
+  equipmentNeeds?: string | null;
+}
+
+/** US-53 AC-5 — GET /bookings/events/:eventId/arrangement. */
+export interface VenueArrangement {
+  /** At least one active booking, and every active one approved. */
+  arranged: boolean;
+  activeBookings: number;
+  approvedBookings: number;
+  pendingBookings: number;
 }
 
 /** POST /bookings response (US-21). */
@@ -1001,6 +1170,33 @@ export interface VenueBlockResult {
   reason: string;
   /** Live bookings already inside the new block. */
   overlappingBookings: BookingConflict[];
+}
+
+/** US-47 AC-2 — why an approved request cannot be fulfilled. */
+export type UnfulfillableReason =
+  | 'NO_SUITABLE_VENUE'
+  | 'NO_AVAILABLE_EQUIPMENT'
+  | 'NO_VENUE_OR_EQUIPMENT';
+
+export const UNFULFILLABLE_REASON_LABELS: Record<UnfulfillableReason, string> = {
+  NO_SUITABLE_VENUE: 'No suitable venue',
+  NO_AVAILABLE_EQUIPMENT: 'No available equipment',
+  NO_VENUE_OR_EQUIPMENT: 'No suitable venue or available equipment',
+};
+
+/** US-47 — POST /events/:id/reject-unfulfillable. Both are required. */
+export interface RejectUnfulfillablePayload {
+  reason: UnfulfillableReason;
+  comment: string;
+}
+
+/** US-47 — what the rejection did. */
+export interface UnfulfillableRejection {
+  eventId: string;
+  status: EventStatus;
+  decisionReason: string;
+  releasedVenueBookings: number;
+  releasedEquipmentReservations: number;
 }
 
 /** Notifications page — GET /notifications: one of the reader's own notifications. */

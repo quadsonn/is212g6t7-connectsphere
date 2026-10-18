@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { NotificationType, Prisma, Venue, VenueStatus } from '@prisma/client';
+import { BookingStatus, NotificationType, Prisma, Venue, VenueStatus } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
@@ -12,7 +12,7 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { VenueBookingLookup } from '../bookings/booking-impact';
-import { confirmedOverlapping } from '../bookings/booking-overlap';
+import { freeVenueIds, NO_BUFFERS, occupancySegments } from '../bookings/venue-occupancy';
 import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,9 +25,11 @@ import { PublishableVenueDto } from './dto/publishable-venue.dto';
 import {
   DayAvailabilityDto,
   VenueAvailabilityQueryDto,
+  VenueOccupancyDto,
 } from './dto/venue-availability.dto';
 import {
   aggregateAvailability,
+  DayStatus,
   rangeBounds,
   resolveRange,
 } from './availability';
@@ -169,10 +171,10 @@ export class VenuesService {
   /**
    * US-18 — published venues matching every active filter.
    *
-   * One query, however many filters: the date filter is a relation filter
-   * (`bookings: none`), which Postgres answers with a single anti-join rather
-   * than an availability check per venue (AC-7). Containment filters use the
-   * GIN indexes on the two arrays.
+   * One query for every filter but the date; the date filter (US-50: buffer
+   * aware) adds a fixed two, whatever the number of venues — never an
+   * availability check per venue (AC-7). Containment filters use the GIN
+   * indexes on the two arrays.
    *
    * AC-6: no match is an empty array, not an error.
    */
@@ -211,17 +213,27 @@ export class VenuesService {
       where.facilities = { hasEvery: query.facilities };
     }
 
-    if (query.from && query.to) {
-      // AC-1: free of *confirmed* bookings in the slot.
-      where.bookings = {
-        none: confirmedOverlapping(new Date(query.from), new Date(query.to)),
-      };
-    }
-
-    return this.prisma.venue.findMany({
+    const venues = await this.prisma.venue.findMany({
       where,
       orderBy: [{ name: 'asc' }],
     });
+
+    if (!(query.from && query.to)) {
+      return venues;
+    }
+
+    // AC-1: free of *confirmed* bookings in the slot. US-50 AC-5: judged with
+    // each venue's own setup and turnaround time, so a venue held only by the
+    // buffer around another booking is not free. Buffers differ per venue,
+    // so this is the shared check (bookings/venue-occupancy.ts) over the
+    // matching venues — two more queries, not one per venue.
+    const free = await freeVenueIds(
+      this.prisma,
+      venues,
+      { start: new Date(query.from), end: new Date(query.to) },
+      { includeBlocks: false },
+    );
+    return venues.filter((venue) => free.has(venue.id));
   }
 
   /**
@@ -290,6 +302,42 @@ export class VenuesService {
     return plainToInstance(
       DayAvailabilityDto,
       aggregateAvailability(range, slots),
+      { excludeExtraneousValues: true },
+    );
+  }
+
+  /**
+   * US-50 AC-3 — what occupies this venue over a day range, each booking
+   * split into setup, event time and turnaround, for the availability
+   * calendar to draw separately. Same grant, venue rule and range rules as
+   * getAvailability (US-17), and as anonymous: no event, organiser or booking
+   * id crosses this boundary (VenueOccupancyDto).
+   */
+  async getOccupancy(
+    user: AuthenticatedUser,
+    id: string,
+    query: VenueAvailabilityQueryDto,
+    now: Date = new Date(),
+  ): Promise<VenueOccupancyDto[]> {
+    this.access.requireScope(user, Resource.VENUE, Action.CHECK_AVAILABILITY);
+
+    const venue = await this.prisma.venue.findFirst({
+      where: { id, status: VenueStatus.PUBLISHED },
+      select: { id: true },
+    });
+    if (!venue) {
+      throw new NotFoundException('venue not found');
+    }
+
+    const { from, to } = rangeBounds(resolveRange(query, now));
+    const slots = await this.bookings.findBookingSlotsForVenue(id, from, to);
+
+    return plainToInstance(
+      VenueOccupancyDto,
+      slots.map((slot) => ({
+        status: slot.status === BookingStatus.APPROVED ? DayStatus.BOOKED : DayStatus.TENTATIVE,
+        segments: occupancySegments(slot, slot.buffers ?? NO_BUFFERS),
+      })),
       { excludeExtraneousValues: true },
     );
   }

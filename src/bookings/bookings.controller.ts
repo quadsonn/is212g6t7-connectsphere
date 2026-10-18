@@ -17,7 +17,9 @@ import { RequirePermission } from '../common/decorators/require-permission.decor
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { BookingSuggestionsService } from './booking-suggestions.service';
 import { BookingsService } from './bookings.service';
+import { VenueUnavailabilityService } from './venue-unavailability.service';
 import {
   ApproveBookingDto,
   RejectBookingDto,
@@ -29,7 +31,11 @@ import { CreateBookingRequestDto } from './dto/create-booking-request.dto';
 @Controller('bookings')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class BookingsController {
-  constructor(private readonly bookingsService: BookingsService) {}
+  constructor(
+    private readonly bookingsService: BookingsService,
+    private readonly suggestionsService: BookingSuggestionsService,
+    private readonly unavailabilityService: VenueUnavailabilityService,
+  ) {}
 
   /** US-21 — submit a venue booking request. */
   @Post()
@@ -51,6 +57,18 @@ export class BookingsController {
   @Header('Cache-Control', 'no-store')
   findMine(@CurrentUser() user: AuthenticatedUser) {
     return this.bookingsService.findMyRequests(user);
+  }
+
+  /**
+   * US-52 AC-2 — this Coordinator's bookings whose venue became unavailable
+   * and that still need a replacement. Gated on CREATE, like `mine`: only the
+   * role that books venues has anything to replace.
+   */
+  @Get('replacements-needed')
+  @RequirePermission(Resource.BOOKING, Action.CREATE)
+  @Header('Cache-Control', 'no-store')
+  findNeedingReplacement(@CurrentUser() user: AuthenticatedUser) {
+    return this.unavailabilityService.findNeedingReplacement(user);
   }
 
   /**
@@ -79,6 +97,31 @@ export class BookingsController {
   }
 
   /**
+   * US-53 AC-5 — whether the event's venues are arranged (every active
+   * booking approved). Coordinator of the event only, like booking for it.
+   */
+  @Get('events/:eventId/arrangement')
+  @RequirePermission(Resource.BOOKING, Action.CREATE)
+  @Header('Cache-Control', 'no-store')
+  findArrangement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventId') eventId: string,
+  ) {
+    return this.bookingsService.arrangementForEvent(user, eventId);
+  }
+
+  /**
+   * US-53 AC-6 — cancel or release one booking; the event's others are
+   * untouched. Gated on CREATE: the role that books venues releases them.
+   */
+  @Post(':id/release')
+  @RequirePermission(Resource.BOOKING, Action.CREATE)
+  @HttpCode(HttpStatus.OK)
+  release(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.bookingsService.release(user, id);
+  }
+
+  /**
    * US-24 — hard (approved/blocked) and soft (pending) overlaps for one
    * request, for the Venue Staff member who manages its venue. Never cached:
    * the screen re-asks before every approval.
@@ -88,6 +131,32 @@ export class BookingsController {
   @Header('Cache-Control', 'no-store')
   findConflicts(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.bookingsService.findConflicts(user, id);
+  }
+
+  /**
+   * US-41 AC-2 — venues that could stand in for this request, ranked, for the
+   * Venue Staff member deciding it. Never cached: availability moves.
+   */
+  @Get(':id/alternatives')
+  @RequirePermission(Resource.BOOKING, Action.DECIDE)
+  @Header('Cache-Control', 'no-store')
+  findAlternatives(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.suggestionsService.findAlternatives(user, id);
+  }
+
+  /**
+   * US-41 AC-6 — accept a suggestion: a new request for that venue, with the
+   * rejected request's details. Gated on CREATE: it is a booking request.
+   */
+  @Post(':id/suggestions/:suggestionId/accept')
+  @RequirePermission(Resource.BOOKING, Action.CREATE)
+  @HttpCode(HttpStatus.CREATED)
+  acceptSuggestion(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('suggestionId') suggestionId: string,
+  ) {
+    return this.suggestionsService.accept(user, id, suggestionId);
   }
 
   /** US-23 AC-3 — approve, optionally with a note. */
@@ -102,7 +171,7 @@ export class BookingsController {
     return this.bookingsService.approve(user, id, dto);
   }
 
-  /** US-23 AC-2 — reject, with a required reason. */
+  /** US-23 AC-2 — reject, with a required reason. US-41 AC-1: and alternatives. */
   @Post(':id/reject')
   @RequirePermission(Resource.BOOKING, Action.DECIDE)
   @HttpCode(HttpStatus.OK)

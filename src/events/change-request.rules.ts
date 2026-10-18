@@ -1,5 +1,7 @@
 import { EventStatus } from '@prisma/client';
 
+import { exceedsCapacity } from '../venues/capacity';
+
 /**
  * US-37 — the rules for an Organiser's change request.
  *
@@ -231,7 +233,8 @@ export function capacityWarnings(
 
   return bookings.flatMap((booking) => {
     const { capacity } = booking.venue;
-    if (capacity === null || proposedAttendance <= capacity) return [];
+    // The shared capacity rule (venues/capacity.ts), as a warning here.
+    if (capacity === null || !exceedsCapacity(capacity, proposedAttendance)) return [];
 
     const venue = booking.venue.name ?? 'the booked venue';
     return [

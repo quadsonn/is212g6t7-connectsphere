@@ -16,6 +16,8 @@ import type {
   PublicEventView,
   RelatedEventView,
   TechnicalRequirementsPayload,
+  RejectUnfulfillablePayload,
+  UnfulfillableRejection,
 } from '@/types/api';
 import { eventsApi } from '../api/events.api';
 
@@ -162,6 +164,21 @@ export function useReviewEvent() {
   });
 
   return { approve, requestClarification, reject, returnForAmendment };
+}
+
+/**
+ * US-47 — reject an approved request that cannot be fulfilled. Refreshes the
+ * event and every booking list, since its bookings are released with it.
+ */
+export function useRejectUnfulfillable(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation<UnfulfillableRejection, unknown, RejectUnfulfillablePayload>({
+    mutationFn: (payload) => eventsApi.rejectUnfulfillable(id, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ['bookings'] });
+    },
+  });
 }
 
 /** US-10 — link a Coordinator to a request as its main point of contact. */
@@ -345,6 +362,12 @@ export function useChangeRequestReview(requestId: string | undefined) {
     queryKey: eventKeys.changeRequestReview(requestId ?? ''),
     queryFn: () => eventsApi.getChangeRequestForReview(requestId!),
     enabled: Boolean(requestId),
+    // US-48: every fetch re-runs the arrangement check, so it is never served
+    // stale, and it runs again whenever the page regains focus — another
+    // booking may have been made meanwhile. (The app turns focus refetching
+    // off by default; this query opts back in.)
+    staleTime: 0,
+    refetchOnWindowFocus: 'always',
   });
 }
 
@@ -361,7 +384,9 @@ export function useDecideChangeRequest(requestId: string) {
 
   const approve = useMutation<ChangeRequestApproval>({
     mutationFn: () => eventsApi.approveChangeRequest(requestId),
-    onSuccess: refresh,
+    // US-48 AC-8: a refused approval (something changed after the page
+    // loaded) must refresh the check too, so Approve becomes disabled.
+    onSettled: refresh,
   });
 
   const reject = useMutation<ChangeRequest, unknown, string>({

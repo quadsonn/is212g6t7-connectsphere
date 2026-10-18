@@ -10,6 +10,7 @@ import 'dotenv/config';
 
 import {
   AccessibilityFeature,
+  BookingDecisionKind,
   EquipmentStatus,
   BookingStatus,
   EventStatus,
@@ -20,6 +21,8 @@ import {
   RoomLayout,
   VenueStatus,
 } from '@prisma/client';
+
+import { nextReadableId } from '../src/prisma/readable-id';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -336,8 +339,100 @@ async function main() {
     }
   }
 
+  // US-45: the history behind the items seeded as under maintenance and
+  // damaged, so their pages show who changed them and why. Readable IDs
+  // (ESC-001…) from the shared generator (CLAUDE.md, "IDs").
+  const tech = await prisma.user.findUniqueOrThrow({
+    where: { email: 'tech@connectsphere.local' },
+  });
+  const statusHistory = [
+    {
+      type: 'Projector (4K)',
+      to: EquipmentStatus.UNDER_MAINTENANCE,
+      reason: 'Lamp replacement and lens clean.',
+    },
+    {
+      type: 'Extension reel',
+      to: EquipmentStatus.OUT_OF_SERVICE,
+      reason: 'Frayed cable found during inspection.',
+    },
+  ];
+  for (const change of statusHistory) {
+    const item = await prisma.equipment.findFirstOrThrow({ where: { type: change.type } });
+    const recorded = await prisma.equipmentStatusChange.findFirst({
+      where: { equipmentId: item.id },
+    });
+    if (recorded) continue;
+
+    await prisma.equipmentStatusChange.create({
+      data: {
+        id: await nextReadableId(prisma, 'EquipmentStatusChange'),
+        equipmentId: item.id,
+        fromStatus: EquipmentStatus.OPERATIONAL,
+        toStatus: change.to,
+        reason: change.reason,
+        changedById: tech.id,
+      },
+    });
+  }
+
+  // US-41: a request Venue Staff rejected with a suggested alternative, not
+  // yet accepted — so "Request this venue" can be tried straight away. Its
+  // own event, so the guide's other scenarios are unaffected. Readable IDs
+  // (BSG-001…) from the shared generator.
+  const showcaseName = 'Design Week Showcase';
+  if (!(await prisma.eventRequest.findFirst({ where: { name: showcaseName } }))) {
+    const seminarRoom = await prisma.venue.findFirstOrThrow({ where: { name: 'Seminar Room 3-4' } });
+    const start = new Date('2026-12-10T06:00:00Z');
+    const end = new Date('2026-12-10T09:00:00Z');
+
+    const showcase = await prisma.eventRequest.create({
+      data: {
+        ...base,
+        name: showcaseName,
+        status: EventStatus.APPROVED,
+        proposedStart: start,
+        proposedEnd: end,
+        expectedAttendance: 50,
+        preferredLayout: RoomLayout.CLASSROOM,
+        accessibilityRequirements: [AccessibilityFeature.STEP_FREE_ACCESS],
+      },
+    });
+    const rejected = await prisma.venueBooking.create({
+      data: {
+        eventId: showcase.id,
+        venueId: seminarRoom.id,
+        requestedById: coordinator.id,
+        start,
+        end,
+        expectedAttendance: 50,
+        preferredLayout: RoomLayout.CLASSROOM,
+        accessibilityRequirements: [AccessibilityFeature.STEP_FREE_ACCESS],
+        status: BookingStatus.REJECTED,
+        decisionReason: 'Seminar Room 3-4 is being refurbished that week.',
+      },
+    });
+    const decision = await prisma.bookingDecision.create({
+      data: {
+        bookingId: rejected.id,
+        decidedById: venueStaff.id,
+        kind: BookingDecisionKind.DECISION,
+        outcome: BookingStatus.REJECTED,
+        reason: 'Seminar Room 3-4 is being refurbished that week.',
+      },
+    });
+    await prisma.bookingSuggestion.create({
+      data: {
+        id: await nextReadableId(prisma, 'BookingSuggestion'),
+        bookingId: rejected.id,
+        decisionId: decision.id,
+        venueId: auditorium.id,
+      },
+    });
+  }
+
   console.log(
-    `Seeded ${USERS.length} users (password: ${PASSWORD}), ${events.length + planningEvents.length} events, ${venues.length} venues.`,
+    `Seeded ${USERS.length} users (password: ${PASSWORD}), ${events.length + planningEvents.length + 1} events, ${venues.length} venues.`,
   );
 }
 

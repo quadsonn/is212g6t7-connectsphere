@@ -71,6 +71,9 @@ enum BookingStatus {
   REQUESTED
   APPROVED
   REJECTED
+  // US-52 AC-5: given up because a replacement for it was confirmed. Holds
+  // nothing, like REJECTED; the record is kept and linked to the replacement.
+  RELEASED
 }
 
 // US-23: what kind of entry a BookingDecision is. A REVERSAL overturns an
@@ -134,7 +137,12 @@ enum Facility {
 // US-29: an equipment item's condition, shown in its full detail view.
 // AMBIGUOUS: §5 lists no such enum — inferred from AC-2's "operational
 // status". Defaults to OPERATIONAL since that describes every item until
-// Technical Support records otherwise (no such endpoint exists yet).
+// Technical Support records otherwise (US-45, PATCH /equipment/:id/status).
+//
+// US-45 calls these "Available", "Under Maintenance" and "Damaged". The stored
+// values are kept and relabelled in the UI: OUT_OF_SERVICE has meant
+// "damaged" since US-30, and renaming an enum value on the shared database
+// would break every teammate's client generated before the rename.
 enum EquipmentStatus {
   OPERATIONAL
   UNDER_MAINTENANCE
@@ -194,6 +202,10 @@ enum NotificationType {
   EVENT_REASSIGNED
   REGISTRATION_CONFIRMED
   REGISTRATION_WITHDRAWN
+  // US-52 AC-1: a venue booked for the Coordinator's event became unavailable.
+  VENUE_UNAVAILABLE
+  // US-48 AC-9: the Organiser's change request was approved or rejected.
+  CHANGE_REQUEST_DECIDED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;
@@ -223,18 +235,19 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organisedEvents       EventRequest[]         @relation("EventOrganiser")
-  coordinatedEvents     EventRequest[]         @relation("EventCoordinator")
-  registrations         Registration[]
-  notifications         Notification[]
-  clarificationMessages ClarificationMessage[]
-  eventChanges          EventChange[]
-  changeRequests        EventChangeRequest[]
-  decidedChangeRequests EventChangeRequest[]   @relation("ChangeRequestDecider")
-  managedVenues         Venue[]                @relation("VenueManager")
-  requestedBookings     VenueBooking[]         @relation("BookingRequester")
-  bookingDecisions      BookingDecision[]
-  venueBlocks           VenueBlock[]
+  organisedEvents        EventRequest[]          @relation("EventOrganiser")
+  coordinatedEvents      EventRequest[]          @relation("EventCoordinator")
+  registrations          Registration[]
+  notifications          Notification[]
+  clarificationMessages  ClarificationMessage[]
+  eventChanges           EventChange[]
+  changeRequests         EventChangeRequest[]
+  decidedChangeRequests  EventChangeRequest[]    @relation("ChangeRequestDecider")
+  managedVenues          Venue[]                 @relation("VenueManager")
+  requestedBookings      VenueBooking[]          @relation("BookingRequester")
+  bookingDecisions       BookingDecision[]
+  venueBlocks            VenueBlock[]
+  equipmentStatusChanges EquipmentStatusChange[]
 
   @@index([role])
 }
@@ -323,7 +336,7 @@ model EventRequest {
   changes               EventChange[]
   changeRequests        EventChangeRequest[]
   equipmentRequirements EquipmentRequirement[]
-  venueBookings        VenueBooking[]
+  venueBookings         VenueBooking[]
   equipmentReservations EquipmentReservation[]
   registrations         Registration[]
   notifications         Notification[]
@@ -377,13 +390,23 @@ model Venue {
   operatingInfo String?
   imageUrls     String[] @default([])
 
+  // US-50 (Week 7 change 1): time the venue needs before each booking to set
+  // up, and after it to clear. A booking occupies the venue from
+  // start − setupMinutes to end + turnaroundMinutes, and every availability and
+  // conflict check uses that window (bookings/venue-occupancy.ts). Default 0,
+  // so a venue nobody has configured behaves exactly as before. Configuring
+  // them is #54 (Venue Staff screen), not built yet.
+  setupMinutes      Int @default(0)
+  turnaroundMinutes Int @default(0)
+
   status VenueStatus @default(DRAFT)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  bookings VenueBooking[]
-  blocks   VenueBlock[]
+  bookings    VenueBooking[]
+  blocks      VenueBlock[]
+  suggestedIn BookingSuggestion[]
 
   @@index([capacity])
   // US-18 AC-7: search filters on published venues by capacity and by array
@@ -443,7 +466,35 @@ model VenueBooking {
   // US-23 AC-4/AC-6: every decision ever made on this request, oldest first.
   decisions BookingDecision[]
 
+  // US-41: alternative venues Venue Staff suggested when rejecting this
+  // request, and — on a request created by accepting one — that suggestion.
+  suggestions            BookingSuggestion[] @relation("SuggestionsForBooking")
+  acceptedFromSuggestion BookingSuggestion?  @relation("BookingFromSuggestion")
+
+  // US-52: the venue became unavailable for a period overlapping this
+  // booking, so the event needs a replacement venue. Set by
+  // VenueUnavailabilityService; nothing else about the booking or its event
+  // changes. The "Venue unavailable" flag is replacementNeededAt set and no
+  // confirmed replacement yet (replacedByBookingId null).
+  replacementNeededAt DateTime?
+  unavailableFrom     DateTime?
+  unavailableUntil    DateTime?
+  unavailableReason   String?
+
+  // US-52 AC-3: on a replacement request, the booking it replaces. Several
+  // requests may point at one original (a rejected one, then another).
+  replacesBookingId   String?
+  replacesBooking     VenueBooking?  @relation("ReplacementRequests", fields: [replacesBookingId], references: [id], onDelete: SetNull)
+  replacementRequests VenueBooking[] @relation("ReplacementRequests")
+
+  // US-52 AC-5: on the original, the replacement whose approval released it.
+  replacedByBookingId String?       @unique
+  replacedByBooking   VenueBooking? @relation("ConfirmedReplacement", fields: [replacedByBookingId], references: [id], onDelete: SetNull)
+  replacedBooking     VenueBooking? @relation("ConfirmedReplacement")
+  releasedAt          DateTime?
+
   @@index([requestedById])
+  @@index([replacesBookingId])
   // Supports the (venueId, time range) conflict lookup in §5.
   //
   // Overlap prevention has two layers (US-24):
@@ -479,11 +530,37 @@ model Equipment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  reservations         EquipmentReservation[]
-  requirements         EquipmentRequirement[]
-  changeRequestLines   EventChangeRequestEquipment[]
+  reservations       EquipmentReservation[]
+  requirements       EquipmentRequirement[]
+  changeRequestLines EventChangeRequestEquipment[]
+  statusChanges      EquipmentStatusChange[]
 
   @@index([type])
+}
+
+// US-45: the append-only record of every operational status change, with the
+// reason Technical Support gave (AC-2). Equipment.operationalStatus is the
+// current value; this is why it is what it is.
+model EquipmentStatusChange {
+  // Readable ID, e.g. ESC-001, from nextReadableId (src/prisma/readable-id.ts).
+  id String @id
+
+  equipmentId String
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  fromStatus EquipmentStatus
+  toStatus   EquipmentStatus
+
+  // AC-2: required — a CHECK constraint also rejects a blank one.
+  reason String
+
+  changedById String
+  changedBy   User   @relation(fields: [changedById], references: [id], onDelete: Restrict)
+
+  changedAt DateTime @default(now())
+
+  @@index([equipmentId, changedAt])
+  @@index([changedById])
 }
 
 model EquipmentReservation {
@@ -503,6 +580,13 @@ model EquipmentReservation {
 
   // US-33 AC-3: when the reservation was released. Null unless RELEASED.
   releasedAt DateTime?
+
+  // US-48 AC-7: when an approved change request moved the event, this
+  // reservation was rebooked for the new time and then released; this is the
+  // reservation that replaced it. The released record is kept.
+  replacedById String?               @unique
+  replacedBy   EquipmentReservation? @relation("ReservationReplacement", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces     EquipmentReservation? @relation("ReservationReplacement")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -682,16 +766,13 @@ model EquipmentRequirement {
 
 /**
  * US-37 — an Organiser's proposal to change an event, awaiting review.
- *
  * A proposal, not an edit: the event row is never touched by this story, so
  * the original details stay as they were (AC "original details still show").
- *
  * Each proposed* column is null when that field is NOT being changed; only
  * fields that differ from the event are stored. Equipment cannot use null the
  * same way (an empty list is a real proposal — remove everything), so
  * `equipmentChanged` says whether `equipment` is part of the proposal, and
  * when it is, `equipment` is the complete proposed list.
- *
  * A partial unique index in the migration allows one PENDING request per
  * event; Prisma cannot express it.
  */
@@ -729,7 +810,9 @@ model EventChangeRequest {
   @@index([decidedById])
 }
 
-/** US-37 — one line of a proposed equipment list, from the catalogue. */
+/**
+ * US-37 — one line of a proposed equipment list, from the catalogue.
+ */
 model EventChangeRequestEquipment {
   id String @id @default(cuid())
 
@@ -776,14 +859,46 @@ model BookingDecision {
   // AC-4: timestamped.
   createdAt DateTime @default(now())
 
+  // US-41 AC-7: the alternatives attached to this decision, so they appear in
+  // the request's history with it.
+  suggestions BookingSuggestion[]
+
   @@index([bookingId, createdAt])
   @@index([decidedById])
+}
+
+// US-41: a venue Venue Staff suggested in place of the one a rejected request
+// asked for. Recorded against the rejecting decision (AC-1, AC-7), so who
+// suggested it and why the request was rejected come from that decision.
+model BookingSuggestion {
+  // Readable ID, e.g. BSG-001, from nextReadableId (src/prisma/readable-id.ts).
+  id String @id
+
+  bookingId String
+  booking   VenueBooking @relation("SuggestionsForBooking", fields: [bookingId], references: [id], onDelete: Cascade)
+
+  decisionId String
+  decision   BookingDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  venueId String
+  venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Restrict)
+
+  // AC-6: the request created when the Coordinator accepted this suggestion.
+  // Unique, so one suggestion becomes at most one request.
+  acceptedBookingId String?       @unique
+  acceptedBooking   VenueBooking? @relation("BookingFromSuggestion", fields: [acceptedBookingId], references: [id], onDelete: SetNull)
+  acceptedAt        DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([decisionId, venueId])
+  @@index([bookingId])
+  @@index([venueId])
 }
 
 /**
  * US-16 AC-6 — a period a Venue Staff member has blocked out on a venue
  * (maintenance, a public holiday), shown on the calendar apart from bookings.
- *
  * AMBIGUOUS: a block also makes the slot unbookable — a new request or an
  * approval that overlaps one is refused. The story only asks for blocks to be
  * visible, but a "blocked" slot that can still be booked would defeat the
@@ -808,4 +923,14 @@ model VenueBlock {
 
   @@index([venueId, start, end])
   @@index([createdById])
+}
+
+/**
+ * Readable IDs (CLAUDE.md, "IDs"): the last number issued for each prefix.
+ * Written only by nextReadableId (src/prisma/readable-id.ts), in one atomic
+ * statement, so two writers never get the same ID. Its own key is the prefix.
+ */
+model IdCounter {
+  prefix String @id
+  last   Int
 }

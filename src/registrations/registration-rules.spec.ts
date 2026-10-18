@@ -65,7 +65,7 @@ describe('registration rules', () => {
       expect(result.reason).toContain(closes.toISOString());
     });
 
-    it('US-34 AC-6: at or after the closing time, shows the times', () => {
+    it('US-34 AC-6: after the closing time, shows the times', () => {
       const closes = new Date('2030-09-30T00:00:00.000Z');
       const result = evaluateRegistration(
         event({ registrationClosesAt: closes }),
@@ -75,21 +75,38 @@ describe('registration rules', () => {
 
       expect(result.block).toBe('CLOSED');
       expect(result.reason).toContain(closes.toISOString());
+    });
+
+    it('accepts a registration exactly at the closing time, and rejects the next millisecond', () => {
+      const closes = new Date('2030-09-30T00:00:00.000Z');
+      const facts = event({ registrationClosesAt: closes });
+
+      expect(evaluateRegistration(facts, 0, closes).canRegister).toBe(true);
       expect(
-        evaluateRegistration(event({ registrationClosesAt: now }), 0, now)
-          .block,
+        evaluateRegistration(facts, 0, new Date(closes.getTime() + 1)).block,
       ).toBe('CLOSED');
+    });
+
+    it('accepts a registration exactly at the opening time, and rejects the millisecond before', () => {
+      const opens = new Date('2030-10-05T00:00:00.000Z');
+      const facts = event({ registrationOpensAt: opens });
+
+      expect(evaluateRegistration(facts, 0, opens).canRegister).toBe(true);
+      expect(
+        evaluateRegistration(facts, 0, new Date(opens.getTime() - 1)).block,
+      ).toBe('NOT_YET_OPEN');
     });
 
     it('US-34 AC-6: with no closing time set, registration closes 3 days before the start', () => {
       const closes = new Date('2030-10-07T09:00:00.000Z');
-      const at = evaluateRegistration(event(), 0, closes);
-      expect(at.block).toBe('CLOSED');
-      expect(at.closesAt).toEqual(closes);
-      expect(
-        evaluateRegistration(event(), 0, new Date(closes.getTime() - 1))
-          .canRegister,
-      ).toBe(true);
+      const after = evaluateRegistration(
+        event(),
+        0,
+        new Date(closes.getTime() + 1),
+      );
+      expect(after.block).toBe('CLOSED');
+      expect(after.closesAt).toEqual(closes);
+      expect(evaluateRegistration(event(), 0, closes).canRegister).toBe(true);
     });
 
     it('US-34 AC-6: with no opening time set, registration opens 2 months before the start', () => {

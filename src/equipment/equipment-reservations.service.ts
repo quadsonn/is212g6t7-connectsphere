@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   EquipmentStatus,
@@ -12,8 +13,10 @@ import {
 } from '@prisma/client';
 
 import { AccessControlService } from '../common/access/access-control.service';
+import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { shortSlot } from '../bookings/slot-label';
 import { EQUIPMENT_COMMITTABLE_STATUSES } from '../events/event-status.machine';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -113,6 +116,8 @@ export class EquipmentReservationsService {
     private readonly prisma: PrismaService,
     private readonly access: AccessControlService,
     private readonly notifications: NotificationsService,
+    // Requirement change 6: tells the Safety check that reservations changed.
+    @Optional() private readonly arrangements?: ArrangementsRegistry,
   ) {}
 
   /**
@@ -192,12 +197,28 @@ export class EquipmentReservationsService {
       await this.notifications.notifySafely({
         recipientId: event.coordinatorId,
         type: NotificationType.EQUIPMENT_RESERVATION_DECIDED,
-        message: `${reservation.quantity} × ${reservation.equipment.type} committed to "${event.name ?? 'your event'}" for ${reservation.start.toISOString()} – ${reservation.end.toISOString()}.`,
+        // Short, like the other notices: the inbox shows the event beside it
+        // and titles it "Equipment reserved".
+        message: `${reservation.quantity} × ${reservation.equipment.type} for ${shortSlot(reservation.start, reservation.end)}.`,
         relatedEventId: event.id,
       });
     }
 
+    // The last unit being reserved may be what makes the event due for its
+    // safety check.
+    await this.arrangements?.notifyChanged(event.id);
+
     return reservation;
+  }
+
+  /**
+   * US-43 — how many reservations a cancellation is about to release, so the
+   * Organiser can be told. Read before the release, which is what changes it.
+   */
+  countReleasable(eventId: string, tx: Prisma.TransactionClient): Promise<number> {
+    return tx.equipmentReservation.count({
+      where: { eventId, status: { in: [...RELEASABLE_STATUSES] } },
+    });
   }
 
   /**

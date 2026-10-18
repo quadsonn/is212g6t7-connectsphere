@@ -62,17 +62,47 @@ enum EventStatus {
   // AMBIGUOUS: no story yet drives a transition into or out of it — E5/E6
   // will. It exists now because AC-1 requires the event to be able to show it.
   AWAITING_ARRANGEMENTS
+  // US-42 (Week 7 Change #6): the assigned Coordinator confirmed every venue
+  // and equipment arrangement is ready; the event now waits for the Safety
+  // Officer's operational safety check. Entered only by that confirmation; the
+  // only way out to CONFIRMED is an approved safety review.
+  AWAITING_SAFETY_CHECK
+  // The Safety Officer rejected the event. It stays blocked from CONFIRMED and
+  // out of the Safety queue until the Coordinator reworks it (back to PLANNING).
+  SAFETY_REJECTED
   CONFIRMED
   COMPLETED
   CANCELLED
+}
+
+// Requirement change 6: the Safety Officer's one outcome per review.
+enum SafetyOutcome {
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+// Requirement change 6: the earlier planning stage a CHANGES_REQUESTED outcome
+// sends the event back to. There is one PLANNING status, so the stage is
+// recorded on the review and decides which arrangements are re-opened.
+enum SafetyReturnStage {
+  VENUE
+  TECHNICAL
 }
 
 enum BookingStatus {
   REQUESTED
   APPROVED
   REJECTED
-  // US-52 AC-5: given up because a replacement for it was confirmed. Holds
-  // nothing, like REJECTED; the record is kept and linked to the replacement.
+  // US-54: a tentative hold Venue Staff placed for an event. Hard-blocks the
+  // slot (like APPROVED) only while holdExpiresAt is in the future — see
+  // isLiveHold() and docs/adr/0001-held-hard-blocks-at-db-level.md.
+  HELD
+  // US-54: a hold that was released by Venue Staff or expired. US-43/US-44:
+  // also any booking whose event was cancelled. US-52 AC-5: also a booking
+  // given up because a replacement for it was confirmed (linked to it). Holds
+  // nothing, and is distinct from REJECTED (a Venue Staff decision) so the
+  // history stays true.
   RELEASED
 }
 
@@ -81,6 +111,13 @@ enum BookingStatus {
 enum BookingDecisionKind {
   DECISION
   REVERSAL
+  // US-51: Venue Staff cleared a "Conflict - needs review" flag. Records who
+  // and why; never changes the booking's status (outcome = status as it was).
+  REVIEW_RESOLVED
+  // US-44: the booking was released because its event was cancelled
+  // (outcome RELEASED). Recorded by the system; decidedBy is the canceller
+  // when known.
+  RELEASE
 }
 
 // US-06: the predefined room layouts an Organiser may choose from.
@@ -206,6 +243,27 @@ enum NotificationType {
   VENUE_UNAVAILABLE
   // US-48 AC-9: the Organiser's change request was approved or rejected.
   CHANGE_REQUEST_DECIDED
+  // US-40 AC-1: venue activity, sent only to the venue's manager.
+  BOOKING_REQUEST_SUBMITTED
+  BOOKING_DETAILS_CHANGED
+  BOOKING_EVENT_CANCELLED
+  // US-40 AC-1: tentative holds. Defined here; US-54 builds holds and sends them.
+  HOLD_EXPIRING
+  HOLD_EXPIRED
+  // US-54 AC-7: sent to the event's Coordinator.
+  HOLD_PLACED
+  // US-54: a hold released before expiry (by Venue Staff, or the event moved).
+  HOLD_RELEASED
+  // Lead assignment story: sent to the Coordinator a queued request is
+  // assigned to. Reassignment reuses EVENT_REASSIGNED.
+  EVENT_ASSIGNED
+  // Requirement change 6: the Safety Officer decided; carries the reasons.
+  SAFETY_CHECK_DECIDED
+  // US-43: the event was cancelled; carries the Organiser's reason.
+  EVENT_CANCELLED
+  // Sent to registered Attendees when an event's date, time or venue changes;
+  // lists each changed field with its old and new value.
+  EVENT_SCHEDULE_CHANGED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;
@@ -214,6 +272,8 @@ enum ChangeRequestStatus {
   PENDING
   APPROVED
   REJECTED
+  // US-43: withdrawn without a decision because the event was cancelled.
+  CLOSED
 }
 
 // ---------------------------------------------------------------------------
@@ -227,6 +287,11 @@ model User {
   name         String
   role         Role
 
+  // Lead assignment story: the client organisation an Organiser belongs to,
+  // shown in the unassigned queue. Nullable — no flow collects it yet and
+  // existing users have none.
+  organisation String?
+
   // AC-5 lockout state. Counted per account, over a trailing window.
   failedLoginAttempts   Int       @default(0)
   failedWindowStartedAt DateTime?
@@ -235,19 +300,29 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organisedEvents        EventRequest[]          @relation("EventOrganiser")
-  coordinatedEvents      EventRequest[]          @relation("EventCoordinator")
-  registrations          Registration[]
-  notifications          Notification[]
-  clarificationMessages  ClarificationMessage[]
-  eventChanges           EventChange[]
-  changeRequests         EventChangeRequest[]
-  decidedChangeRequests  EventChangeRequest[]    @relation("ChangeRequestDecider")
-  managedVenues          Venue[]                 @relation("VenueManager")
-  requestedBookings      VenueBooking[]          @relation("BookingRequester")
-  bookingDecisions       BookingDecision[]
-  venueBlocks            VenueBlock[]
-  equipmentStatusChanges EquipmentStatusChange[]
+  organisedEvents            EventRequest[]          @relation("EventOrganiser")
+  coordinatedEvents          EventRequest[]          @relation("EventCoordinator")
+  registrations              Registration[]
+  notifications              Notification[]
+  clarificationMessages      ClarificationMessage[]
+  eventChanges               EventChange[]
+  safetyReviews              SafetyReview[]
+  changeRequests             EventChangeRequest[]
+  decidedChangeRequests      EventChangeRequest[]    @relation("ChangeRequestDecider")
+  managedVenues              Venue[]                 @relation("VenueManager")
+  requestedBookings          VenueBooking[]          @relation("BookingRequester")
+  bookingDecisions           BookingDecision[]
+  venueBlocks                VenueBlock[]
+  // US-45: equipment status changes this user recorded.
+  equipmentStatusChanges     EquipmentStatusChange[]
+  // US-51: booking conflict reviews this user resolved by hand.
+  resolvedBookingReviews     VenueBooking[]          @relation("BookingReviewResolver")
+  // US-54: tentative holds this Venue Staff member placed.
+  heldBookings               VenueBooking[]          @relation("BookingHolder")
+  // US-42: events whose arrangements this Coordinator confirmed, and the
+  // free-text equipment lines they checked by hand.
+  arrangementConfirmations   EventRequest[]          @relation("ArrangementsConfirmer")
+  manuallyConfirmedEquipment EquipmentRequirement[]  @relation("RequirementManualConfirmer")
 
   @@index([role])
 }
@@ -306,6 +381,23 @@ model EventRequest {
   registrationEnabled Boolean     @default(false)
   status              EventStatus @default(DRAFT)
 
+  // US-42 AC-4: when, and by whom, the arrangements were confirmed (the move
+  // to AWAITING_SAFETY_CHECK). Written by setStatus(), which records no actor
+  // itself; null for an event never confirmed.
+  arrangementsConfirmedAt   DateTime?
+  arrangementsConfirmedById String?
+  arrangementsConfirmedBy   User?     @relation("ArrangementsConfirmer", fields: [arrangementsConfirmedById], references: [id], onDelete: Restrict)
+
+  // Lead assignment story: when the request was last submitted, so the
+  // unassigned queue can list the oldest first. Written by setStatus() on
+  // every move to SUBMITTED; null for a request never submitted.
+  submittedAt DateTime?
+
+  // Requirement change 6: when the event last entered the Safety queue, so the
+  // queue lists the longest-waiting first. Written by setStatus() on every move
+  // to AWAITING_SAFETY_CHECK; null for an event that never has.
+  safetyQueuedAt DateTime?
+
   // US-34/US-36: when attendees may register, and the last moment they may
   // withdraw. AMBIGUOUS: the brief gives no way to set these, so they are
   // nullable and, when null, fall back to the event's own start
@@ -333,6 +425,7 @@ model EventRequest {
   updatedAt DateTime @updatedAt
 
   clarifications        ClarificationMessage[]
+  safetyReviews         SafetyReview[]
   changes               EventChange[]
   changeRequests        EventChangeRequest[]
   equipmentRequirements EquipmentRequirement[]
@@ -344,6 +437,7 @@ model EventRequest {
   @@index([organiserId])
   @@index([coordinatorId])
   @@index([status])
+  @@index([coordinatorId, submittedAt])
 }
 
 model Venue {
@@ -390,12 +484,11 @@ model Venue {
   operatingInfo String?
   imageUrls     String[] @default([])
 
-  // US-50 (Week 7 change 1): time the venue needs before each booking to set
-  // up, and after it to clear. A booking occupies the venue from
-  // start − setupMinutes to end + turnaroundMinutes, and every availability and
-  // conflict check uses that window (bookings/venue-occupancy.ts). Default 0,
-  // so a venue nobody has configured behaves exactly as before. Configuring
-  // them is #54 (Venue Staff screen), not built yet.
+  // US-49 (Week 7 Customer Change #1): time the venue is occupied before an
+  // event starts and after it ends — a 10:00-12:00 event with 30/45 occupies
+  // 09:30-12:45. Whole minutes, 0-480, enforced by the DTO and by CHECK
+  // constraints in the migration. Applying them to availability and conflict
+  // checks is US-50; see paddedRange() in bookings/booking-overlap.ts.
   setupMinutes      Int @default(0)
   turnaroundMinutes Int @default(0)
 
@@ -463,6 +556,31 @@ model VenueBooking {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // US-51: "Conflict - needs review". Set when Venue Staff save a buffer
+  // change that makes this booking clash with another, and cleared by hand
+  // (resolve-review) or automatically once it no longer clashes. Deliberately
+  // NOT a BookingStatus: a status would take an APPROVED booking out of the
+  // US-24 exclusion constraint. The flag never changes start, end or status.
+  needsReview        Boolean   @default(false)
+  needsReviewReason  String?
+  flaggedAt          DateTime?
+  // When and by whom the latest flag was cleared. A null resolver with a
+  // timestamp means it was cleared automatically (recheckReviewFlags).
+  reviewResolvedAt   DateTime?
+  reviewResolvedById String?
+  reviewResolvedBy   User?     @relation("BookingReviewResolver", fields: [reviewResolvedById], references: [id], onDelete: Restrict)
+
+  // US-54: tentative hold. Set only while (or after) status is HELD. A HELD
+  // row whose holdExpiresAt has passed is free, whether or not the expiry job
+  // has released it yet (isLiveHold). holdWarningSentAt marks the 24-hour
+  // warning as sent, so the job sends it once across every running instance.
+  holdExpiresAt     DateTime?
+  heldById          String?
+  heldBy            User?     @relation("BookingHolder", fields: [heldById], references: [id], onDelete: Restrict)
+  holdWarningSentAt DateTime?
+  releasedAt        DateTime?
+  releaseReason     String?
+
   // US-23 AC-4/AC-6: every decision ever made on this request, oldest first.
   decisions BookingDecision[]
 
@@ -487,14 +605,21 @@ model VenueBooking {
   replacesBooking     VenueBooking?  @relation("ReplacementRequests", fields: [replacesBookingId], references: [id], onDelete: SetNull)
   replacementRequests VenueBooking[] @relation("ReplacementRequests")
 
-  // US-52 AC-5: on the original, the replacement whose approval released it.
+  // US-52 AC-5: on the original, the replacement whose approval released it
+  // (with releasedAt and releaseReason above, US-54's release fields).
   replacedByBookingId String?       @unique
   replacedByBooking   VenueBooking? @relation("ConfirmedReplacement", fields: [replacedByBookingId], references: [id], onDelete: SetNull)
   replacedBooking     VenueBooking? @relation("ConfirmedReplacement")
-  releasedAt          DateTime?
+
+  // US-40: venue activity notifications about this booking.
+  notifications Notification[]
 
   @@index([requestedById])
   @@index([replacesBookingId])
+  // US-54: the expiry job's scan for holds that are due.
+  @@index([status, holdExpiresAt])
+  // US-51: flagged bookings on a venue, for the re-check after any change.
+  @@index([venueId, needsReview])
   // Supports the (venueId, time range) conflict lookup in §5.
   //
   // Overlap prevention has two layers (US-24):
@@ -611,9 +736,19 @@ model Registration {
   status RegistrationStatus @default(REGISTERED)
 
   // US-34 AC-2: the form's fields. Name and email come from the User record.
-  phone               String
+  phone String
+
+  // The form no longer asks for dietary requirements. The column is kept, not
+  // dropped, so values already collected are not lost; nothing reads or writes
+  // it any more.
   dietaryRequirements String?
-  accessibilityNeeds  String?
+
+  // The standard option picked from the same list the Organiser's event form
+  // uses, if any. Null when none was needed or when the need is not on the
+  // list, in which case it is described in accessibilityNeeds.
+  accessibilityFeature AccessibilityFeature?
+  // Free text: the Attendee's own request, or detail beyond the option chosen.
+  accessibilityNeeds   String?
 
   // US-36: when the attendee withdrew; null while registered.
   withdrawnAt DateTime?
@@ -643,6 +778,12 @@ model Notification {
   relatedEventId String?
   relatedEvent   EventRequest? @relation(fields: [relatedEventId], references: [id], onDelete: Cascade)
 
+  // US-40 AC-3: the booking request a venue activity notification is about,
+  // and so the venue (relatedBooking.venue) and where its link leads. Null for
+  // every other kind. SetNull, not Cascade: losing the booking keeps the notice.
+  relatedBookingId String?
+  relatedBooking   VenueBooking? @relation(fields: [relatedBookingId], references: [id], onDelete: SetNull)
+
   read      Boolean   @default(false)
   // Notifications page: when the recipient marked it read; null while unread.
   // Kept alongside `read` (set together) so existing readers are unaffected.
@@ -653,6 +794,7 @@ model Notification {
   // Notifications page: a recipient's inbox, newest first.
   @@index([recipientId, createdAt])
   @@index([relatedEventId])
+  @@index([relatedBookingId])
 }
 
 // AC-4: logout must actually terminate the session. A signed JWT stays valid
@@ -730,6 +872,55 @@ model EventChange {
 }
 
 /**
+ * Requirement change 6 — one operational safety review of an event.
+ * Append-only, like EventChange: a later check never edits an earlier one, so
+ * the history of checks (and why each went the way it did) is preserved. The
+ * latest row is the event's current safety standing.
+ * The four comment columns are the factors the Safety Officer is asked to
+ * consider. They are optional on every outcome; reason is mandatory unless the
+ * outcome is APPROVED, and returnStage is mandatory exactly when changes are
+ * requested (both enforced by CHECK constraints in the migration, as well as
+ * the DTO).
+ */
+model SafetyReview {
+  id String @id @default(cuid())
+
+  eventId String
+  event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  officerId String
+  officer   User   @relation(fields: [officerId], references: [id], onDelete: Restrict)
+
+  outcome     SafetyOutcome
+  reason      String?
+  returnStage SafetyReturnStage?
+
+  emergencyAccessComment    String?
+  crowdMovementComment      String?
+  equipmentPlacementComment String?
+  accessibilityComment      String?
+
+  // The arrangements the Coordinator is asked to rework and have re-reviewed:
+  // the venue booking, the equipment reservation, or both. Flagged, not
+  // reopened: nothing is un-approved or released by a review.
+  affectedArrangements ConfirmedArrangement[] @default([])
+
+  // When the Coordinator answered a CHANGES_REQUESTED or REJECTED review by
+  // sending the event back for a new check. Null until then; while null the
+  // event is held out of the Safety queue. Not used for APPROVED.
+  resubmittedAt DateTime?
+
+  // What the Coordinator told the Safety Officer when sending the event back:
+  // what they changed, or why they believe the concern is met. Optional.
+  resubmissionComment String?
+
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt])
+  @@index([officerId])
+}
+
+/**
  * US-28 AC-1 — one line of equipment the Coordinator says the event needs.
  * Deliberately NOT an EquipmentReservation. This is the requirement ("two
  * projectors"), recorded during planning for Technical Support to review; a
@@ -756,6 +947,13 @@ model EquipmentRequirement {
   // the DTO.
   quantity      Int
   notes         String?
+
+  // US-42: a free-text line (no equipmentId) names nothing to reserve, so the
+  // Coordinator ticks it once they have checked it by hand. Never set on a
+  // catalogue-linked line, whose reservations decide it instead.
+  manuallyConfirmedAt   DateTime?
+  manuallyConfirmedById String?
+  manuallyConfirmedBy   User?     @relation("RequirementManualConfirmer", fields: [manuallyConfirmedById], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -845,8 +1043,10 @@ model BookingDecision {
   booking   VenueBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   // AC-4: attributed to the Venue Staff member who made it.
-  decidedById String
-  decidedBy   User   @relation(fields: [decidedById], references: [id], onDelete: Restrict)
+  // US-44: null for a RELEASE recorded by the system — an event cancelled
+  // with no known actor. Every decision and reversal still names its maker.
+  decidedById String?
+  decidedBy   User?   @relation(fields: [decidedById], references: [id], onDelete: Restrict)
 
   kind BookingDecisionKind @default(DECISION)
 

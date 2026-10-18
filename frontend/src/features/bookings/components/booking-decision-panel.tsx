@@ -160,6 +160,10 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
   ) : null;
 
   // Pending: approve or reject.
+  // US-54: holds are converted, extended or released in HoldPanel instead;
+  // they are never approved, rejected or reversed here.
+  if (booking.status === 'HELD' || booking.status === 'RELEASED') return null;
+
   if (booking.status === 'REQUESTED') {
     return (
       <Card>

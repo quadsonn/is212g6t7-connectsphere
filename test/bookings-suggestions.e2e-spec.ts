@@ -526,7 +526,7 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
         where: { recipientId: ids.coordinator, type: NotificationType.VENUE_BOOKING_DECIDED },
       });
       expect(notice.message).toBe(
-        'the booking of mainHall for "Showcase" was rejected. Reason: Closed for repairs. Alternative venues suggested: eastHall.',
+        'The booking of mainHall for "Showcase" was rejected. Reason: Closed for repairs. Alternative venues suggested: eastHall.',
       );
     });
 

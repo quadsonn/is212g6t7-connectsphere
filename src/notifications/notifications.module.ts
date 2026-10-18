@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AttendeeChangeNotifier } from './attendee-change-notifier.service';
 import { NotificationsInboxService } from './notifications-inbox.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
@@ -15,7 +16,7 @@ import { NotificationsService } from './notifications.service';
 @Module({
   // Notifications page: reading and marking one's own notifications.
   controllers: [NotificationsController],
-  providers: [NotificationsService, NotificationsInboxService],
-  exports: [NotificationsService],
+  providers: [NotificationsService, NotificationsInboxService, AttendeeChangeNotifier],
+  exports: [NotificationsService, AttendeeChangeNotifier],
 })
 export class NotificationsModule {}

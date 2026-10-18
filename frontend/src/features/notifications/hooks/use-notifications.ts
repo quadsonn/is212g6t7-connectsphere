@@ -1,14 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { POLL_MS } from '@/lib/polling';
 import type { InboxNotification } from '@/types/api';
 import { notificationsApi } from '../api/notifications.api';
 
 /** How often the bell and the page check for new notifications. */
-export const NOTIFICATIONS_POLL_MS = 30_000;
+export const NOTIFICATIONS_POLL_MS = POLL_MS;
+
+/** How many the page shows (the API's most per page), and the bell's dropdown. */
+export const PAGE_SIZE = 100;
+export const DROPDOWN_SIZE = 10;
 
 export const notificationKeys = {
   all: ['notifications'] as const,
   list: ['notifications', 'list'] as const,
+  recent: ['notifications', 'recent'] as const,
   unread: ['notifications', 'unread'] as const,
 };
 
@@ -16,7 +22,18 @@ export const notificationKeys = {
 export function useNotifications() {
   return useQuery<InboxNotification[]>({
     queryKey: notificationKeys.list,
-    queryFn: notificationsApi.list,
+    queryFn: () => notificationsApi.list({ limit: PAGE_SIZE }),
+    staleTime: 0,
+    refetchInterval: NOTIFICATIONS_POLL_MS,
+  });
+}
+
+/** US-40 — the newest few, for the bell's dropdown; polled only while it is open. */
+export function useRecentNotifications(enabled: boolean) {
+  return useQuery<InboxNotification[]>({
+    queryKey: notificationKeys.recent,
+    queryFn: () => notificationsApi.list({ limit: DROPDOWN_SIZE }),
+    enabled,
     staleTime: 0,
     refetchInterval: NOTIFICATIONS_POLL_MS,
   });

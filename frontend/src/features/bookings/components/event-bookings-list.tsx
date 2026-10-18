@@ -42,11 +42,19 @@ export function EventBookingsList({
           >
             <div className="min-w-0 space-y-0.5">
               <p className="font-medium text-ink-900">{booking.venue.name}</p>
+              {booking.venue.location ? (
+                <p className="text-ink-700">{booking.venue.location}</p>
+              ) : null}
               <p className="text-ink-500">{formatDateRange(booking.start, booking.end)}</p>
               {latest ? (
                 <p className="text-ink-700">
-                  {latest.kind === 'REVERSAL' ? 'Decision reversed' : 'Decided'} by{' '}
-                  {latest.decidedBy.name} on {new Date(latest.createdAt).toLocaleDateString()}
+                  {latest.kind === 'RELEASE'
+                    ? 'Released'
+                    : latest.kind === 'REVERSAL'
+                      ? 'Decision reversed'
+                      : 'Decided'}{' '}
+                  by {latest.decidedBy?.name ?? 'the system'} on{' '}
+                  {new Date(latest.createdAt).toLocaleDateString()}
                   {latest.reason ? ` — ${latest.reason}` : ''}
                 </p>
               ) : null}

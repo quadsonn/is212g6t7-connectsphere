@@ -18,11 +18,13 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { BookingSuggestionsService } from './booking-suggestions.service';
+import { BookingReviewService } from './booking-review.service';
 import { BookingsService } from './bookings.service';
 import { VenueUnavailabilityService } from './venue-unavailability.service';
 import {
   ApproveBookingDto,
   RejectBookingDto,
+  ResolveReviewDto,
   ReverseBookingDto,
 } from './dto/booking-decision.dto';
 import { BookingQueueQueryDto } from './dto/booking-queue-query.dto';
@@ -35,6 +37,7 @@ export class BookingsController {
     private readonly bookingsService: BookingsService,
     private readonly suggestionsService: BookingSuggestionsService,
     private readonly unavailabilityService: VenueUnavailabilityService,
+    private readonly reviews: BookingReviewService,
   ) {}
 
   /** US-21 — submit a venue booking request. */
@@ -193,6 +196,21 @@ export class BookingsController {
     @Body() dto: ReverseBookingDto,
   ) {
     return this.bookingsService.reverse(user, id, dto);
+  }
+
+  /**
+   * US-51 — clear a "Conflict - needs review" flag by hand. Venue Staff who
+   * manage the booking's venue only; recorded as a REVIEW_RESOLVED decision.
+   */
+  @Post(':id/resolve-review')
+  @RequirePermission(Resource.BOOKING, Action.DECIDE)
+  @HttpCode(HttpStatus.OK)
+  resolveReview(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ResolveReviewDto,
+  ) {
+    return this.reviews.resolveReview(user, id, dto.note ?? null);
   }
 
   /** One request in full. Declared after the literal routes so none is read as an id. */

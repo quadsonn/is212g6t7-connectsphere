@@ -149,6 +149,8 @@ describe('US-24 overlapping booking detection (e2e)', () => {
           eventName: 'Gala',
           start: t('10:00').toISOString(),
           end: t('11:00').toISOString(),
+          // US-54: hard conflicts may be APPROVED or a live HELD hold.
+          status: BookingStatus.APPROVED,
         },
       ]);
     });

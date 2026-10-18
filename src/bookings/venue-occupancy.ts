@@ -137,8 +137,9 @@ export interface BufferedVenue {
 
 /**
  * AC-5 — which of these venues are free for `slot`, each judged with its own
- * buffers: no confirmed (APPROVED) booking whose occupied window overlaps the
- * slot's occupied window, and — when asked — no blocked-out period in it.
+ * buffers: no confirmed (APPROVED) booking or live tentative hold (US-54)
+ * whose occupied window overlaps the slot's occupied window, and — when
+ * asked — no blocked-out period in it.
  *
  * Pending requests never make a venue unavailable, as everywhere else.
  *
@@ -166,7 +167,11 @@ export async function freeVenueIds(
     db.venueBooking.findMany({
       where: {
         venueId: { in: venueIds },
-        status: BookingStatus.APPROVED,
+        // Confirmed, or (US-54 AC-3) a live tentative hold: both hard-block.
+        OR: [
+          { status: BookingStatus.APPROVED },
+          { status: BookingStatus.HELD, holdExpiresAt: { gt: new Date() } },
+        ],
         ...clashingBookingsWhere(slot, widest),
       },
       select: { venueId: true, start: true, end: true },

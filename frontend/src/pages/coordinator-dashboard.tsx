@@ -40,8 +40,8 @@ export function CoordinatorDashboard() {
   return (
     <>
       <PageHeader
-        title="Review queue"
-        description="Requests assigned to you that are waiting on a decision."
+        title="My events"
+        description="Every event assigned to you, from new requests to confirmed events."
       />
 
       {notice ? (

@@ -19,6 +19,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChangeArrangementCheckService } from './change-arrangement-check.service';
 import { EventsChangeReviewService } from './events-change-review.service';
 import { EventsService } from './events.service';
+import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 
 /** US-38 — a Coordinator reviews a change request and approves or rejects it. */
 describe('EventsChangeReviewService (US-38)', () => {
@@ -110,6 +111,8 @@ describe('EventsChangeReviewService (US-38)', () => {
   let reservations: { rebookForEventChange: jest.Mock; lockEquipment: jest.Mock };
   let notifications: { notifySafely: jest.Mock };
   let service: EventsChangeReviewService;
+  // US-40: tells a venue's manager when an approved booking changes.
+  let venueActivity: { approvedBookingChanged: jest.Mock };
   let stored: ReturnType<typeof request>;
   let currentEvent: ReturnType<typeof event>;
   let requirements: Requirement[];
@@ -187,6 +190,7 @@ describe('EventsChangeReviewService (US-38)', () => {
       lockEquipment: jest.fn().mockResolvedValue(undefined),
     };
     notifications = { notifySafely: jest.fn().mockResolvedValue(undefined) };
+    venueActivity = { approvedBookingChanged: jest.fn().mockResolvedValue(undefined) };
     service = new EventsChangeReviewService(
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
@@ -196,6 +200,7 @@ describe('EventsChangeReviewService (US-38)', () => {
       // US-48: the real check, over the same mocks.
       new ChangeArrangementCheckService(bookings as unknown as BookingsService),
       notifications as unknown as NotificationsService,
+      venueActivity as unknown as VenueActivityNotifier,
     );
   });
 
@@ -571,14 +576,17 @@ describe('EventsChangeReviewService (US-38)', () => {
       expect((await service.getForReview(coordinator, 'cr-1')).warnings).toEqual([]);
     });
 
-    it('looks only at bookings that are not rejected', async () => {
+    it('looks only at bookings that are not rejected (or released, or expired holds)', async () => {
       await service.getForReview(coordinator, 'cr-1');
 
       expect(prisma.venueBooking.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
             eventId: 'event-1',
-            status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
+            OR: [
+              { status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] } },
+              { status: BookingStatus.HELD, holdExpiresAt: { gt: expect.any(Date) } },
+            ],
           },
         }),
       );
@@ -1103,6 +1111,93 @@ describe('EventsChangeReviewService (US-38)', () => {
         expect(prisma.eventChangeRequest.updateMany).toHaveBeenCalledTimes(1);
         expect(notifications.notifySafely).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('Attendee notice: an approved date or time change notifies registered Attendees', () => {
+    let notifier: { notifyRegisteredAttendees: jest.Mock };
+    let noticeService: EventsChangeReviewService;
+
+    beforeEach(() => {
+      notifier = { notifyRegisteredAttendees: jest.fn().mockResolvedValue(0) };
+      // The real recordChange returns the saved entry, including what changed.
+      events.recordChange.mockImplementation((_tx, _id, _by, changes) =>
+        Promise.resolve({ id: 'change-1', changes }),
+      );
+      noticeService = new EventsChangeReviewService(
+        prisma as unknown as PrismaService,
+        access as unknown as AccessControlService,
+        events as unknown as EventsService,
+        bookings as unknown as BookingsService,
+        reservations as unknown as EquipmentReservationsService,
+        new ChangeArrangementCheckService(bookings as unknown as BookingsService),
+        notifications as unknown as NotificationsService,
+        { approvedBookingChanged: jest.fn() } as unknown as VenueActivityNotifier,
+        notifier as never,
+      );
+    });
+
+    const noticed = () => notifier.notifyRegisteredAttendees.mock.calls.flatMap(([, c]) => c);
+
+    it('AC-1/AC-3: names the event and each changed field with old and new value', async () => {
+      stored = request({ proposedStart: inDays(29, 9), proposedAttendance: null });
+
+      await noticeService.approve(coordinator, 'cr-1');
+
+      expect(notifier.notifyRegisteredAttendees).toHaveBeenCalledTimes(1);
+      expect(notifier.notifyRegisteredAttendees.mock.calls[0][0]).toMatchObject({
+        id: 'event-1',
+        name: 'Hackathon',
+      });
+      expect(noticed()).toHaveLength(1);
+      expect(noticed()[0]).toMatchObject({ label: 'Start' });
+      expect(noticed()[0].previous).not.toBe(noticed()[0].next);
+    });
+
+    it('AC-4: start and end moved by one approval are one notice listing both', async () => {
+      stored = request({
+        proposedStart: inDays(40, 9),
+        proposedEnd: inDays(40, 17),
+        proposedAttendance: null,
+      });
+
+      await noticeService.approve(coordinator, 'cr-1');
+
+      expect(notifier.notifyRegisteredAttendees).toHaveBeenCalledTimes(1);
+      expect(noticed().map((c) => c.label)).toEqual(['Start', 'End']);
+    });
+
+    it('AC-6: an approval that only changes attendance notifies nobody', async () => {
+      await noticeService.approve(coordinator, 'cr-1');
+
+      expect(noticed()).toEqual([]);
+    });
+
+    it('AC-6: an approval that only changes equipment notifies nobody', async () => {
+      stored = request({
+        proposedAttendance: null,
+        equipmentChanged: true,
+        equipment: [cameraLine],
+      });
+
+      await noticeService.approve(coordinator, 'cr-1');
+
+      expect(noticed()).toEqual([]);
+    });
+
+    it('a rejected change request notifies no Attendee', async () => {
+      await noticeService.reject(coordinator, 'cr-1', { reason: 'No room' });
+
+      expect(notifier.notifyRegisteredAttendees).not.toHaveBeenCalled();
+    });
+
+    it('a refused approval notifies no Attendee', async () => {
+      currentEvent = event({ status: EventStatus.CANCELLED });
+
+      await expect(noticeService.approve(coordinator, 'cr-1')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(notifier.notifyRegisteredAttendees).not.toHaveBeenCalled();
     });
   });
 });

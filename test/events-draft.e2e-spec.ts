@@ -256,7 +256,7 @@ describe('US-04 save event request as draft (e2e)', () => {
       expect(submitted.body.status).toBe(EventStatus.SUBMITTED);
     });
 
-    it('makes it visible to a Coordinator once submitted', async () => {
+    it('keeps it out of every Coordinator’s view once submitted, until the Lead assigns it', async () => {
       const created = await http()
         .post('/events/drafts')
         .set('Authorization', as('organiser'))
@@ -273,7 +273,7 @@ describe('US-04 save event request as draft (e2e)', () => {
         .set('Authorization', as('coordinator'))
         .expect(200);
 
-      expect(queue.body).toHaveLength(1);
+      expect(queue.body).toHaveLength(0);
     });
 
     it('blocks submitting an incomplete draft and flags each missing field', async () => {

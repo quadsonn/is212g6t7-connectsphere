@@ -1,12 +1,15 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  CancelEventPayload,
+  CancellationResult,
   CatalogueOption,
+  ConfirmationReadiness,
+  EquipmentRequirement,
   ChangeRequest,
   ChangeRequestApproval,
   ChangeRequestPayload,
   ChangeRequestReview,
   PendingChangeRequestSummary,
-  ContactSummary,
   CoordinatorRequestView,
   EventRequest,
   EventRequestPayload,
@@ -69,6 +72,10 @@ export const eventsApi = {
   requestChange: (id: string, body: ChangeRequestPayload) =>
     apiClient.post<ChangeRequest>(`/events/${id}/change-requests`, body).then((r) => r.data),
 
+  /** US-43 — cancel one of the Organiser's events, releasing what it holds. */
+  cancel: (id: string, body: CancelEventPayload) =>
+    apiClient.post<CancellationResult>(`/events/${id}/cancel`, body).then((r) => r.data),
+
   /** US-38 AC-1 — pending change requests on the Coordinator's own events. */
   listPendingChangeRequests: () =>
     apiClient
@@ -104,12 +111,6 @@ export const eventsApi = {
   /** One request from the Coordinator's queue, with every detail. */
   getAssignedById: (id: string) =>
     apiClient.get<CoordinatorRequestView>(`/events/assigned/${id}`).then((r) => r.data),
-
-  /** US-10 — link a Coordinator to a request as its main point of contact. */
-  assignCoordinator: (id: string, coordinatorId: string) =>
-    apiClient
-      .patch<CoordinatorRequestView>(`/events/${id}/coordinator`, { coordinatorId })
-      .then((r) => r.data),
 
   approve: (id: string) =>
     apiClient.post<EventRequest>(`/events/${id}/approve`).then((r) => r.data),
@@ -147,19 +148,26 @@ export const eventsApi = {
       .patch<PlanningUpdateResult>(`/events/${id}/planning`, body)
       .then((r) => r.data),
 
-  /** US-27 AC-1 — the Coordinators this event can be handed to. */
-  getReassignmentCandidates: (id: string) =>
-    apiClient
-      .get<ContactSummary[]>(`/events/${id}/reassignment-candidates`)
-      .then((r) => r.data),
-
-  /** US-27 — hand the event to another Coordinator. */
-  reassign: (id: string, coordinatorId: string) =>
-    apiClient
-      .post<CoordinatorRequestView>(`/events/${id}/reassign`, { coordinatorId })
-      .then((r) => r.data),
-
   /** US-28 — record equipment and technical requirements during planning. */
+  /** US-42 — what is ready to confirm and what is still outstanding. */
+  getConfirmationReadiness: (id: string) =>
+    apiClient
+      .get<ConfirmationReadiness>(`/events/${id}/confirmation-readiness`)
+      .then((r) => r.data),
+
+  /** US-42 — confirm the arrangements; the event moves to AWAITING_SAFETY_CHECK. */
+  confirmArrangements: (id: string) =>
+    apiClient.post<EventRequest>(`/events/${id}/confirm`).then((r) => r.data),
+
+  /** US-42 — tick (or untick) a free-text equipment line as checked by hand. */
+  setManualCheck: (id: string, requirementId: string, checked: boolean) => {
+    const url = `/events/${id}/requirements/${requirementId}/manual-confirm`;
+    const request = checked
+      ? apiClient.post<EquipmentRequirement>(url)
+      : apiClient.delete<EquipmentRequirement>(url);
+    return request.then((r) => r.data);
+  },
+
   setTechnicalRequirements: (id: string, body: TechnicalRequirementsPayload) =>
     apiClient
       .patch<PlanningUpdateResult>(`/events/${id}/technical-requirements`, body)

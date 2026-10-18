@@ -61,3 +61,11 @@ export class ReverseBookingDto extends AlternativeVenuesField {
   @MaxLength(2000)
   reason: string;
 }
+
+/** US-51 — clearing a "Conflict - needs review" flag; a note is optional. */
+export class ResolveReviewDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
+}

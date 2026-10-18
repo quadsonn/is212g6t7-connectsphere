@@ -9,7 +9,7 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
-import { overlapsRange } from './booking-overlap';
+import { isLiveHold, liveBookingsWhere, overlapsRange } from './booking-overlap';
 import { bookingsOccupyingWhere } from './venue-occupancy';
 import { BookingConflict } from './booking.types';
 import { BookingsService } from './bookings.service';
@@ -23,7 +23,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * US-16 AC-1 — what occupies a slot. "Available" is the absence of any entry:
  * the calendar draws it for every period not covered by one of these.
  */
-export type CalendarEntryKind = 'TENTATIVE' | 'CONFIRMED' | 'BLOCKED';
+/**
+ * US-54: TENTATIVE is a live hold (with its expiry); a pending request is
+ * PENDING. Before US-54 every pending request was labelled TENTATIVE.
+ */
+export type CalendarEntryKind = 'PENDING' | 'TENTATIVE' | 'CONFIRMED' | 'BLOCKED';
 
 export interface CalendarEntry {
   /** The booking id, or the block id for kind BLOCKED. */
@@ -39,6 +43,15 @@ export interface CalendarEntry {
   /** AC-6: for a block — why, and who marked it. */
   reason: string | null;
   createdByName: string | null;
+  /**
+   * US-51: "Conflict - needs review", and why. Carried alongside `kind`
+   * rather than as a kind of its own, so a flagged entry still shows whether
+   * it is tentative or confirmed. Always false for a block.
+   */
+  needsReview: boolean;
+  needsReviewReason: string | null;
+  /** US-54 AC-4: when a TENTATIVE hold expires; null for everything else. */
+  holdExpiresAt: Date | null;
 }
 
 export interface CalendarView {
@@ -100,8 +113,9 @@ export class CalendarService {
       this.prisma.venueBooking.findMany({
         where: {
           venueId: { in: venueIds },
-          // Rejected requests hold nothing, so they are not on the calendar.
-          status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
+          // Rejected requests and released or expired holds hold nothing, so
+          // they are not on the calendar.
+          ...liveBookingsWhere(),
           ...inRange,
         },
         include: {
@@ -119,7 +133,7 @@ export class CalendarService {
     const entries: CalendarEntry[] = [
       ...bookings.map((b) => ({
         id: b.id,
-        kind: (b.status === BookingStatus.APPROVED ? 'CONFIRMED' : 'TENTATIVE') as CalendarEntryKind,
+        kind: kindOf(b),
         venueId: b.venueId,
         start: b.start,
         end: b.end,
@@ -128,6 +142,9 @@ export class CalendarService {
         expectedAttendance: b.expectedAttendance,
         reason: null,
         createdByName: null,
+        needsReview: b.needsReview,
+        needsReviewReason: b.needsReview ? b.needsReviewReason : null,
+        holdExpiresAt: isLiveHold(b) ? b.holdExpiresAt : null,
       })),
       ...blocks.map((block) => ({
         id: block.id,
@@ -140,6 +157,9 @@ export class CalendarService {
         expectedAttendance: null,
         reason: block.reason,
         createdByName: block.createdBy.name,
+        needsReview: false,
+        needsReviewReason: null,
+        holdExpiresAt: null,
       })),
     ].sort((a, b) => a.start.getTime() - b.start.getTime());
 
@@ -182,7 +202,9 @@ export class CalendarService {
       const overlapping = await tx.venueBooking.findMany({
         where: {
           venueId: venue.id,
-          status: { in: [BookingStatus.REQUESTED, BookingStatus.APPROVED] },
+          // US-54: live statuses only — an expired hold holds nothing.
+          ...liveBookingsWhere(),
+          // US-50: with the venue's setup and turnaround time.
           ...bookingsOccupyingWhere(
             { start: dto.start, end: dto.end },
             await this.bookings.buffersFor(tx, venue.id),
@@ -222,5 +244,17 @@ export class CalendarService {
     }
 
     await this.prisma.venueBlock.delete({ where: { id: block.id } });
+  }
+}
+
+/** US-54 AC-4 — what a live booking shows as. */
+function kindOf(b: { status: BookingStatus }): CalendarEntryKind {
+  switch (b.status) {
+    case BookingStatus.APPROVED:
+      return 'CONFIRMED';
+    case BookingStatus.HELD:
+      return 'TENTATIVE';
+    default:
+      return 'PENDING';
   }
 }

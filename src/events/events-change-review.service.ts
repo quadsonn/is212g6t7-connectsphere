@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   BookingStatus,
@@ -19,11 +20,14 @@ import {
   RebookedBooking,
 } from '../bookings/bookings.service';
 import { TimeWindow, windowMoved } from '../bookings/booking-reschedule';
+import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 import {
   EquipmentReservationsService,
   RebookedReservation,
   RELEASABLE_STATUSES,
 } from '../equipment/equipment-reservations.service';
+import { AttendeeChangeNotifier } from '../notifications/attendee-change-notifier.service';
+import { scheduleChangesFrom } from '../notifications/event-schedule-change';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -101,6 +105,10 @@ export class EventsChangeReviewService {
     private readonly reservations: EquipmentReservationsService,
     private readonly arrangements: ChangeArrangementCheckService,
     private readonly notifications: NotificationsService,
+    // US-40: tells a venue's manager when an approved booking changes.
+    private readonly venueActivity: VenueActivityNotifier,
+    // Tells registered Attendees when an approval moves the date or time.
+    @Optional() private readonly attendeeChanges?: AttendeeChangeNotifier,
   ) {}
 
   /** AC-1 — pending requests on this Coordinator's own events, oldest first. */
@@ -261,6 +269,15 @@ export class EventsChangeReviewService {
 
     // US-48 AC-9: after commit, best-effort.
     await this.notifyOrganiser(event, 'approved', null);
+
+    // After the approval has committed: one notice per Attendee listing every
+    // date/time field this approval changed. An approval that only changes the
+    // attendance or equipment produces none.
+    await this.attendeeChanges?.notifyRegisteredAttendees(
+      event,
+      scheduleChangesFrom(approved.change?.changes ?? []),
+    );
+
     return approved;
   }
 
@@ -307,6 +324,14 @@ export class EventsChangeReviewService {
     // The event as read under its lock above; the claim did not change it.
     const before = current;
 
+    // US-40: the APPROVED bookings, read before a rebook releases them, so
+    // their managers can be told what changed.
+    const approvedBookings = await tx.venueBooking.findMany({
+      where: { eventId, status: BookingStatus.APPROVED },
+      orderBy: [{ start: 'asc' }, { id: 'asc' }],
+      select: { id: true, start: true, end: true },
+    });
+
     const changes: FieldChange[] = diffEventFields(before, {
       proposedStart: request.proposedStart ?? undefined,
       proposedEnd: request.proposedEnd ?? undefined,
@@ -351,6 +376,25 @@ export class EventsChangeReviewService {
       );
       // AC-7: what moved goes into the event's change history.
       changes.push(...movedArrangementChanges(arrangements));
+    }
+
+    // US-40 AC-1: an approved booking's date, time or attendance changed —
+    // tell its venue's manager, once per booking, in this transaction. A
+    // rebooked booking is named by its replacement (US-48), which keeps the
+    // approval, so the manager is pointed at the booking they now hold.
+    const attendanceChanged = changes.some((c) => c.field === 'expectedAttendance');
+    if (moved || attendanceChanged) {
+      const replacementOf = new Map(
+        arrangements.venueBookings.map((r) => [r.bookingId, r.replacementId]),
+      );
+      for (const booking of approvedBookings) {
+        await this.venueActivity.approvedBookingChanged(tx, replacementOf.get(booking.id) ?? booking.id, {
+          ...(moved ? { movedFrom: { start: booking.start, end: booking.end } } : {}),
+          ...(attendanceChanged && request.proposedAttendance !== null
+            ? { attendance: { from: before.expectedAttendance, to: request.proposedAttendance } }
+            : {}),
+        });
+      }
     }
 
     if (request.equipmentChanged) {

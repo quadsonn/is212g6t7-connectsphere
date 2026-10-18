@@ -9,6 +9,8 @@ import type {
   BookingRequestResult,
   ReplacementNeeded,
   VenueArrangement,
+  HoldableEvent,
+  PlaceHoldPayload,
   VenueBooking,
 } from '@/types/api';
 
@@ -62,6 +64,12 @@ export const bookingsApi = {
       .post<VenueBooking>(`/bookings/${id}/reject`, withAlternatives({ reason }, alternativeVenueIds))
       .then((r) => r.data),
 
+  // US-51: clear a "Conflict - needs review" flag, with an optional note.
+  resolveReview: (id: string, note?: string) =>
+    apiClient
+      .post<VenueBooking>(`/bookings/${id}/resolve-review`, note ? { note } : {})
+      .then((r) => r.data),
+
   // US-23 AC-6: reverse a decision, recorded as a new action. US-41: a
   // reversal to rejected may carry alternatives too.
   reverse: (id: string, reason: string, alternativeVenueIds: string[] = []) =>
@@ -78,6 +86,22 @@ export const bookingsApi = {
     apiClient
       .post<BookingRequestResult>(`/bookings/${id}/suggestions/${suggestionId}/accept`)
       .then((r) => r.data),
+
+  // US-54: the events a hold may be placed for (the venue's manager only).
+  holdableEvents: (venueId: string) =>
+    apiClient.get<HoldableEvent[]>(`/venues/${venueId}/holdable-events`).then((r) => r.data),
+
+  // US-54 AC-1: place a hold. 409 carries `conflicts`; pending overlaps come back as `warnings`.
+  placeHold: (venueId: string, payload: PlaceHoldPayload) =>
+    apiClient.post<BookingRequestResult>(`/venues/${venueId}/holds`, payload).then((r) => r.data),
+
+  // US-54 AC-5: convert, extend or release a live hold (409 once it has expired).
+  convertHold: (id: string) =>
+    apiClient.post<BookingDecisionResult>(`/bookings/${id}/hold/convert`).then((r) => r.data),
+  extendHold: (id: string, expiresAt: string) =>
+    apiClient.post<VenueBooking>(`/bookings/${id}/hold/extend`, { expiresAt }).then((r) => r.data),
+  releaseHold: (id: string) =>
+    apiClient.post<VenueBooking>(`/bookings/${id}/hold/release`).then((r) => r.data),
 
   // One request in full — requirements, organiser, decision.
   getById: (id: string) => apiClient.get<VenueBooking>(`/bookings/${id}`).then((r) => r.data),

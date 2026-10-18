@@ -120,7 +120,8 @@ describe('US-16 venue availability calendar (e2e)', () => {
       expect(res.body.venues.map((v: { name: string }) => v.name)).toEqual(['Main Hall', 'Seminar Room']);
       expect(res.body.entries.map((e: { kind: string; eventName: string | null; reason: string | null }) => [e.kind, e.eventName ?? e.reason]))
         .toEqual([
-          ['TENTATIVE', 'Pending talk'],
+          // US-54: TENTATIVE now means a live hold; a pending request is PENDING.
+          ['PENDING', 'Pending talk'],
           ['CONFIRMED', 'Confirmed gala'],
           ['BLOCKED', 'Holiday'],
         ]);
@@ -187,7 +188,7 @@ describe('US-16 venue availability calendar (e2e)', () => {
   describe('AC-5: reflects changes on refresh', () => {
     it('shows a booking as confirmed on the next read after it is approved', async () => {
       const booking = await seedBooking(ids.hall, 'Talk', BookingStatus.REQUESTED, 2);
-      expect((await calendar()).body.entries[0].kind).toBe('TENTATIVE');
+      expect((await calendar()).body.entries[0].kind).toBe('PENDING');
 
       await http().post(`/bookings/${booking.id}/approve`).set('Authorization', as('staff')).send({});
 

@@ -2,14 +2,14 @@ import { EventStatus } from '@prisma/client';
 
 import {
   ALLOWED_TRANSITIONS,
-  ASSIGNABLE_STATUSES,
+  ACTIVE_ASSIGNMENT_STATUSES,
   ATTENDEE_VISIBLE_STATUSES,
   buildStatusView,
   canTransition,
-  COORDINATOR_POOL_STATUSES,
   DECIDED_STATUSES,
   EDITABLE_STATUSES,
   isTerminal,
+  UNASSIGNED_QUEUE_STATUSES,
 } from './event-status.machine';
 
 /** US-11 — the consolidated state machine. */
@@ -111,11 +111,44 @@ describe('Event state machine (US-11)', () => {
       expect(canTransition(EventStatus.APPROVED, EventStatus.CONFIRMED)).toBe(false);
     });
 
-    it('allows planning to wait on arrangements or confirm directly', () => {
+    it('allows planning to wait on arrangements or on its safety check', () => {
       expect(
         canTransition(EventStatus.PLANNING, EventStatus.AWAITING_ARRANGEMENTS),
       ).toBe(true);
-      expect(canTransition(EventStatus.PLANNING, EventStatus.CONFIRMED)).toBe(true);
+      expect(
+        canTransition(EventStatus.PLANNING, EventStatus.AWAITING_SAFETY_CHECK),
+      ).toBe(true);
+    });
+
+    it('US-42: confirming arrangements leads to the safety check, never straight to CONFIRMED', () => {
+      for (const from of [EventStatus.PLANNING, EventStatus.AWAITING_ARRANGEMENTS]) {
+        expect(canTransition(from, EventStatus.AWAITING_SAFETY_CHECK)).toBe(true);
+        expect(canTransition(from, EventStatus.CONFIRMED)).toBe(false);
+      }
+    });
+
+    it('never confirms an event except from a pending safety check', () => {
+      const into = ALL.filter((from) =>
+        canTransition(from, EventStatus.CONFIRMED),
+      );
+
+      expect(into).toEqual([EventStatus.AWAITING_SAFETY_CHECK]);
+    });
+
+    it('sends a safety decision to the one status each outcome means', () => {
+      const from = EventStatus.AWAITING_SAFETY_CHECK;
+
+      expect(canTransition(from, EventStatus.CONFIRMED)).toBe(true);
+      expect(canTransition(from, EventStatus.PLANNING)).toBe(true);
+      expect(canTransition(from, EventStatus.SAFETY_REJECTED)).toBe(true);
+      expect(canTransition(from, EventStatus.COMPLETED)).toBe(false);
+    });
+
+    it('keeps a safety-rejected event blocked: it can only be reworked or abandoned', () => {
+      expect(ALLOWED_TRANSITIONS[EventStatus.SAFETY_REJECTED]).toEqual([
+        EventStatus.PLANNING,
+        EventStatus.CANCELLED,
+      ]);
     });
 
     it('lets a refused arrangement send planning back round', () => {
@@ -162,6 +195,8 @@ describe('Event state machine (US-11)', () => {
         }
       }
 
+      // CONFIRMED (and COMPLETED after it) is reached only through the Safety
+      // Officer's approval (requirement change 6).
       expect([...ALL].sort()).toEqual([...reached].sort());
     });
   });
@@ -256,11 +291,8 @@ describe('Event state machine (US-11)', () => {
       expect(EDITABLE_STATUSES).toEqual([EventStatus.DRAFT, EventStatus.RETURNED]);
     });
 
-    it('keeps the unassigned pool to statuses awaiting first review', () => {
-      expect(COORDINATOR_POOL_STATUSES).toEqual([
-        EventStatus.SUBMITTED,
-        EventStatus.UNDER_REVIEW,
-      ]);
+    it('keeps the unassigned queue to submitted requests', () => {
+      expect(UNASSIGNED_QUEUE_STATUSES).toEqual([EventStatus.SUBMITTED]);
     });
 
     it('never shows an Attendee a request still under review', () => {
@@ -277,23 +309,26 @@ describe('Event state machine (US-11)', () => {
       }
     });
 
-    it('never allows assignment on a draft or a terminal request', () => {
+    it('counts a request as active unless it is a draft or finished', () => {
       for (const status of [
         EventStatus.DRAFT,
         EventStatus.COMPLETED,
         EventStatus.CANCELLED,
         EventStatus.REJECTED,
       ]) {
-        expect(ASSIGNABLE_STATUSES).not.toContain(status);
+        expect(ACTIVE_ASSIGNMENT_STATUSES).not.toContain(status);
       }
+      // Everything else in the enum is active, so a status added later is
+      // not silently dropped from the Lead's view.
+      expect(ACTIVE_ASSIGNMENT_STATUSES).toHaveLength(ALL.length - 4);
     });
 
     it('keeps every rule set inside the enum', () => {
       for (const set of [
         EDITABLE_STATUSES,
-        COORDINATOR_POOL_STATUSES,
+        UNASSIGNED_QUEUE_STATUSES,
         ATTENDEE_VISIBLE_STATUSES,
-        ASSIGNABLE_STATUSES,
+        ACTIVE_ASSIGNMENT_STATUSES,
         DECIDED_STATUSES,
       ]) {
         for (const status of set) {

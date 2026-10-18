@@ -99,9 +99,11 @@ export function venueConflicts(
   return [
     ...report.hardConflicts
       .filter((clash) => !ownBookingIds.has(clash.bookingId))
-      .map(
-        (clash) =>
-          `${venue} is already booked for "${clash.eventName ?? 'another event'}" at the new time (setup and turnaround included).`,
+      .map((clash) =>
+        // US-54 AC-3: a live tentative hold blocks like a confirmed booking.
+        clash.status === BookingStatus.HELD
+          ? `${venue} has a tentative hold for "${clash.eventName ?? 'another event'}" at the new time (setup and turnaround included).`
+          : `${venue} is already booked for "${clash.eventName ?? 'another event'}" at the new time (setup and turnaround included).`,
       ),
     ...report.blocks.map(
       (block) => `${venue} is unavailable at the new time${block.reason ? ` (${block.reason})` : ''}.`,

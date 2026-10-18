@@ -155,7 +155,9 @@ describe('status write audit (US-11)', () => {
     );
 
     expect(setStatusBody).toMatch(/canTransition\(/);
-    expect(setStatusBody).toMatch(/data:\s*\{\s*status:\s*next\s*\}/);
+    // submittedAt rides along on the move to SUBMITTED; the status value
+    // written is still exactly `next`, which the canTransition guard vetted.
+    expect(setStatusBody).toMatch(/data:\s*\{\s*status:\s*next,/);
   });
 
   it('never writes status through raw SQL', () => {

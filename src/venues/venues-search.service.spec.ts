@@ -9,6 +9,7 @@ import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BookingReviewService } from '../bookings/booking-review.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { VenueSearchDto } from './dto/venue-search.dto';
@@ -52,6 +53,7 @@ describe('US-18 VenuesService.search', () => {
       {} as unknown as NotificationsService,
       {} as unknown as SupabaseStorageService,
       {} as unknown as EventsService,
+      {} as unknown as BookingReviewService,
     );
   });
 
@@ -110,7 +112,7 @@ describe('US-18 VenuesService.search', () => {
     expect(where()).toEqual({ status: VenueStatus.PUBLISHED });
   });
 
-  it('US-18 AC-1: excludes venues with an APPROVED booking overlapping the slot', async () => {
+  it('US-18 AC-1 / US-54 AC-3: excludes venues with an APPROVED booking or a live hold overlapping the slot', async () => {
     // US-50: the date filter is the shared, buffer-aware check over the
     // venues the other filters matched — no longer part of the same query.
     prisma.venue.findMany.mockResolvedValue([
@@ -134,7 +136,11 @@ describe('US-18 VenuesService.search', () => {
     expect(prisma.venueBooking.findMany).toHaveBeenCalledWith({
       where: {
         venueId: { in: ['busy', 'free'] },
-        status: BookingStatus.APPROVED,
+        // US-54 AC-3: a live tentative hold blocks like a confirmed booking.
+        OR: [
+          { status: BookingStatus.APPROVED },
+          { status: BookingStatus.HELD, holdExpiresAt: { gt: expect.any(Date) } },
+        ],
         start: { lt: new Date('2027-03-10T09:00:00Z') },
         end: { gt: new Date('2027-03-10T01:00:00Z') },
       },

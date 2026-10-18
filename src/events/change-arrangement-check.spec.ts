@@ -42,10 +42,12 @@ describe('US-48 change request arrangement check rules', () => {
   describe('US-48 AC-2: venue conflicts', () => {
     const report = {
       hardConflicts: [
-        { bookingId: 'rival', eventName: 'Gala', ...window },
-        { bookingId: 'own-2', eventName: 'Hackathon', ...window },
+        { bookingId: 'rival', eventName: 'Gala', status: BookingStatus.APPROVED, ...window },
+        { bookingId: 'own-2', eventName: 'Hackathon', status: BookingStatus.APPROVED, ...window },
       ],
-      softConflicts: [{ bookingId: 'pending', eventName: 'Maybe', ...window }],
+      softConflicts: [
+        { bookingId: 'pending', eventName: 'Maybe', status: BookingStatus.REQUESTED, ...window },
+      ],
       blocks: [{ blockId: 'x', reason: 'Renovation', ...window }],
       hasHardConflict: true,
     };
@@ -63,11 +65,35 @@ describe('US-48 change request arrangement check rules', () => {
       expect(conflicts.join(' ')).not.toContain('Maybe');
     });
 
+    it('US-54 AC-3: says a live tentative hold is a hold, not a booking', () => {
+      expect(
+        venueConflicts(
+          'Main Hall',
+          {
+            ...report,
+            hardConflicts: [
+              { bookingId: 'hold', eventName: 'Gala', status: BookingStatus.HELD, ...window },
+            ],
+            blocks: [],
+          },
+          new Set(),
+        ),
+      ).toEqual([
+        'Main Hall has a tentative hold for "Gala" at the new time (setup and turnaround included).',
+      ]);
+    });
+
     it('reads without a venue or event name', () => {
       expect(
         venueConflicts(
           null,
-          { ...report, hardConflicts: [{ bookingId: 'r', eventName: null, ...window }], blocks: [] },
+          {
+            ...report,
+            hardConflicts: [
+              { bookingId: 'r', eventName: null, status: BookingStatus.APPROVED, ...window },
+            ],
+            blocks: [],
+          },
           new Set(),
         ),
       ).toEqual([

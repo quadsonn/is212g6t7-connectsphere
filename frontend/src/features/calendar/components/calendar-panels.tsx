@@ -10,12 +10,13 @@ import { Input } from '@/components/ui/input';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState } from '@/components/ui/states';
 import { ConflictList } from '@/features/bookings/components/conflict-list';
+import { NeedsReviewBadge } from '@/features/bookings/components/needs-review-badge';
 import { apiErrorMessage, fieldErrors } from '@/lib/api-client';
 import { addDays, todayInVenueTime } from '@/lib/calendar';
 import { FULL_DAY_TIME_SLOTS } from '@/lib/date-time';
 import { cn, formatDateRange } from '@/lib/utils';
 import type { CalendarEntry, CalendarView, VenueBlockResult } from '@/types/api';
-import { ENTRY_STYLES } from '../calendar-utils';
+import { ENTRY_STYLES, holdExpiryLabel } from '../calendar-utils';
 import { useVenueBlocks } from '../hooks/use-calendar';
 
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
@@ -59,7 +60,15 @@ export function EntryDetail({
       </CardHeader>
       <CardContent className="space-y-4">
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Detail label="Status">{style.label}</Detail>
+          <Detail label="Status">
+            {style.label}
+            {holdExpiryLabel(entry) ? ` · ${holdExpiryLabel(entry)}` : ''}
+            {entry.needsReview ? (
+              <span className="mt-1 block">
+                <NeedsReviewBadge />
+              </span>
+            ) : null}
+          </Detail>
           <Detail label="Venue">{venueName ?? '—'}</Detail>
           <Detail label="Time">{formatDateRange(entry.start, entry.end)}</Detail>
           {entry.kind === 'BLOCKED' ? (
@@ -71,6 +80,11 @@ export function EntryDetail({
             <>
               <Detail label="Organiser">{entry.organiserName ?? '—'}</Detail>
               <Detail label="Expected attendance">{entry.expectedAttendance ?? '—'}</Detail>
+              {entry.needsReview ? (
+                <div className="sm:col-span-2">
+                  <Detail label="Why it needs review">{entry.needsReviewReason ?? '—'}</Detail>
+                </div>
+              ) : null}
             </>
           )}
         </dl>
@@ -103,7 +117,7 @@ export function EntryDetail({
             )
           ) : (
             <LinkButton to={`/venues/bookings/${entry.id}`} size="sm">
-              Open request
+              {entry.kind === 'TENTATIVE' ? 'Open hold' : 'Open request'}
             </LinkButton>
           )}
         </div>

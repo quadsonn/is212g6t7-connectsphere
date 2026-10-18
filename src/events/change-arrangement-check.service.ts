@@ -17,6 +17,7 @@ import {
   venueConflicts,
   VenueBookingCheck,
 } from './change-arrangement-check';
+import { liveBookingsWhere } from '../bookings/booking-overlap';
 import { capacityWarnings } from './change-request.rules';
 
 /** The parts of a change request the check reads. */
@@ -73,8 +74,12 @@ export class ChangeArrangementCheckService {
   ): Promise<ArrangementCheck> {
     const window = this.windows(request, event);
 
-    const bookings = await db.venueBooking.findMany({
-      where: { eventId: event.id, status: { in: LIVE_BOOKING_STATUSES } },
+    // The event's live bookings, (US-54) live holds included: a hold can be
+    // outgrown too, so it counts for the capacity warning. Holds are not
+    // checked at the new time — a move releases them rather than rebooking
+    // them (BookingsService.rebookForEventChange).
+    const live = await db.venueBooking.findMany({
+      where: { eventId: event.id, ...liveBookingsWhere() },
       orderBy: [{ start: 'asc' }, { id: 'asc' }],
       select: {
         id: true,
@@ -86,8 +91,9 @@ export class ChangeArrangementCheckService {
       },
     });
 
+    const bookings = live.filter((b) => LIVE_BOOKING_STATUSES.includes(b.status));
     const venueBookings = await this.checkVenues(db, bookings, window);
-    const warnings = capacityWarnings(request.proposedAttendance, bookings);
+    const warnings = capacityWarnings(request.proposedAttendance, live);
     for (const warning of warnings) {
       const booking = venueBookings.find((b) => b.bookingId === warning.bookingId);
       if (booking) booking.capacityWarning = warning.message;

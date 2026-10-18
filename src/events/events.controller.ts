@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -18,7 +19,6 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
-import { AssignCoordinatorDto } from './dto/assign-coordinator.dto';
 import { AskClarificationDto } from './dto/ask-clarification.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
 import { RespondClarificationDto } from './dto/respond-clarification.dto';
@@ -28,10 +28,13 @@ import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
 import { UpdatePlanningDto } from './dto/update-planning.dto';
 import { TechnicalRequirementsDto } from './dto/technical-requirements.dto';
+import { CancelEventDto } from './dto/cancel-event.dto';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { RejectChangeRequestDto } from './dto/reject-change-request.dto';
+import { EventsCancellationService } from './events-cancellation.service';
 import { EventsChangeReviewService } from './events-change-review.service';
 import { EventsChangeRequestService } from './events-change-request.service';
+import { EventConfirmationService } from './event-confirmation.service';
 import { EventsService } from './events.service';
 import { EventsUnfulfillableService } from './events-unfulfillable.service';
 
@@ -48,6 +51,8 @@ export class EventsController {
     private readonly changeRequests: EventsChangeRequestService,
     private readonly changeReviews: EventsChangeReviewService,
     private readonly unfulfillable: EventsUnfulfillableService,
+    private readonly confirmation: EventConfirmationService,
+    private readonly cancellation: EventsCancellationService,
   ) {}
 
   /**
@@ -190,27 +195,6 @@ export class EventsController {
   }
 
   /**
-   * US-10 — assign or reassign the event's main point of contact.
-   *
-   * @Roles(EVENT_COORDINATOR) per CLAUDE.md §1, which gives the Coordinator
-   * role "assigns/coordinates events". The matrix grants EVENT/ASSIGN at ANY
-   * scope so a peer's event can be reassigned (AC-2).
-   *
-   * PATCH rather than POST: this replaces a single field on an existing
-   * resource and is idempotent — assigning the same Coordinator twice leaves
-   * the same state.
-   */
-  @Patch(':id/coordinator')
-  @Roles(Role.EVENT_COORDINATOR)
-  assignCoordinator(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-    @Body() dto: AssignCoordinatorDto,
-  ) {
-    return this.eventsService.assignCoordinator(user, id, dto);
-  }
-
-  /**
    * US-25 prerequisite — APPROVED -> PLANNING, through setStatus(). Without
    * it no event could reach the status the story edits.
    */
@@ -257,6 +241,50 @@ export class EventsController {
     return this.eventsService.setTechnicalRequirements(user, id, dto);
   }
 
+  /** US-42 AC-1/AC-2 — what is ready to confirm and what is outstanding. */
+  @Get(':id/confirmation-readiness')
+  @Roles(Role.EVENT_COORDINATOR)
+  getConfirmationReadiness(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.confirmation.readinessFor(user, id);
+  }
+
+  /** US-42 AC-3/AC-4 — confirm the arrangements; on to the safety check. */
+  @Post(':id/confirm')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  confirmArrangements(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.confirmation.confirm(user, id);
+  }
+
+  /** US-42 — tick a free-text equipment line as checked by hand. */
+  @Post(':id/requirements/:reqId/manual-confirm')
+  @Roles(Role.EVENT_COORDINATOR)
+  @HttpCode(HttpStatus.OK)
+  manualConfirmRequirement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('reqId') reqId: string,
+  ) {
+    return this.confirmation.manualConfirm(user, id, reqId);
+  }
+
+  /** US-42 — undo the tick. */
+  @Delete(':id/requirements/:reqId/manual-confirm')
+  @Roles(Role.EVENT_COORDINATOR)
+  undoManualConfirmRequirement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('reqId') reqId: string,
+  ) {
+    return this.confirmation.undoManualConfirm(user, id, reqId);
+  }
+
   /** US-26 — the event's change history, oldest first. */
   @Get(':id/history')
   @Roles(Role.EVENT_COORDINATOR)
@@ -265,36 +293,6 @@ export class EventsController {
     @Param('id') id: string,
   ) {
     return this.eventsService.getChangeHistory(user, id);
-  }
-
-  /**
-   * US-27 AC-1 — who the responsible Coordinator may hand this event to.
-   * Scoped to the event so the same ownership check guards both routes.
-   */
-  @Get(':id/reassignment-candidates')
-  @Roles(Role.EVENT_COORDINATOR)
-  getReassignmentCandidates(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ) {
-    return this.eventsService.getReassignmentCandidates(user, id);
-  }
-
-  /**
-   * US-27 — the responsible Coordinator confirms handing the event to a
-   * colleague. A separate route from US-10's PATCH /events/:id/coordinator:
-   * that one lets any Coordinator claim any event silently, this one is
-   * limited to the current owner and notifies and records the change.
-   */
-  @Post(':id/reassign')
-  @Roles(Role.EVENT_COORDINATOR)
-  @HttpCode(HttpStatus.OK)
-  reassign(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-    @Body() dto: AssignCoordinatorDto,
-  ) {
-    return this.eventsService.reassign(user, id, dto);
   }
 
   /**
@@ -310,6 +308,22 @@ export class EventsController {
     @Body() dto: CreateChangeRequestDto,
   ) {
     return this.changeRequests.request(user, id, dto);
+  }
+
+  /**
+   * US-43 — the Organiser cancels their own event. POST with a body rather than
+   * DELETE: the event is kept (as CANCELLED), and the reason and confirmation
+   * travel with the request.
+   */
+  @Post(':id/cancel')
+  @Roles(Role.EVENT_ORGANISER)
+  @HttpCode(HttpStatus.OK)
+  cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CancelEventDto,
+  ) {
+    return this.cancellation.cancel(user, id, dto);
   }
 
   /** US-04 AC-4 — DRAFT -> SUBMITTED, through setStatus(). */

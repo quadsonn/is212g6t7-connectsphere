@@ -29,6 +29,9 @@ export const EVENT_STATUSES = [
   'REJECTED',
   'PLANNING',
   'AWAITING_ARRANGEMENTS',
+  // US-42: arrangements confirmed; waiting for the Safety Officer.
+  'AWAITING_SAFETY_CHECK',
+  'SAFETY_REJECTED',
   'CONFIRMED',
   'COMPLETED',
   'CANCELLED',
@@ -164,6 +167,9 @@ export interface EventRequest {
   decisionReason: string | null;
   /** US-05: what a Coordinator asked the Organiser to clarify. */
   clarificationRequest: string | null;
+  /** US-42 AC-4: when, and by whom, the Coordinator confirmed the arrangements. */
+  arrangementsConfirmedAt?: string | null;
+  arrangementsConfirmedById?: string | null;
   createdAt: string;
   updatedAt: string;
   clarifications?: ClarificationMessage[];
@@ -179,6 +185,22 @@ export interface EquipmentRequirement {
   equipmentType: string;
   quantity: number;
   notes: string | null;
+  /** US-42: a free-text line the Coordinator has checked by hand. */
+  manuallyConfirmedAt?: string | null;
+  manuallyConfirmedById?: string | null;
+}
+
+/** US-42 — one line of the confirmation checklist. */
+export interface ReadinessItem {
+  kind: 'VENUE' | 'EQUIPMENT';
+  label: string;
+  status: 'OK' | 'MISSING' | 'NEEDS_MANUAL_CHECK';
+}
+
+/** US-42 — GET /events/:id/confirmation-readiness. */
+export interface ConfirmationReadiness {
+  ready: boolean;
+  items: ReadinessItem[];
 }
 
 /** PATCH /events/:id/technical-requirements. Omit a key to leave it as is. */
@@ -243,7 +265,10 @@ export interface FieldChange {
     | 'technicalSupportNeeds'
     // US-48 AC-7: what an approved change request rebooked.
     | 'venueBookings'
-    | 'equipmentReservations';
+    | 'equipmentReservations'
+    // US-43: a cancellation is recorded as the status move plus its reason.
+    | 'status'
+    | 'cancellationReason';
   previous: string | number | boolean | string[] | null;
   next: string | number | boolean | string[] | null;
 }
@@ -277,6 +302,8 @@ export interface EventStatusView {
 
 /** GET /events/mine — the Organiser's status view (US-05). */
 export interface OrganiserRequestView extends EventRequest {
+  /** The assigned Coordinator, resolved to contact details; null until assigned. */
+  coordinator?: ContactSummary | null;
   statusView: EventStatusView;
   /** Derived server-side from clarificationRequest; never stored. */
   clarificationRequested: boolean;
@@ -286,7 +313,8 @@ export interface OrganiserRequestView extends EventRequest {
   latestChangeDecision?: ChangeRequest | null;
 }
 
-export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+/** CLOSED (US-43): withdrawn without a decision because the event was cancelled. */
+export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CLOSED';
 
 /** US-37 — one line of a proposed equipment list. */
 export interface ChangeRequestEquipmentLine {
@@ -554,6 +582,9 @@ export interface Venue {
   /** The shared US-06 lookup, same values an event request uses. */
   supportedLayouts: RoomLayout[];
   operatingInfo: string | null;
+  /** US-49: minutes the venue is occupied before / after each event (0-480). */
+  setupMinutes: number;
+  turnaroundMinutes: number;
   status: VenueStatus;
   /** The Venue Staff member who owns this entry (US-13 AC-4). */
   managedById: string | null;
@@ -561,6 +592,34 @@ export interface Venue {
   updatedAt: string;
   imageUrls: string[];
 }
+
+/** US-49 — PATCH /venues/:id/buffers. US-51: `confirmConflicts` is "save anyway". */
+export interface VenueBuffersPayload {
+  setupMinutes: number;
+  turnaroundMinutes: number;
+  confirmConflicts?: boolean;
+}
+
+/** US-51 — one side of a buffer clash. */
+export interface BufferClashParty {
+  bookingId: string;
+  eventName: string | null;
+  start: string;
+  end: string;
+}
+
+/** US-51 — a booking the new buffers would flag, and what it would clash with. */
+export interface BufferClash extends BufferClashParty {
+  clashesWith: BufferClashParty;
+}
+
+/** US-51 — POST /venues/:id/buffers/preview, and the 409 body of a refused save. */
+export interface BufferPreview {
+  clashes: BufferClash[];
+}
+
+/** US-51 — PATCH /venues/:id/buffers: the venue plus how many bookings were flagged. */
+export type VenueBuffersResult = Venue & { flagged: number };
 
 /** US-14 — a warning returned alongside an edit that may invalidate bookings. */
 export interface VenueUpdateWarning {
@@ -834,9 +893,30 @@ export type RegistrationStatus = 'REGISTERED' | 'WITHDRAWN';
 /** US-34 AC-2 — the registration form. Name and email come from the account. */
 export interface RegisterPayload {
   eventId: string;
+  /** International format with country code; the server stores it as E.164. */
   phone: string;
-  dietaryRequirements?: string;
+  /** A standard option; omitted when none is needed or the need is not listed. */
+  accessibilityFeature?: AccessibilityFeature;
+  /** The Attendee's own request, or detail beyond the option chosen. */
   accessibilityNeeds?: string;
+}
+
+/** Why the Register option is unavailable; mirrors RegisterBlock in the backend. */
+export type RegisterBlock = 'NOT_OPEN_TO_REGISTRATION' | 'NOT_YET_OPEN' | 'CLOSED' | 'FULL';
+
+/** GET /registrations/events/:eventId/options — may I register, and if not, why. */
+export interface RegistrationOptionsView {
+  eventId: string;
+  canRegister: boolean;
+  block: RegisterBlock | null;
+  /** Server-worded cause, for blocks the UI has no wording of its own for. */
+  reason: string | null;
+  opensAt: string | null;
+  closesAt: string | null;
+  alreadyRegistered: boolean;
+  registeredCount: number;
+  /** The event's registration capacity; null means no limit. */
+  capacity: number | null;
 }
 
 /** US-35/US-36 — one of the caller's registrations, with the event's current details. */
@@ -846,7 +926,7 @@ export interface RegistrationView {
   registeredAt: string;
   withdrawnAt: string | null;
   phone: string;
-  dietaryRequirements: string | null;
+  accessibilityFeature: AccessibilityFeature | null;
   accessibilityNeeds: string | null;
   event: {
     id: string;
@@ -904,9 +984,27 @@ export interface VenueWithWarnings extends Venue {
 }
 /**
  * Mirrors the backend BookingStatus enum. REQUESTED is "pending" (US-21 AC-3).
- * RELEASED (US-52 AC-5): given up once a replacement for it was confirmed.
+ * US-54: HELD is a tentative hold, live only until holdExpiresAt. RELEASED is
+ * a hold released by Venue Staff or by expiry, (US-43/US-44) any booking
+ * given back because its event was cancelled, (US-48) the original of a
+ * rebooked booking, or (US-52 AC-5) a booking given up once a replacement for
+ * it was confirmed.
  */
-export type BookingStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'RELEASED';
+export type BookingStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'HELD' | 'RELEASED';
+
+/** US-43 — what an Organiser sends to cancel an event. */
+export interface CancelEventPayload {
+  reason: string;
+  confirm: true;
+}
+
+/** US-43 — what the cancellation released and who was told. */
+export interface CancellationResult {
+  event: EventRequest;
+  released: { venueBookings: number; equipmentReservations: number };
+  closedChangeRequests: number;
+  notified: number;
+}
 
 /**
  * US-21 AC-4/AC-5 — something occupying a requested slot: an existing
@@ -966,7 +1064,21 @@ export interface VenueBooking {
   replacesBookingId: string | null;
   /** US-52 AC-5: on the original, the replacement whose approval released it. */
   replacedByBookingId: string | null;
+  /**
+   * US-51: "Conflict - needs review" — a buffer change made this booking
+   * clash with another. Never changes start, end or status.
+   */
+  needsReview: boolean;
+  needsReviewReason: string | null;
+  flaggedAt: string | null;
+  reviewResolvedAt: string | null;
+  reviewResolvedById: string | null;
+  /** US-54: a tentative hold — when it expires, who placed it, how it ended. */
+  holdExpiresAt: string | null;
+  heldById: string | null;
+  holdWarningSentAt: string | null;
   releasedAt: string | null;
+  releaseReason: string | null;
 }
 
 /** US-52 AC-2 — GET /bookings/replacements-needed: a booking still to replace. */
@@ -981,14 +1093,37 @@ export interface ReplacementNeeded extends VenueBooking {
   }[];
 }
 
+/** US-54 — GET /venues/:venueId/holdable-events: an event a hold may be placed for. */
+export interface HoldableEvent {
+  id: string;
+  name: string | null;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  expectedAttendance: number | null;
+  coordinator: { id: string; name: string } | null;
+}
+
+/** US-54 — POST /venues/:venueId/holds. */
+export interface PlaceHoldPayload {
+  eventId: string;
+  start: string;
+  end: string;
+  expiresAt: string;
+}
+
 /** US-23 — one recorded decision. Append-only: never edited after the fact. */
 export interface BookingDecision {
   id: string;
-  kind: 'DECISION' | 'REVERSAL';
+  /**
+   * US-51: REVIEW_RESOLVED clears a conflict flag; outcome is the unchanged status.
+   * US-44: RELEASE — released because the event was cancelled.
+   */
+  kind: 'DECISION' | 'REVERSAL' | 'REVIEW_RESOLVED' | 'RELEASE';
   outcome: BookingStatus;
   reason: string | null;
   createdAt: string;
-  decidedBy: ContactSummary & { role: Role };
+  /** US-44: null when the system recorded it (a cancellation with no known actor). */
+  decidedBy: (ContactSummary & { role: Role }) | null;
   /** US-41 AC-7: alternatives attached to this decision (rejections only). */
   suggestions: BookingSuggestion[];
 }
@@ -1125,8 +1260,11 @@ export interface BookingQueueEntry extends VenueBooking {
   daysUntilStart: number;
 }
 
-/** US-16 — what occupies a calendar slot. Anything else is available. */
-export type CalendarEntryKind = 'TENTATIVE' | 'CONFIRMED' | 'BLOCKED';
+/**
+ * US-16 — what occupies a calendar slot. Anything else is available.
+ * US-54: TENTATIVE is a live hold; a pending request is PENDING.
+ */
+export type CalendarEntryKind = 'PENDING' | 'TENTATIVE' | 'CONFIRMED' | 'BLOCKED';
 
 export interface CalendarEntry {
   /** Booking id, or block id when kind is BLOCKED. */
@@ -1140,6 +1278,11 @@ export interface CalendarEntry {
   expectedAttendance: number | null;
   reason: string | null;
   createdByName: string | null;
+  /** US-51: "Conflict - needs review", alongside kind. Always false for a block. */
+  needsReview: boolean;
+  needsReviewReason: string | null;
+  /** US-54 AC-4: when a TENTATIVE hold expires; null otherwise. */
+  holdExpiresAt: string | null;
 }
 
 /** GET /calendar */
@@ -1199,6 +1342,164 @@ export interface UnfulfillableRejection {
   releasedEquipmentReservations: number;
 }
 
+// ---------------------------------------------------------------------------
+// Event Coordinator Lead — unassigned queue and assignments (/assignments)
+// ---------------------------------------------------------------------------
+
+/** One row of GET /assignments/queue. */
+export interface QueueEntry {
+  id: string;
+  name: string | null;
+  organiser: ContactSummary;
+  /** The Organiser's client organisation; null until one is recorded. */
+  organisation: string | null;
+  category: string | null;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  expectedAttendance: number | null;
+  submittedAt: string | null;
+}
+
+/** GET /assignments/queue/:id — a queued request opened before assigning. */
+export interface QueuedRequestDetail extends QueueEntry {
+  status: EventStatus;
+  purpose: string | null;
+  description: string | null;
+  preferredLayout: string | null;
+  layoutNotes: string | null;
+}
+
+/** GET /assignments — one Coordinator and the active events they hold. */
+export interface CoordinatorAssignments {
+  coordinator: ContactSummary;
+  activeCount: number;
+  events: {
+    id: string;
+    name: string | null;
+    status: EventStatus;
+    eventDate: string | null;
+  }[];
+}
+
+/** POST /assignments/queue/:id/assign and /assignments/events/:id/reassign. */
+export interface AssignmentResult {
+  id: string;
+  name: string | null;
+  status: EventStatus;
+  coordinator: ContactSummary;
+}
+
+// ---------------------------------------------------------------------------
+// Safety Officer — the operational safety check (/safety)
+// ---------------------------------------------------------------------------
+
+export type SafetyOutcome = 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+export type SafetyReturnStage = 'VENUE' | 'TECHNICAL';
+
+/** One safety check of an event; the history keeps every one. */
+export interface SafetyReview {
+  id: string;
+  eventId: string;
+  outcome: SafetyOutcome;
+  reason: string | null;
+  returnStage: SafetyReturnStage | null;
+  emergencyAccessComment: string | null;
+  crowdMovementComment: string | null;
+  equipmentPlacementComment: string | null;
+  accessibilityComment: string | null;
+  /** The arrangements the Coordinator is asked to rework and have re-reviewed. */
+  affectedArrangements: ('VENUE_BOOKING' | 'EQUIPMENT_RESERVATION')[];
+  /** When the Coordinator sent the event back for a new check; null until then. */
+  resubmittedAt: string | null;
+  /** What the Coordinator told the Safety Officer when sending it back. */
+  resubmissionComment: string | null;
+  createdAt: string;
+  officer: ContactSummary;
+}
+
+/** One row of GET /safety/queue. */
+export interface SafetyQueueEntry {
+  id: string;
+  name: string | null;
+  coordinator: ContactSummary | null;
+  expectedAttendance: number | null;
+  proposedStart: string | null;
+  venues: { name: string | null; capacity: number | null }[];
+  queuedAt: string | null;
+  /** Above zero means this is a re-check. */
+  previousReviews: number;
+  lastOutcome: SafetyOutcome | null;
+}
+
+/** GET /safety/events/:id — everything needed to decide. */
+export interface SafetyReviewPacket {
+  event: {
+    id: string;
+    name: string | null;
+    purpose: string | null;
+    category: string | null;
+    status: EventStatus;
+    proposedStart: string | null;
+    proposedEnd: string | null;
+    expectedAttendance: number | null;
+    preferredLayout: string | null;
+    layoutNotes: string | null;
+    accessibilityRequirements: AccessibilityFeature[];
+    accessibilityNotes: string | null;
+    equipmentNeeds: string | null;
+    technicalSupportNeeds: string | null;
+    coordinator: ContactSummary | null;
+    organiser: ContactSummary;
+  };
+  venues: {
+    bookingId: string;
+    start: string;
+    end: string;
+    venue: {
+      id: string;
+      name: string | null;
+      location: string | null;
+      capacity: number | null;
+      supportedLayouts: string[];
+      accessibilityFeatures: string[];
+      layoutNotes: string | null;
+      operatingInfo: string | null;
+    };
+    /** Spare places once the expected attendance is seated; negative is over. */
+    capacityMargin: number | null;
+    blocks: { id: string; start: string; end: string; reason: string }[];
+  }[];
+  equipment: {
+    requirements: {
+      equipmentId: string | null;
+      equipmentType: string;
+      quantity: number;
+      notes: string | null;
+    }[];
+    reservations: {
+      id: string;
+      equipmentType: string;
+      quantity: number;
+      start: string;
+      end: string;
+    }[];
+  };
+  history: SafetyReview[];
+}
+
+export interface SafetyDecisionPayload {
+  outcome: SafetyOutcome;
+  reason?: string;
+  returnStage?: SafetyReturnStage;
+  emergencyAccessComment?: string;
+  crowdMovementComment?: string;
+  equipmentPlacementComment?: string;
+  accessibilityComment?: string;
+}
+
+/** POST /safety/events/:id/decision — the recorded review, plus where the event went. */
+export type SafetyDecisionResult = SafetyReview & { eventStatus: EventStatus };
+
 /** Notifications page — GET /notifications: one of the reader's own notifications. */
 export interface InboxNotification {
   id: string;
@@ -1212,6 +1513,14 @@ export interface InboxNotification {
   readAt: string | null;
   createdAt: string;
   relatedEvent: { id: string; name: string | null } | null;
-  /** The related event's page for this reader's role; null if none. */
+  /** US-40 AC-3: the booking request it is about, and so its venue. */
+  relatedBooking: { id: string; venue: { id: string; name: string | null } } | null;
+  /** Where it leads for this reader's role; null if nowhere. */
   link: string | null;
+}
+
+/** US-40 — GET /notifications paging: `cursor` is the last id already shown. */
+export interface NotificationsPageQuery {
+  limit?: number;
+  cursor?: string;
 }

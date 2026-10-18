@@ -750,9 +750,23 @@ describe('US-48 check arrangements on a change request (e2e)', () => {
           message: 'Your change request for "conf" was approved; the event has been updated.',
         }),
       ]);
+      // AC-9's decision notice goes to the Organiser alone.
       for (const who of ['staff', 'tech', 'attendee', 'coordinator']) {
-        expect(await notificationsTo(who)).toEqual([]);
+        expect(
+          (await notificationsTo(who)).filter((n) => n.type === NotificationType.CHANGE_REQUEST_DECIDED),
+        ).toEqual([]);
       }
+      // US-40 AC-1, a separate notice: the venue's manager is told once that
+      // the approved booking moved, naming the new booking that kept the approval.
+      expect(await notificationsTo('staff')).toEqual([
+        expect.objectContaining({
+          type: NotificationType.BOOKING_DETAILS_CHANGED,
+          message: expect.stringContaining('The approval carries over; no new decision is needed.'),
+        }),
+      ]);
+      expect(await notificationsTo('tech')).toEqual([]);
+      expect(await notificationsTo('attendee')).toEqual([]);
+      expect(await notificationsTo('coordinator')).toEqual([]);
     });
 
     it('not on a refused approval — nothing was decided', async () => {

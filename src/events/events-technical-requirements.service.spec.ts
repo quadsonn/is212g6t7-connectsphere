@@ -12,6 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { describeRequirement } from './event-change.rules';
 import { EventsService } from './events.service';
+import { BookingsService } from '../bookings/bookings.service';
 
 /** US-28 — recording equipment and technical requirements. */
 describe('EventsService technical requirements (US-28)', () => {
@@ -98,6 +99,7 @@ describe('EventsService technical requirements (US-28)', () => {
       access as unknown as AccessControlService,
       { notify: jest.fn(), notifySafely: jest.fn() } as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
   });
 

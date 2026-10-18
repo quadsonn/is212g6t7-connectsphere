@@ -11,6 +11,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BookingsService } from './bookings.service';
 import { canDecide } from './booking.types';
 import { ApproveBookingDto, RejectBookingDto, ReverseBookingDto } from './dto/booking-decision.dto';
+import { HoldNotifier } from './hold-notifier';
+import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /** US-23 — Approve/Reject Booking Request with Reason. */
 describe('BookingsService decisions (US-23)', () => {
@@ -25,6 +27,7 @@ describe('BookingsService decisions (US-23)', () => {
     venue: { findUnique: jest.Mock };
     venueBlock: { findMany: jest.Mock };
     $executeRaw: jest.Mock;
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let access: { requireScope: jest.Mock };
@@ -65,6 +68,8 @@ describe('BookingsService decisions (US-23)', () => {
       venue: { findUnique: jest.fn().mockResolvedValue(null) },
       venueBlock: { findMany: jest.fn().mockResolvedValue([]) },
       $executeRaw: jest.fn().mockResolvedValue(1),
+      // US-54: releaseExpiredHolds finds no expired holds.
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(),
     };
     prisma.$transaction.mockImplementation((fn) => fn(prisma));
@@ -75,6 +80,8 @@ describe('BookingsService decisions (US-23)', () => {
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
+      { placed: jest.fn(), expiring: jest.fn(), expired: jest.fn(), released: jest.fn(), converted: jest.fn() } as unknown as HoldNotifier,
     );
   });
 
@@ -155,6 +162,22 @@ describe('BookingsService decisions (US-23)', () => {
         relatedEventId: 'event-1',
         message: expect.stringContaining('Maintenance'),
       });
+    });
+
+    it('starts the message with a capital letter', async () => {
+      await service.approve(staff, 'booking-1', {});
+
+      expect(notifications.notifySafely.mock.calls[0][0].message).toBe(
+        'The booking of Main Hall for "Showcase" was approved.',
+      );
+    });
+
+    it('keeps the reason after the sentence, still capitalised', async () => {
+      await service.reject(staff, 'booking-1', { reason: 'Maintenance' });
+
+      expect(notifications.notifySafely.mock.calls[0][0].message).toBe(
+        'The booking of Main Hall for "Showcase" was rejected. Reason: Maintenance',
+      );
     });
 
     it('lets the Organiser read bookings on their own events', async () => {
@@ -244,6 +267,102 @@ describe('BookingsService decisions (US-23)', () => {
       ]);
 
       await expect(service.approve(staff, 'booking-1', {})).resolves.toBeDefined();
+    });
+  });
+
+  describe('Attendee notice: an approval that replaces the venue notifies registered Attendees', () => {
+    let notifier: { notifyRegisteredAttendees: jest.Mock };
+    let noticeService: BookingsService;
+
+    const earlier = (venueName: string, approvedAt: string) => ({
+      venue: { name: venueName },
+      decisions: [{ createdAt: new Date(approvedAt) }],
+    });
+
+    /** conflictsFor() reads findMany first; the replacement lookup reads it second. */
+    const withReplacements = (rows: unknown[]) =>
+      prisma.venueBooking.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce(rows);
+
+    beforeEach(() => {
+      notifier = { notifyRegisteredAttendees: jest.fn().mockResolvedValue(0) };
+      noticeService = new BookingsService(
+        prisma as unknown as PrismaService,
+        access as unknown as AccessControlService,
+        notifications as unknown as NotificationsService,
+        { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn() } as unknown as VenueActivityNotifier,
+        { placed: jest.fn(), expired: jest.fn() } as unknown as HoldNotifier,
+        undefined,
+        notifier as never,
+      );
+    });
+
+    it('AC-1/AC-3: names the event and shows the old and the new venue', async () => {
+      withReplacements([earlier('Old Hall', '2030-01-01T00:00:00Z')]);
+
+      await noticeService.approve(staff, 'booking-1', {});
+
+      expect(notifier.notifyRegisteredAttendees).toHaveBeenCalledTimes(1);
+      expect(notifier.notifyRegisteredAttendees).toHaveBeenCalledWith(
+        { id: 'event-1', name: 'Showcase' },
+        [{ label: 'Venue', previous: 'Old Hall', next: 'Main Hall' }],
+      );
+    });
+
+    it('looks only at other venues of this event whose approval was later withdrawn', async () => {
+      withReplacements([]);
+
+      await noticeService.approve(staff, 'booking-1', {});
+
+      expect(prisma.venueBooking.findMany.mock.calls[1][0].where).toEqual({
+        eventId: 'event-1',
+        venueId: { not: 'venue-1' },
+        status: BookingStatus.REJECTED,
+        decisions: { some: { outcome: BookingStatus.APPROVED } },
+      });
+    });
+
+    it('AC-5: a further venue approved alongside an approved one replaces nothing', async () => {
+      withReplacements([]);
+
+      await noticeService.approve(staff, 'booking-1', {});
+
+      expect(notifier.notifyRegisteredAttendees).not.toHaveBeenCalled();
+    });
+
+    it('AC-5: of several replaced venues, the most recently approved one is named', async () => {
+      withReplacements([
+        earlier('First Hall', '2030-01-01T00:00:00Z'),
+        earlier('Second Hall', '2030-03-01T00:00:00Z'),
+      ]);
+
+      await noticeService.approve(staff, 'booking-1', {});
+
+      expect(notifier.notifyRegisteredAttendees.mock.calls[0][1]).toEqual([
+        { label: 'Venue', previous: 'Second Hall', next: 'Main Hall' },
+      ]);
+    });
+
+    it('a rejection is not a venue change and does not even look', async () => {
+      await noticeService.reject(staff, 'booking-1', { reason: 'Double-booked' });
+
+      expect(notifier.notifyRegisteredAttendees).not.toHaveBeenCalled();
+      // No replacement lookup. (US-51's re-check of the venue's review flags
+      // does read bookings after any decision; that is not this.)
+      const lookups = prisma.venueBooking.findMany.mock.calls.filter(
+        ([query]: [{ where?: { needsReview?: boolean } }]) => !query.where?.needsReview,
+      );
+      expect(lookups).toEqual([]);
+    });
+
+    it('never fails the approval if the replacement lookup errors', async () => {
+      prisma.venueBooking.findMany
+        .mockResolvedValueOnce([])
+        .mockRejectedValueOnce(new Error('db hiccup'));
+
+      await expect(noticeService.approve(staff, 'booking-1', {})).resolves.toMatchObject({
+        status: BookingStatus.APPROVED,
+      });
+      expect(notifier.notifyRegisteredAttendees).not.toHaveBeenCalled();
     });
   });
 });

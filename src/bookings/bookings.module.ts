@@ -8,6 +8,12 @@ import { VenueUnavailabilityService } from './venue-unavailability.service';
 import { CalendarController } from './calendar.controller';
 import { CalendarService } from './calendar.service';
 import { VenueBookingLookup } from './booking-impact';
+import { BookingReviewService } from './booking-review.service';
+import { HoldExpiryScheduler } from './hold-expiry.scheduler';
+import { HoldNotifier } from './hold-notifier';
+import { HoldsController } from './holds.controller';
+import { HoldsService } from './holds.service';
+import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /**
  * E5 — venue booking requests, approval, conflict detection, and (US-16)
@@ -18,16 +24,28 @@ import { VenueBookingLookup } from './booking-impact';
  */
 @Module({
   imports: [NotificationsModule],
-  controllers: [BookingsController, CalendarController],
+  controllers: [BookingsController, CalendarController, HoldsController],
   providers: [
     BookingsService,
     BookingSuggestionsService,
+    BookingReviewService,
     CalendarService,
     VenueUnavailabilityService,
+    VenueActivityNotifier,
+    // US-54: tentative holds.
+    HoldNotifier,
+    HoldsService,
+    HoldExpiryScheduler,
     { provide: VenueBookingLookup, useExisting: BookingsService },
   ],
   // VenueUnavailabilityService: the #57 hook (US-52) — exported for the
   // module that will mark venues unavailable.
-  exports: [VenueBookingLookup, BookingsService, VenueUnavailabilityService],
+  exports: [
+    VenueBookingLookup,
+    BookingsService,
+    BookingReviewService,
+    VenueActivityNotifier,
+    VenueUnavailabilityService,
+  ],
 })
 export class BookingsModule {}

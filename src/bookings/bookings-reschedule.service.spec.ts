@@ -4,6 +4,8 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookingsService } from './bookings.service';
+import { HoldNotifier } from './hold-notifier';
+import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /**
  * US-48 AC-7 — an approved change request moves the event, so each live booking
@@ -47,19 +49,43 @@ describe('BookingsService.rebookForEventChange (US-48 AC-7)', () => {
   });
 
   let tx: {
-    venueBooking: { findMany: jest.Mock; create: jest.Mock; update: jest.Mock };
+    venueBooking: { findMany: jest.Mock; create: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
     bookingDecision: { createMany: jest.Mock };
+    venue: { findUniqueOrThrow: jest.Mock };
     $executeRaw: jest.Mock;
   };
   let calls: string[];
   let service: BookingsService;
+  // The event's live bookings; and (US-51) the venue's flagged bookings,
+  // which the re-check after the move asks for separately.
+  let liveRows: ReturnType<typeof row>[];
+  let flaggedRows: { id: string; status: BookingStatus }[];
+  // US-54: the event's live holds, which are released rather than moved.
+  let heldRows: { id: string; venueId: string; status: BookingStatus }[];
+  let holdNotifier: { released: jest.Mock };
 
   beforeEach(() => {
     calls = [];
     let n = 0;
+    liveRows = [row()];
+    flaggedRows = [];
+    heldRows = [];
+    holdNotifier = { released: jest.fn() };
     tx = {
       venueBooking: {
-        findMany: jest.fn().mockResolvedValue([row()]),
+        // The event's live bookings; (US-54) its live holds; (US-51) a venue's
+        // flagged bookings, which the re-check after the rebook asks for.
+        findMany: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve(
+            where.needsReview
+              ? flaggedRows
+              : where.status === BookingStatus.HELD
+                ? heldRows
+                : where.eventId
+                  ? liveRows
+                  : [],
+          ),
+        ),
         create: jest.fn().mockImplementation(() => {
           calls.push('create');
           return Promise.resolve({ id: `new-${++n}` });
@@ -68,16 +94,24 @@ describe('BookingsService.rebookForEventChange (US-48 AC-7)', () => {
           calls.push(`update ${where.id} ${data.status}`);
           return Promise.resolve({});
         }),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       bookingDecision: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      venue: { findUniqueOrThrow: jest.fn().mockResolvedValue({ setupMinutes: 0, turnaroundMinutes: 0 }) },
       $executeRaw: jest.fn().mockResolvedValue(1),
     };
     service = new BookingsService(
       {} as PrismaService,
       {} as AccessControlService,
       {} as NotificationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
+      holdNotifier as unknown as HoldNotifier,
     );
   });
+
+  const setLiveRows = (rows: ReturnType<typeof row>[]) => {
+    liveRows = rows;
+  };
 
   const run = (attendance: number | null = null) =>
     service.rebookForEventChange(tx as never, 'event-1', from, to, attendance);
@@ -152,13 +186,15 @@ describe('BookingsService.rebookForEventChange (US-48 AC-7)', () => {
       data: {
         status: BookingStatus.RELEASED,
         releasedAt: expect.any(Date),
+        // US-54's field, filled in by the merged rebook.
+        releaseReason: "Rebooked for the event's new details",
         replacedByBookingId: 'new-1',
       },
     });
   });
 
   it('US-48 AC-7: releases every original before approving any replacement (no overlap with its own bookings)', async () => {
-    tx.venueBooking.findMany.mockResolvedValue([
+    setLiveRows([
       row(),
       row({ id: 'booking-2', start: at(1, 18), end: at(1, 20), decisions: [] }),
     ]);
@@ -176,7 +212,7 @@ describe('BookingsService.rebookForEventChange (US-48 AC-7)', () => {
   });
 
   it('US-48 AC-7: a pending booking stays pending', async () => {
-    tx.venueBooking.findMany.mockResolvedValue([row({ status: BookingStatus.REQUESTED, decisions: [] })]);
+    setLiveRows([row({ status: BookingStatus.REQUESTED, decisions: [] })]);
 
     const moved = await run();
 
@@ -186,7 +222,7 @@ describe('BookingsService.rebookForEventChange (US-48 AC-7)', () => {
   });
 
   it('US-48 AC-7: locks each venue once, as every booking write does', async () => {
-    tx.venueBooking.findMany.mockResolvedValue([
+    setLiveRows([
       row(),
       row({ id: 'booking-2', venueId: 'venue-2' }),
       row({ id: 'booking-3' }),
@@ -212,10 +248,83 @@ describe('BookingsService.rebookForEventChange (US-48 AC-7)', () => {
   });
 
   it('US-48: does nothing for an event with no live bookings', async () => {
-    tx.venueBooking.findMany.mockResolvedValue([]);
+    setLiveRows([]);
 
     await expect(run()).resolves.toEqual([]);
     expect(tx.venueBooking.create).not.toHaveBeenCalled();
     expect(tx.venueBooking.update).not.toHaveBeenCalled();
+  });
+
+  it('US-51: re-checks review flags on each venue a booking moved on', async () => {
+    liveRows = [
+      row(),
+      row({ id: 'booking-2', venueId: 'venue-2', status: BookingStatus.REQUESTED }),
+    ];
+
+    await run();
+
+    const flagQueries = tx.venueBooking.findMany.mock.calls.filter(([args]) => args.where.needsReview);
+    expect(flagQueries.map(([args]) => args.where.venueId)).toEqual(['venue-1', 'venue-2']);
+  });
+
+  it('US-51: clears a flag the move resolved', async () => {
+    flaggedRows = [{ id: 'other', status: BookingStatus.APPROVED }];
+
+    await run();
+
+    // Nothing is live on the venue any more in this mock, so nothing clashes.
+    expect(tx.venueBooking.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['other'] } } }),
+    );
+  });
+
+  it('US-54: releases the event’s live holds instead of rebooking them, and tells the Coordinator', async () => {
+    heldRows = [{ id: 'hold-1', venueId: 'venue-1', status: BookingStatus.HELD }];
+
+    await run();
+
+    expect(tx.venueBooking.update).toHaveBeenCalledWith({
+      where: { id: 'hold-1' },
+      data: expect.objectContaining({ status: BookingStatus.RELEASED, releaseReason: 'Event rescheduled' }),
+    });
+    expect(holdNotifier.released).toHaveBeenCalledWith(tx, 'hold-1', 'Event rescheduled');
+    // Only the live booking is rebooked, not the hold.
+    expect(tx.venueBooking.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('US-48 AC-7: releases each original with why, through the REBOOK transition', async () => {
+    await run();
+
+    expect(tx.venueBooking.update).toHaveBeenCalledWith({
+      where: { id: 'booking-1' },
+      data: expect.objectContaining({
+        status: BookingStatus.RELEASED,
+        releaseReason: "Rebooked for the event's new details",
+        replacedByBookingId: 'new-1',
+      }),
+    });
+  });
+
+  it('US-51: re-checks review flags on each venue a booking was rebooked on', async () => {
+    setLiveRows([
+      row(),
+      row({ id: 'booking-2', venueId: 'venue-2', status: BookingStatus.REQUESTED }),
+    ]);
+
+    await run();
+
+    const flagQueries = tx.venueBooking.findMany.mock.calls.filter(([args]) => args.where.needsReview);
+    expect(flagQueries.map(([args]) => args.where.venueId)).toEqual(['venue-1', 'venue-2']);
+  });
+
+  it('US-51: clears a flag the rebook resolved', async () => {
+    flaggedRows = [{ id: 'other', status: BookingStatus.APPROVED }];
+
+    await run();
+
+    // Nothing else is live on the venue in this mock, so nothing clashes.
+    expect(tx.venueBooking.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['other'] } } }),
+    );
   });
 });

@@ -47,7 +47,10 @@ export type HistoryField =
   // US-48 AC-7: what an approved change request moved — each line says where
   // a venue booking or equipment reservation was, and where it is now.
   | 'venueBookings'
-  | 'equipmentReservations';
+  | 'equipmentReservations'
+  // US-43: a cancellation is recorded as the status move plus its reason.
+  | 'status'
+  | 'cancellationReason';
 
 /** US-26 AC-2 — one field's previous and new value. */
 export interface FieldChange {

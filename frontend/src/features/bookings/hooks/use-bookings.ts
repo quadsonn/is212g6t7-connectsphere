@@ -8,6 +8,8 @@ import type {
   BookingRequestPayload,
   ReplacementNeeded,
   VenueArrangement,
+  HoldableEvent,
+  PlaceHoldPayload,
   VenueBooking,
 } from '@/types/api';
 import { bookingsApi } from '../api/bookings.api';
@@ -23,6 +25,7 @@ export const bookingKeys = {
   alternatives: (id: string) => ['bookings', 'alternatives', id] as const,
   replacementsNeeded: ['bookings', 'replacements-needed'] as const,
   arrangement: (eventId: string) => ['bookings', 'arrangement', eventId] as const,
+  holdable: (venueId: string) => ['bookings', 'holdable', venueId] as const,
 };
 
 /**
@@ -88,6 +91,22 @@ export function useDecideBooking() {
   });
 
   return { approve, reject, reverse };
+}
+
+/**
+ * US-51 — clear a "Conflict - needs review" flag by hand. Refreshes bookings
+ * and the calendar, where the flag is also shown.
+ */
+export function useResolveReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note?: string }) => bookingsApi.resolveReview(id, note),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      // calendarKeys.all — not imported, since use-calendar imports this file.
+      void queryClient.invalidateQueries({ queryKey: ['calendar'] });
+    },
+  });
 }
 
 /**
@@ -183,5 +202,41 @@ export function useReleaseBooking() {
   return useMutation({
     mutationFn: (id: string) => bookingsApi.release(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: bookingKeys.all }),
+  });
+}
+
+/**
+ * US-54 — place, convert, extend and release holds. Each refreshes every
+ * booking query and the calendar, where holds show as Tentative.
+ */
+export function useHolds() {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+    // calendarKeys.all — not imported, since use-calendar imports this file.
+    void queryClient.invalidateQueries({ queryKey: ['calendar'] });
+  };
+
+  return {
+    place: useMutation({
+      mutationFn: ({ venueId, payload }: { venueId: string; payload: PlaceHoldPayload }) =>
+        bookingsApi.placeHold(venueId, payload),
+      onSuccess: invalidate,
+    }),
+    convert: useMutation({ mutationFn: (id: string) => bookingsApi.convertHold(id), onSuccess: invalidate }),
+    extend: useMutation({
+      mutationFn: ({ id, expiresAt }: { id: string; expiresAt: string }) => bookingsApi.extendHold(id, expiresAt),
+      onSuccess: invalidate,
+    }),
+    release: useMutation({ mutationFn: (id: string) => bookingsApi.releaseHold(id), onSuccess: invalidate }),
+  };
+}
+
+/** US-54 — the events a hold may be placed for on this venue. */
+export function useHoldableEvents(venueId: string) {
+  return useQuery<HoldableEvent[]>({
+    queryKey: bookingKeys.holdable(venueId),
+    queryFn: () => bookingsApi.holdableEvents(venueId),
+    enabled: Boolean(venueId),
   });
 }

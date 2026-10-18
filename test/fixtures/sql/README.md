@@ -158,7 +158,7 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 
 | Script | Creates | Used by (TC-S2-) |
 |---|---|---|
-| `tc-s2-01-setup.sql` | a second Venue Staff member with one published venue | 01, 02, 05, 08, 40, 41 |
+| `tc-s2-01-setup.sql` | a second Venue Staff member with one published venue | 01, 02, 05, 08, 40, 41, 48, 60 |
 | `tc-s2-02-setup.sql` | one booking of each status on Main Hall, one booking on another staff member's venue, and one blocked period on Seminar Room | 02 |
 | `tc-s2-04-setup.sql` | two confirmed bookings on Main Hall, two and a half weeks apart, so each calendar window can be shown to include or exclude them | 04 |
 | `tc-s2-05-setup.sql` | one confirmed booking on each of two of u-venue-staff's venues, and one on another staff member's venue, all on the same day | 05 |
@@ -192,9 +192,26 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-44-setup.sql` | requests on two venues, at different dates and in every status, for the filters | 44, 47 |
 | `tc-s2-45-setup.sql` | pending requests far away, near (3 days), and already started (-1 day) | 45 |
 | `tc-s2-47-setup.sql` | two pending requests, to be approved and rejected through the API | 47 |
+| `tc-s2-48-setup.sql` | one pending request on Main Hall, waiting for a Venue Staff decision | 48, 49, 50, 51, 52, 53, 54, 58, 59, 60, 61, 64 |
+| `tc-s2-52-setup.sql` | a second Event Organiser, unrelated to any Sprint 2 event | 52 |
+| `tc-s2-55-setup.sql` | two pending requests on Main Hall whose times overlap, so only one can ever be approved | 53, 55, 57, 62, 63, 64 |
+| `tc-s2-56-setup.sql` | five venues, each with a pending request and one confirmed booking in a different position against it (touching before, touching after, one-minute overlap, inside, covering) | 56 |
+| `tc-s2-57-setup.sql` | a pending request on Main Hall with a confirmed, a pending and a rejected booking overlapping it | 57 |
+| `tc-s2-58-setup.sql` | a blocked-out period on Main Hall overlapping the tc-s2-48 request | 58 |
+| `tc-s2-61-setup.sql` | a confirmed booking on Main Hall overlapping the tc-s2-48 request | 61, 64 |
+| `tc-s2-64-setup.sql` | back-to-back confirmed bookings and two identical pending ones, which the no-overlap constraint must allow | 64 |
+| `tc-s2-68-setup.sql` | an event in planning, assigned to u-coordinator-a, with nothing booked or changed yet | 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80 |
+| `tc-s2-70-setup.sql` | two events assigned to u-coordinator-a that are not in planning (one under review, one approved) | 70 |
+| `tc-s2-71-setup.sql` | an approved Main Hall booking for the tc-s2-68 event | 71, 72, 73, 74 |
+| `tc-s2-72-setup.sql` | a projector in the catalogue and an approved reservation of it for the tc-s2-68 event | 72 |
+| `tc-s2-73-setup.sql` | a Main Hall booking for the tc-s2-68 event, still only requested | 73 |
+| `tc-s2-74-setup.sql` | a projector and a requested reservation for the tc-s2-68 event, plus an unrelated event in planning | 74 |
+| `tc-s2-76-setup.sql` | three recorded changes to the tc-s2-68 event, stored out of date order | 76 |
+| `tc-s2-77-setup.sql` | a request returned to its Organiser for changes | 77 |
 
-Extra user added by `tc-s2-01-setup.sql` (same password as the base users):
+Extra users added by Sprint 2 scripts (same password as the base users):
 
 | ID | Email | Name | Role |
 |---|---|---|---|
-| `u-venue-staff-b` | venue.staff.b@example.com | Victor Venue | VENUE_STAFF |
+| `u-venue-staff-b` | venue.staff.b@example.com | Victor Venue | VENUE_STAFF (`tc-s2-01-setup.sql`) |
+| `u-organiser-b` | other.organiser@example.com | Oscar Organiser | EVENT_ORGANISER (`tc-s2-52-setup.sql`) |

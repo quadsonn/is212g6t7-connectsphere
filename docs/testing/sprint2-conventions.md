@@ -50,13 +50,16 @@ Sprint 2 follows [CONVENTIONS.md](CONVENTIONS.md) (the shared rules: test databa
 ## In each integration test
 
 ```ts
-// TC-S2-XX · setup: base-users + base-venues + tc-s2-XX-setup · fails if <the bug this catches>
+// TC-S2-XX · US-NN AC-N · setup: base-users + base-venues + tc-s2-XX-setup · fails if <the bug this catches>
+// Code: <what the code under test does that makes this pass: the method, DTO, guard or constraint>
 it('<behaviour, in words>', async () => {
   await given('tc-s2-XX-setup');   // Arrange: the script the test case names
   ...                              // Act, then Assert
 });
 ```
 
+- The file's header comment names the story (`US-NN (Story NN)`) and summarises the code under test: the routes, service methods and rules the tests exercise.
+- From Story 22 on, each test's comment also names its story and AC (`US-NN AC-N`) and has a `Code:` line. Stories 16–21 carry the story in the file header and `describe` titles only.
 - `beforeEach`: `resetDb(prisma)`, then `loadSql` of the base scripts the file needs.
 - The app uses `configureApp(app)` and `app.listen(0, '127.0.0.1')`, as in the converted Sprint 1 specs.
 - Users log in once in `beforeAll`. Their IDs are fixed, so the tokens stay valid after every reset.
@@ -71,10 +74,15 @@ UI-only ACs (switching calendar views, the phone layout, visual styling) have ma
 
 ## Code gaps found while writing Sprint 2 test cases
 
-These ACs are not (fully) implemented. No failing test is written for them; the test case Remarks record each gap.
+These ACs are not (fully) implemented, or don't behave as the AC asks. The test case Remarks record each one. A gap with nothing to test has a test case with no automated test (Status Fail). A bug in existing behaviour is captured with `it.failing`, which passes while the bug is there and alerts once it is fixed, so it can become a plain `it`.
 
 | Story | AC | Gap |
 |---|---|---|
 | 17 | AC-1 | Blocked-off periods (Story 16) are not shown on the Coordinator's venue calendar. |
 | 19 | AC-3 | Facilities are not checked against the event's equipment/technical requirements (TC-S2-30, Status Fail). |
 | 20 | AC-2 | The structured equipment list and "technical support needed" (Story 27) are not attached to a booking request; only the free-text equipment notes are. |
+| 22 | AC-2 | **Bug:** a rejection (or reversal) reason of only spaces is accepted and saved as an empty reason; `RejectBookingDto`/`ReverseBookingDto` lack `@Trim()` (TC-S2-49, Status Fail, `it.failing`). |
+| 23 | AC-5 | A hard conflict can be resolved by reversing the confirmed booking, but there is no way to *reassign* it (move it to another time or venue). |
+| 23 | AC-6 | Buffer time is not applied. Superseded: a code comment in `BookingsService.conflictsFor()` records that the customer said it isn't needed (TC-S2-66, Status N/A). |
+| 23 | AC-7 | A booking request's time can't be edited, so there is no edit to re-check (TC-S2-67, Status Fail). |
+| 24 | AC-2 | Changes are flagged for review, but the AC doesn't say who reviews them or how the flag is cleared; neither is built. |

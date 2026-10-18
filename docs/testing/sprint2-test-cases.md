@@ -16,8 +16,9 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Value | Meaning |
 |---|---|
 | Status **Pass** | The automated test ran and the system behaved as expected. |
-| Status **Fail** | The system does not yet do what the AC asks (a code gap). The automated test documents current behaviour. |
+| Status **Fail** | The system does not yet do what the AC asks (a bug or code gap). Where there is an automated test, it documents current behaviour; `it.failing` marks a bug the test expects to stay failing until it is fixed. |
 | Status **Not Executed** | A manual test case not yet run. |
+| Status **N/A** | The AC was superseded by a customer clarification; Remarks say where it is recorded. |
 | Remarks **Code gap** | Part of the AC is not implemented; the test proves what currently happens. |
 
 **Run the tests:** `npm run test:e2e -- test/<file>.e2e-spec.ts`, against the local `connectsphere_test` database only.
@@ -659,7 +660,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Status | Fail |
 | Remarks | Code gap: AC-3 is not implemented. The test proves the check is reported as "not checked" (facilities and equipment null, with a reason) rather than faked as a pass. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution |  |
+| Date of Execution | 2026-10-18 |
 | Automated by | `test/venues-suitability.e2e-spec.ts::US-19: returns null for both with the reason` |
 
 ### TC-S2-31
@@ -1022,3 +1023,746 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
 | Automated by | `test/bookings-queue.e2e-spec.ts::moves a request out of Pending as soon as it is approved or rejected`<br>`test/bookings-queue.e2e-spec.ts::shows approved and rejected requests only under view=decided` |
+
+## Story 22: Approve/Reject Booking Request with Reason (Venue Staff)
+
+### TC-S2-48
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-48 |
+| Story/AC ref | Story 22 Access |
+| Test Scenario | Only the Venue Staff member managing the venue can approve or reject its requests |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql + tc-s2-01-setup.sql on testDB (reset before test). Logged in as venue.staff.b@example.com (Victor Venue); coord.a@example.com. |
+| Test Steps | 1. As Victor Venue, approve the pending "Showcase" request on Main Hall.<br>2. As the Coordinator, approve it. |
+| Test Data | Pending "Showcase", Main Hall (managed by Vera Venue), 1 Oct 2030 09:00-12:00 UTC |
+| Expected Result | Victor Venue gets not found (404); the Coordinator is refused (403). The request stays pending. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | AC-1 itself (approve and reject are on the request detail view) is about the screen: TC-S2-81 (manual). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-decision.e2e-spec.ts::is refused for another staff member's venue (404) and for a Coordinator (403)` |
+
+### TC-S2-49
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-49 |
+| Story/AC ref | Story 22 AC-2 |
+| Test Scenario | Rejecting a request requires a reason |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Reject "Showcase" with an empty reason.<br>2. Reject it with a reason of three spaces.<br>3. Reject it with "Under maintenance". |
+| Test Data | Pending "Showcase" |
+| Expected Result | The empty and blank reasons are refused (400) and the request stays pending. With a reason it is REJECTED and the reason is saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | The empty reason is refused and a real reason is saved, but a reason of three spaces is accepted (200) and saved as an empty reason. |
+| Status | Fail |
+| Remarks | Bug: a reason of only spaces is accepted and saved as an empty reason, because RejectBookingDto (and ReverseBookingDto) do not trim before checking. Captured with it.failing; fix by adding @Trim() above @IsNotEmpty(), as the Sprint 1 DTOs do. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-decision.e2e-spec.ts::refuses a rejection without a reason, and changes nothing`<br>`test/bookings-decision.e2e-spec.ts::refuses a reason made only of spaces`<br>`test/bookings-decision.e2e-spec.ts::rejects with a reason` |
+
+### TC-S2-50
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-50 |
+| Story/AC ref | Story 22 AC-3 |
+| Test Scenario | Approving a request takes an optional note |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Approve "Showcase" with no note.<br>2. (Reset) Approve it with the note "Doors open 8am". |
+| Test Data | Pending "Showcase" |
+| Expected Result | Both approvals succeed (APPROVED). The note, when given, is saved with the decision. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-decision.e2e-spec.ts::approves with no body at all`<br>`test/bookings-decision.e2e-spec.ts::approves with a note` |
+
+### TC-S2-51
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-51 |
+| Story/AC ref | Story 22 AC-4 |
+| Test Scenario | Every decision is timestamped and names who made it |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Reject "Showcase" with reason "Too small". |
+| Test Data | Pending "Showcase" |
+| Expected Result | The decision history holds one entry: DECISION, REJECTED, "Too small", a valid time, decided by Vera Venue (Venue Staff). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-decision.e2e-spec.ts::returns a decision history entry naming the staff member` |
+
+### TC-S2-52
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-52 |
+| Story/AC ref | Story 22 AC-5 |
+| Test Scenario | The Coordinator and the event's Organiser can see the decision and reason; others can't |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql + tc-s2-52-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; organiser@example.com; other.organiser@example.com. |
+| Test Steps | 1. As Venue Staff, reject "Showcase" with "Under maintenance".<br>2. Open the event's venue requests as the Coordinator, the Organiser and another Organiser. |
+| Test Data | Pending "Showcase"; a second Organiser (tc-s2-52) |
+| Expected Result | The Coordinator and the Organiser see REJECTED with the reason and its history, and each got a notification. The other Organiser sees nothing. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-decision.e2e-spec.ts::shows it to both on GET /bookings/events/:eventId, and notifies both`<br>`test/bookings-decision.e2e-spec.ts::hides it from an unrelated Organiser` |
+
+### TC-S2-53
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-53 |
+| Story/AC ref | Story 22 AC-6 |
+| Test Scenario | Reversing a decision is a new recorded action, with a reason, and keeps the original |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql + tc-s2-55-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Approve "Showcase" with note "OK", then reverse it with "Venue flooded".<br>2. Try reversing without a reason, and reversing a request nobody has decided.<br>3. Reject "First", approve the overlapping "Second", then reverse "First". |
+| Test Data | Pending "Showcase"; pending "First" 09:00-12:00 and "Second" 10:00-13:00 on Main Hall |
+| Expected Result | The reversal makes it REJECTED and the history shows both entries, the approval first. No reason is refused (400); reversing an undecided request is refused (409). Reversing "First" into an approval is refused (409) because "Second" now holds the slot. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-decision.e2e-spec.ts::keeps the original decision and appends the reversal`<br>`test/bookings-decision.e2e-spec.ts::requires a reason to reverse`<br>`test/bookings-decision.e2e-spec.ts::refuses to reverse a request that has not been decided (409)`<br>`test/bookings-decision.e2e-spec.ts::re-checks the slot when a rejection is reversed into an approval` |
+
+### TC-S2-54
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-54 |
+| Story/AC ref | Story 22 AC-7 |
+| Test Scenario | The same request cannot be decided twice, even by a double click |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Approve "Showcase", then approve or reject it again.<br>2. (Reset) Send two approvals at the same moment. |
+| Test Data | Pending "Showcase" |
+| Expected Result | The second decision is refused (409) and only one decision is recorded, in both cases. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | The "action is disabled/hidden" part of AC-7 is about the screen: TC-S2-81 (manual). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-decision.e2e-spec.ts::refuses a second approve or reject (409) and records nothing more`<br>`test/bookings-decision.e2e-spec.ts::lets only one of two simultaneous approvals through` |
+
+### TC-S2-55
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-55 |
+| Story/AC ref | Story 22 AC-3 (with Story 23 AC-5) |
+| Test Scenario | Approving checks the slot is still free |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-55-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Approve "First".<br>2. Approve "Second", which overlaps it. |
+| Test Data | Pending "First" 09:00-12:00 and "Second" 10:00-13:00 on Main Hall |
+| Expected Result | "Second" is refused (409), naming "First" as the conflict, and stays pending. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-decision.e2e-spec.ts::refuses to approve a second, overlapping request` |
+
+### TC-S2-81
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-81 |
+| Story/AC ref | Story 22 AC-1, AC-2, AC-7 |
+| Test Scenario | Approve and reject from the request detail view; the actions disappear once decided |
+| Pre-conditions | Log in as venue.staff@example.com on the running app. A pending booking request exists on a venue you manage, with no confirmed booking overlapping it. |
+| Test Steps | 1. Open Booking requests and click the pending request.<br>2. In the Decision panel, choose Reject and try to submit without a reason.<br>3. Enter a reason and submit.<br>4. Look at the Decision panel again. |
+| Test Data | Seed data on the running app |
+| Expected Result | The detail view shows Approve and Reject. Reject cannot be submitted until a reason is entered. After the decision, Approve and Reject are gone; only the recorded decision and "Reverse this decision" are shown. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result |  |
+| Status | Not Executed |
+| Remarks | Manual: the AC is about the user interface. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | Manual |
+
+## Story 23: Overlapping Booking Detection (Venue Staff)
+
+### TC-S2-56
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-56 |
+| Story/AC ref | Story 23 AC-1, AC-4 |
+| Test Scenario | The check compares the request with every booking on the venue, and names each conflict |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-56-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Check conflicts for each of the five pending requests. |
+| Test Data | Five venues, each with a pending request 09:00-12:00 and a confirmed booking that ends at 09:00, starts at 12:00, overlaps by a minute, sits inside, or covers it |
+| Expected Result | Touching bookings (ending at 09:00 or starting at 12:00) are not conflicts; the other three are. The "inside" conflict is named as "Gala", 10:00-11:00. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-conflicts.e2e-spec.ts::a confirmed booking that %s: conflict = %s`<br>`test/bookings-conflicts.e2e-spec.ts::names the event and time range of each conflict` |
+
+### TC-S2-57
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-57 |
+| Story/AC ref | Story 23 AC-2, AC-3 |
+| Test Scenario | Confirmed overlaps are hard conflicts, pending ones are soft, and the two are kept apart |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-57-setup.sql + tc-s2-55-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Check conflicts for "Target".<br>2. Check conflicts for "First" (only a pending overlap). |
+| Test Data | "Target" 09:00-12:00 with confirmed "Confirmed", pending "Pending" and rejected "Turned down" around it; tc-s2-55 |
+| Expected Result | "Confirmed" is listed as hard and "Pending" as soft; the rejected booking and "Target" itself are not listed. "First" has a soft conflict ("Second") and no hard conflict. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-conflicts.e2e-spec.ts::lists confirmed overlaps as hard and pending ones as soft, ignoring rejected ones and itself`<br>`test/bookings-conflicts.e2e-spec.ts::reports a pending-only overlap as soft, without a hard conflict` |
+
+### TC-S2-58
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-58 |
+| Story/AC ref | Story 23 AC-1, AC-2 |
+| Test Scenario | A blocked-out period (Story 16) overlapping the request is a hard conflict |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql + tc-s2-58-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Check conflicts for "Showcase". |
+| Test Data | Pending "Showcase" 09:00-12:00; block "Maintenance" 11:00-15:00 on Main Hall |
+| Expected Result | The block is listed with its reason and times, and the request is marked as hard-conflicting. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-conflicts.e2e-spec.ts::lists an overlapping block, and marks the request as hard-conflicting` |
+
+### TC-S2-59
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-59 |
+| Story/AC ref | Story 23 AC-1 |
+| Test Scenario | A request with nothing around it has no conflicts |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Check conflicts for "Showcase". |
+| Test Data | Pending "Showcase" only |
+| Expected Result | Empty hard, soft and block lists; no hard conflict. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-conflicts.e2e-spec.ts::reports nothing` |
+
+### TC-S2-60
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-60 |
+| Story/AC ref | Story 23 Access |
+| Test Scenario | Only the venue's own Venue Staff can run the check |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql + tc-s2-01-setup.sql on testDB (reset before test). Logged in as venue.staff.b@example.com; coord.a@example.com. |
+| Test Steps | 1. Check conflicts for "Showcase" as Victor Venue, then as the Coordinator. |
+| Test Data | Pending "Showcase" on Main Hall (Vera Venue's) |
+| Expected Result | Victor Venue gets not found (404); the Coordinator is refused (403). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-conflicts.e2e-spec.ts::hides the booking from another Venue Staff member (404)`<br>`test/bookings-conflicts.e2e-spec.ts::refuses a Coordinator (403)` |
+
+### TC-S2-61
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-61 |
+| Story/AC ref | Story 23 AC-5 |
+| Test Scenario | A request that hard-conflicts cannot be approved until the conflicting booking is resolved |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql + tc-s2-61-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Approve "Showcase".<br>2. Reverse "Confirmed" with reason "Event moved online", then approve "Showcase" again. |
+| Test Data | Pending "Showcase" 09:00-12:00; confirmed "Confirmed" 11:00-13:00 on Main Hall |
+| Expected Result | The first approval is refused (409, BOOKING_HARD_CONFLICT, naming "Confirmed"); nothing is recorded and the request stays pending. After the reversal, the approval succeeds. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | AC-5 also says "or reassign": there is no way to move the conflicting booking to another time or venue; it can only be reversed. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-conflicts.e2e-spec.ts::refuses approval with 409 and leaves the request pending`<br>`test/bookings-conflicts.e2e-spec.ts::allows approval once the conflicting booking has been reversed` |
+
+### TC-S2-62
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-62 |
+| Story/AC ref | Story 23 AC-3, AC-5 |
+| Test Scenario | A soft conflict warns but does not block approval |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-55-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Approve "First". |
+| Test Data | Pending "First" 09:00-12:00 and "Second" 10:00-13:00 |
+| Expected Result | Approved, with an OVERLAPS_PENDING_REQUEST warning naming "Second". |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-conflicts.e2e-spec.ts::approves with a warning naming the pending request` |
+
+### TC-S2-63
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-63 |
+| Story/AC ref | Story 23 AC-5 |
+| Test Scenario | Approval re-checks at that moment, not trusting what the page showed earlier |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-55-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Check conflicts for "First" (soft only).<br>2. Approve "Second".<br>3. Approve "First". |
+| Test Data | tc-s2-55 |
+| Expected Result | The check first shows no hard conflict, but the approval of "First" is refused (409) because "Second" was approved meanwhile. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-conflicts.e2e-spec.ts::catches a conflict that appeared after the page loaded` |
+
+### TC-S2-64
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-64 |
+| Story/AC ref | Story 23 AC-5 |
+| Test Scenario | Two overlapping bookings can never both be confirmed, even at the same moment or by writing to the database directly |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-55-setup.sql + tc-s2-48-setup.sql + tc-s2-61-setup.sql + tc-s2-64-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Approve "First" and "Second" at the same moment.<br>2. Set "Showcase" to APPROVED directly in the database while "Confirmed" overlaps it.<br>3. Load tc-s2-64 (back-to-back confirmed, overlapping pending). |
+| Test Data | tc-s2-55; tc-s2-48 + tc-s2-61; tc-s2-64 |
+| Expected Result | Exactly one approval succeeds, the other is refused (409). The direct write fails with the database constraint (23P01). The tc-s2-64 rows all load. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/bookings-conflicts.e2e-spec.ts::lets exactly one of two simultaneous overlapping approvals through`<br>`test/bookings-conflicts.e2e-spec.ts::is backed by the database: a direct write of an overlapping APPROVED booking fails`<br>`test/bookings-conflicts.e2e-spec.ts::still allows back-to-back APPROVED bookings and overlapping pending ones` |
+
+### TC-S2-65
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-65 |
+| Story/AC ref | Story 23 AC-5 |
+| Test Scenario | The migration adding the database constraint refuses to run over existing double bookings |
+| Pre-conditions | None from test/fixtures/sql: each test creates a throwaway schema in testDB with its own VenueBooking rows, runs the migration on it, then drops it. |
+| Test Steps | 1. Run the migration over clean rows.<br>2. Run it over rows with two clashing pairs of confirmed bookings.<br>3. Run it over a confirmed booking that ends before it starts. |
+| Test Data | Rows created per test (see the test file) |
+| Expected Result | Clean rows: the constraint is added and every row is kept. Clashing rows: the migration stops, names each pair, and changes nothing. The backwards row is reported too. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | The migration folder keeps the old label (us24); migration folders are never renamed. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/booking-overlap-migration.e2e-spec.ts::US-23: adds the constraint when existing data is clean (back-to-back and pending overlaps are fine)`<br>`test/booking-overlap-migration.e2e-spec.ts::US-23: stops and lists existing overlapping APPROVED bookings, changing nothing`<br>`test/booking-overlap-migration.e2e-spec.ts::US-23: also reports APPROVED bookings whose end is before their start` |
+
+### TC-S2-66
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-66 |
+| Story/AC ref | Story 23 AC-6 |
+| Test Scenario | Overlap detection accounts for buffer/setup time between events, if configured for the venue |
+| Pre-conditions | Not applicable: the behaviour this AC describes does not exist yet. |
+| Test Steps | 1. — |
+| Test Data | — |
+| Expected Result | With a buffer configured, a booking starting within the buffer after another ends is flagged as a conflict. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Venues have no buffer setting; bookings are compared on their exact times and back-to-back bookings are allowed (TC-S2-56). |
+| Status | N/A |
+| Remarks | Superseded: per the comment in BookingsService.conflictsFor(), the customer clarified buffer time is not needed. Confirm this is recorded with the customer. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | None (nothing to automate yet) |
+
+### TC-S2-67
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-67 |
+| Story/AC ref | Story 23 AC-7 |
+| Test Scenario | If the requested time is edited, the overlap check re-runs against the new time before proceeding |
+| Pre-conditions | Not applicable: the behaviour this AC describes does not exist yet. |
+| Test Steps | 1. — |
+| Test Data | — |
+| Expected Result | After a request's time is edited, the conflicts shown and the approval check use the new time. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | A booking request's time cannot be edited, so there is no edit to re-check. The check itself is recomputed on every call and every approval (TC-S2-63), so an edit flow would get it automatically. |
+| Status | Fail |
+| Remarks | Code gap: no way to edit a booking request's time. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | None (nothing to automate yet) |
+
+### TC-S2-82
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-82 |
+| Story/AC ref | Story 23 AC-1, AC-2, AC-3, AC-4, AC-5 |
+| Test Scenario | See hard and soft conflicts while reviewing a request |
+| Pre-conditions | Log in as venue.staff@example.com. On a venue you manage: a pending request A; a confirmed booking overlapping A; another pending request overlapping A. |
+| Test Steps | 1. Open Booking requests and click request A.<br>2. Read the conflicts shown above the decision buttons.<br>3. Try to approve A. |
+| Test Data | Seed data on the running app |
+| Expected Result | Conflicts are listed while reviewing: the confirmed booking as a hard conflict and the pending request as a soft conflict/warning, visibly different, each with its event name and time range. Approve is unavailable because of the hard conflict; Reject is still available. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result |  |
+| Status | Not Executed |
+| Remarks | Manual: the AC is about the user interface. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | Manual |
+
+## Story 24: Update event information during planning (Event Coordinator)
+
+### TC-S2-68
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-68 |
+| Story/AC ref | Story 24 AC-1 |
+| Test Scenario | The assigned Coordinator's edits to an event in planning are saved |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Edit the programme and expected attendance (350).<br>2. (Reset) Edit only the attendance. |
+| Test Data | Event "Freshman Orientation 2030", PLANNING, 320 expected, "Two projectors" |
+| Expected Result | Both values are saved and returned; fields not sent (name, equipment) are unchanged; the status stays PLANNING. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::saves the programme and attendance to the event record`<br>`test/events-planning-history.e2e-spec.ts::leaves fields that were not sent untouched`<br>`test/events-planning-history.e2e-spec.ts::does not change the status` |
+
+### TC-S2-69
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-69 |
+| Story/AC ref | Story 24 AC-1 |
+| Test Scenario | Invalid planning edits are refused |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Set the name to empty, then to null.<br>2. Set the end to 08:00, before the stored 09:00 start. |
+| Test Data | tc-s2-68 event |
+| Expected Result | Each is refused (400), naming the problem; nothing is saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::rejects emptying a required field`<br>`test/events-planning-history.e2e-spec.ts::rejects an end before the stored start` |
+
+### TC-S2-70
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-70 |
+| Story/AC ref | Story 24 AC-1 |
+| Test Scenario | Only the assigned Coordinator can make planning edits, and only once planning has started |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql + tc-s2-70-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; coord.b@example.com; organiser@example.com. |
+| Test Steps | 1. Edit the UNDER_REVIEW event.<br>2. Edit the planning event as another Coordinator, and as the Organiser.<br>3. Start planning on the APPROVED event, then edit it. |
+| Test Data | tc-s2-68 event; "Still under review" (UNDER_REVIEW) and "Approved, not yet planning" (APPROVED) |
+| Expected Result | Not in planning: refused (409). Other Coordinator: not found (404). Organiser: refused (403). Starting planning moves the approved event to PLANNING, after which it can be edited. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::refuses an event that is not in planning (409)`<br>`test/events-planning-history.e2e-spec.ts::hides the event from a Coordinator it is not assigned to (404)`<br>`test/events-planning-history.e2e-spec.ts::refuses the Organiser, even for their own event (403)`<br>`test/events-planning-history.e2e-spec.ts::moves an approved event into planning, after which it can be edited` |
+
+### TC-S2-71
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-71 |
+| Story/AC ref | Story 24 AC-2 |
+| Test Scenario | A change affecting an already-confirmed venue booking is flagged for review |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql + tc-s2-71-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Change the expected attendance to 500.<br>2. Open the event's history. |
+| Test Data | tc-s2-68 event with an APPROVED booking on Main Hall |
+| Expected Result | The change is saved and flagged: requires review, affecting VENUE_BOOKING. The history entry carries the same flag. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | AC-2 does not say who reviews the flag or how it is cleared; neither is built. AC-2 also names "venue": the venue is not an event field, so it cannot change through a planning edit; it changes only through a new booking request (Story 20). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::flags an attendance change when the venue booking is approved`<br>`test/events-planning-history.e2e-spec.ts::keeps the flag on the history entry` |
+
+### TC-S2-72
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-72 |
+| Story/AC ref | Story 24 AC-2 |
+| Test Scenario | A date change is flagged against every confirmed arrangement |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql + tc-s2-71-setup.sql + tc-s2-72-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Move the event to 2 Oct 2030. |
+| Test Data | APPROVED venue booking and APPROVED projector reservation |
+| Expected Result | Flagged, affecting VENUE_BOOKING and EQUIPMENT_RESERVATION. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::flags a date change against both venue and equipment` |
+
+### TC-S2-73
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-73 |
+| Story/AC ref | Story 24 AC-2 |
+| Test Scenario | Changes nothing confirmed depends on are ordinary |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql + tc-s2-73-setup.sql + tc-s2-71-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. With only a REQUESTED booking, change the attendance.<br>2. With an APPROVED booking, change only the programme. |
+| Test Data | tc-s2-73 (requested booking); tc-s2-71 (approved booking) |
+| Expected Result | Neither change is flagged (requires review false, no arrangements listed). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::treats the change as ordinary when the booking is only requested`<br>`test/events-planning-history.e2e-spec.ts::treats a programme change as ordinary even with confirmed arrangements` |
+
+### TC-S2-74
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-74 |
+| Story/AC ref | Story 24 AC-3 |
+| Test Scenario | Relevant users see the latest saved information, and only for events related to them |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql + tc-s2-71-setup.sql + tc-s2-74-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com; tech.support@example.com; coord.a@example.com. |
+| Test Steps | 1. Edit the event (attendance 500, equipment "Three projectors", programme).<br>2. Open it as Venue Staff, Technical Support and the Coordinator.<br>3. List events as Venue Staff; open an event with no booking as Venue Staff. |
+| Test Data | tc-s2-71 (booking on Main Hall); tc-s2-74 (requested projector reservation; "Unrelated event") |
+| Expected Result | Each sees the updated values. Venue Staff's list holds only the booked event; an event with no booking on their venues is not found (404). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::shows Venue Staff the updated event when it has a booking`<br>`test/events-planning-history.e2e-spec.ts::shows Technical Support the updated equipment needs`<br>`test/events-planning-history.e2e-spec.ts::lists only related events for Venue Staff`<br>`test/events-planning-history.e2e-spec.ts::hides an event with no booking from Venue Staff (404)`<br>`test/events-planning-history.e2e-spec.ts::shows the assigned Coordinator the update too` |
+
+## Story 25: View history of changes to an event (Event Coordinator)
+
+### TC-S2-75
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-75 |
+| Story/AC ref | Story 25 AC-1 |
+| Test Scenario | Changes made through the app are listed oldest first, and a save that changed nothing is not recorded |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Edit attendance (350), then programme, then attendance (400); open the history.<br>2. (Reset) Save attendance 320 (unchanged); open the history. |
+| Test Data | tc-s2-68 event |
+| Expected Result | Three entries in the order made (attendance, programme, attendance), with times in order. The unchanged save records nothing. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::lists changes oldest first`<br>`test/events-planning-history.e2e-spec.ts::does not record a save that changed nothing` |
+
+### TC-S2-76
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-76 |
+| Story/AC ref | Story 25 AC-1 |
+| Test Scenario | The history is in time order whatever order the changes were stored in |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql + tc-s2-76-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Open the event's history. |
+| Test Data | Three recorded changes dated 2, 3 and 1 Oct 2026, stored in that order |
+| Expected Result | Listed 1, 2, 3 Oct (c-s2-76-first, -second, -third). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::sorts recorded changes by time, whatever order they were stored in` |
+
+### TC-S2-77
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-77 |
+| Story/AC ref | Story 25 AC-1 |
+| Test Scenario | An Organiser's amendments to a returned request appear in the history |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql + tc-s2-77-setup.sql on testDB (reset before test). Logged in as organiser@example.com; coord.a@example.com. |
+| Test Steps | 1. As the Organiser, change the returned request's attendance to 250.<br>2. As the Coordinator, open its history. |
+| Test Data | "Freshman Orientation 2030", RETURNED |
+| Expected Result | One entry, made by the Organiser. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::includes an Organiser's amendments to a returned request` |
+
+### TC-S2-78
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-78 |
+| Story/AC ref | Story 25 Access |
+| Test Scenario | Only Coordinators who can see the event can read its history |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.b@example.com; organiser, venue staff, tech support, attendee. |
+| Test Steps | 1. Open the history as another Coordinator.<br>2. Open it as each other role. |
+| Test Data | tc-s2-68 event |
+| Expected Result | Other Coordinator: not found (404). Every other role: refused (403). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::is not available to a Coordinator who cannot see the event (404)`<br>`test/events-planning-history.e2e-spec.ts::is refused to %s (403)` |
+
+### TC-S2-79
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-79 |
+| Story/AC ref | Story 25 AC-2 |
+| Test Scenario | Each entry shows what changed, the previous and new values, who and when |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Change attendance to 350 and the end to 18:00 in one save; open the history. |
+| Test Data | tc-s2-68 event (320 expected, ends 17:00) |
+| Expected Result | One entry listing end 17:00 -> 18:00 and attendance 320 -> 350, made by Cody Coordinator (with email and role), with a valid time. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::records every changed field with its previous and new value` |
+
+### TC-S2-80
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-80 |
+| Story/AC ref | Story 25 AC-3 |
+| Test Scenario | An event with no changes says so |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Open the history of an unedited event. |
+| Test Data | tc-s2-68 event |
+| Expected Result | An empty list with the message "No changes have been recorded for this event since it was created." |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/events-planning-history.e2e-spec.ts::says so explicitly` |

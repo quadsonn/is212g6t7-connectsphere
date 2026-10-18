@@ -177,7 +177,17 @@ async function setUp() {
 
   // Clean up the previous run. Events first: their bookings reference the
   // venues; they cascade to bookings, decisions, change requests and notifications.
-  const events = await prisma.eventRequest.deleteMany({ where: { name: { startsWith: PREFIX } } });
+  // That includes any event booked on the seed's venues, even one renamed
+  // since (a seeded event edited while testing) — otherwise its booking blocks
+  // deleting the venue, and could clash with the slots seeded below.
+  const events = await prisma.eventRequest.deleteMany({
+    where: {
+      OR: [
+        { name: { startsWith: PREFIX } },
+        { venueBookings: { some: { venue: { name: { startsWith: PREFIX } } } } },
+      ],
+    },
+  });
   const venues = await prisma.venue.deleteMany({ where: { name: { startsWith: PREFIX } } });
   console.log(`removed previous run: ${events.count} events, ${venues.count} venues`);
 

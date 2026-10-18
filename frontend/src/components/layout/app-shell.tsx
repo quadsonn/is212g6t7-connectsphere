@@ -27,7 +27,7 @@ export function AppShell() {
         Skip to main content
       </a>
 
-      <header className="sticky top-0 z-10 border-b border-ink-200 bg-white">
+      <header className="sticky top-0 z-40 border-b border-ink-200 bg-white">
         <div aria-hidden="true" data-testid="role-strip" className={cn('h-1', theme?.strip ?? 'bg-brand-600')} />
         <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
           <Wordmark />

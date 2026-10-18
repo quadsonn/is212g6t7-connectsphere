@@ -26,6 +26,12 @@ enum Role {
   VENUE_STAFF
   TECHNICAL_SUPPORT_STAFF
   ATTENDEE
+  // Requirement change 5: oversees the unassigned queue and assigns /
+  // reassigns events to Event Coordinators.
+  EVENT_COORDINATOR_LEAD
+  // Requirement change 6: runs the Operational Safety Check before an event
+  // can proceed to preparation.
+  SAFETY_OFFICER
 }
 
 enum EventStatus {

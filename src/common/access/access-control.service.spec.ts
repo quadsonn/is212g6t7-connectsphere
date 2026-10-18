@@ -68,10 +68,18 @@ describe('AccessControlService (US-02)', () => {
     });
 
     it('finds an event they own', async () => {
-      prisma.eventRequest.findFirst.mockResolvedValue(anEvent());
+      const own = anEvent();
+      prisma.eventRequest.findFirst.mockResolvedValue(own);
+
       await expect(
         service.assertEventAccess(userWith(Role.EVENT_ORGANISER, 'organiser-1'), 'event-1'),
-      ).resolves.toBeDefined();
+      ).resolves.toBe(own);
+      // AC-5: the lookup itself is scoped to this organiser, not filtered afterwards.
+      expect(prisma.eventRequest.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { AND: [{ id: 'event-1' }, { organiserId: 'organiser-1' }] },
+        }),
+      );
     });
 
     it('denies an event owned by someone else', async () => {

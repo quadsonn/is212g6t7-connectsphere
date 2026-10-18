@@ -13,6 +13,8 @@ export const ROLES = [
   'VENUE_STAFF',
   'TECHNICAL_SUPPORT_STAFF',
   'ATTENDEE',
+  'EVENT_COORDINATOR_LEAD',
+  'SAFETY_OFFICER',
 ] as const;
 export type Role = (typeof ROLES)[number];
 

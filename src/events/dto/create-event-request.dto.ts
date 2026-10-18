@@ -16,6 +16,7 @@ import {
 } from 'class-validator';
 
 import { IsAfterField } from '../../common/validators/is-after.validator';
+import { Trim } from '../../common/validators/trim.transform';
 
 /**
  * US-03 — the payload an Organiser submits.
@@ -31,22 +32,26 @@ export class CreateEventRequestDto {
    * required set, but the schema also makes name and description NOT NULL.
    * Both are required here — a request with no title cannot be reviewed.
    */
+  @Trim()
   @IsString()
   @IsNotEmpty({ message: 'name is required' })
   @MaxLength(200)
   name: string;
 
+  @Trim()
   @IsString()
   @IsNotEmpty({ message: 'purpose is required' })
   @MaxLength(2000)
   purpose: string;
 
+  @Trim()
   @IsString()
   @IsNotEmpty({ message: 'description is required' })
   @MaxLength(5000)
   description: string;
 
   /** AC-1 "event type/category". Free text — no vocabulary is specified. */
+  @Trim()
   @IsString()
   @IsNotEmpty({ message: 'category is required' })
   @MaxLength(100)
@@ -94,6 +99,7 @@ export class CreateEventRequestDto {
 
   /** US-06 AC-2 — qualification for a layout that does not fit the list. */
   @IsOptional()
+  @Trim()
   @IsString()
   @MaxLength(2000)
   layoutNotes?: string;
@@ -110,11 +116,13 @@ export class CreateEventRequestDto {
 
   /** US-06 AC-3 — free-text qualification alongside the selections. */
   @IsOptional()
+  @Trim()
   @IsString()
   @MaxLength(2000)
   accessibilityNotes?: string;
 
   @IsOptional()
+  @Trim()
   @IsString()
   @MaxLength(2000)
   equipmentNeeds?: string;

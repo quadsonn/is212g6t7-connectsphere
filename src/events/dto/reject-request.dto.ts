@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { Trim } from '../../common/validators/trim.transform';
 
 /**
  * US-08 AC-2 — a rejection cannot be confirmed without a reason.
@@ -8,6 +9,7 @@ import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
  * they failed to complete.
  */
 export class RejectRequestDto {
+  @Trim()
   @IsString()
   @IsNotEmpty({ message: 'a reason is required to reject this request' })
   @MaxLength(2000)

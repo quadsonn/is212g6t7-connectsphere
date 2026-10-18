@@ -543,6 +543,8 @@ export class EventsService {
     this.assertIsAssignedTo(user, event);
 
     const approved = await this.prisma.$transaction(async (tx) => {
+      await this.claimForDecision(event, tx);
+
       // Non-status housekeeping first, so setStatus stays the sole writer of
       // the status column.
       await tx.eventRequest.update({
@@ -579,6 +581,8 @@ export class EventsService {
     this.assertIsAssignedTo(user, event);
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.claimForDecision(event, tx);
+
       await tx.clarificationMessage.create({
         data: { eventId: event.id, authorId: user.userId, body: dto.question },
       });
@@ -624,6 +628,9 @@ export class EventsService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      // Audit gap #3: a second, simultaneous response is refused here.
+      await this.claimForDecision(event, tx);
+
       await tx.clarificationMessage.create({
         data: { eventId: event.id, authorId: user.userId, body: dto.response },
       });
@@ -709,6 +716,8 @@ export class EventsService {
     this.assertIsAssignedTo(user, event);
 
     const decided = await this.prisma.$transaction(async (tx) => {
+      await this.claimForDecision(event, tx);
+
       await tx.eventRequest.update({
         where: { id: event.id },
         data: reasonFields,
@@ -718,6 +727,39 @@ export class EventsService {
     });
 
     return this.toOrganiserView(decided);
+  }
+
+  /**
+   * Audit gap #2 — two review decisions on the same request must not both
+   * succeed.
+   *
+   * Each decision checks the transition against the status it read before its
+   * transaction began, so two decisions racing from SUBMITTED would both pass
+   * and both write. This is the first statement of the decision's
+   * transaction: it row-locks the request only while it still holds that
+   * status. A concurrent decision blocks here until the winner commits, then
+   * finds the status changed and is refused. Throwing rolls back the loser's
+   * transaction, so its reason, question and history are never saved.
+   *
+   * Audit gap #3: the Organiser's clarification response uses the same claim,
+   * so two simultaneous responses store one answer and notify once.
+   *
+   * Nothing is written here; setStatus() remains the only writer of status.
+   */
+  private async claimForDecision(
+    event: EventRequest,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id" FROM "EventRequest"
+      WHERE "id" = ${event.id} AND "status" = ${event.status}::"EventStatus"
+      FOR UPDATE`;
+
+    if (locked.length === 0) {
+      throw new ConflictException(
+        'this request has just been updated by someone else; reload it and try again',
+      );
+    }
   }
 
   /**

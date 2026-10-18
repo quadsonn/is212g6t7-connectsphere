@@ -26,6 +26,7 @@ import { AttendeeDashboard } from '@/pages/attendee-dashboard';
 import { AttendeeRegistrations } from '@/pages/attendee-registrations';
 import { VenueNewRequest } from '@/pages/venue-new-request';
 import { VenueEditRequest } from '@/pages/venue-edit-request';
+import { RolePlaceholder } from '@/pages/role-placeholder';
 import { RelatedEventDetail, RelatedEventsList } from '@/pages/related-events';
 import { VenueBookingQueue } from '@/pages/venue-booking-queue';
 import { VenueBookingDetail } from '@/pages/venue-booking-detail';
@@ -96,6 +97,30 @@ export function AppRoutes() {
             <Route path="/equipment/requirements/:eventId" element={<EquipmentEventRequirements />} />
             <Route path="/equipment/requirements/:eventId/details" element={<EquipmentEventDetails />} />
             <Route path="/equipment/released" element={<EquipmentReleased />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allow={['EVENT_COORDINATOR_LEAD']} />}>
+            <Route
+              path="/lead"
+              element={
+                <RolePlaceholder
+                  title="Coordinator Lead"
+                  description="Oversee incoming requests and coordinator assignments."
+                />
+              }
+            />
+          </Route>
+
+          <Route element={<ProtectedRoute allow={['SAFETY_OFFICER']} />}>
+            <Route
+              path="/safety"
+              element={
+                <RolePlaceholder
+                  title="Safety Officer"
+                  description="Operational Safety Checks for planned events."
+                />
+              }
+            />
           </Route>
 
           <Route element={<ProtectedRoute allow={['ATTENDEE']} />}>

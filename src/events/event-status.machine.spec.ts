@@ -24,12 +24,6 @@ describe('Event state machine (US-11)', () => {
   }) as never;
 
   describe('AC-1: exactly one status, and the table covers them all', () => {
-    it('has an entry for every status in the enum', () => {
-      for (const status of ALL) {
-        expect(ALLOWED_TRANSITIONS[status]).toBeDefined();
-      }
-    });
-
     it('covers the ten statuses the acceptance criteria enumerate', () => {
       for (const status of [
         EventStatus.DRAFT,

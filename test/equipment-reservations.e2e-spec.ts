@@ -409,8 +409,8 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
       await commit(ids.event, ids.mic, 4).expect(201);
       const event = await prisma.eventRequest.findUniqueOrThrow({ where: { id: ids.event } });
 
-      // US-42: CONFIRMED is now reached only through the safety check, so
-      // this uses the next legal non-cancelling move instead.
+      // Any legal move that is not a cancellation. (CONFIRMED is no longer
+      // reachable from here: it needs an approved safety check.)
       await events.setStatus(event, EventStatus.AWAITING_SAFETY_CHECK);
 
       const row = await prisma.equipmentReservation.findFirstOrThrow({

@@ -64,11 +64,12 @@ export const ALLOWED_TRANSITIONS: Readonly<
   // Approved work moves into arrangement.
   [EventStatus.APPROVED]: [EventStatus.PLANNING, EventStatus.CANCELLED],
 
-  // US-42 (Week 7 Change #6): no event is confirmed without a safety check,
-  // so the US-11 edge straight to CONFIRMED is gone. Once every arrangement is
-  // ready the Coordinator confirms them, which leads to AWAITING_SAFETY_CHECK.
-  // Allowed from PLANNING too: nothing moves an event to AWAITING_ARRANGEMENTS
-  // yet, so a strict rule would make Confirm unreachable.
+  // US-42 (Week 7 Change #6): no event is confirmed without an approved
+  // safety check, so the US-11 edge straight to CONFIRMED is gone. Once every
+  // arrangement is ready the Coordinator confirms them, which leads to
+  // AWAITING_SAFETY_CHECK — the only way in (not automatic; see
+  // SafetyReadinessService). Allowed from PLANNING too: nothing moves an event
+  // to AWAITING_ARRANGEMENTS yet, so a strict rule would make Confirm unreachable.
   [EventStatus.PLANNING]: [
     EventStatus.AWAITING_ARRANGEMENTS,
     EventStatus.AWAITING_SAFETY_CHECK,
@@ -83,10 +84,18 @@ export const ALLOWED_TRANSITIONS: Readonly<
     EventStatus.CANCELLED,
   ],
 
-  // US-42 enters this status; US-57 owns every way out of it (the Safety
-  // Officer approves -> CONFIRMED, asks for changes, or rejects) and adds
-  // those edges. Until then only cancellation leaves it.
-  [EventStatus.AWAITING_SAFETY_CHECK]: [EventStatus.CANCELLED],
+  // Requirement change 6. US-42 enters this status. The Safety Officer approves (CONFIRMED, the only
+  // way in), asks for changes (back to PLANNING), or rejects (SAFETY_REJECTED).
+  // PLANNING is also the way out when an arrangement is withdrawn mid-check.
+  [EventStatus.AWAITING_SAFETY_CHECK]: [
+    EventStatus.CONFIRMED,
+    EventStatus.PLANNING,
+    EventStatus.SAFETY_REJECTED,
+    EventStatus.CANCELLED,
+  ],
+
+  // Blocked until the Coordinator reworks it: back to PLANNING, or abandoned.
+  [EventStatus.SAFETY_REJECTED]: [EventStatus.PLANNING, EventStatus.CANCELLED],
 
   [EventStatus.CONFIRMED]: [EventStatus.COMPLETED, EventStatus.CANCELLED],
 
@@ -145,13 +154,51 @@ export const CONFIRMABLE_STATUSES: readonly EventStatus[] = [
 ];
 
 /**
- * US-03 AC-2: unassigned requests any Coordinator may pick up. Without this,
- * a freshly submitted request would be invisible to every Coordinator and no
- * review could start.
+ * Lead assignment story: a request is in the unassigned queue while it has no
+ * Coordinator and has been submitted. Only the Lead can see it there; no
+ * Coordinator can read, review or edit it (the ASSIGNED scope is
+ * coordinatorId = the caller, so an unowned request matches nobody).
  */
-export const COORDINATOR_POOL_STATUSES: readonly EventStatus[] = [
+export const UNASSIGNED_QUEUE_STATUSES: readonly EventStatus[] = [
+  EventStatus.SUBMITTED,
+];
+
+/**
+ * Lead supervision story: "active" means not completed, cancelled or rejected.
+ * A draft is excluded as well — it is not yet a request and has no Coordinator.
+ * Only active events show in the assignments view and can be reassigned.
+ */
+export const ACTIVE_ASSIGNMENT_STATUSES: readonly EventStatus[] = [
   EventStatus.SUBMITTED,
   EventStatus.UNDER_REVIEW,
+  EventStatus.APPROVED,
+  EventStatus.RETURNED,
+  EventStatus.AWAITING_CLARIFICATION,
+  EventStatus.PLANNING,
+  EventStatus.AWAITING_ARRANGEMENTS,
+  EventStatus.AWAITING_SAFETY_CHECK,
+  EventStatus.SAFETY_REJECTED,
+  EventStatus.CONFIRMED,
+];
+
+/**
+ * Requirement change 6: statuses from which the Coordinator may resume
+ * planning. APPROVED is the original route in (US-25); SAFETY_REJECTED is the
+ * way back after the Safety Officer blocks the event.
+ */
+export const RESUMABLE_PLANNING_STATUSES: readonly EventStatus[] = [
+  EventStatus.APPROVED,
+  EventStatus.SAFETY_REJECTED,
+];
+
+/**
+ * Requirement change 6: statuses in which arrangements are still being put
+ * together and a safety check can become due. Entering AWAITING_SAFETY_CHECK
+ * is only ever from one of these.
+ */
+export const SAFETY_CHECK_ELIGIBLE_STATUSES: readonly EventStatus[] = [
+  EventStatus.PLANNING,
+  EventStatus.AWAITING_ARRANGEMENTS,
 ];
 
 /**
@@ -167,19 +214,6 @@ export const ATTENDEE_VISIBLE_STATUSES: readonly EventStatus[] = [
   EventStatus.AWAITING_SAFETY_CHECK,
   EventStatus.CONFIRMED,
   EventStatus.COMPLETED,
-];
-
-/** US-10: statuses at which a Coordinator may be assigned or reassigned. */
-export const ASSIGNABLE_STATUSES: readonly EventStatus[] = [
-  EventStatus.SUBMITTED,
-  EventStatus.UNDER_REVIEW,
-  EventStatus.AWAITING_CLARIFICATION,
-  EventStatus.RETURNED,
-  EventStatus.APPROVED,
-  EventStatus.PLANNING,
-  EventStatus.AWAITING_ARRANGEMENTS,
-  EventStatus.AWAITING_SAFETY_CHECK,
-  EventStatus.CONFIRMED,
 ];
 
 /**

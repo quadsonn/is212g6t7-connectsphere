@@ -50,7 +50,8 @@ describe('US-42 EventsService.setStatus records who confirmed', () => {
 
     expect(update).toHaveBeenNthCalledWith(1, {
       where: { id: 'event-1' },
-      data: { status: EventStatus.AWAITING_SAFETY_CHECK },
+      // Requirement change 6: the Safety queue lists longest-waiting first.
+      data: { status: EventStatus.AWAITING_SAFETY_CHECK, safetyQueuedAt: expect.any(Date) },
     });
     expect(update).toHaveBeenNthCalledWith(2, {
       where: { id: 'event-1' },
@@ -92,6 +93,8 @@ describe('US-42 EventConfirmationService', () => {
       equipmentRequirement: { findMany: jest.fn().mockResolvedValue([]) },
       equipmentReservation: { findMany: jest.fn().mockResolvedValue([]) },
       eventRequest: { findUniqueOrThrow: jest.fn().mockResolvedValue(event) },
+      // No safety feedback waiting for an answer.
+      safetyReview: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     const prisma = {
       ...tx,

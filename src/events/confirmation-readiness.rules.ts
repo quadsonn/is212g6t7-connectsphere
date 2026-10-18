@@ -69,6 +69,9 @@ function venueItem(booking: ConfirmationFacts['bookings'][number]): ReadinessIte
   return { kind: 'VENUE', label, status: 'MISSING' };
 }
 
+/** The checklist's line when the event has no live booking at all. */
+export const NO_VENUE_LABEL = 'No venue booked';
+
 /**
  * AC-1/AC-2 (Week 7 Change #3: an event may have several bookings).
  *
@@ -89,7 +92,7 @@ export function evaluateConfirmationReadiness(
 
   const venueItems: ReadinessItem[] =
     live.length === 0
-      ? [{ kind: 'VENUE', label: 'No venue booked', status: 'MISSING' }]
+      ? [{ kind: 'VENUE', label: NO_VENUE_LABEL, status: 'MISSING' }]
       : live.map(venueItem);
 
   const reserved = new Map<string, number>();

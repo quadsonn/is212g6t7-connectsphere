@@ -64,12 +64,30 @@ enum EventStatus {
   AWAITING_ARRANGEMENTS
   // US-42 (Week 7 Change #6): the assigned Coordinator confirmed every venue
   // and equipment arrangement is ready; the event now waits for the Safety
-  // Officer's operational safety check. US-57 owns every edge out of it, and
-  // nothing reaches CONFIRMED without passing through here.
+  // Officer's operational safety check. Entered only by that confirmation; the
+  // only way out to CONFIRMED is an approved safety review.
   AWAITING_SAFETY_CHECK
+  // The Safety Officer rejected the event. It stays blocked from CONFIRMED and
+  // out of the Safety queue until the Coordinator reworks it (back to PLANNING).
+  SAFETY_REJECTED
   CONFIRMED
   COMPLETED
   CANCELLED
+}
+
+// Requirement change 6: the Safety Officer's one outcome per review.
+enum SafetyOutcome {
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+// Requirement change 6: the earlier planning stage a CHANGES_REQUESTED outcome
+// sends the event back to. There is one PLANNING status, so the stage is
+// recorded on the review and decides which arrangements are re-opened.
+enum SafetyReturnStage {
+  VENUE
+  TECHNICAL
 }
 
 enum BookingStatus {
@@ -80,7 +98,9 @@ enum BookingStatus {
   // slot (like APPROVED) only while holdExpiresAt is in the future — see
   // isLiveHold() and docs/adr/0001-held-hard-blocks-at-db-level.md.
   HELD
-  // US-54: a hold that was released by Venue Staff or expired. Holds nothing.
+  // US-54: a hold that was released by Venue Staff or expired. US-43/US-44:
+  // also any booking whose event was cancelled. Holds nothing, and is distinct
+  // from REJECTED (a Venue Staff decision) so the history stays true.
   RELEASED
 }
 
@@ -223,6 +243,16 @@ enum NotificationType {
   HOLD_PLACED
   // US-54: a hold released before expiry (by Venue Staff, or the event moved).
   HOLD_RELEASED
+  // Lead assignment story: sent to the Coordinator a queued request is
+  // assigned to. Reassignment reuses EVENT_REASSIGNED.
+  EVENT_ASSIGNED
+  // Requirement change 6: the Safety Officer decided; carries the reasons.
+  SAFETY_CHECK_DECIDED
+  // US-43: the event was cancelled; carries the Organiser's reason.
+  EVENT_CANCELLED
+  // Sent to registered Attendees when an event's date, time or venue changes;
+  // lists each changed field with its old and new value.
+  EVENT_SCHEDULE_CHANGED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;
@@ -231,6 +261,8 @@ enum ChangeRequestStatus {
   PENDING
   APPROVED
   REJECTED
+  // US-43: withdrawn without a decision because the event was cancelled.
+  CLOSED
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +275,11 @@ model User {
   passwordHash String
   name         String
   role         Role
+
+  // Lead assignment story: the client organisation an Organiser belongs to,
+  // shown in the unassigned queue. Nullable — no flow collects it yet and
+  // existing users have none.
+  organisation String?
 
   // AC-5 lockout state. Counted per account, over a trailing window.
   failedLoginAttempts   Int       @default(0)
@@ -258,6 +295,7 @@ model User {
   notifications         Notification[]
   clarificationMessages ClarificationMessage[]
   eventChanges          EventChange[]
+  safetyReviews         SafetyReview[]
   changeRequests        EventChangeRequest[]
   decidedChangeRequests EventChangeRequest[]   @relation("ChangeRequestDecider")
   managedVenues         Venue[]                @relation("VenueManager")
@@ -337,6 +375,16 @@ model EventRequest {
   arrangementsConfirmedById String?
   arrangementsConfirmedBy   User?     @relation("ArrangementsConfirmer", fields: [arrangementsConfirmedById], references: [id], onDelete: Restrict)
 
+  // Lead assignment story: when the request was last submitted, so the
+  // unassigned queue can list the oldest first. Written by setStatus() on
+  // every move to SUBMITTED; null for a request never submitted.
+  submittedAt DateTime?
+
+  // Requirement change 6: when the event last entered the Safety queue, so the
+  // queue lists the longest-waiting first. Written by setStatus() on every move
+  // to AWAITING_SAFETY_CHECK; null for an event that never has.
+  safetyQueuedAt DateTime?
+
   // US-34/US-36: when attendees may register, and the last moment they may
   // withdraw. AMBIGUOUS: the brief gives no way to set these, so they are
   // nullable and, when null, fall back to the event's own start
@@ -364,6 +412,7 @@ model EventRequest {
   updatedAt DateTime @updatedAt
 
   clarifications        ClarificationMessage[]
+  safetyReviews         SafetyReview[]
   changes               EventChange[]
   changeRequests        EventChangeRequest[]
   equipmentRequirements EquipmentRequirement[]
@@ -375,6 +424,7 @@ model EventRequest {
   @@index([organiserId])
   @@index([coordinatorId])
   @@index([status])
+  @@index([coordinatorId, submittedAt])
 }
 
 model Venue {
@@ -611,9 +661,19 @@ model Registration {
   status RegistrationStatus @default(REGISTERED)
 
   // US-34 AC-2: the form's fields. Name and email come from the User record.
-  phone               String
+  phone String
+
+  // The form no longer asks for dietary requirements. The column is kept, not
+  // dropped, so values already collected are not lost; nothing reads or writes
+  // it any more.
   dietaryRequirements String?
-  accessibilityNeeds  String?
+
+  // The standard option picked from the same list the Organiser's event form
+  // uses, if any. Null when none was needed or when the need is not on the
+  // list, in which case it is described in accessibilityNeeds.
+  accessibilityFeature AccessibilityFeature?
+  // Free text: the Attendee's own request, or detail beyond the option chosen.
+  accessibilityNeeds   String?
 
   // US-36: when the attendee withdrew; null while registered.
   withdrawnAt DateTime?
@@ -734,6 +794,56 @@ model EventChange {
 
   @@index([eventId, createdAt])
   @@index([changedById])
+}
+
+/**
+ * Requirement change 6 — one operational safety review of an event.
+ * Append-only, like EventChange: a later check never edits an earlier one, so
+ * the history of checks (and why each went the way it did) is preserved. The
+ * latest row is the event's current safety standing.
+ *
+ * The four comment columns are the factors the Safety Officer is asked to
+ * consider. They are optional on every outcome; reason is mandatory unless the
+ * outcome is APPROVED, and returnStage is mandatory exactly when changes are
+ * requested (both enforced by CHECK constraints in the migration, as well as
+ * the DTO).
+ */
+model SafetyReview {
+  id String @id @default(cuid())
+
+  eventId String
+  event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  officerId String
+  officer   User   @relation(fields: [officerId], references: [id], onDelete: Restrict)
+
+  outcome     SafetyOutcome
+  reason      String?
+  returnStage SafetyReturnStage?
+
+  emergencyAccessComment    String?
+  crowdMovementComment      String?
+  equipmentPlacementComment String?
+  accessibilityComment      String?
+
+  // The arrangements the Coordinator is asked to rework and have re-reviewed:
+  // the venue booking, the equipment reservation, or both. Flagged, not
+  // reopened: nothing is un-approved or released by a review.
+  affectedArrangements ConfirmedArrangement[] @default([])
+
+  // When the Coordinator answered a CHANGES_REQUESTED or REJECTED review by
+  // sending the event back for a new check. Null until then; while null the
+  // event is held out of the Safety queue. Not used for APPROVED.
+  resubmittedAt DateTime?
+
+  // What the Coordinator told the Safety Officer when sending the event back:
+  // what they changed, or why they believe the concern is met. Optional.
+  resubmissionComment String?
+
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt])
+  @@index([officerId])
 }
 
 /**

@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
+  CancelEventPayload,
+  CancellationResult,
   CatalogueOption,
   ConfirmationReadiness,
   ChangeRequest,
@@ -166,19 +168,6 @@ export function useReviewEvent() {
   return { approve, requestClarification, reject, returnForAmendment };
 }
 
-/** US-10 — link a Coordinator to a request as its main point of contact. */
-export function useAssignCoordinator() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, coordinatorId }: { id: string; coordinatorId: string }) =>
-      eventsApi.assignCoordinator(id, coordinatorId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
-    },
-  });
-}
-
 export function useRespondToClarification() {
   const queryClient = useQueryClient();
 
@@ -270,32 +259,6 @@ export function useRelatedEvent(id: string) {
   });
 }
 
-/** US-27 AC-1 — only fetched once the Coordinator asks to reassign. */
-export function useReassignmentCandidates(id: string, enabled: boolean) {
-  return useQuery({
-    queryKey: [...eventKeys.detail(id), 'reassignment-candidates'],
-    queryFn: () => eventsApi.getReassignmentCandidates(id),
-    enabled: enabled && Boolean(id),
-  });
-}
-
-/**
- * US-27 — hand the event on. The caller loses access to it on success, so
- * only the lists are invalidated; refetching this event's detail would 404.
- */
-export function useReassignEvent(id: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (coordinatorId: string) => eventsApi.reassign(id, coordinatorId),
-    onSuccess: () => {
-      queryClient.removeQueries({ queryKey: eventKeys.assignedDetail(id) });
-      void queryClient.invalidateQueries({ queryKey: eventKeys.all, exact: true });
-      void queryClient.invalidateQueries({ queryKey: eventKeys.assigned, exact: true });
-    },
-  });
-}
-
 /** US-28 — save equipment and technical requirements; refreshes detail and history. */
 export function useSetTechnicalRequirements(id: string) {
   const queryClient = useQueryClient();
@@ -329,6 +292,22 @@ export function useRequestChange(id: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: eventKeys.detail(id) });
       void queryClient.invalidateQueries({ queryKey: eventKeys.mine });
+    },
+  });
+}
+
+/**
+ * US-43 — cancel an event. A cancellation touches the event, its bookings and
+ * reservations, the calendars and other people's notifications, so every cached
+ * query is refreshed rather than a hand-picked few.
+ */
+export function useCancelEvent(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<CancellationResult, unknown, CancelEventPayload>({
+    mutationFn: (body) => eventsApi.cancel(id, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
     },
   });
 }

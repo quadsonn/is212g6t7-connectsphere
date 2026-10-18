@@ -172,7 +172,7 @@ describe('EventsService drafts (US-04)', () => {
 
       expect(prisma.eventRequest.update).toHaveBeenCalledWith({
         where: { id: 'event-1' },
-        data: { status: EventStatus.SUBMITTED },
+        data: { status: EventStatus.SUBMITTED, submittedAt: expect.any(Date) },
       });
       expect(result.status).toBe(EventStatus.SUBMITTED);
     });

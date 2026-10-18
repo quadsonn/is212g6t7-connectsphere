@@ -41,6 +41,10 @@ export const EVENT_STATUS_STYLES: Record<EventStatus, StatusStyle> = {
     label: 'Arrangements confirmed - awaiting safety review',
     className: 'bg-amber-50 text-amber-900 ring-amber-400',
   },
+  SAFETY_REJECTED: {
+    label: 'Safety rejected',
+    className: 'bg-red-50 text-red-800 ring-red-300',
+  },
   CONFIRMED: { label: 'Confirmed', className: 'bg-emerald-100 text-emerald-900 ring-emerald-400' },
   COMPLETED: { label: 'Completed', className: 'bg-ink-200 text-ink-800 ring-ink-400' },
   CANCELLED: { label: 'Cancelled', className: 'bg-rose-50 text-rose-800 ring-rose-300' },
@@ -69,7 +73,9 @@ export const BOOKING_STATUS_STYLES: Record<BookingStatus, StatusStyle> = {
   REQUESTED: { label: 'Pending', className: 'bg-amber-50 text-amber-900 ring-amber-400' },
   APPROVED: { label: 'Approved', className: 'bg-emerald-50 text-emerald-800 ring-emerald-300' },
   REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-800 ring-red-300' },
-  // US-54: the word the customer uses for a hold; RELEASED holds nothing.
+  // US-54: the word the customer uses for a hold. RELEASED holds nothing:
+  // a hold released or expired, or (US-43/US-44) any booking of a cancelled
+  // event — neutral, not a refusal.
   HELD: { label: 'Tentative', className: 'bg-sky-50 text-sky-900 ring-sky-400' },
   RELEASED: { label: 'Released', className: 'bg-ink-100 text-ink-700 ring-ink-300' },
 };
@@ -84,6 +90,7 @@ export const COORDINATOR_QUEUE_STATUSES: EventStatus[] = [
   'PLANNING',
   'AWAITING_ARRANGEMENTS',
   'AWAITING_SAFETY_CHECK',
+  'SAFETY_REJECTED',
   'CONFIRMED',
   'COMPLETED',
   'CANCELLED',
@@ -113,8 +120,17 @@ export const CHANGEABLE_EVENT_STATUSES: EventStatus[] = [
   'PLANNING',
   'AWAITING_ARRANGEMENTS',
   'AWAITING_SAFETY_CHECK',
+  'SAFETY_REJECTED',
   'CONFIRMED',
 ];
+
+/**
+ * US-43 AC-1 — statuses in which an Organiser is offered "Cancel event": from
+ * submission until the event is over. Mirrors CANCELLABLE_STATUSES in the
+ * backend (events/event-cancellation.rules.ts), which is what enforces it,
+ * along with the start-time check; this only decides whether to offer it.
+ */
+export const CANCELLABLE_EVENT_STATUSES: EventStatus[] = CHANGEABLE_EVENT_STATUSES;
 
 /**
  * US-17 — availability calendar days. Each also carries an icon and label in
@@ -135,19 +151,3 @@ export const PLANNING_EVENT_STATUSES: EventStatus[] = ['PLANNING', 'AWAITING_ARR
 
 /** US-42 — statuses the Coordinator may confirm from. Mirrors CONFIRMABLE_STATUSES. */
 export const CONFIRMABLE_EVENT_STATUSES: EventStatus[] = ['PLANNING', 'AWAITING_ARRANGEMENTS'];
-
-/**
- * US-10/US-27 — statuses at which a Coordinator may be assigned or the event
- * reassigned. Mirrors ASSIGNABLE_STATUSES in event-status.machine.ts.
- */
-export const ASSIGNABLE_EVENT_STATUSES: EventStatus[] = [
-  'SUBMITTED',
-  'UNDER_REVIEW',
-  'AWAITING_CLARIFICATION',
-  'RETURNED',
-  'APPROVED',
-  'PLANNING',
-  'AWAITING_ARRANGEMENTS',
-  'AWAITING_SAFETY_CHECK',
-  'CONFIRMED',
-];

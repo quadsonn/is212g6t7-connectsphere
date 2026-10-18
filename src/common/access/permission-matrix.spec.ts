@@ -56,6 +56,13 @@ describe('Permission matrix (US-02)', () => {
       expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.SUBMIT)).toBe(Scope.OWN);
     });
 
+    it('lets only an Organiser cancel, and only their own events (US-43)', () => {
+      expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.CANCEL)).toBe(Scope.OWN);
+      for (const role of Object.values(Role).filter((r) => r !== Role.EVENT_ORGANISER)) {
+        expect(isPermitted(role, Resource.EVENT, Action.CANCEL)).toBe(false);
+      }
+    });
+
     it('lets a Coordinator review events assigned to them', () => {
       expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.REVIEW)).toBe(Scope.ASSIGNED);
     });
@@ -248,31 +255,25 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
-  describe('US-10 rows', () => {
-    it('grants the Coordinator EVENT/ASSIGN at ANY scope', () => {
-      // ANY, not ASSIGNED: AC-2 requires reassigning an event currently held
-      // by a different Coordinator, which an ASSIGNED scope would hide.
-      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.ASSIGN)).toBe(Scope.ANY);
+  describe('Lead assignment rows', () => {
+    it('grants the Lead EVENT/ASSIGN at ANY scope', () => {
+      expect(permissionScope(Role.EVENT_COORDINATOR_LEAD, Resource.EVENT, Action.ASSIGN)).toBe(Scope.ANY);
     });
 
-    it('agrees with the hardcoded @Roles list on PATCH /events/:id/coordinator', () => {
+    it('agrees with the hardcoded @Roles list on the /assignments routes', () => {
       expect(rolesWithPermission(Resource.EVENT, Action.ASSIGN)).toEqual([
-        Role.EVENT_COORDINATOR,
+        Role.EVENT_COORDINATOR_LEAD,
       ]);
     });
 
-    it('lets no other role assign a Coordinator', () => {
-      for (const role of ALL_ROLES.filter((r) => r !== Role.EVENT_COORDINATOR)) {
+    it('lets no other role assign, Coordinators included', () => {
+      for (const role of ALL_ROLES.filter((r) => r !== Role.EVENT_COORDINATOR_LEAD)) {
         expect(isPermitted(role, Resource.EVENT, Action.ASSIGN)).toBe(false);
       }
     });
 
-    it('keeps ASSIGN wider than the Coordinator’s other event grants', () => {
-      // The asymmetry is deliberate and worth pinning: a Coordinator may
-      // assign any event but may only read/update/review assigned ones.
-      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.READ)).toBe(Scope.ASSIGNED);
-      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.UPDATE)).toBe(Scope.ASSIGNED);
-      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.REVIEW)).toBe(Scope.ASSIGNED);
+    it('gives the Lead no generic event read, so it only sees the queue projections', () => {
+      expect(isPermitted(Role.EVENT_COORDINATOR_LEAD, Resource.EVENT, Action.READ)).toBe(false);
     });
   });
 
@@ -323,10 +324,8 @@ describe('Permission matrix (US-02)', () => {
       }
     });
 
-    it('keeps REVIEW narrower than ASSIGN', () => {
-      // US-10 deliberately made assignment ANY-scope; reviewing stays bound to
-      // the assignment relationship.
-      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.ASSIGN)).toBe(Scope.ANY);
+    it('keeps a Coordinator from assigning, while reviewing stays bound to assignment', () => {
+      expect(isPermitted(Role.EVENT_COORDINATOR, Resource.EVENT, Action.ASSIGN)).toBe(false);
       expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.REVIEW)).toBe(Scope.ASSIGNED);
     });
   });
@@ -491,6 +490,44 @@ describe('Permission matrix (US-02)', () => {
       expect(permissionScope(Role.EVENT_COORDINATOR, Resource.EVENT, Action.UPDATE)).toBe(
         Scope.ASSIGNED,
       );
+    });
+  });
+
+  describe('Safety Officer rows', () => {
+    it('lets the Safety Officer read and decide any safety review', () => {
+      expect(permissionScope(Role.SAFETY_OFFICER, Resource.SAFETY_REVIEW, Action.READ)).toBe(Scope.ANY);
+      expect(permissionScope(Role.SAFETY_OFFICER, Resource.SAFETY_REVIEW, Action.DECIDE)).toBe(Scope.ANY);
+    });
+
+    it('lets only the Safety Officer record a decision', () => {
+      expect(rolesWithPermission(Resource.SAFETY_REVIEW, Action.DECIDE)).toEqual([
+        Role.SAFETY_OFFICER,
+      ]);
+    });
+
+    it('lets a Coordinator read, answer, never decide, the checks on events they coordinate', () => {
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.SAFETY_REVIEW, Action.READ)).toBe(Scope.ASSIGNED);
+      expect(permissionScope(Role.EVENT_COORDINATOR, Resource.SAFETY_REVIEW, Action.SUBMIT)).toBe(Scope.ASSIGNED);
+      expect(isPermitted(Role.EVENT_COORDINATOR, Resource.SAFETY_REVIEW, Action.DECIDE)).toBe(false);
+    });
+
+    it('gives every other role no access to safety reviews', () => {
+      const others = ALL_ROLES.filter(
+        (role) => role !== Role.SAFETY_OFFICER && role !== Role.EVENT_COORDINATOR,
+      );
+      for (const role of others) {
+        for (const action of Object.values(Action)) {
+          expect(isPermitted(role, Resource.SAFETY_REVIEW, action)).toBe(false);
+        }
+      }
+    });
+
+    it('gives the Safety Officer no generic event read: it sees the queue projections only', () => {
+      expect(isPermitted(Role.SAFETY_OFFICER, Resource.EVENT, Action.READ)).toBe(false);
+    });
+
+    it('agrees with the hardcoded @Roles list on the decision route', () => {
+      expect(rolesWithPermission(Resource.SAFETY_REVIEW, Action.DECIDE)).toEqual([Role.SAFETY_OFFICER]);
     });
   });
 });

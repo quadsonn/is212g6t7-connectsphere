@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CheckboxRow } from '@/components/ui/form';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import {
   useMyRegistrations,
@@ -17,13 +18,21 @@ import { cn, formatDate, formatDateRange } from '@/lib/utils';
  * details (read live, not copied at registration time), and withdrawal behind
  * an explicit confirmation step. Whether withdrawal is still allowed comes from
  * the server on every row; the server re-checks it when the request arrives.
+ *
+ * The server lists active registrations first and withdrawn ones below them,
+ * so the order holds for any client. "Show withdrawn" only hides rows; it
+ * never reorders them.
  */
 export function AttendeeRegistrations() {
   const { data, isPending, isError, error } = useMyRegistrations();
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [showWithdrawn, setShowWithdrawn] = useState(true);
   const withdraw = useWithdraw();
 
-  const registrations = data?.registrations ?? [];
+  const all = data?.registrations ?? [];
+  const withdrawnCount = all.filter((r) => r.status !== 'REGISTERED').length;
+  const activeCount = all.length - withdrawnCount;
+  const registrations = showWithdrawn ? all : all.filter((r) => r.status === 'REGISTERED');
 
   return (
     <>
@@ -36,7 +45,20 @@ export function AttendeeRegistrations() {
         <CardHeader>
           <CardTitle>Registrations</CardTitle>
           {data ? (
-            <span className="text-sm text-ink-500">{registrations.length} total</span>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="text-sm text-ink-500">
+                {activeCount} registered
+                {withdrawnCount > 0 ? ` · ${withdrawnCount} withdrawn` : ''}
+              </span>
+              {withdrawnCount > 0 ? (
+                <CheckboxRow
+                  id="show-withdrawn"
+                  label="Show withdrawn"
+                  checked={showWithdrawn}
+                  onChange={setShowWithdrawn}
+                />
+              ) : null}
+            </div>
           ) : null}
         </CardHeader>
 
@@ -48,10 +70,24 @@ export function AttendeeRegistrations() {
           </CardContent>
         ) : null}
 
-        {data && registrations.length === 0 ? (
+        {data && all.length === 0 ? (
           <EmptyState
             title={data.message ?? 'No Events Registered'}
             description="Register for an event from Browse events and it will appear here."
+          />
+        ) : null}
+
+        {data && all.length > 0 && registrations.length === 0 ? (
+          <EmptyState
+            title="No active registrations"
+            description={`Your ${withdrawnCount} withdrawn ${
+              withdrawnCount === 1 ? 'registration is' : 'registrations are'
+            } hidden.`}
+            action={
+              <Button size="sm" variant="secondary" onClick={() => setShowWithdrawn(true)}>
+                Show withdrawn
+              </Button>
+            }
           />
         ) : null}
 

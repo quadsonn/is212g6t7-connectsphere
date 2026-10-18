@@ -28,6 +28,7 @@ export const CHANGEABLE_STATUSES: readonly EventStatus[] = [
   EventStatus.AWAITING_ARRANGEMENTS,
   // US-42: arrangements confirmed, waiting on the safety check.
   EventStatus.AWAITING_SAFETY_CHECK,
+  EventStatus.SAFETY_REJECTED,
   EventStatus.CONFIRMED,
 ];
 

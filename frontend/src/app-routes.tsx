@@ -26,7 +26,11 @@ import { AttendeeDashboard } from '@/pages/attendee-dashboard';
 import { AttendeeRegistrations } from '@/pages/attendee-registrations';
 import { VenueNewRequest } from '@/pages/venue-new-request';
 import { VenueEditRequest } from '@/pages/venue-edit-request';
-import { RolePlaceholder } from '@/pages/role-placeholder';
+import { LeadAssignments } from '@/pages/lead-assignments';
+import { LeadQueuedRequest } from '@/pages/lead-queued-request';
+import { LeadUnassignedQueue } from '@/pages/lead-unassigned-queue';
+import { SafetyQueue } from '@/pages/safety-queue';
+import { SafetyReview } from '@/pages/safety-review';
 import { RelatedEventDetail, RelatedEventsList } from '@/pages/related-events';
 import { VenueBookingQueue } from '@/pages/venue-booking-queue';
 import { VenueBookingDetail } from '@/pages/venue-booking-detail';
@@ -103,27 +107,16 @@ export function AppRoutes() {
           </Route>
 
           <Route element={<ProtectedRoute allow={['EVENT_COORDINATOR_LEAD']} />}>
-            <Route
-              path="/lead"
-              element={
-                <RolePlaceholder
-                  title="Coordinator Lead"
-                  description="Oversee incoming requests and coordinator assignments."
-                />
-              }
-            />
+            <Route path="/lead" element={<Navigate to="/lead/unassigned" replace />} />
+            <Route path="/lead/unassigned" element={<LeadUnassignedQueue />} />
+            <Route path="/lead/unassigned/:id" element={<LeadQueuedRequest />} />
+            <Route path="/lead/assignments" element={<LeadAssignments />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={['SAFETY_OFFICER']} />}>
-            <Route
-              path="/safety"
-              element={
-                <RolePlaceholder
-                  title="Safety Officer"
-                  description="Operational Safety Checks for planned events."
-                />
-              }
-            />
+            <Route path="/safety" element={<Navigate to="/safety/checks" replace />} />
+            <Route path="/safety/checks" element={<SafetyQueue />} />
+            <Route path="/safety/checks/:id" element={<SafetyReview />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={['ATTENDEE']} />}>

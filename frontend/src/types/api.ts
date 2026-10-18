@@ -29,8 +29,9 @@ export const EVENT_STATUSES = [
   'REJECTED',
   'PLANNING',
   'AWAITING_ARRANGEMENTS',
-  // US-42: arrangements confirmed; waiting for the Safety Officer (US-57).
+  // US-42: arrangements confirmed; waiting for the Safety Officer.
   'AWAITING_SAFETY_CHECK',
+  'SAFETY_REJECTED',
   'CONFIRMED',
   'COMPLETED',
   'CANCELLED',
@@ -261,7 +262,10 @@ export interface FieldChange {
     | keyof PlanningUpdatePayload
     | 'coordinator'
     | 'equipmentRequirements'
-    | 'technicalSupportNeeds';
+    | 'technicalSupportNeeds'
+    // US-43: a cancellation is recorded as the status move plus its reason.
+    | 'status'
+    | 'cancellationReason';
   previous: string | number | boolean | string[] | null;
   next: string | number | boolean | string[] | null;
 }
@@ -295,6 +299,8 @@ export interface EventStatusView {
 
 /** GET /events/mine — the Organiser's status view (US-05). */
 export interface OrganiserRequestView extends EventRequest {
+  /** The assigned Coordinator, resolved to contact details; null until assigned. */
+  coordinator?: ContactSummary | null;
   statusView: EventStatusView;
   /** Derived server-side from clarificationRequest; never stored. */
   clarificationRequested: boolean;
@@ -304,7 +310,8 @@ export interface OrganiserRequestView extends EventRequest {
   latestChangeDecision?: ChangeRequest | null;
 }
 
-export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+/** CLOSED (US-43): withdrawn without a decision because the event was cancelled. */
+export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CLOSED';
 
 /** US-37 — one line of a proposed equipment list. */
 export interface ChangeRequestEquipmentLine {
@@ -765,9 +772,30 @@ export type RegistrationStatus = 'REGISTERED' | 'WITHDRAWN';
 /** US-34 AC-2 — the registration form. Name and email come from the account. */
 export interface RegisterPayload {
   eventId: string;
+  /** International format with country code; the server stores it as E.164. */
   phone: string;
-  dietaryRequirements?: string;
+  /** A standard option; omitted when none is needed or the need is not listed. */
+  accessibilityFeature?: AccessibilityFeature;
+  /** The Attendee's own request, or detail beyond the option chosen. */
   accessibilityNeeds?: string;
+}
+
+/** Why the Register option is unavailable; mirrors RegisterBlock in the backend. */
+export type RegisterBlock = 'NOT_OPEN_TO_REGISTRATION' | 'NOT_YET_OPEN' | 'CLOSED' | 'FULL';
+
+/** GET /registrations/events/:eventId/options — may I register, and if not, why. */
+export interface RegistrationOptionsView {
+  eventId: string;
+  canRegister: boolean;
+  block: RegisterBlock | null;
+  /** Server-worded cause, for blocks the UI has no wording of its own for. */
+  reason: string | null;
+  opensAt: string | null;
+  closesAt: string | null;
+  alreadyRegistered: boolean;
+  registeredCount: number;
+  /** The event's registration capacity; null means no limit. */
+  capacity: number | null;
 }
 
 /** US-35/US-36 — one of the caller's registrations, with the event's current details. */
@@ -777,7 +805,7 @@ export interface RegistrationView {
   registeredAt: string;
   withdrawnAt: string | null;
   phone: string;
-  dietaryRequirements: string | null;
+  accessibilityFeature: AccessibilityFeature | null;
   accessibilityNeeds: string | null;
   event: {
     id: string;
@@ -835,10 +863,25 @@ export interface VenueWithWarnings extends Venue {
 }
 /**
  * Mirrors the backend BookingStatus enum. REQUESTED is "pending" (US-21 AC-3).
- * US-54: HELD is a tentative hold, live only until holdExpiresAt; RELEASED is
- * a hold released by Venue Staff or by expiry.
+ * US-54: HELD is a tentative hold, live only until holdExpiresAt. RELEASED is
+ * a hold released by Venue Staff or by expiry, or (US-43/US-44) any booking
+ * given back because its event was cancelled.
  */
 export type BookingStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'HELD' | 'RELEASED';
+
+/** US-43 — what an Organiser sends to cancel an event. */
+export interface CancelEventPayload {
+  reason: string;
+  confirm: true;
+}
+
+/** US-43 — what the cancellation released and who was told. */
+export interface CancellationResult {
+  event: EventRequest;
+  released: { venueBookings: number; equipmentReservations: number };
+  closedChangeRequests: number;
+  notified: number;
+}
 
 /**
  * US-21 AC-4/AC-5 — something occupying a requested slot: an existing
@@ -1058,6 +1101,164 @@ export interface VenueBlockResult {
   /** Live bookings already inside the new block. */
   overlappingBookings: BookingConflict[];
 }
+
+// ---------------------------------------------------------------------------
+// Event Coordinator Lead — unassigned queue and assignments (/assignments)
+// ---------------------------------------------------------------------------
+
+/** One row of GET /assignments/queue. */
+export interface QueueEntry {
+  id: string;
+  name: string | null;
+  organiser: ContactSummary;
+  /** The Organiser's client organisation; null until one is recorded. */
+  organisation: string | null;
+  category: string | null;
+  proposedStart: string | null;
+  proposedEnd: string | null;
+  expectedAttendance: number | null;
+  submittedAt: string | null;
+}
+
+/** GET /assignments/queue/:id — a queued request opened before assigning. */
+export interface QueuedRequestDetail extends QueueEntry {
+  status: EventStatus;
+  purpose: string | null;
+  description: string | null;
+  preferredLayout: string | null;
+  layoutNotes: string | null;
+}
+
+/** GET /assignments — one Coordinator and the active events they hold. */
+export interface CoordinatorAssignments {
+  coordinator: ContactSummary;
+  activeCount: number;
+  events: {
+    id: string;
+    name: string | null;
+    status: EventStatus;
+    eventDate: string | null;
+  }[];
+}
+
+/** POST /assignments/queue/:id/assign and /assignments/events/:id/reassign. */
+export interface AssignmentResult {
+  id: string;
+  name: string | null;
+  status: EventStatus;
+  coordinator: ContactSummary;
+}
+
+// ---------------------------------------------------------------------------
+// Safety Officer — the operational safety check (/safety)
+// ---------------------------------------------------------------------------
+
+export type SafetyOutcome = 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+export type SafetyReturnStage = 'VENUE' | 'TECHNICAL';
+
+/** One safety check of an event; the history keeps every one. */
+export interface SafetyReview {
+  id: string;
+  eventId: string;
+  outcome: SafetyOutcome;
+  reason: string | null;
+  returnStage: SafetyReturnStage | null;
+  emergencyAccessComment: string | null;
+  crowdMovementComment: string | null;
+  equipmentPlacementComment: string | null;
+  accessibilityComment: string | null;
+  /** The arrangements the Coordinator is asked to rework and have re-reviewed. */
+  affectedArrangements: ('VENUE_BOOKING' | 'EQUIPMENT_RESERVATION')[];
+  /** When the Coordinator sent the event back for a new check; null until then. */
+  resubmittedAt: string | null;
+  /** What the Coordinator told the Safety Officer when sending it back. */
+  resubmissionComment: string | null;
+  createdAt: string;
+  officer: ContactSummary;
+}
+
+/** One row of GET /safety/queue. */
+export interface SafetyQueueEntry {
+  id: string;
+  name: string | null;
+  coordinator: ContactSummary | null;
+  expectedAttendance: number | null;
+  proposedStart: string | null;
+  venues: { name: string | null; capacity: number | null }[];
+  queuedAt: string | null;
+  /** Above zero means this is a re-check. */
+  previousReviews: number;
+  lastOutcome: SafetyOutcome | null;
+}
+
+/** GET /safety/events/:id — everything needed to decide. */
+export interface SafetyReviewPacket {
+  event: {
+    id: string;
+    name: string | null;
+    purpose: string | null;
+    category: string | null;
+    status: EventStatus;
+    proposedStart: string | null;
+    proposedEnd: string | null;
+    expectedAttendance: number | null;
+    preferredLayout: string | null;
+    layoutNotes: string | null;
+    accessibilityRequirements: AccessibilityFeature[];
+    accessibilityNotes: string | null;
+    equipmentNeeds: string | null;
+    technicalSupportNeeds: string | null;
+    coordinator: ContactSummary | null;
+    organiser: ContactSummary;
+  };
+  venues: {
+    bookingId: string;
+    start: string;
+    end: string;
+    venue: {
+      id: string;
+      name: string | null;
+      location: string | null;
+      capacity: number | null;
+      supportedLayouts: string[];
+      accessibilityFeatures: string[];
+      layoutNotes: string | null;
+      operatingInfo: string | null;
+    };
+    /** Spare places once the expected attendance is seated; negative is over. */
+    capacityMargin: number | null;
+    blocks: { id: string; start: string; end: string; reason: string }[];
+  }[];
+  equipment: {
+    requirements: {
+      equipmentId: string | null;
+      equipmentType: string;
+      quantity: number;
+      notes: string | null;
+    }[];
+    reservations: {
+      id: string;
+      equipmentType: string;
+      quantity: number;
+      start: string;
+      end: string;
+    }[];
+  };
+  history: SafetyReview[];
+}
+
+export interface SafetyDecisionPayload {
+  outcome: SafetyOutcome;
+  reason?: string;
+  returnStage?: SafetyReturnStage;
+  emergencyAccessComment?: string;
+  crowdMovementComment?: string;
+  equipmentPlacementComment?: string;
+  accessibilityComment?: string;
+}
+
+/** POST /safety/events/:id/decision — the recorded review, plus where the event went. */
+export type SafetyDecisionResult = SafetyReview & { eventStatus: EventStatus };
 
 /** Notifications page — GET /notifications: one of the reader's own notifications. */
 export interface InboxNotification {

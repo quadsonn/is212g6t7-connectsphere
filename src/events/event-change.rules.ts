@@ -43,7 +43,10 @@ export type HistoryField =
   // US-28: recorded through the technical requirements edit, not the
   // planning edit, so they sit outside TRACKED_FIELDS.
   | 'equipmentRequirements'
-  | 'technicalSupportNeeds';
+  | 'technicalSupportNeeds'
+  // US-43: a cancellation is recorded as the status move plus its reason.
+  | 'status'
+  | 'cancellationReason';
 
 /** US-26 AC-2 — one field's previous and new value. */
 export interface FieldChange {

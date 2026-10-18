@@ -283,7 +283,8 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
     it('US-42: readiness is for the assigned Coordinator only', async () => {
       const ev = await seedEvent();
 
-      await readiness(ev.id, 'otherCoordinator').expect(403);
+      // Lead assignment story: another Coordinator cannot see the event at all.
+      await readiness(ev.id, 'otherCoordinator').expect(404);
       await readiness(ev.id, 'organiser').expect(403);
     });
   });
@@ -305,12 +306,12 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(row.manuallyConfirmedAt).toBeNull();
     });
 
-    it('US-42: a Coordinator not assigned to the event gets 403', async () => {
+    it('US-42: a Coordinator not assigned to the event cannot see it (404); its Organiser gets 403', async () => {
       const ev = await seedEvent();
       const rig = await seedRequirement(ev.id, 'Stage lighting rig', 1);
 
-      await manualConfirm(ev.id, rig.id, 'otherCoordinator').expect(403);
-      await undoManualConfirm(ev.id, rig.id, 'otherCoordinator').expect(403);
+      await manualConfirm(ev.id, rig.id, 'otherCoordinator').expect(404);
+      await undoManualConfirm(ev.id, rig.id, 'otherCoordinator').expect(404);
       await manualConfirm(ev.id, rig.id, 'organiser').expect(403);
     });
 
@@ -400,11 +401,11 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(view.body.arrangementsConfirmedAt).not.toBeNull();
     });
 
-    it('US-42 AC-3: a Coordinator not assigned to the event gets 403', async () => {
+    it('US-42 AC-3: a Coordinator not assigned to the event cannot confirm it (404: they cannot see it)', async () => {
       const ev = await seedEvent();
       await seedBooking(ev.id, 'Hall A');
 
-      await confirm(ev.id, 'otherCoordinator').expect(403);
+      await confirm(ev.id, 'otherCoordinator').expect(404);
       await confirm(ev.id, 'organiser').expect(403);
 
       expect((await event(ev.id)).status).toBe(EventStatus.PLANNING);

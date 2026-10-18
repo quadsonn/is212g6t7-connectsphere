@@ -3,9 +3,12 @@ import { Module } from '@nestjs/common';
 import { BookingsModule } from '../bookings/bookings.module';
 import { EquipmentModule } from '../equipment/equipment.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { EventsAssignmentController } from './events-assignment.controller';
+import { EventsAssignmentService } from './events-assignment.service';
 import { EventsChangeRequestService } from './events-change-request.service';
 import { EventsChangeReviewService } from './events-change-review.service';
 import { EventConfirmationService } from './event-confirmation.service';
+import { EventsCancellationService } from './events-cancellation.service';
 import { EventsController } from './events.controller';
 import { EventsService } from './events.service';
 
@@ -17,13 +20,15 @@ import { EventsService } from './events.service';
   // EquipmentModule: US-33 releases an event's equipment on cancellation.
   // BookingsModule: US-38 moves an event's bookings when its dates change.
   imports: [NotificationsModule, EquipmentModule, BookingsModule],
-  controllers: [EventsController],
+  controllers: [EventsController, EventsAssignmentController],
   providers: [
     EventsService,
+    EventsAssignmentService,
     EventsChangeRequestService,
     EventsChangeReviewService,
     // US-42: confirming the arrangements.
     EventConfirmationService,
+    EventsCancellationService,
   ],
   exports: [EventsService],
 })

@@ -25,6 +25,8 @@ export const CHANGE_FIELD_LABELS: Record<FieldChange['field'], string> = {
   coordinator: 'Coordinator',
   equipmentRequirements: 'Equipment requirements',
   technicalSupportNeeds: 'Technical support',
+  status: 'Status',
+  cancellationReason: 'Cancellation reason',
 };
 
 /** US-25 AC-2 — the arrangement a flagged change puts at risk. */
@@ -55,6 +57,7 @@ export function formatChangeValue(
     case 'registrationEnabled':
       return value ? 'Open to attendees' : 'Not open for registration';
     case 'preferredLayout':
+    case 'status':
       return humanise(value as string);
     case 'accessibilityRequirements': {
       const list = value as AccessibilityFeature[];

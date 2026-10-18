@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   BookingStatus,
@@ -29,6 +30,8 @@ import {
   ReleasedForReschedule,
   RELEASABLE_STATUSES,
 } from '../equipment/equipment-reservations.service';
+import { AttendeeChangeNotifier } from '../notifications/attendee-change-notifier.service';
+import { scheduleChangesFrom } from '../notifications/event-schedule-change';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   applicabilityErrors,
@@ -107,6 +110,8 @@ export class EventsChangeReviewService {
     private readonly bookings: BookingsService,
     private readonly reservations: EquipmentReservationsService,
     private readonly venueActivity: VenueActivityNotifier,
+    // Tells registered Attendees when an approval moves the date or time.
+    @Optional() private readonly attendeeChanges?: AttendeeChangeNotifier,
   ) {}
 
   /** AC-1 — pending requests on this Coordinator's own events, oldest first. */
@@ -374,7 +379,7 @@ export class EventsChangeReviewService {
     const confirmed = await this.events.confirmedArrangements(event.id);
     const decidedAt = new Date();
 
-    return this.prisma.$transaction(async (tx) => {
+    const approved = await this.prisma.$transaction(async (tx) => {
       // Claim the request first: a second Coordinator action racing this one
       // finds it no longer PENDING and stops here, rolling nothing forward.
       const claimed = await tx.eventChangeRequest.updateMany({
@@ -512,6 +517,16 @@ export class EventsChangeReviewService {
 
       return { request: decided, change, arrangements };
     });
+
+    // After the approval has committed: one notice per Attendee listing every
+    // date/time field this approval changed. An approval that only changes the
+    // attendance or equipment produces none.
+    await this.attendeeChanges?.notifyRegisteredAttendees(
+      event,
+      scheduleChangesFrom(approved.change?.changes ?? []),
+    );
+
+    return approved;
   }
 
   /**

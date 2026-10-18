@@ -3,21 +3,25 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { usePublicEvents } from '@/features/events/hooks/use-events';
+import { RegisterAction } from '@/features/registrations/components/register-action';
 import { RegisterForm } from '@/features/registrations/components/register-form';
 import { apiErrorMessage } from '@/lib/api-client';
 import { formatDateRange } from '@/lib/utils';
 
 /**
- * REAL data — GET /events. For an Attendee the backend returns only events
- * they can register for right now (CONFIRMED, registration open, not full, not
- * already registered) and projects internal planning fields away (US-02 AC-7).
- * Register opens the US-34 form inline; once registered, the event leaves this
- * list and appears under My registrations.
+ * REAL data — GET /events. For an Attendee the backend returns the confirmed,
+ * upcoming events with registration switched on that they have not already
+ * registered for, projected to drop internal planning fields (US-02 AC-7).
+ * Not-yet-open and full events are included on purpose: each row asks the
+ * server whether registration is available, and Register is disabled with the
+ * reason and the open/close times when it is not. Events whose registration
+ * has closed are left out by the server. Otherwise Register opens the US-34
+ * form inline. Once registered, the event leaves this list and
+ * appears under My registrations.
  */
 export function AttendeeDashboard() {
   const { data: events, isPending, isError, error } = usePublicEvents();
@@ -30,7 +34,7 @@ export function AttendeeDashboard() {
     <>
       <PageHeader
         title="Browse events"
-        description="Events open for registration."
+        description="Upcoming events. Registration may be open, not yet open or full."
       />
 
       {justRegistered ? (
@@ -48,9 +52,9 @@ export function AttendeeDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Open events</CardTitle>
+          <CardTitle>Upcoming events</CardTitle>
           {openForRegistration ? (
-            <span className="text-sm text-ink-500">{openForRegistration.length} available</span>
+            <span className="text-sm text-ink-500">{openForRegistration.length} {openForRegistration.length === 1 ? 'event' : 'events'}</span>
           ) : null}
         </CardHeader>
 
@@ -64,8 +68,8 @@ export function AttendeeDashboard() {
 
         {openForRegistration && openForRegistration.length === 0 ? (
           <EmptyState
-            title="Nothing open right now"
-            description="Confirmed events with registration open will be listed here."
+            title="No upcoming events"
+            description="Confirmed events that accept registration will be listed here."
           />
         ) : null}
 
@@ -95,16 +99,13 @@ export function AttendeeDashboard() {
                 </div>
 
                 {openFormId !== event.id ? (
-                  <Button
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => {
+                  <RegisterAction
+                    eventId={event.id}
+                    onRegister={() => {
                       setJustRegistered(null);
                       setOpenFormId(event.id);
                     }}
-                  >
-                    Register
-                  </Button>
+                  />
                 ) : null}
 
                 {openFormId === event.id ? (

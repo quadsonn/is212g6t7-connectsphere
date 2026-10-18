@@ -11,6 +11,7 @@ import {
   NotificationType,
   Prisma,
   ReservationStatus,
+  SafetyOutcome,
 } from '@prisma/client';
 
 import { AuthenticatedUser } from '../auth/jwt.strategy';
@@ -133,6 +134,20 @@ export class EventConfirmationService {
         );
       }
 
+      // Requirement change 6: after the Safety Officer asks for changes or
+      // rejects, the way back is SafetyService.resubmit (which checks that
+      // something changed and carries a note), not a second Confirm.
+      const latestSafety = await tx.safetyReview.findFirst({
+        where: { eventId: id },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { outcome: true, resubmittedAt: true },
+      });
+      if (latestSafety && latestSafety.outcome !== SafetyOutcome.APPROVED && latestSafety.resubmittedAt === null) {
+        throw new ConflictException(
+          'this event has safety feedback waiting for an answer; send it back for a safety check instead',
+        );
+      }
+
       const readiness = await this.getConfirmationReadiness(id, tx);
       if (!readiness.ready) {
         throw new ConflictException({
@@ -212,15 +227,17 @@ export class EventConfirmationService {
   }
 
   /**
-   * AC-3 — only the assigned Coordinator. Loaded through EVENT/ASSIGN (ANY
-   * scope), as US-27's reassignment does, so another Coordinator gets an
-   * explicit 403 rather than a 404.
+   * AC-3 — only the assigned Coordinator. Loaded through EVENT/READ: since the
+   * Lead assignment story a Coordinator can see only the events assigned to
+   * them, so another Coordinator gets 404, as on every other event route. A
+   * role that can read the event but does not coordinate it (its Organiser)
+   * gets an explicit 403.
    */
   private async assertAssigned(
     user: AuthenticatedUser,
     id: string,
   ): Promise<EventWithCoordinator> {
-    const event = await this.access.assertEventAccess(user, id, Action.ASSIGN);
+    const event = await this.access.assertEventAccess(user, id, Action.READ);
 
     if (!this.access.isAssignedCoordinator(user, event)) {
       throw new ForbiddenException(

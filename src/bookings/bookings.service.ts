@@ -1,7 +1,9 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   BookingDecisionKind,
@@ -12,8 +14,11 @@ import {
 } from '@prisma/client';
 
 import { AccessControlService } from '../common/access/access-control.service';
+import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
 import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { AttendeeChangeNotifier } from '../notifications/attendee-change-notifier.service';
+import { venueChange } from '../notifications/event-schedule-change';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { liveBookingsWhere, overlapping, overlapsRange } from './booking-overlap';
@@ -84,7 +89,13 @@ export class BookingsService implements VenueBookingLookup {
     private readonly notifications: NotificationsService,
     private readonly venueActivity: VenueActivityNotifier,
     private readonly holdNotifier: HoldNotifier,
+    // Requirement change 6: tells the Safety check that bookings changed.
+    @Optional() private readonly arrangements?: ArrangementsRegistry,
+    // Tells registered Attendees when an approval replaces an event's venue.
+    @Optional() private readonly attendeeChanges?: AttendeeChangeNotifier,
   ) {}
+
+  private readonly logger = new Logger(BookingsService.name);
 
   /**
    * US-21 — a Coordinator requests a venue for one of their events.
@@ -130,7 +141,7 @@ export class BookingsService implements VenueBookingLookup {
       throw new NotFoundException('venue not found');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       await this.lockVenue(tx, venue.id);
       // US-54: expired holds are free; release them before they are counted.
       await releaseExpiredHolds(tx, this.holdNotifier, { venueId: venue.id });
@@ -198,6 +209,11 @@ export class BookingsService implements VenueBookingLookup {
 
       return { ...booking, warnings };
     });
+
+    // A new pending request means the event is no longer fully approved.
+    await this.arrangements?.notifyChanged(dto.eventId);
+
+    return created;
   }
 
   /**
@@ -467,6 +483,12 @@ export class BookingsService implements VenueBookingLookup {
     );
 
     await this.notifyDecision(decided, kind);
+    if (outcome === BookingStatus.APPROVED) {
+      await this.notifyAttendeesIfVenueReplaced(decided);
+    }
+    // Approving the last pending booking (or withdrawing an approval) changes
+    // whether the event is due for its safety check.
+    await this.arrangements?.notifyChanged(decided.eventId);
 
     return { ...decided, warnings };
   }
@@ -617,6 +639,56 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /**
+   * An approval is a venue CHANGE, rather than a first booking or one more
+   * venue of a multi-venue event, when it takes the place of a booking at a
+   * different venue that was once approved and has since been rejected (a
+   * reversal). The most recently approved such booking is the one replaced, so
+   * a chain of replacements (A, then B, then C) names B when C is approved.
+   *
+   * AMBIGUOUS: the app has no "replace venue" action; this is how a
+   * replacement shows up in the data. A second venue approved while the first
+   * is still approved replaces nothing, so it notifies no one.
+   *
+   * After commit and best-effort: it must never fail the approval itself.
+   */
+  private async notifyAttendeesIfVenueReplaced(approved: BookingView): Promise<void> {
+    if (!this.attendeeChanges) return;
+
+    try {
+      const earlier = await this.prisma.venueBooking.findMany({
+        where: {
+          eventId: approved.eventId,
+          venueId: { not: approved.venueId },
+          status: BookingStatus.REJECTED,
+          decisions: { some: { outcome: BookingStatus.APPROVED } },
+        },
+        select: {
+          venue: { select: { name: true } },
+          decisions: {
+            where: { outcome: BookingStatus.APPROVED },
+            select: { createdAt: true },
+          },
+        },
+      });
+
+      const lastApproved = (b: (typeof earlier)[number]) =>
+        Math.max(...b.decisions.map((d) => d.createdAt.getTime()));
+      const replaced = [...earlier].sort((a, b) => lastApproved(b) - lastApproved(a))[0];
+      if (!replaced) return;
+
+      await this.attendeeChanges.notifyRegisteredAttendees(
+        { id: approved.eventId, name: approved.event.name },
+        [venueChange(replaced.venue.name, approved.venue.name)],
+      );
+    } catch (error) {
+      this.logger.error(
+        `failed to check for a replaced venue on event ${approved.eventId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+  }
+
+  /**
    * US-23 AC-5 — tell the Coordinator who asked and the event's Organiser.
    * After commit and best-effort: a failed notification must not undo the
    * decision (see NotificationsService).
@@ -625,7 +697,10 @@ export class BookingsService implements VenueBookingLookup {
     const verb = booking.status === BookingStatus.APPROVED ? 'approved' : 'rejected';
     const prefix = kind === BookingDecisionKind.REVERSAL ? 'Decision reversed: ' : '';
     const reason = booking.decisionReason ? ` Reason: ${booking.decisionReason}` : '';
-    const message = `${prefix}the booking of ${booking.venue.name ?? 'a venue'} for "${booking.event.name ?? 'your event'}" was ${verb}.${reason}`;
+    // A message starts with a capital: "The booking…", or after the prefix
+    // "Decision reversed: the booking…".
+    const article = prefix ? 'the' : 'The';
+    const message = `${prefix}${article} booking of ${booking.venue.name ?? 'a venue'} for "${booking.event.name ?? 'your event'}" was ${verb}.${reason}`;
 
     const recipients = new Set(
       [booking.requestedById, booking.event.organiser.id].filter((r): r is string => Boolean(r)),
@@ -696,6 +771,18 @@ export class BookingsService implements VenueBookingLookup {
       end: block.end,
       status: 'BLOCKED',
     }));
+  }
+
+  /**
+   * US-43 — how many of the event's bookings a cancellation will release
+   * (pending, approved or held), for the Organiser's summary. Counted before
+   * EventsService.setStatus(CANCELLED), which releases them (US-44,
+   * releaseForCancelledEvent below) and returns no count.
+   */
+  countReleasableForEvent(eventId: string, tx: Prisma.TransactionClient): Promise<number> {
+    return tx.venueBooking.count({
+      where: { eventId, status: { in: [...RELEASABLE_ON_CANCEL] } },
+    });
   }
 
   /**
@@ -804,9 +891,8 @@ export class BookingsService implements VenueBookingLookup {
     actorId: string | null = null,
     now: Date = new Date(),
   ): Promise<string[]> {
-    const RELEASABLE = [BookingStatus.REQUESTED, BookingStatus.APPROVED, BookingStatus.HELD];
     const candidates = await tx.venueBooking.findMany({
-      where: { eventId, status: { in: RELEASABLE } },
+      where: { eventId, status: { in: [...RELEASABLE_ON_CANCEL] } },
       select: { venueId: true },
     });
     const venueIds = [...new Set(candidates.map((b) => b.venueId))].sort();
@@ -816,7 +902,7 @@ export class BookingsService implements VenueBookingLookup {
 
     // Re-read under the locks: a decision may have landed in between.
     const bookings = await tx.venueBooking.findMany({
-      where: { eventId, status: { in: RELEASABLE } },
+      where: { eventId, status: { in: [...RELEASABLE_ON_CANCEL] } },
       orderBy: [{ start: 'asc' }, { id: 'asc' }],
       select: { id: true, status: true },
     });
@@ -912,6 +998,17 @@ export class BookingsService implements VenueBookingLookup {
     });
   }
 }
+
+/**
+ * US-44 AC-1 — what a cancellation releases: pending, approved and held
+ * bookings (a hold even if expired but not yet swept). REJECTED and RELEASED
+ * hold nothing and are left as they are.
+ */
+const RELEASABLE_ON_CANCEL: readonly BookingStatus[] = [
+  BookingStatus.REQUESTED,
+  BookingStatus.APPROVED,
+  BookingStatus.HELD,
+];
 
 /** US-44 AC-3 — why a booking was released when its event was cancelled. */
 export const EVENT_CANCELLED_REASON = 'Event cancelled';

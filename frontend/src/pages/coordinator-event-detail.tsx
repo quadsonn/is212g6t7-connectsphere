@@ -128,7 +128,7 @@ export function CoordinatorEventDetail() {
         action={
           <LinkButton to="/coordinator" variant="secondary" size="sm">
             <ArrowLeft className="size-4" aria-hidden="true" />
-            Back to queue
+            Back to my events
           </LinkButton>
         }
       />

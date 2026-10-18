@@ -36,10 +36,9 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: 'My requests', to: '/organiser', icon: LayoutDashboard },
   ],
   EVENT_COORDINATOR: [
-    { label: 'Review queue', to: '/coordinator', icon: ClipboardList },
+    { label: 'My events', to: '/coordinator', icon: ClipboardList },
     { label: 'Change requests', to: '/coordinator/change-requests', icon: Repeat2 },
     { label: 'My venue requests', to: '/coordinator/bookings', icon: MapPin },
-    { label: 'All events', to: '/coordinator/events', icon: CalendarCheck, comingSoon: true },
     { label: 'Venues', to: '/coordinator/venues', icon: Building2 },
   ],
   VENUE_STAFF: [

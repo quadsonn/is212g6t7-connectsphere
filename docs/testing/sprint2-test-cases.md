@@ -2425,3 +2425,662 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Executed By |  |
 | Date of Execution |  |
 | Automated by | Manual |
+
+## Story 30: View equipment and technical requirements described for an event (Technical Support Staff)
+
+### TC-S2-114
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-114 |
+| Story/AC ref | Story 30 AC-1 |
+| Test Scenario | Requirements are visible whether entered by the Organiser or recorded by the Coordinator |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-114-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Open the requirements of "Organiser Only", "Rows Only", "Notes Only" and "All Three". |
+| Test Data | tc-s2-114 events (one per mix of the three sources) |
+| Expected Result | Each shows its own sources: the Organiser's equipment needs, the Coordinator's rows (in the order entered), the support notes, or all three together. Responses are not cached. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-requirements.e2e-spec.ts::shows the Organiser's equipment needs on their own`<br>`test/equipment-requirements.e2e-spec.ts::shows the Coordinator's requirement rows on their own`<br>`test/equipment-requirements.e2e-spec.ts::shows the technical support notes on their own`<br>`test/equipment-requirements.e2e-spec.ts::shows all three sources together` |
+
+### TC-S2-115
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-115 |
+| Story/AC ref | Story 30 AC-1, AC-4 |
+| Test Scenario | The list holds only submitted events with at least one requirement; drafts are hidden |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-114-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Open Event requirements (the list).<br>2. Open the draft's requirements and its details. |
+| Test Data | tc-s2-114 |
+| Expected Result | Exactly the four events with a source are listed: not "None Recorded" and not the draft. The draft cannot be opened (404). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | "Submitted" is read as any status except DRAFT, so rejected or cancelled events with requirements are listed too. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-requirements.e2e-spec.ts::lists exactly the non-draft events with at least one source`<br>`test/equipment-requirements.e2e-spec.ts::hides a draft from the requirements and details routes (404)` |
+
+### TC-S2-116
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-116 |
+| Story/AC ref | Story 30 AC-2 |
+| Test Scenario | What was requested is shown, not just that a request exists |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-114-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Open the list and find "Rows Only".<br>2. Open the requirements of "All Three". |
+| Test Data | tc-s2-114 |
+| Expected Result | The list entry carries the two lines (2 × Laser projector; 6 × Wireless microphone, "Lapel"). The requirements view shows the requirements only, no other planning fields. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-requirements.e2e-spec.ts::carries the requirement content in the list itself`<br>`test/equipment-requirements.e2e-spec.ts::shows the requirements, not other planning fields` |
+
+### TC-S2-117
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-117 |
+| Story/AC ref | Story 30 AC-3 |
+| Test Scenario | No requirements recorded is clearly indicated |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-114-setup.sql + tc-s2-117-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Open the requirements of "None Recorded".<br>2. Open those of "Blank Text". |
+| Test Data | tc-s2-114; tc-s2-117 (text of only spaces) |
+| Expected Result | Both say "No equipment or technical requirements have been recorded for this event." "Blank Text" is not in the list. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-requirements.e2e-spec.ts::says so for a submitted event with nothing recorded`<br>`test/equipment-requirements.e2e-spec.ts::treats text made only of spaces as nothing recorded` |
+
+### TC-S2-118
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-118 |
+| Story/AC ref | Story 30 Access |
+| Test Scenario | Only Technical Support can view requirements |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-114-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; organiser@example.com; attendee@example.com; venue.staff@example.com. |
+| Test Steps | 1. Open the list, an event's requirements and its details as each of those roles, and without logging in. |
+| Test Data | tc-s2-114 |
+| Expected Result | Other roles are refused (403) on all three; no login is refused (401). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-requirements.e2e-spec.ts::refuses %s on the list, requirements and details routes (403)`<br>`test/equipment-requirements.e2e-spec.ts::refuses a request without a token (401)` |
+
+### TC-S2-119
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-119 |
+| Story/AC ref | Story 30 AC-1 (details view) |
+| Test Scenario | "View more details" opens the full event for any submitted event |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-114-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Open the details of "Organiser Only", then of the other events.<br>2. Open an unknown event's details. |
+| Test Data | tc-s2-114 |
+| Expected Result | The details show the planning fields (dates, attendance, layout, accessibility, programme) and the Coordinator's name and email, without the requirement text or internal ids. Every non-draft event opens; the unknown one is not found (404). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-requirements.e2e-spec.ts::returns the full event details`<br>`test/equipment-requirements.e2e-spec.ts::opens for the %s event`<br>`test/equipment-requirements.e2e-spec.ts::reports an unknown event as not found (404)`<br>`test/equipment-requirements.e2e-spec.ts::does not expose the requirement text or internal fields` |
+
+### TC-S2-120
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-120 |
+| Story/AC ref | Story 30 AC-1, AC-2, AC-3, AC-4 |
+| Test Scenario | Browse event requirements and open one |
+| Pre-conditions | Log in as tech.support@example.com on the running app. There are submitted events with requirements, one with none, and a draft with requirements. |
+| Test Steps | 1. Open Event requirements.<br>2. Open an event, then "View more details".<br>3. Open an event with nothing recorded (from its link or another view). |
+| Test Data | Seed data on the running app |
+| Expected Result | The list shows only submitted events with requirements (no draft), each with what was requested. An event shows the Organiser's and the Coordinator's requirements; one with none clearly says nothing has been recorded. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result |  |
+| Status | Not Executed |
+| Remarks | Manual: the AC is about the user interface. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | Manual |
+
+## Story 31: Reserve available equipment for an event (Technical Support Staff)
+
+### TC-S2-121
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-121 |
+| Story/AC ref | Story 31 AC-1, AC-3 |
+| Test Scenario | Commit equipment from an event and see a refusal's reason |
+| Pre-conditions | Log in as tech.support@example.com. An event in planning; an item with some units already committed to an overlapping event. |
+| Test Steps | 1. Open Event requirements and the event.<br>2. In "Commit equipment", choose an item and a quantity that is free; commit.<br>3. Commit more than is free. |
+| Test Data | Seed data on the running app |
+| Expected Result | The first commitment is confirmed on screen ("Committed N × …"). The second is refused with the reason shown, stating how many are free and how many are committed elsewhere. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result |  |
+| Status | Not Executed |
+| Remarks | Manual: the AC is about the user interface. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | Manual |
+
+### TC-S2-122
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-122 |
+| Story/AC ref | Story 31 AC-1 |
+| Test Scenario | A selected item and quantity are committed to an event for its date and time |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Commit 4 Wireless microphones to "Capstone Showcase". |
+| Test Data | tc-s2-122: 10 microphones; Capstone Showcase 1 Oct 2030 09:00-17:00 |
+| Expected Result | Created (201) as a locked-in (approved) reservation of 4, for 09:00-17:00 on 1 Oct 2030. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::commits the quantity over the event's own window` |
+
+### TC-S2-123
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-123 |
+| Story/AC ref | Story 31 AC-1 |
+| Test Scenario | Equipment cannot be committed to an event that is not live |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql + tc-s2-123-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Commit a microphone to the draft, rejected, cancelled and completed events. |
+| Test Data | tc-s2-123 |
+| Expected Result | Each is refused (409), naming the event's status. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::refuses a %s event (409)` |
+
+### TC-S2-124
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-124 |
+| Story/AC ref | Story 31 AC-1 |
+| Test Scenario | The commitment needs a real event, item and quantity |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Commit to an unknown event, and an unknown item.<br>2. Commit quantities 0, -1, 1.5 and "two". |
+| Test Data | tc-s2-122 |
+| Expected Result | Unknown event or item: not found (404). Each bad quantity: refused (400), nothing saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::reports an unknown event or item as not found (404)`<br>`test/equipment-reservations.e2e-spec.ts::rejects a quantity of %p (400)` |
+
+### TC-S2-125
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-125 |
+| Story/AC ref | Story 31 Access |
+| Test Scenario | Only Technical Support can commit equipment |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; organiser@example.com; attendee@example.com; venue.staff@example.com. |
+| Test Steps | 1. Commit as each of those roles, and without logging in. |
+| Test Data | tc-s2-122 |
+| Expected Result | Other roles are refused (403) and nothing is saved; no login is refused (401). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::refuses %s (403) and commits nothing`<br>`test/equipment-reservations.e2e-spec.ts::refuses a request without a token (401)` |
+
+### TC-S2-126
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-126 |
+| Story/AC ref | Story 31 AC-2 |
+| Test Scenario | Once committed, the quantity is locked for any overlapping period, and only that |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Commit 4 microphones to Capstone, then check availability for 16:00-18:00.<br>2. Commit 7 to Capstone, then 4 and 3 to the overlapping Industry Night.<br>3. Commit all 10 to Capstone, then to the back-to-back and next-day events, and PA systems to Industry Night.<br>4. Commit 6, then 5, then 4 more to Capstone itself. |
+| Test Data | tc-s2-122 |
+| Expected Result | The check straight away shows 4 reserved, 6 free. Industry Night: 4 refused (409), 3 accepted. Back-to-back, next-day and other-item commitments are accepted. Capstone's own: 5 refused, 4 accepted. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::is excluded from the very next availability check for an overlapping window`<br>`test/equipment-reservations.e2e-spec.ts::cannot be committed again to an overlapping event`<br>`test/equipment-reservations.e2e-spec.ts::does not lock non-overlapping periods, including back-to-back`<br>`test/equipment-reservations.e2e-spec.ts::locks only the item committed, not other items`<br>`test/equipment-reservations.e2e-spec.ts::counts the same event's earlier commitment too` |
+
+### TC-S2-127
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-127 |
+| Story/AC ref | Story 31 AC-2 |
+| Test Scenario | Two simultaneous commitments can never together take more than exists |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Commit 6 microphones to Capstone and 6 to Industry Night at the same moment. |
+| Test Data | tc-s2-122 (10 microphones) |
+| Expected Result | One is accepted (201) and the other refused (409); exactly 6 are held. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::lets exactly one of two simultaneous over-committing requests through` |
+
+### TC-S2-128
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-128 |
+| Story/AC ref | Story 31 AC-3 |
+| Test Scenario | Committing more than is free is rejected, with the reason shown |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. With 4 committed to Industry Night, commit 7 to Capstone, then exactly 6.<br>2. Commit the projector (under maintenance).<br>3. With all 10 held elsewhere, commit 1 to Capstone. |
+| Test Data | tc-s2-122 |
+| Expected Result | 7 is refused with "Only 6 of the 7 Wireless microphone requested are free for … 4 of 10 are already committed to an overlapping period."; 6 is accepted. The projector is refused because it is under maintenance. Nothing is saved when refused. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::rejects one unit more than is free, stating the counts`<br>`test/equipment-reservations.e2e-spec.ts::accepts exactly the free quantity (boundary)`<br>`test/equipment-reservations.e2e-spec.ts::rejects equipment under maintenance, saying so`<br>`test/equipment-reservations.e2e-spec.ts::creates nothing when rejected` |
+
+### TC-S2-129
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-129 |
+| Story/AC ref | Story 31 Not in the ACs |
+| Test Scenario | The Coordinator is notified when equipment is committed to their event |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql + tc-s2-129-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Commit 2 microphones to Capstone.<br>2. Commit the projector (refused).<br>3. Commit to the event with no Coordinator. |
+| Test Data | tc-s2-122; tc-s2-129 (unassigned event) |
+| Expected Result | Cody Coordinator gets one unread notification naming "2 × Wireless microphone" and Capstone Showcase. A refusal notifies nobody. The unassigned event's commitment is saved with nobody notified. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | This behaviour is not in Story 31's ACs; it is tested because the code does it. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::records a notification for the assigned Coordinator`<br>`test/equipment-reservations.e2e-spec.ts::notifies nobody when the commitment is rejected`<br>`test/equipment-reservations.e2e-spec.ts::still commits, notifying nobody, when the event has no Coordinator` |
+
+## Story 32: Release equipment reservations for a cancelled event (Technical Support Staff)
+
+### TC-S2-130
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-130 |
+| Story/AC ref | Story 32 AC-1 |
+| Test Scenario | Cancelling an event releases all of its reservations |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql + tc-s2-130-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Commit microphones and PA systems to Capstone, then cancel it.<br>2. (Reset with tc-s2-130) Cancel Capstone. |
+| Test Data | tc-s2-122; tc-s2-130 (one pending, one rejected reservation) |
+| Expected Result | Every held or pending reservation becomes Released, with a release time; the event is Cancelled. The rejected reservation is left alone. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | Code gap: no endpoint or screen cancels an event, so the test cancels through EventsService.setStatus(), the method any future cancel action must use (see TC-S2-135). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::marks every reservation the event held as RELEASED, with a timestamp`<br>`test/equipment-reservations.e2e-spec.ts::releases a still-pending reservation too, leaving a rejected one alone` |
+
+### TC-S2-131
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-131 |
+| Story/AC ref | Story 32 AC-1 |
+| Test Scenario | Only cancelling releases reservations |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Commit microphones to Capstone, then move it to Confirmed. |
+| Test Data | tc-s2-122 |
+| Expected Result | The reservation stays held. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::releases nothing when the event moves to any other status` |
+
+### TC-S2-132
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-132 |
+| Story/AC ref | Story 32 AC-2 |
+| Test Scenario | Released equipment counts as available again for the same period |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Commit all 10 microphones to Capstone and check availability.<br>2. Cancel Capstone and check again.<br>3. Commit 10 to the overlapping Industry Night. |
+| Test Data | tc-s2-122 |
+| Expected Result | Before: 0 available. After cancelling: 10 available, none reserved, and the 10 can be committed to Industry Night (refused before the cancellation). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::restores the units in the availability check for the same window`<br>`test/equipment-reservations.e2e-spec.ts::lets the released units be committed to an overlapping event` |
+
+### TC-S2-133
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-133 |
+| Story/AC ref | Story 32 AC-3 |
+| Test Scenario | Technical Support can see which reservations were released, for which cancelled event |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech); other roles. |
+| Test Steps | 1. Commit to Capstone and Industry Night, cancel Capstone, open Released reservations.<br>2. (Reset) Open it with nothing released.<br>3. Open it as other roles. |
+| Test Data | tc-s2-122 |
+| Expected Result | Only Capstone's reservation is listed, with the equipment, quantity, times, release time and the event (Cancelled). Empty when nothing is released. Other roles are refused (403). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::lists released reservations with the equipment and the cancelled event`<br>`test/equipment-reservations.e2e-spec.ts::is empty when nothing has been released`<br>`test/equipment-reservations.e2e-spec.ts::refuses %s (403)` |
+
+### TC-S2-134
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-134 |
+| Story/AC ref | Story 32 AC-4 |
+| Test Scenario | Release affects only that event's reservations, and never releases twice |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql + tc-s2-134-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Test Steps | 1. Commit to Capstone and Alumni Day, cancel Capstone.<br>2. (Reset with tc-s2-134) Cancel Capstone.<br>3. Release Capstone a second time. |
+| Test Data | tc-s2-122; tc-s2-134 (a reservation released on 1 Jan 2030) |
+| Expected Result | Alumni Day's reservation stays held. The earlier release keeps its 1 Jan 2030 time. The second release changes nothing. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/equipment-reservations.e2e-spec.ts::leaves other events' reservations of the same item held`<br>`test/equipment-reservations.e2e-spec.ts::does not re-release an already-released reservation`<br>`test/equipment-reservations.e2e-spec.ts::changes nothing on a second release of the same cancelled event` |
+
+### TC-S2-135
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-135 |
+| Story/AC ref | Story 32 AC-1 |
+| Test Scenario | A user cancels an event through the app, and its equipment reservations are released |
+| Pre-conditions | Not applicable: the behaviour this AC describes does not exist yet. |
+| Test Steps | 1. — |
+| Test Data | — |
+| Expected Result | Cancelling an event (by whoever may cancel it) changes its status to Cancelled and releases its reservations. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | No endpoint or screen cancels an event, so this cannot happen through the app. The release itself works when the status changes (TC-S2-130). |
+| Status | Fail |
+| Remarks | Code gap: add a cancel action that goes through EventsService.setStatus(); the release then follows automatically. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | None (nothing to automate yet) |
+
+## Story 33: Register for an event and provide required information (Attendee)
+
+### TC-S2-136
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-136 |
+| Story/AC ref | Story 33 AC-1 |
+| Test Scenario | The Register option is offered for a confirmed event with registration enabled |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-136-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Check the registration options for "Spring Gala". |
+| Test Data | tc-s2-136: CONFIRMED, registration enabled, open 1 Jan 2026 - 28 Sep 2030, capacity 100 |
+| Expected Result | Registration is possible, with the open and close times and the capacity shown. Not cached. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-register.e2e-spec.ts::offers it for a confirmed event with registration enabled` |
+
+### TC-S2-137
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-137 |
+| Story/AC ref | Story 33 AC-1 |
+| Test Scenario | The Register option is withheld unless the event is confirmed with registration enabled |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-136-setup.sql + tc-s2-137-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Check options for, and try to register for, the event with registration off and the event still in planning.<br>2. Do the same for the draft event. |
+| Test Data | tc-s2-137 |
+| Expected Result | Off and planning: not offered, and registering is refused (409) "Registration is not available for this event."; nothing saved. Draft: not found (404). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-register.e2e-spec.ts::withholds it for an event %s, and refuses to register (409)`<br>`test/registrations-register.e2e-spec.ts::treats a draft event as not found (404)` |
+
+### TC-S2-138
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-138 |
+| Story/AC ref | Story 33 AC-2 |
+| Test Scenario | Missing or invalid fields are flagged and block submission |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-136-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Register with no phone, a phone of spaces, and "call me".<br>2. Register with no event.<br>3. Register with only the phone "  91234567  ". |
+| Test Data | tc-s2-136 |
+| Expected Result | Each missing or invalid field is refused (400) with a message naming it; nothing is saved. The phone alone is accepted and stored as "91234567". |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-register.e2e-spec.ts::flags %s (400) and saves nothing`<br>`test/registrations-register.e2e-spec.ts::flags a missing event (400)`<br>`test/registrations-register.e2e-spec.ts::accepts a phone alone, stored without surrounding spaces` |
+
+### TC-S2-139
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-139 |
+| Story/AC ref | Story 33 AC-3 |
+| Test Scenario | A successful registration is saved as Registered, with a confirmation |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-136-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Register for Spring Gala with phone, dietary and accessibility details. |
+| Test Data | tc-s2-136 |
+| Expected Result | Created (201) as Registered with the details; one row saved for Ann; a confirmation notification "You are registered for "Spring Gala"." |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | The confirmation shown on screen is covered by TC-S2-144 (manual). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-register.e2e-spec.ts::saves the registration as REGISTERED and confirms it` |
+
+### TC-S2-140
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-140 |
+| Story/AC ref | Story 33 AC-4, AC-5 |
+| Test Scenario | One active registration per event, and no second attempt once confirmed |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-136-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Register for Spring Gala, then again.<br>2. Check the options.<br>3. (Reset) Submit the form twice at the same moment. |
+| Test Data | tc-s2-136 |
+| Expected Result | The second attempt is refused (409) "You are already registered for this event."; the options no longer offer Register. Only one registration exists, also after the double submission. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-register.e2e-spec.ts::refuses a second registration and withdraws the Register option`<br>`test/registrations-register.e2e-spec.ts::lets only one of two simultaneous submissions through` |
+
+### TC-S2-141
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-141 |
+| Story/AC ref | Story 33 AC-6 |
+| Test Scenario | Registration is only possible between the open and close times, which are shown otherwise |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-136-setup.sql + tc-s2-137-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
+| Test Steps | 1. Check options for and register for "Opens later" and "Already closed". |
+| Test Data | tc-s2-137 |
+| Expected Result | Both refused (409). Not yet open: "Registration opens at 2030-01-01… and closes at 2030-09-28…". Closed: "Registration is closed. It opened at 2019-01-01… and closed at 2020-01-01…". |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-register.e2e-spec.ts::refuses before it opens, showing the open and close times`<br>`test/registrations-register.e2e-spec.ts::refuses after it closes, showing the open and close times` |
+
+### TC-S2-142
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-142 |
+| Story/AC ref | Story 33 AC-7 |
+| Test Scenario | A full event rejects the registration with a "full" message |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-136-setup.sql + tc-s2-142-setup.sql on testDB (reset before test). Logged in as attendee@example.com; attendee.c@example.com. |
+| Test Steps | 1. Register for "Sold Out Talk".<br>2. Ann and Cal register for "Last Place Talk" at the same moment. |
+| Test Data | tc-s2-142: Sold Out Talk 2 of 2 taken; Last Place Talk 1 of 2 taken |
+| Expected Result | Sold Out: refused (409) "This event is full.". Last place: exactly one succeeds; the other is told the event is full. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-register.e2e-spec.ts::refuses with "This event is full."`<br>`test/registrations-register.e2e-spec.ts::gives the last place to exactly one of two simultaneous Attendees` |
+
+### TC-S2-143
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-143 |
+| Story/AC ref | Story 33 Access |
+| Test Scenario | Only Attendees can register |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-136-setup.sql on testDB (reset before test). Logged in as organiser@example.com; coord.a@example.com; tech.support@example.com; venue.staff@example.com. |
+| Test Steps | 1. Register and check options as each of those roles, and without logging in. |
+| Test Data | tc-s2-136 |
+| Expected Result | Other roles are refused (403) and nothing is saved; no login is refused (401). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-18 |
+| Automated by | `test/registrations-register.e2e-spec.ts::refuses %s (403)`<br>`test/registrations-register.e2e-spec.ts::refuses a request without a token (401)` |
+
+### TC-S2-144
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-144 |
+| Story/AC ref | Story 33 AC-1, AC-2, AC-3, AC-6, AC-7 |
+| Test Scenario | Register for an event from the Attendee screens |
+| Pre-conditions | Log in as attendee@example.com. A confirmed event open for registration; one not yet open; one full. |
+| Test Steps | 1. Open Browse events.<br>2. Open the open event, click Register, submit with the phone empty, then with a valid phone.<br>3. Open the not-yet-open and the full events. |
+| Test Data | Seed data on the running app |
+| Expected Result | Register shows only where registration applies. The empty phone is flagged and blocks submission; the valid form shows a confirmation and the event appears under My registrations. The not-yet-open event shows its open and close times instead of Register; the full one says it is full. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-18 |
+| **Test execution record** | |
+| Actual Result |  |
+| Status | Not Executed |
+| Remarks | Manual: the AC is about the user interface. |
+| Executed By |  |
+| Date of Execution |  |
+| Automated by | Manual |

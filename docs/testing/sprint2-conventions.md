@@ -89,3 +89,6 @@ These ACs are not (fully) implemented, or don't behave as the AC asks. The test 
 | 26 | AC-1 | The system has no record of a Coordinator's availability; any responsible Coordinator may ask for reassignment (TC-S2-84, noted in Remarks). |
 | 27 | AC-1 | **Bug:** an equipment type of only spaces is accepted and saved as an empty type; `EquipmentRequirementDto` lacks `@Trim()` (TC-S2-90, Status Fail, `it.failing`). |
 | 29 | AC-2 | Only confirmed (approved) reservations are excluded; a reservation still awaiting approval holds nothing. Confirm this reading with the team (TC-S2-108, Remarks). |
+| 30 | AC-4 | "Submitted events" is read as any status except DRAFT, so rejected or cancelled events with requirements are still listed. Confirm with the team (TC-S2-115, Remarks). |
+| 31 | — | Not in the ACs: committing equipment also notifies the event's Coordinator. Tested because the code does it (TC-S2-129). |
+| 32 | AC-1 | No endpoint or screen cancels an event, so reservations can only be released by code calling `EventsService.setStatus()` (TC-S2-135, Status Fail). |

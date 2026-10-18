@@ -218,6 +218,16 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-107-setup.sql` | confirmed microphone reservations outside the window, two of them back-to-back with it | 107 |
 | `tc-s2-108-setup.sql` | microphone reservations over the window that hold nothing: requested, rejected and released | 108 |
 | `tc-s2-109-setup.sql` | two confirmed microphone reservations inside the window that never overlap each other | 109 |
+| `tc-s2-114-setup.sql` | one event per mix of the three requirement sources (Organiser needs, Coordinator rows, support notes), one with none, and a draft with all three | 114, 115, 116, 117, 118, 119 |
+| `tc-s2-117-setup.sql` | an event whose equipment and support text is only spaces | 117 |
+| `tc-s2-122-setup.sql` | three equipment items (one under maintenance) and four events: the main one, one overlapping it, one back-to-back, one the next day | 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134 |
+| `tc-s2-123-setup.sql` | events equipment must not be committed to: draft, rejected, cancelled, completed | 123 |
+| `tc-s2-129-setup.sql` | a submitted event with no Coordinator assigned | 129 |
+| `tc-s2-130-setup.sql` | a pending and a rejected reservation for the main event | 130 |
+| `tc-s2-134-setup.sql` | a reservation for the main event already released on 1 Jan 2030 | 134 |
+| `tc-s2-136-setup.sql` | a confirmed event open for registration now (capacity 100) | 136, 137, 138, 139, 140, 141, 142, 143 |
+| `tc-s2-137-setup.sql` | events where registering is not allowed: registration off, still planning, draft, not yet open, already closed | 137, 141 |
+| `tc-s2-142-setup.sql` | two more Attendees, a full event (2 of 2) and one with a single place left | 142 |
 
 Extra users added by Sprint 2 scripts (same password as the base users):
 
@@ -225,3 +235,5 @@ Extra users added by Sprint 2 scripts (same password as the base users):
 |---|---|---|---|
 | `u-venue-staff-b` | venue.staff.b@example.com | Victor Venue | VENUE_STAFF (`tc-s2-01-setup.sql`) |
 | `u-organiser-b` | other.organiser@example.com | Oscar Organiser | EVENT_ORGANISER (`tc-s2-52-setup.sql`) |
+| `u-attendee-b` | attendee.b@example.com | Bea Attendee | ATTENDEE (`tc-s2-142-setup.sql`) |
+| `u-attendee-c` | attendee.c@example.com | Cal Attendee | ATTENDEE (`tc-s2-142-setup.sql`) |

@@ -32,6 +32,8 @@ import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
 import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
+import { AttendeeChangeNotifier } from '../notifications/attendee-change-notifier.service';
+import { scheduleChangesFrom } from '../notifications/event-schedule-change';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AskClarificationDto } from './dto/ask-clarification.dto';
@@ -238,6 +240,8 @@ export class EventsService {
     private readonly equipmentReservations: EquipmentReservationsService,
     // Requirement change 6: tells the Safety check that requirements changed.
     @Optional() private readonly arrangements?: ArrangementsRegistry,
+    // Tells registered Attendees when a date or time change is applied.
+    @Optional() private readonly attendeeChanges?: AttendeeChangeNotifier,
   ) {}
 
   /**
@@ -555,6 +559,12 @@ export class EventsService {
       return this.setStatus(event, EventStatus.APPROVED, tx);
     });
 
+    // setStatus() treats APPROVED -> APPROVED as a no-op, so a repeated click
+    // is not a second decision and must not produce a second notification.
+    if (event.status !== EventStatus.APPROVED) {
+      await this.notifyOrganiserOfDecision(event, 'approved');
+    }
+
     return this.toOrganiserView(approved);
   }
 
@@ -598,7 +608,8 @@ export class EventsService {
     await this.notifications.notifySafely({
       recipientId: event.organiserId,
       type: NotificationType.CLARIFICATION_REQUESTED,
-      message: `The coordinator has asked a question about "${event.name ?? 'your event request'}".`,
+      // US: the Organiser sees the question itself, not just that one exists.
+      message: `The coordinator has asked a question about "${event.name ?? 'your event request'}". Reason: ${dto.question}`,
       relatedEventId: event.id,
     });
 
@@ -719,7 +730,43 @@ export class EventsService {
       return this.setStatus(event, next, tx);
     });
 
+    if (event.status !== next) {
+      await this.notifyOrganiserOfDecision(
+        event,
+        next === EventStatus.REJECTED ? 'rejected' : 'returned for amendment',
+        reasonFields.decisionReason ?? reasonFields.clarificationRequest ?? null,
+      );
+    }
+
     return this.toOrganiserView(decided);
+  }
+
+  /**
+   * The Organiser is told what the Coordinator decided on their request: the
+   * event, the outcome, and the Coordinator's reason where one was given. Only
+   * ever the owning Organiser — never the assignee, other Coordinators or
+   * Attendees — and raised after the decision commits, best-effort like every
+   * other notification (see NotificationsService). Event-detail link: the
+   * notification records relatedEventId, which the inbox turns into the
+   * Organiser's event page (notification-view.ts linkFor).
+   *
+   * Clarification has its own sender (askClarification, which keeps its type);
+   * approve, reject and return share EVENT_STATUS_CHANGED.
+   */
+  private async notifyOrganiserOfDecision(
+    event: EventRequest,
+    outcome: 'approved' | 'rejected' | 'returned for amendment',
+    reason: string | null = null,
+  ): Promise<void> {
+    const name = event.name ?? 'your event request';
+    const suffix = reason ? ` Reason: ${reason}` : '';
+
+    await this.notifications.notifySafely({
+      recipientId: event.organiserId,
+      type: NotificationType.EVENT_STATUS_CHANGED,
+      message: `Your event request "${name}" was ${outcome}.${suffix}`,
+      relatedEventId: event.id,
+    });
   }
 
   /**
@@ -831,6 +878,12 @@ export class EventsService {
 
       return this.recordChange(tx, event.id, user.userId, changes, affected);
     });
+
+    // A new date or time is the Attendees' business; other edits are not.
+    await this.attendeeChanges?.notifyRegisteredAttendees(
+      event,
+      scheduleChangesFrom(changes),
+    );
 
     return { ...(await this.findAssignedRequest(user, id)), change };
   }

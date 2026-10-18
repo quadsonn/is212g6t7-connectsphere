@@ -817,4 +817,88 @@ describe('EventsChangeReviewService (US-38)', () => {
       });
     });
   });
+
+  describe('Attendee notice: an approved date or time change notifies registered Attendees', () => {
+    let notifier: { notifyRegisteredAttendees: jest.Mock };
+    let noticeService: EventsChangeReviewService;
+
+    beforeEach(() => {
+      notifier = { notifyRegisteredAttendees: jest.fn().mockResolvedValue(0) };
+      // The real recordChange returns the saved entry, including what changed.
+      events.recordChange.mockImplementation((_tx, _id, _by, changes) =>
+        Promise.resolve({ id: 'change-1', changes }),
+      );
+      noticeService = new EventsChangeReviewService(
+        prisma as unknown as PrismaService,
+        access as unknown as AccessControlService,
+        events as unknown as EventsService,
+        bookings as unknown as BookingsService,
+        reservations as unknown as EquipmentReservationsService,
+        notifier as never,
+      );
+    });
+
+    const noticed = () => notifier.notifyRegisteredAttendees.mock.calls.flatMap(([, c]) => c);
+
+    it('AC-1/AC-3: names the event and each changed field with old and new value', async () => {
+      stored = request({ proposedStart: inDays(29, 9), proposedAttendance: null });
+
+      await noticeService.approve(coordinator, 'cr-1');
+
+      expect(notifier.notifyRegisteredAttendees).toHaveBeenCalledTimes(1);
+      expect(notifier.notifyRegisteredAttendees.mock.calls[0][0]).toMatchObject({
+        id: 'event-1',
+        name: 'Hackathon',
+      });
+      expect(noticed()).toHaveLength(1);
+      expect(noticed()[0]).toMatchObject({ label: 'Start' });
+      expect(noticed()[0].previous).not.toBe(noticed()[0].next);
+    });
+
+    it('AC-4: start and end moved by one approval are one notice listing both', async () => {
+      stored = request({
+        proposedStart: inDays(40, 9),
+        proposedEnd: inDays(40, 17),
+        proposedAttendance: null,
+      });
+
+      await noticeService.approve(coordinator, 'cr-1');
+
+      expect(notifier.notifyRegisteredAttendees).toHaveBeenCalledTimes(1);
+      expect(noticed().map((c) => c.label)).toEqual(['Start', 'End']);
+    });
+
+    it('AC-6: an approval that only changes attendance notifies nobody', async () => {
+      await noticeService.approve(coordinator, 'cr-1');
+
+      expect(noticed()).toEqual([]);
+    });
+
+    it('AC-6: an approval that only changes equipment notifies nobody', async () => {
+      stored = request({
+        proposedAttendance: null,
+        equipmentChanged: true,
+        equipment: [cameraLine],
+      });
+
+      await noticeService.approve(coordinator, 'cr-1');
+
+      expect(noticed()).toEqual([]);
+    });
+
+    it('a rejected change request notifies no Attendee', async () => {
+      await noticeService.reject(coordinator, 'cr-1', { reason: 'No room' });
+
+      expect(notifier.notifyRegisteredAttendees).not.toHaveBeenCalled();
+    });
+
+    it('a refused approval notifies no Attendee', async () => {
+      currentEvent = event({ status: EventStatus.CANCELLED });
+
+      await expect(noticeService.approve(coordinator, 'cr-1')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(notifier.notifyRegisteredAttendees).not.toHaveBeenCalled();
+    });
+  });
 });

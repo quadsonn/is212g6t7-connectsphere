@@ -11,6 +11,7 @@ import {
   useRecentNotifications,
   useUnreadCount,
 } from '../hooks/use-notifications';
+import { notificationTitle } from '../notification-title';
 
 /**
  * The bell in the shared header, for every role: the unread count (polled on
@@ -126,13 +127,17 @@ export function NotificationBell() {
                       aria-hidden="true"
                     />
                     <span className="min-w-0 flex-1 space-y-0.5">
-                      <span className="block truncate text-xs font-medium text-ink-600">
-                        {[n.relatedBooking?.venue.name, n.relatedEvent?.name].filter(Boolean).join(' · ')}
+                      <span className={cn('block text-ink-900', !n.read && 'font-semibold')}>
+                        {notificationTitle(n.type) ?? n.summary}
                       </span>
-                      <span className={cn('block text-ink-900', !n.read && 'font-semibold')}>{n.summary}</span>
-                      <time dateTime={n.createdAt} className="block text-xs text-ink-500">
-                        {timeAgo(n.createdAt)}
-                      </time>
+                      {notificationTitle(n.type) ? (
+                        <span className="block text-ink-700">{n.summary}</span>
+                      ) : null}
+                      <span className="block truncate text-xs text-ink-500">
+                        {[n.relatedEvent?.name, n.relatedBooking?.venue.name].filter(Boolean).join(' · ')}
+                        {n.relatedEvent || n.relatedBooking ? ' · ' : ''}
+                        <time dateTime={n.createdAt}>{timeAgo(n.createdAt)}</time>
+                      </span>
                     </span>
                     {n.read ? null : <span className="sr-only">Unread</span>}
                   </button>

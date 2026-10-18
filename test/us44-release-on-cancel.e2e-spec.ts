@@ -205,7 +205,7 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
         ].sort(),
       );
       expect(notices.find((n) => n.recipientId === ids.staffA)!.message).toMatch(
-        /"Gala" has been cancelled\. Its booking of Main Hall for .* has been released\./,
+        /^Booking for .* UTC released\.$/,
       );
     });
 

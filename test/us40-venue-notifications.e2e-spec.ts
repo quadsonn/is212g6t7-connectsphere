@@ -164,9 +164,8 @@ describe('US-40 venue activity notifications (e2e)', () => {
         relatedBooking: { id: res.body.id, venue: { id: ids.hall, name: 'Main Hall' } },
         link: `/venues/bookings/${res.body.id}`,
       });
-      expect(mine[0].summary).toContain('Main Hall');
-      expect(mine[0].summary).toContain('"Gala"');
-      expect(mine[0].summary).toContain('2030-10-01 18:00–22:00 UTC');
+      // AC-3: venue and event come with it (above); the message says when.
+      expect(mine[0].summary).toBe('Requested for 1 Oct 2030, 18:00–22:00 UTC.');
       expect(typeof mine[0].createdAt).toBe('string');
 
       expect((await inbox('staffB').expect(200)).body).toEqual([]);
@@ -199,9 +198,9 @@ describe('US-40 venue activity notifications (e2e)', () => {
       const all = await ofType(NotificationType.BOOKING_DETAILS_CHANGED);
       expect(all).toHaveLength(1);
       expect(all[0]).toMatchObject({ recipientId: ids.staffA, relatedBookingId: booking.id, relatedEventId: event.id });
-      expect(all[0].message).toContain('Main Hall');
-      expect(all[0].message).toContain('2030-10-08 18:00–22:00 UTC');
-      expect(all[0].message).toContain('back in your queue');
+      expect(all[0].message).toBe(
+        'Time 1 Oct 2030, 18:00–22:00 UTC → 8 Oct 2030, 18:00–22:00 UTC. Back in your queue for a new decision.',
+      );
     });
 
     it('US-40: an attendance change notifies the manager', async () => {
@@ -213,7 +212,7 @@ describe('US-40 venue activity notifications (e2e)', () => {
       const all = await ofType(NotificationType.BOOKING_DETAILS_CHANGED);
       expect(all).toHaveLength(1);
       expect(all[0]).toMatchObject({ recipientId: ids.staffA, relatedBookingId: booking.id });
-      expect(all[0].message).toContain('attendance 120 → 200');
+      expect(all[0].message).toBe('Attendance 120 → 200.');
     });
 
     it('US-40: a booking that was not APPROVED is not reported as changed', async () => {
@@ -237,8 +236,8 @@ describe('US-40 venue activity notifications (e2e)', () => {
       const all = await ofType(NotificationType.BOOKING_EVENT_CANCELLED);
       expect(all).toHaveLength(1);
       expect(all[0]).toMatchObject({ recipientId: ids.staffA, relatedBookingId: live.id });
-      expect(all[0].message).toContain('"Gala"');
-      expect(all[0].message).toContain('cancelled');
+      expect(all[0]).toMatchObject({ relatedEventId: event.id });
+      expect(all[0].message).toBe('Booking for 1 Oct 2030, 18:00–22:00 UTC released.');
       expect((await inbox('staffB').expect(200)).body).toEqual([]);
     });
   });
@@ -258,7 +257,7 @@ describe('US-40 venue activity notifications (e2e)', () => {
         orderBy: { createdAt: 'asc' },
       });
       expect(mine.map((n) => n.type)).toEqual([NotificationType.HOLD_EXPIRING, NotificationType.HOLD_EXPIRED]);
-      expect(mine[0].message).toContain('2030-09-30 12:00 UTC');
+      expect(mine[0].message).toContain('expires 30 Sep 2030, 12:00 UTC');
       expect(mine.every((n) => n.relatedBookingId === hold.id)).toBe(true);
       expect(await prisma.notification.count({ where: { recipientId: ids.staffB } })).toBe(0);
     });

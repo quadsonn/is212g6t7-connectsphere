@@ -29,8 +29,8 @@ const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString(
 const venueItem = (overrides: Partial<InboxNotification> = {}): InboxNotification => ({
   id: 'n1',
   type: 'BOOKING_REQUEST_SUBMITTED',
-  message: 'New booking request for "Gala" at Main Hall, 2030-10-01 18:00–22:00 UTC.',
-  summary: 'New booking request for "Gala" at Main Hall, 2030-10-01 18:00–22:00 UTC.',
+  message: 'Requested for 1 Oct 2030, 18:00–22:00 UTC.',
+  summary: 'Requested for 1 Oct 2030, 18:00–22:00 UTC.',
   reason: null,
   read: false,
   readAt: null,
@@ -73,7 +73,7 @@ describe('US-40: the bell dropdown', () => {
       venueItem({
         id: 'n2',
         type: 'BOOKING_EVENT_CANCELLED',
-        summary: '"Banquet" has been cancelled. It had a booking of East Annex for 2030-10-02 18:00–22:00 UTC.',
+        summary: 'Booking for 2 Oct 2030, 18:00–22:00 UTC released.',
         createdAt: minutesAgo(120),
         relatedEvent: { id: 'e2', name: 'Banquet' },
         relatedBooking: { id: 'b2', venue: { id: 'v2', name: 'East Annex' } },
@@ -86,10 +86,13 @@ describe('US-40: the bell dropdown', () => {
     const items = await within(dialog).findAllByRole('listitem');
     expect(items).toHaveLength(2);
 
-    expect(within(items[0]).getByText('Main Hall · Gala')).toBeInTheDocument();
-    expect(within(items[0]).getByText(/^New booking request for "Gala"/)).toBeInTheDocument();
+    // A short title says what happened; the detail and then event · venue · when follow.
+    expect(within(items[0]).getByText('New booking request')).toBeInTheDocument();
+    expect(within(items[0]).getByText('Requested for 1 Oct 2030, 18:00–22:00 UTC.')).toBeInTheDocument();
+    expect(within(items[0]).getByText(/^Gala · Main Hall ·/)).toBeInTheDocument();
     expect(within(items[0]).getByText(timeAgo(minutesAgo(5)))).toBeInTheDocument();
-    expect(within(items[1]).getByText('East Annex · Banquet')).toBeInTheDocument();
+    expect(within(items[1]).getByText('Event cancelled')).toBeInTheDocument();
+    expect(within(items[1]).getByText(/^Banquet · East Annex ·/)).toBeInTheDocument();
     expect(api.list).toHaveBeenCalledWith({ limit: 10 });
   });
 

@@ -8,6 +8,7 @@ import {
   useMarkNotifications,
   useNotifications,
 } from '@/features/notifications/hooks/use-notifications';
+import { notificationTitle } from '@/features/notifications/notification-title';
 import { apiErrorMessage } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 
@@ -85,11 +86,15 @@ export function NotificationsPage() {
                         !n.read && 'font-semibold',
                       )}
                     >
-                      {n.summary}
+                      {notificationTitle(n.type) ?? n.summary}
                     </Link>
                   ) : (
-                    <p className={cn('text-ink-900', !n.read && 'font-semibold')}>{n.summary}</p>
+                    <p className={cn('text-ink-900', !n.read && 'font-semibold')}>
+                      {notificationTitle(n.type) ?? n.summary}
+                    </p>
                   )}
+                  {/* Titled types: the title says what happened, this the detail. */}
+                  {notificationTitle(n.type) ? <p className="text-ink-700">{n.summary}</p> : null}
                   {n.reason ? (
                     <p className="text-ink-700">
                       <span className="font-medium">Reason:</span> {n.reason}
@@ -99,7 +104,7 @@ export function NotificationsPage() {
                     {n.relatedEvent ? `${n.relatedEvent.name ?? 'Untitled event'} · ` : ''}
                     {/* US-40 AC-3: venue activity names its venue. */}
                     {n.relatedBooking ? `${n.relatedBooking.venue.name ?? 'Unnamed venue'} · ` : ''}
-                    <time dateTime={n.createdAt}>{new Date(n.createdAt).toLocaleString()}</time>
+                    <time dateTime={n.createdAt}>{whenLabel(n.createdAt)}</time>
                     {n.read ? '' : ' · Unread'}
                   </p>
                 </div>
@@ -133,4 +138,14 @@ export function NotificationsPage() {
       ) : null}
     </>
   );
+}
+
+/** "18 Oct, 6:37 pm" in the reader's own time zone. */
+function whenLabel(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }

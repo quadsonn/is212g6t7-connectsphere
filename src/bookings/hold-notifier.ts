@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { NotificationType, Prisma, Role } from '@prisma/client';
 
 import { NotificationsService } from '../notifications/notifications.service';
-import { momentLabel, slot } from './slot-label';
+import { shortMoment, shortSlot } from './slot-label';
 import { VenueActivityNotifier } from './venue-activity-notifier';
 
 interface HoldFacts {
@@ -48,7 +48,7 @@ export class HoldNotifier {
       tx,
       hold,
       NotificationType.HOLD_PLACED,
-      `${venueLabel(hold)} is tentatively held for ${eventLabel(hold)} (${slot(hold.start, hold.end)}) until ${expiry(hold)}.`,
+      `Held for ${when(hold)} until ${expiry(hold)}.`,
     );
   }
 
@@ -58,7 +58,7 @@ export class HoldNotifier {
       tx,
       hold,
       NotificationType.HOLD_EXPIRING,
-      `The tentative hold on ${venueLabel(hold)} for ${eventLabel(hold)} (${slot(hold.start, hold.end)}) expires at ${expiry(hold)}. Ask Venue Staff to confirm or extend it.`,
+      `Hold for ${when(hold)} expires ${expiry(hold)}. Ask Venue Staff to confirm or extend it.`,
     );
     await this.venueActivity.holdExpiring(tx, bookingId, hold.holdExpiresAt ?? new Date());
   }
@@ -69,7 +69,7 @@ export class HoldNotifier {
       tx,
       hold,
       NotificationType.HOLD_EXPIRED,
-      `The tentative hold on ${venueLabel(hold)} for ${eventLabel(hold)} (${slot(hold.start, hold.end)}) has expired. The venue is available again.`,
+      `Hold for ${when(hold)} has expired. The venue is available again.`,
     );
     await this.venueActivity.holdExpired(tx, bookingId);
   }
@@ -81,7 +81,7 @@ export class HoldNotifier {
       hold,
       NotificationType.HOLD_RELEASED,
       // " Reason: " so the notifications page shows it apart (splitReason).
-      `The tentative hold on ${venueLabel(hold)} for ${eventLabel(hold)} (${slot(hold.start, hold.end)}) was released. Reason: ${reason}.`,
+      `Hold for ${when(hold)} was released. Reason: ${reason}.`,
     );
   }
 
@@ -91,7 +91,7 @@ export class HoldNotifier {
       tx,
       hold,
       NotificationType.VENUE_BOOKING_DECIDED,
-      `The tentative hold on ${venueLabel(hold)} for ${eventLabel(hold)} (${slot(hold.start, hold.end)}) is now a confirmed booking.`,
+      `Hold for ${when(hold)} is now a confirmed booking.`,
     );
   }
 
@@ -140,6 +140,6 @@ export class HoldNotifier {
   }
 }
 
-const venueLabel = (h: HoldFacts) => h.venue.name ?? 'An unnamed venue';
-const eventLabel = (h: HoldFacts) => (h.event.name ? `"${h.event.name}"` : 'an untitled event');
-const expiry = (h: HoldFacts) => (h.holdExpiresAt ? momentLabel(h.holdExpiresAt) : 'an unknown time');
+// Short, without the venue and event names: the inbox shows those beside it.
+const when = (h: HoldFacts) => shortSlot(h.start, h.end);
+const expiry = (h: HoldFacts) => (h.holdExpiresAt ? shortMoment(h.holdExpiresAt) : 'an unknown time');

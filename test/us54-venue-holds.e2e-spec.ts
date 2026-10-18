@@ -448,8 +448,8 @@ describe('US-54 tentative venue holds (e2e)', () => {
 
       const [notice] = await notices(NotificationType.HOLD_PLACED);
       expect(notice).toMatchObject({ recipientId: ids.coordinator, relatedEventId: event.id, relatedBookingId: h.id });
-      expect(notice.message).toContain('Main Hall');
-      expect(notice.message).toContain('"Gala"');
+      // Venue and event come from relatedBookingId / relatedEventId; the message says when.
+      expect(notice.message).toMatch(/^Held for .* UTC until .* UTC\.$/);
       expect(await prisma.notification.count()).toBe(1);
     });
 

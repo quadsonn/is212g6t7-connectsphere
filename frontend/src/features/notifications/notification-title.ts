@@ -1,8 +1,9 @@
 /**
  * Short titles for the notification types whose messages leave out the venue
- * and event names (US-40 venue activity, US-54 holds, the safety check): the
- * title says what happened, the message gives the detail, and the venue and
- * event are shown beneath. Any other type has no title and shows its full message, as before.
+ * and event names (US-40 venue activity, US-54 holds, equipment reservations,
+ * the safety check): the title says what happened, the message gives the
+ * detail, and the venue and event are shown beneath. Any other type has no
+ * title and shows its full message, as before.
  */
 const TITLES: Record<string, string> = {
   BOOKING_REQUEST_SUBMITTED: 'New booking request',
@@ -12,6 +13,8 @@ const TITLES: Record<string, string> = {
   HOLD_EXPIRING: 'Hold expiring soon',
   HOLD_EXPIRED: 'Hold expired',
   HOLD_RELEASED: 'Hold released',
+  // US-32: what was reserved and when.
+  EQUIPMENT_RESERVATION_DECIDED: 'Equipment reserved',
   // Requirement change 6: the message starts with the outcome.
   SAFETY_CHECK_DECIDED: 'Safety check',
 };

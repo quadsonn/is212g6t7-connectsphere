@@ -336,7 +336,8 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
         relatedEventId: ids.event,
         read: false,
       });
-      expect(notes[0].message).toContain('2 × Wireless microphone committed to "Capstone Showcase"');
+      // The event is shown beside the message (relatedEventId), not in it.
+      expect(notes[0].message).toMatch(/^2 × Wireless microphone for .* UTC\.$/);
     });
 
     it('notifies nobody when the commitment is rejected', async () => {

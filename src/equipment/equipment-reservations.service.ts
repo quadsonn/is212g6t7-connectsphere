@@ -16,6 +16,7 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { shortSlot } from '../bookings/slot-label';
 import { EQUIPMENT_COMMITTABLE_STATUSES } from '../events/event-status.machine';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -184,7 +185,9 @@ export class EquipmentReservationsService {
       await this.notifications.notifySafely({
         recipientId: event.coordinatorId,
         type: NotificationType.EQUIPMENT_RESERVATION_DECIDED,
-        message: `${reservation.quantity} × ${reservation.equipment.type} committed to "${event.name ?? 'your event'}" for ${reservation.start.toISOString()} – ${reservation.end.toISOString()}.`,
+        // Short, like the other notices: the inbox shows the event beside it
+        // and titles it "Equipment reserved".
+        message: `${reservation.quantity} × ${reservation.equipment.type} for ${shortSlot(reservation.start, reservation.end)}.`,
         relatedEventId: event.id,
       });
     }

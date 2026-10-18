@@ -4,6 +4,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { Wordmark } from '@/components/ui/logo';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { NotificationBell } from '@/features/notifications/components/notification-bell';
+import { ROLE_THEME } from '@/lib/role-theme';
 import { cn } from '@/lib/utils';
 import { NAV_BY_ROLE } from './nav-config';
 import { SidebarSlotContext } from './sidebar-slot-context';
@@ -13,6 +14,8 @@ import { UserMenu } from './user-menu';
 export function AppShell() {
   const { session } = useAuth();
   const items = session ? NAV_BY_ROLE[session.role] : [];
+  // One colour per role on the frame, so whose account this is is obvious.
+  const theme = session ? ROLE_THEME[session.role] : null;
   // Page-provided sidebar content (see SidebarPortal).
   const [slotNode, setSlotNode] = useState<HTMLDivElement | null>(null);
   const [slotActive, setSlotActive] = useState(false);
@@ -25,6 +28,7 @@ export function AppShell() {
       </a>
 
       <header className="sticky top-0 z-10 border-b border-ink-200 bg-white">
+        <div aria-hidden="true" data-testid="role-strip" className={cn('h-1', theme?.strip ?? 'bg-brand-600')} />
         <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
           <Wordmark />
           <div className="flex items-center gap-2">
@@ -51,8 +55,10 @@ export function AppShell() {
                   end
                   className={({ isActive }) =>
                     cn(
-                      'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap',
-                      isActive ? 'bg-brand-50 text-brand-800' : 'text-ink-700 hover:bg-ink-100',
+                      'flex items-center gap-2 rounded-lg border-b-2 px-3 py-1.5 text-sm font-medium whitespace-nowrap',
+                      isActive
+                        ? (theme?.navActive ?? 'bg-brand-50 text-brand-800 border-brand-600')
+                        : 'border-transparent text-ink-700 hover:bg-ink-100',
                     )
                   }
                 >
@@ -95,10 +101,10 @@ export function AppShell() {
                       end
                       className={({ isActive }) =>
                         cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                          'flex items-center gap-3 rounded-lg border-l-4 px-3 py-2 text-sm font-medium transition-colors',
                           isActive
-                            ? 'bg-brand-50 text-brand-800'
-                            : 'text-ink-700 hover:bg-ink-100',
+                            ? (theme?.navActive ?? 'bg-brand-50 text-brand-800 border-brand-600')
+                            : 'border-transparent text-ink-700 hover:bg-ink-100',
                         )
                       }
                     >

@@ -10,10 +10,13 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
-  // The tests share one database, so run them one at a time.
-  fullyParallel: false,
-  workers: 1,
+  // Run tests side by side, up to 4 at once. The tests share one database, so
+  // any test that writes data must not depend on another test's writes.
+  fullyParallel: true,
+  workers: 4,
   retries: 0,
+  // Give up on a failing check after 2s, not the default 5s.
+  expect: { timeout: 2000 },
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     // The web app, not the API (:3000).

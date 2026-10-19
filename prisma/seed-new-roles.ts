@@ -1,7 +1,9 @@
 /**
- * Creates ONLY the two login accounts for the roles added by requirement
- * changes 5 and 6. Nothing else is written: no events, venues, equipment, and
- * no changes to any existing user.
+ * Creates ONLY the login accounts for the roles added by requirement changes
+ * 5 and 6 — two per role, like every other role's test accounts (lead@ and
+ * lead2@, safety@ and safety2@). Nothing else is written: no events, venues,
+ * equipment, and no changes to any existing user. IDs (USR-…) come from the
+ * database.
  *
  * Safe to run against the shared database, and safe to run twice: an account
  * that already exists is left exactly as it is.
@@ -21,6 +23,9 @@ const PASSWORD = '12345678';
 const ACCOUNTS = [
   { email: 'lead@connectsphere.local', name: 'Elena Coordinator Lead', role: Role.EVENT_COORDINATOR_LEAD },
   { email: 'safety@connectsphere.local', name: 'Kofi Safety Officer', role: Role.SAFETY_OFFICER },
+  // A second account per role, for "another Lead" / "another Safety Officer" checks.
+  { email: 'lead2@connectsphere.local', name: 'Ravi Coordinator Lead', role: Role.EVENT_COORDINATOR_LEAD },
+  { email: 'safety2@connectsphere.local', name: 'Mei Safety Officer', role: Role.SAFETY_OFFICER },
 ];
 
 async function main() {

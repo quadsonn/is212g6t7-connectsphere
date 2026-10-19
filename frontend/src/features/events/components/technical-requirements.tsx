@@ -9,12 +9,22 @@ import { useSetTechnicalRequirements } from '@/features/events/hooks/use-events'
 import { apiErrorMessage } from '@/lib/api-client';
 import type { EquipmentRequirement, EventChangeEntry, EventRequest } from '@/types/api';
 import { ARRANGEMENT_LABELS } from '../lib/change-format';
+import { ManualCheckToggle } from './manual-check-toggle';
 
 /**
  * US-28 AC-3 — the recorded requirements, read-only. Shared by the
  * Coordinator's view and the Technical Support view so both see the same thing.
+ *
+ * US-42: with `manualCheck`, the assigned Coordinator can tick free-text lines
+ * as checked by hand. Catalogue lines are settled by reservations instead.
  */
-export function TechnicalRequirementsView({ event }: { event: EventRequest }) {
+export function TechnicalRequirementsView({
+  event,
+  manualCheck = false,
+}: {
+  event: EventRequest;
+  manualCheck?: boolean;
+}) {
   const requirements = event.equipmentRequirements ?? [];
 
   return (
@@ -31,6 +41,7 @@ export function TechnicalRequirementsView({ event }: { event: EventRequest }) {
                   <th className="py-1 pr-3 font-medium">Equipment</th>
                   <th className="py-1 pr-3 font-medium">Quantity</th>
                   <th className="py-1 font-medium">Notes</th>
+                  {manualCheck ? <th className="py-1 pl-3 font-medium">Checked by hand</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -39,6 +50,15 @@ export function TechnicalRequirementsView({ event }: { event: EventRequest }) {
                     <td className="py-1.5 pr-3 text-ink-900">{r.equipmentType}</td>
                     <td className="py-1.5 pr-3 tabular-nums text-ink-900">{r.quantity}</td>
                     <td className="py-1.5 text-ink-500">{r.notes ?? '—'}</td>
+                    {manualCheck ? (
+                      <td className="py-1.5 pl-3">
+                        {r.equipmentId ? (
+                          <span className="text-xs text-ink-500">Settled by reservation</span>
+                        ) : (
+                          <ManualCheckToggle eventId={event.id} requirement={r} />
+                        )}
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -275,7 +295,7 @@ export function TechnicalRequirementsCard({
             onCancel={() => setEditing(false)}
           />
         ) : (
-          <TechnicalRequirementsView event={event} />
+          <TechnicalRequirementsView event={event} manualCheck={editable} />
         )}
       </CardContent>
     </Card>

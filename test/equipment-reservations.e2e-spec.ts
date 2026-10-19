@@ -14,6 +14,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { EquipmentReservationsService } from '../src/equipment/equipment-reservations.service';
 import { EventsService } from '../src/events/events.service';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /**
  * US-32, US-33 e2e — and their interaction with US-30, since all three
@@ -105,7 +106,7 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
     events = app.get(EventsService);
@@ -336,7 +337,8 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
         relatedEventId: ids.event,
         read: false,
       });
-      expect(notes[0].message).toContain('2 × Wireless microphone committed to "Capstone Showcase"');
+      // The event is shown beside the message (relatedEventId), not in it.
+      expect(notes[0].message).toMatch(/^2 × Wireless microphone for .* UTC\.$/);
     });
 
     it('notifies nobody when the commitment is rejected', async () => {
@@ -409,7 +411,9 @@ describe('US-32/33 equipment commitment and release (e2e)', () => {
       await commit(ids.event, ids.mic, 4).expect(201);
       const event = await prisma.eventRequest.findUniqueOrThrow({ where: { id: ids.event } });
 
-      await events.setStatus(event, EventStatus.CONFIRMED);
+      // Any legal move that is not a cancellation. (CONFIRMED is no longer
+      // reachable from here: it needs an approved safety check.)
+      await events.setStatus(event, EventStatus.AWAITING_SAFETY_CHECK);
 
       const row = await prisma.equipmentReservation.findFirstOrThrow({
         where: { eventId: ids.event },

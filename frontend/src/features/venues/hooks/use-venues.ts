@@ -6,10 +6,14 @@ import type {
   BrowseVenuesQuery,
   DayAvailability,
   Venue,
+  VenueOccupancy,
+  VenueBuffersPayload,
   VenueDraftPayload,
   VenueSearchQuery,
   VenueSuitability,
 } from '@/types/api';
+import { bookingKeys } from '@/features/bookings/hooks/use-bookings';
+import { calendarKeys } from '@/features/calendar/hooks/use-calendar';
 import { venuesApi } from '../api/venues.api';
 
 export const venueKeys = {
@@ -21,6 +25,7 @@ export const venueKeys = {
   detail: (id: string) => ['venues', 'detail', id] as const,
   availability: (id: string, month: string) =>
     ['venues', 'availability', id, month] as const,
+  occupancy: (id: string, day: string) => ['venues', 'occupancy', id, day] as const,
 };
 
 /** US-15 — the catalogue, optionally searched and sorted server-side. */
@@ -61,6 +66,19 @@ export function useVenue(id: string) {
     queryKey: venueKeys.detail(id),
     queryFn: () => venuesApi.getById(id),
     enabled: Boolean(id),
+  });
+}
+
+/**
+ * US-50 AC-3 — what occupies a venue on one selected day, each booking split
+ * into setup, event time and turnaround. Fetched only once a day is picked.
+ */
+export function useVenueOccupancy(id: string, day: string | null) {
+  return useQuery<VenueOccupancy[]>({
+    queryKey: venueKeys.occupancy(id, day ?? ''),
+    queryFn: () => venuesApi.occupancy(id, day!),
+    enabled: Boolean(id && day),
+    staleTime: 30_000,
   });
 }
 
@@ -123,6 +141,27 @@ export function useRemoveVenueImage(id: string) {
   return useMutation({
     mutationFn: (imageUrl: string) => venuesApi.removeImage(id, imageUrl),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: venueKeys.all }),
+  });
+}
+
+// US-49: the venue's setup and turnaround time. US-51: saving may flag
+// bookings, so the booking queue and calendar are refreshed too.
+export function useUpdateVenueBuffers(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: VenueBuffersPayload) => venuesApi.updateBuffers(id, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: venueKeys.all });
+      void queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      void queryClient.invalidateQueries({ queryKey: calendarKeys.all });
+    },
+  });
+}
+
+// US-51: which bookings the proposed buffers would flag, before saving.
+export function usePreviewVenueBuffers(id: string) {
+  return useMutation({
+    mutationFn: (payload: VenueBuffersPayload) => venuesApi.previewBuffers(id, payload),
   });
 }
 

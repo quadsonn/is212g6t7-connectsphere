@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AccessibilityFeature,
   BookingStatus,
   NotificationType,
   Prisma,
@@ -49,7 +50,7 @@ const REGISTRATION_VIEW_SELECT = {
   id: true,
   status: true,
   phone: true,
-  dietaryRequirements: true,
+  accessibilityFeature: true,
   accessibilityNeeds: true,
   createdAt: true,
   withdrawnAt: true,
@@ -77,7 +78,7 @@ export interface RegistrationView {
   registeredAt: Date;
   withdrawnAt: Date | null;
   phone: string;
-  dietaryRequirements: string | null;
+  accessibilityFeature: AccessibilityFeature | null;
   accessibilityNeeds: string | null;
   event: {
     id: string;
@@ -202,7 +203,7 @@ export class RegistrationsService {
         const data = {
           status: RegistrationStatus.REGISTERED,
           phone: dto.phone,
-          dietaryRequirements: dto.dietaryRequirements ?? null,
+          accessibilityFeature: dto.accessibilityFeature ?? null,
           accessibilityNeeds: dto.accessibilityNeeds ?? null,
           withdrawnAt: null,
         };
@@ -246,7 +247,14 @@ export class RegistrationsService {
 
     const rows = await this.prisma.registration.findMany({
       where: { attendeeId: user.userId },
-      orderBy: [{ event: { proposedStart: 'asc' } }, { id: 'asc' }],
+      // Active registrations first, withdrawn ones always below them (REGISTERED
+      // is declared before WITHDRAWN in the enum, so ascending puts it on top);
+      // within each group, soonest event first.
+      orderBy: [
+        { status: 'asc' },
+        { event: { proposedStart: 'asc' } },
+        { id: 'asc' },
+      ],
       select: REGISTRATION_VIEW_SELECT,
     });
 
@@ -391,7 +399,7 @@ export class RegistrationsService {
       registeredAt: row.createdAt,
       withdrawnAt: row.withdrawnAt,
       phone: row.phone,
-      dietaryRequirements: row.dietaryRequirements,
+      accessibilityFeature: row.accessibilityFeature,
       accessibilityNeeds: row.accessibilityNeeds,
       event: {
         id: event.id,

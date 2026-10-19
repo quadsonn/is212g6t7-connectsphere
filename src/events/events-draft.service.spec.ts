@@ -9,6 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
+import { BookingsService } from '../bookings/bookings.service';
 
 /** US-04 — drafts. */
 describe('EventsService drafts (US-04)', () => {
@@ -80,6 +81,7 @@ describe('EventsService drafts (US-04)', () => {
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
   });
 
@@ -170,7 +172,7 @@ describe('EventsService drafts (US-04)', () => {
 
       expect(prisma.eventRequest.update).toHaveBeenCalledWith({
         where: { id: 'event-1' },
-        data: { status: EventStatus.SUBMITTED },
+        data: { status: EventStatus.SUBMITTED, submittedAt: expect.any(Date) },
       });
       expect(result.status).toBe(EventStatus.SUBMITTED);
     });

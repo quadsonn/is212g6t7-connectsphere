@@ -5,10 +5,14 @@ import { PageHeader } from '@/components/layout/app-shell';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { BookingDetails } from '@/features/bookings/components/booking-details';
+import { SuggestedAlternatives } from '@/features/bookings/components/suggested-alternatives';
 import { useBookingRequest } from '@/features/bookings/hooks/use-bookings';
 import { apiErrorMessage } from '@/lib/api-client';
 
-/** US-21 — one of the Coordinator's venue booking requests, in full. */
+/**
+ * US-21 — one of the Coordinator's venue booking requests, in full.
+ * US-41 — with any alternative venues suggested on its rejection.
+ */
 export function CoordinatorBookingDetail() {
   const { id } = useParams<{ id: string }>();
   const { data: booking, isPending, isError, error } = useBookingRequest(id ?? '');
@@ -45,7 +49,13 @@ export function CoordinatorBookingDetail() {
       {isError ? (
         <ErrorState message={apiErrorMessage(error, 'Could not load this request.')} />
       ) : null}
-      {booking ? <BookingDetails booking={booking} /> : null}
+      {booking ? (
+        <div className="space-y-4">
+          {/* US-41 AC-5/AC-6: Venue Staff's alternatives, if they suggested any. */}
+          <SuggestedAlternatives booking={booking} />
+          <BookingDetails booking={booking} />
+        </div>
+      ) : null}
     </>
   );
 }

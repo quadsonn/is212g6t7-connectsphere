@@ -8,6 +8,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookingsService } from './bookings.service';
 import { QueueSortField, QueueView } from './dto/booking-queue-query.dto';
+import { HoldNotifier } from './hold-notifier';
+import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /** US-22 — Venue Booking Request Queue. */
 describe('BookingsService findQueue (US-22)', () => {
@@ -34,6 +36,8 @@ describe('BookingsService findQueue (US-22)', () => {
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       { notifySafely: jest.fn() } as unknown as NotificationsService,
+      { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
+      { placed: jest.fn(), expiring: jest.fn(), expired: jest.fn(), released: jest.fn(), converted: jest.fn() } as unknown as HoldNotifier,
     );
   });
 
@@ -162,11 +166,11 @@ describe('BookingsService findQueue (US-22)', () => {
   });
 
   describe('AC-7: decided requests leave the pending view', () => {
-    it('the decided view lists approved and rejected, newest submission first', async () => {
+    it('US-44: the decided view lists approved, rejected and released, newest submission first', async () => {
       await service.findQueue(staff, { view: QueueView.DECIDED }, now);
 
       expect(whereOf().status).toEqual({
-        in: [BookingStatus.APPROVED, BookingStatus.REJECTED],
+        in: [BookingStatus.APPROVED, BookingStatus.REJECTED, BookingStatus.RELEASED],
       });
       expect(prisma.venueBooking.findMany.mock.calls[0][0].orderBy).toEqual({ createdAt: 'desc' });
     });

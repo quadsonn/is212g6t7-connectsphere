@@ -35,6 +35,9 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.CLARIFY, Scope.OWN),
         // US-37: "requests changes" — to their own events only.
         g(Action.REQUEST_CHANGE, Scope.OWN),
+        // US-43: cancel their own event. Whether Coordinators may too is an
+        // open question on the card, so only the Organiser holds it for now.
+        g(Action.CANCEL, Scope.OWN),
       ],
       [Resource.VENUE]: [g(Action.READ, Scope.ANY)],
       // US-23 AC-5: "the decision and reason are visible to the relevant
@@ -52,16 +55,6 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.REVIEW, Scope.ASSIGNED),
         // US-09: asking a clarification on an assigned request.
         g(Action.CLARIFY, Scope.ASSIGNED),
-        // US-10. Deliberately ANY, not ASSIGNED: AC-2 requires reassigning an
-        // event away from the Coordinator who currently holds it, and an
-        // ASSIGNED scope would hide a peer's event entirely.
-        //
-        // This means any Coordinator can take an event from any other. CLAUDE.md
-        // §1 gives the role "assigns/coordinates events" and the brief defines
-        // no manager or admin role, so this is the reading that invents least —
-        // but see the US-10 summary: a Coordinator Manager is the likelier real
-        // answer and needs a customer decision.
-        g(Action.ASSIGN, Scope.ANY),
       ],
       [Resource.VENUE]: [
         g(Action.READ, Scope.ANY),
@@ -78,6 +71,13 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
       [Resource.RESERVATION]: [
         g(Action.CREATE, Scope.ASSIGNED),
         g(Action.READ, Scope.ASSIGNED),
+      ],
+      // Requirement change 6: the outcome and reasons of a safety check on an
+      // event they coordinate, and the means to answer it by sending the event
+      // back for a new check (SUBMIT). Only the Safety Officer decides.
+      [Resource.SAFETY_REVIEW]: [
+        g(Action.READ, Scope.ASSIGNED),
+        g(Action.SUBMIT, Scope.ASSIGNED),
       ],
       [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
     },
@@ -132,6 +132,31 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.REGISTER, Scope.OWN),
         g(Action.READ, Scope.OWN),
         g(Action.WITHDRAW, Scope.OWN),
+      ],
+      [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
+    },
+
+    // Requirement change 5 — "overseeing incoming event requests and
+    // assigning them to individual Event Coordinators".
+    //
+    // Assigns queued requests and reassigns events (ASSIGN, ANY). Deliberately
+    // no EVENT/READ: the queue and assignment views are projections built for
+    // this role, so it does not get the generic event reads, which return the
+    // full record.
+    [Role.EVENT_COORDINATOR_LEAD]: {
+      [Resource.EVENT]: [g(Action.ASSIGN, Scope.ANY)],
+      [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
+    },
+
+    // Requirement change 6 — "reviewing the operational safety of planned
+    // events". Reads the queue and each review packet, and alone records a
+    // decision. Deliberately no EVENT/READ: the queue and the packet are
+    // projections built for this role, as for the Coordinator Lead, so it does
+    // not get the generic event reads, which return the full record.
+    [Role.SAFETY_OFFICER]: {
+      [Resource.SAFETY_REVIEW]: [
+        g(Action.READ, Scope.ANY),
+        g(Action.DECIDE, Scope.ANY),
       ],
       [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
     },

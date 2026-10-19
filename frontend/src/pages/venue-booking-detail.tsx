@@ -6,6 +6,8 @@ import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { BookingDecisionPanel } from '@/features/bookings/components/booking-decision-panel';
 import { BookingDetails } from '@/features/bookings/components/booking-details';
+import { HoldPanel } from '@/features/bookings/components/hold-panel';
+import { ReviewFlagPanel } from '@/features/bookings/components/review-flag-panel';
 import { useBookingRequest } from '@/features/bookings/hooks/use-bookings';
 import { apiErrorMessage } from '@/lib/api-client';
 
@@ -36,6 +38,8 @@ export function VenueBookingDetail() {
       ) : null}
       {booking ? (
         <div className="space-y-4">
+          <ReviewFlagPanel booking={booking} />
+          <HoldPanel booking={booking} />
           <BookingDecisionPanel booking={booking} />
           <BookingDetails booking={booking} />
         </div>

@@ -26,12 +26,18 @@ import { AttendeeDashboard } from '@/pages/attendee-dashboard';
 import { AttendeeRegistrations } from '@/pages/attendee-registrations';
 import { VenueNewRequest } from '@/pages/venue-new-request';
 import { VenueEditRequest } from '@/pages/venue-edit-request';
+import { LeadAssignments } from '@/pages/lead-assignments';
+import { LeadQueuedRequest } from '@/pages/lead-queued-request';
+import { LeadUnassignedQueue } from '@/pages/lead-unassigned-queue';
+import { SafetyQueue } from '@/pages/safety-queue';
+import { SafetyReview } from '@/pages/safety-review';
 import { RelatedEventDetail, RelatedEventsList } from '@/pages/related-events';
 import { VenueBookingQueue } from '@/pages/venue-booking-queue';
 import { VenueBookingDetail } from '@/pages/venue-booking-detail';
 import { VenueCalendar } from '@/pages/venue-calendar';
 import { CoordinatorChangeRequests } from '@/pages/coordinator-change-requests';
 import { CoordinatorChangeRequestDetail } from '@/pages/coordinator-change-request-detail';
+import { NotificationsPage } from '@/pages/notifications';
 
 /** Sends a signed-in user to their role's dashboard; everyone else to login. */
 function RoleHome() {
@@ -47,6 +53,8 @@ export function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<RoleHome />} />
+          {/* Notifications page: every role reads its own (the API scopes it). */}
+          <Route path="/notifications" element={<NotificationsPage />} />
 
           {/*
             Each dashboard is additionally restricted to its role. This is
@@ -96,6 +104,19 @@ export function AppRoutes() {
             <Route path="/equipment/requirements/:eventId" element={<EquipmentEventRequirements />} />
             <Route path="/equipment/requirements/:eventId/details" element={<EquipmentEventDetails />} />
             <Route path="/equipment/released" element={<EquipmentReleased />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allow={['EVENT_COORDINATOR_LEAD']} />}>
+            <Route path="/lead" element={<Navigate to="/lead/unassigned" replace />} />
+            <Route path="/lead/unassigned" element={<LeadUnassignedQueue />} />
+            <Route path="/lead/unassigned/:id" element={<LeadQueuedRequest />} />
+            <Route path="/lead/assignments" element={<LeadAssignments />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allow={['SAFETY_OFFICER']} />}>
+            <Route path="/safety" element={<Navigate to="/safety/checks" replace />} />
+            <Route path="/safety/checks" element={<SafetyQueue />} />
+            <Route path="/safety/checks/:id" element={<SafetyReview />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={['ATTENDEE']} />}>

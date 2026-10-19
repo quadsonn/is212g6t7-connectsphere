@@ -27,6 +27,7 @@ describe('NotificationsService', () => {
         type: NotificationType.CLARIFICATION_REQUESTED,
         message: 'A question is waiting',
         relatedEventId: 'event-1',
+        relatedBookingId: null,
       },
     });
   });

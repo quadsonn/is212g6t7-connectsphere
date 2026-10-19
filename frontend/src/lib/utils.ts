@@ -29,6 +29,12 @@ export function formatDate(iso: string): string {
   return dateFormatter.format(new Date(iso));
 }
 
+/** A single moment, e.g. "3 Nov 2030, 14:05". */
+export function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+  return `${dateFormatter.format(date)}, ${timeFormatter.format(date)}`;
+}
+
 export function formatDateRange(
   startIso: string | null,
   endIso: string | null,

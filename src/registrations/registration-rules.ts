@@ -123,7 +123,10 @@ export function evaluateRegistration(
     );
   }
 
-  if (closesAt && now >= closesAt) {
+  // At or before the closing time is accepted; only a later moment is closed.
+  // AMBIGUOUS: the boundary is the team's assumption, not the customer's — an
+  // earlier reading (US-34) rejected at exactly the closing time.
+  if (closesAt && now > closesAt) {
     const opened = opensAt ? `opened at ${opensAt.toISOString()} and ` : '';
     return blocked(
       'CLOSED',

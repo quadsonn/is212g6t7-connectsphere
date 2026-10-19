@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -8,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, Textarea } from '@/components/ui/form';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import { ArrangementCheckPanel } from '@/features/events/components/arrangement-check';
 import { ChangeRequestComparison } from '@/features/events/components/change-request-comparison';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import {
@@ -15,22 +17,25 @@ import {
   useDecideChangeRequest,
 } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
-import { formatDate, formatDateRange } from '@/lib/utils';
-import type { ChangeRequestApproval } from '@/types/api';
+import { formatDate } from '@/lib/utils';
+import type { ChangeRequestApproval, ChangeRequestCheckFailedBody } from '@/types/api';
 
-/** What the Coordinator is told once an approval has moved things. */
+/**
+ * What the Coordinator is told once an approval has moved things. US-48 AC-7:
+ * each arrangement was rebooked for the new details and the original released.
+ */
 function approvalNotice(eventName: string, result: ChangeRequestApproval): string {
   const { venueBookings, equipmentReservations } = result.arrangements;
   const parts: string[] = [];
 
   if (venueBookings.length > 0) {
     parts.push(
-      `${venueBookings.length} venue booking${venueBookings.length === 1 ? '' : 's'} moved and sent back to Venue Staff for approval`,
+      `${venueBookings.length} venue booking${venueBookings.length === 1 ? '' : 's'} rebooked for the new time`,
     );
   }
   if (equipmentReservations.length > 0) {
     parts.push(
-      `${equipmentReservations.length} equipment reservation${equipmentReservations.length === 1 ? '' : 's'} released for Technical Support to reserve again`,
+      `${equipmentReservations.length} equipment reservation${equipmentReservations.length === 1 ? '' : 's'} rebooked for the new time`,
     );
   }
 
@@ -44,11 +49,26 @@ function approvalNotice(eventName: string, result: ChangeRequestApproval): strin
  *
  * Order matters: the capacity warning (AC-6) sits above the decision, so it is
  * read before the buttons are reached.
+ *
+ * US-48: the arrangement check — what still works, what would conflict and
+ * why, and what approval would move — sits above the decision too. A venue or
+ * equipment conflict disables Approve (capacity alone never does); Reject
+ * stays available. Re-check runs the check again, as does returning to the
+ * page. If something changed after the page loaded, the server refuses the
+ * approval, changes nothing and leaves the request pending; the page then
+ * refreshes so Approve is disabled.
  */
 export function CoordinatorChangeRequestDetail() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { data: review, isPending, isError, error } = useChangeRequestReview(id);
+  const {
+    data: review,
+    isPending,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useChangeRequestReview(id);
   const { approve, reject } = useDecideChangeRequest(id ?? '');
 
   const [rejecting, setRejecting] = useState(false);
@@ -78,9 +98,10 @@ export function CoordinatorChangeRequestDetail() {
     );
   }
 
-  const { request, event, warnings, impact } = review;
-  const hasImpact =
-    impact.venueBookings.length > 0 || impact.equipmentReservations.length > 0;
+  const { request, event, warnings, check } = review;
+  // US-48: any venue or equipment conflict blocks approval. Capacity is only
+  // ever a warning (`warnings`), never a conflict.
+  const blocked = check.conflicts.length > 0;
   const busy = approve.isPending || reject.isPending;
   const decided = request.status !== 'PENDING';
   const eventName = event.name ?? 'Untitled event';
@@ -105,6 +126,13 @@ export function CoordinatorChangeRequestDetail() {
   }
 
   const decisionError = approve.error ?? reject.error;
+  // US-48 AC-8: the server refused the approval — something changed after the
+  // page loaded. Nothing was changed and the request is still pending.
+  const failedCheck =
+    axios.isAxiosError<ChangeRequestCheckFailedBody>(approve.error) &&
+    approve.error.response?.data?.code === 'CHANGE_REQUEST_CHECK_FAILED'
+      ? approve.error.response.data
+      : null;
 
   return (
     <>
@@ -115,7 +143,7 @@ export function CoordinatorChangeRequestDetail() {
       />
 
       <div className="max-w-3xl space-y-5">
-        {/* AC-6, and clashes at a new time: shown before the decision. Warnings, not blocks. */}
+        {/* AC-6 (and US-48 AC-2): capacity, shown before the decision. A warning, not a block. */}
         {warnings.length > 0 ? (
           <div
             role="alert"
@@ -152,34 +180,23 @@ export function CoordinatorChangeRequestDetail() {
           </CardContent>
         </Card>
 
-        {hasImpact && request.status === 'PENDING' ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>If you approve</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-ink-800">
-              <p className="text-ink-500">
-                The event's dates change, so its existing arrangements are re-reviewed rather than
-                left on the old dates.
-              </p>
-              <ul className="list-disc space-y-1.5 pl-5">
-                {impact.venueBookings.map((booking) => (
-                  <li key={booking.bookingId}>
-                    Venue booking at {booking.venueName ?? 'the booked venue'} moves from{' '}
-                    {formatDateRange(booking.from.start, booking.from.end)} to{' '}
-                    {formatDateRange(booking.to.start, booking.to.end)} and goes back to Venue Staff
-                    for approval.
-                  </li>
-                ))}
-                {impact.equipmentReservations.map((reservation) => (
-                  <li key={reservation.reservationId}>
-                    {reservation.quantity} × {reservation.equipmentType} reservation is released;
-                    Technical Support will need to reserve it again for the new dates.
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+        {/* US-48 AC-1..AC-4, AC-6: the arrangement check, while it can still be decided. */}
+        {request.status === 'PENDING' ? <ArrangementCheckPanel check={check} /> : null}
+
+        {failedCheck ? (
+          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+            <p className="font-medium">
+              Not approved — something changed since this page loaded. Nothing was changed and the
+              request is still pending. The check below has been refreshed.
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {failedCheck.conflicts.map((conflict, i) => (
+                <li key={i}>
+                  <span className="font-medium">{conflict.label}:</span> {conflict.reason}
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
 
         {decided ? (
@@ -231,17 +248,56 @@ export function CoordinatorChangeRequestDetail() {
                   </div>
                 </form>
               ) : (
-                <div className="flex flex-wrap justify-end gap-2">
-                  <Button type="button" variant="secondary" onClick={() => setRejecting(true)} disabled={busy}>
-                    Reject
-                  </Button>
-                  <Button type="button" onClick={handleApprove} disabled={busy}>
-                    {approve.isPending ? 'Approving…' : 'Approve'}
-                  </Button>
+                <div className="space-y-3">
+                  {/* US-48: every conflict, next to the button it disables. */}
+                  {blocked ? (
+                    <div
+                      id="approve-blocked"
+                      className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+                    >
+                      <p className="font-medium">
+                        Approve is unavailable while {check.conflicts.length === 1 ? 'this conflicts' : 'these conflict'}:
+                      </p>
+                      <ul className="mt-1 list-disc space-y-0.5 pl-5" aria-label="Why Approve is unavailable">
+                        {check.conflicts.map((conflict, i) => (
+                          <li key={i}>
+                            <span className="font-medium">{conflict.label}:</span> {conflict.reason}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-1 text-xs">
+                        Reject the request with a reason, or re-check once the arrangements change.
+                      </p>
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        approve.reset();
+                        void refetch();
+                      }}
+                      disabled={busy || isFetching}
+                    >
+                      {isFetching ? 'Re-checking…' : 'Re-check'}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => setRejecting(true)} disabled={busy}>
+                      Reject
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleApprove}
+                      disabled={busy || blocked || isFetching}
+                      aria-describedby={blocked ? 'approve-blocked' : undefined}
+                    >
+                      {approve.isPending ? 'Approving…' : 'Approve'}
+                    </Button>
+                  </div>
                 </div>
               )}
 
-              {decisionError ? (
+              {decisionError && !failedCheck ? (
                 <p role="alert" className="text-sm text-red-700">
                   {apiErrorMessage(decisionError, 'Could not record your decision.')}
                 </p>

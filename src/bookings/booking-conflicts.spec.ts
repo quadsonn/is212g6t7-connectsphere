@@ -8,6 +8,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { classifyConflicts, HARD_CONFLICT_CODE } from './booking.types';
 import { BookingsService } from './bookings.service';
+import { HoldNotifier } from './hold-notifier';
+import { VenueActivityNotifier } from './venue-activity-notifier';
 
 /** US-24 — classifying overlaps, and the database backstop's error mapping. */
 describe('US-24 overlapping booking detection', () => {
@@ -25,9 +27,21 @@ describe('US-24 overlapping booking detection', () => {
       const report = classifyConflicts('self', [row('a', BookingStatus.APPROVED)], []);
 
       expect(report.hardConflicts).toEqual([
-        { bookingId: 'a', eventName: 'Event a', start: at(9), end: at(12) },
+        { bookingId: 'a', eventName: 'Event a', start: at(9), end: at(12), status: BookingStatus.APPROVED },
       ]);
       expect(report.softConflicts).toEqual([]);
+      expect(report.hasHardConflict).toBe(true);
+    });
+
+    it('US-54 AC-3: a (live) HELD overlap is a hard conflict too; REQUESTED stays soft', () => {
+      const report = classifyConflicts(
+        'self',
+        [row('h', BookingStatus.HELD), row('p', BookingStatus.REQUESTED), row('r', BookingStatus.RELEASED)],
+        [],
+      );
+
+      expect(report.hardConflicts.map((c) => [c.bookingId, c.status])).toEqual([['h', BookingStatus.HELD]]);
+      expect(report.softConflicts.map((c) => c.bookingId)).toEqual(['p']);
       expect(report.hasHardConflict).toBe(true);
     });
 
@@ -105,12 +119,16 @@ describe('US-24 overlapping booking detection', () => {
           ]),
         },
         venueBlock: { findMany: jest.fn().mockResolvedValue([]) },
+        // US-50: the venue's buffers; none configured.
+        venue: { findUnique: jest.fn().mockResolvedValue(null) },
         $transaction: jest.fn().mockRejectedValue(transactionError),
       };
       return new BookingsService(
         prisma as unknown as PrismaService,
         { requireScope: jest.fn().mockReturnValue(Scope.ANY) } as unknown as AccessControlService,
         { notifySafely: jest.fn() } as unknown as NotificationsService,
+        { requestSubmitted: jest.fn(), approvedBookingChanged: jest.fn(), eventCancelled: jest.fn() } as unknown as VenueActivityNotifier,
+        { placed: jest.fn(), expiring: jest.fn(), expired: jest.fn(), released: jest.fn(), converted: jest.fn() } as unknown as HoldNotifier,
       );
     };
 

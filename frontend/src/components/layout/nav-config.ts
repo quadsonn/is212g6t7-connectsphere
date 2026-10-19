@@ -6,6 +6,8 @@ import {
   ClipboardList,
   LayoutDashboard,
   Building2,
+  ShieldCheck,
+  Users,
   MapPin,
   Repeat2,
   Wrench,
@@ -34,10 +36,9 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: 'My requests', to: '/organiser', icon: LayoutDashboard },
   ],
   EVENT_COORDINATOR: [
-    { label: 'Review queue', to: '/coordinator', icon: ClipboardList },
+    { label: 'My events', to: '/coordinator', icon: ClipboardList },
     { label: 'Change requests', to: '/coordinator/change-requests', icon: Repeat2 },
     { label: 'My venue requests', to: '/coordinator/bookings', icon: MapPin },
-    { label: 'All events', to: '/coordinator/events', icon: CalendarCheck, comingSoon: true },
     { label: 'Venues', to: '/coordinator/venues', icon: Building2 },
   ],
   VENUE_STAFF: [
@@ -56,6 +57,14 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: 'Browse events', to: '/events', icon: Ticket },
     { label: 'My registrations', to: '/events/mine', icon: CalendarCheck },
   ],
+  // Requirement changes 5 and 6 — accounts exist; screens are to come.
+  EVENT_COORDINATOR_LEAD: [
+    { label: 'Unassigned queue', to: '/lead/unassigned', icon: ClipboardList },
+    { label: 'Coordinator assignments', to: '/lead/assignments', icon: Users },
+  ],
+  SAFETY_OFFICER: [
+    { label: 'Safety checks', to: '/safety/checks', icon: ShieldCheck },
+  ],
 };
 
 /** Where each role lands after signing in. */
@@ -65,4 +74,6 @@ export const HOME_BY_ROLE: Record<Role, string> = {
   VENUE_STAFF: '/venues',
   TECHNICAL_SUPPORT_STAFF: '/equipment',
   ATTENDEE: '/events',
+  EVENT_COORDINATOR_LEAD: '/lead',
+  SAFETY_OFFICER: '/safety',
 };

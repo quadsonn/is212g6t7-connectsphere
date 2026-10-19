@@ -2,8 +2,12 @@ import { apiClient } from '@/lib/api-client';
 import type {
   BrowseVenuesQuery,
   DayAvailability,
+  BufferPreview,
   Venue,
+  VenueBuffersPayload,
+  VenueBuffersResult,
   VenueDraftPayload,
+  VenueOccupancy,
   VenueSearchQuery,
   VenueSuitability,
   VenueWithWarnings,
@@ -42,6 +46,15 @@ export const venuesApi = {
       .get<DayAvailability[]>(`/venues/${id}/availability`, { params: { month } })
       .then((r) => r.data),
 
+  // US-50 AC-3: what occupies the venue on one day, setup and turnaround
+  // separate from the event time. Coordinators only, like availability.
+  occupancy: (id: string, day: string) =>
+    apiClient
+      .get<VenueOccupancy[]>(`/venues/${id}/availability/slots`, {
+        params: { from: day, to: day },
+      })
+      .then((r) => r.data),
+
   // US-13 AC-1/AC-2: save a new venue, complete or not.
   createDraft: (payload: VenueDraftPayload) =>
     apiClient.post<Venue>('/venues/drafts', payload).then((r) => r.data),
@@ -49,6 +62,15 @@ export const venuesApi = {
   // US-13 AC-2 (continuing a draft) and US-14 AC-1/AC-2/AC-4 (editing a live venue).
   update: (id: string, payload: VenueDraftPayload) =>
     apiClient.patch<VenueWithWarnings>(`/venues/${id}`, payload).then((r) => r.data),
+
+  // US-49: setup and turnaround time. Only the managing Venue Staff member.
+  // US-51: 409 with the clashes unless confirmConflicts is true.
+  updateBuffers: (id: string, payload: VenueBuffersPayload) =>
+    apiClient.patch<VenueBuffersResult>(`/venues/${id}/buffers`, payload).then((r) => r.data),
+
+  // US-51: which bookings the proposed buffers would flag. Saves nothing.
+  previewBuffers: (id: string, payload: VenueBuffersPayload) =>
+    apiClient.post<BufferPreview>(`/venues/${id}/buffers/preview`, payload).then((r) => r.data),
 
   // US-13 AC-3/AC-5: publish once all required fields are complete.
   publish: (id: string) =>

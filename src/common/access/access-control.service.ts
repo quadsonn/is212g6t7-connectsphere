@@ -1,10 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventRequest, EventStatus, Prisma, Role } from '@prisma/client';
 
-import {
-  ATTENDEE_VISIBLE_STATUSES,
-  COORDINATOR_POOL_STATUSES,
-} from '../../events/event-status.machine';
+import { ATTENDEE_VISIBLE_STATUSES } from '../../events/event-status.machine';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../auth/jwt.strategy';
 import { permissionScope } from './permission-matrix';
@@ -118,17 +115,11 @@ export class AccessControlService {
       case Scope.OWN:
         return { organiserId: user.userId };
       case Scope.ASSIGNED:
-        // Events assigned to this Coordinator, plus the unassigned review
-        // pool. Requests belonging to another Coordinator stay invisible.
-        return {
-          OR: [
-            { coordinatorId: user.userId },
-            {
-              coordinatorId: null,
-              status: { in: [...COORDINATOR_POOL_STATUSES] },
-            },
-          ],
-        };
+        // Only events assigned to this Coordinator. An unassigned request sits
+        // in the Lead's queue and is invisible to every Coordinator until the
+        // Lead assigns it; requests belonging to another Coordinator stay
+        // invisible too.
+        return { coordinatorId: user.userId };
       case Scope.PUBLIC:
         return { status: { in: [...ATTENDEE_VISIBLE_STATUSES] } };
       case Scope.RELATED:

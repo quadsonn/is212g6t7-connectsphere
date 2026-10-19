@@ -8,7 +8,8 @@ import { formatDate, formatDateRange } from '@/lib/utils';
 /**
  * US-33 AC-3 — REAL data, GET /equipment/reservations/released. Which
  * reservations were released, and for which event — cancelled (US-33) or
- * rescheduled (US-38).
+ * rescheduled (US-38; since US-48 a moved event's reservations are rebooked
+ * for the new time before the originals are released here).
  */
 export function EquipmentReleased() {
   const { data: released, isPending, isError, error } = useReleasedReservations();
@@ -70,7 +71,11 @@ export function EquipmentReleased() {
                     <td className="px-5 py-3.5 text-ink-600">
                       {row.event.status === 'CANCELLED'
                         ? 'Event cancelled'
-                        : 'Event rescheduled — reserve again'}
+                        : row.event.status === 'REJECTED'
+                          ? 'Event rejected' // US-47
+                          : row.replacedById
+                            ? 'Event moved — rebooked for the new time' // US-48
+                            : 'Event rescheduled'}
                     </td>
                     <td className="px-5 py-3.5 text-ink-600">{formatDateRange(row.start, row.end)}</td>
                     <td className="px-5 py-3.5 text-ink-600">{formatDate(row.releasedAt)}</td>

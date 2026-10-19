@@ -19,6 +19,7 @@ describe('status write audit (US-11)', () => {
   const ALLOWED_FILE = 'events/events.service.ts';
   const ALLOWED_VENUE_FILE = 'venues/venues.service.ts';
   const ALLOWED_RESERVATION_FILE = 'equipment/equipment-reservations.service.ts';
+  const ALLOWED_EQUIPMENT_STATUS_FILE = 'equipment/equipment.service.ts';
 
   const sourceFiles = (dir: string): string[] =>
     readdirSync(dir).flatMap((entry) => {
@@ -82,6 +83,44 @@ describe('status write audit (US-11)', () => {
     expect([...new Set(offenders)]).toEqual([ALLOWED_RESERVATION_FILE]);
   });
 
+  /** US-45 — the column is `operationalStatus`, which `\bstatus` misses. */
+  const operationalStatusWrite =
+    /equipment\.(update|updateMany|create|createMany|upsert)\(\s*\{[\s\S]{0,200}?data:\s*\{[^{}]*\boperationalStatus\s*:/g;
+
+  it('writes Equipment.operationalStatus in exactly one place (US-45)', () => {
+    // Only changeStatus() moves an item between statuses, so every change is
+    // validated and recorded with its reason (AC-2).
+    const offenders = files.flatMap((file) => {
+      const matches = readFileSync(file, 'utf8').match(operationalStatusWrite) ?? [];
+      return matches.map(() => relative(SRC, file));
+    });
+
+    expect(offenders).toEqual([ALLOWED_EQUIPMENT_STATUS_FILE]);
+  });
+
+  it('records a reason alongside that write (US-45 AC-2)', () => {
+    const source = readFileSync(join(SRC, ALLOWED_EQUIPMENT_STATUS_FILE), 'utf8');
+    const changeBody = source.slice(
+      source.indexOf('async changeStatus('),
+      source.indexOf('private async findDetail('),
+    );
+
+    expect(changeBody).toMatch(/statusChangeError\(/);
+    expect(changeBody).toMatch(/data:\s*\{\s*operationalStatus:\s*dto\.status\s*\}/);
+    expect(changeBody).toMatch(/equipmentStatusChange\.create\(/);
+    expect(changeBody).toMatch(/reason:\s*dto\.reason/);
+  });
+
+  it('detects an operationalStatus write if one were introduced (US-45)', () => {
+    const smuggled = `
+      await this.prisma.equipment.update({
+        where: { id },
+        data: { operationalStatus: EquipmentStatus.OPERATIONAL },
+      });
+    `;
+    expect(smuggled.match(operationalStatusWrite)).toHaveLength(1);
+  });
+
   it('confines the reservation release to the RELEASABLE_STATUSES filter (US-33 AC-4)', () => {
     const source = readFileSync(join(SRC, ALLOWED_RESERVATION_FILE), 'utf8');
     const releaseBody = source.slice(
@@ -116,7 +155,9 @@ describe('status write audit (US-11)', () => {
     );
 
     expect(setStatusBody).toMatch(/canTransition\(/);
-    expect(setStatusBody).toMatch(/data:\s*\{\s*status:\s*next\s*\}/);
+    // submittedAt rides along on the move to SUBMITTED; the status value
+    // written is still exactly `next`, which the canTransition guard vetted.
+    expect(setStatusBody).toMatch(/data:\s*\{\s*status:\s*next,/);
   });
 
   it('never writes status through raw SQL', () => {

@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-06 e2e — one describe per acceptance criterion. */
 describe('US-06 layout and accessibility preferences (e2e)', () => {
@@ -44,7 +45,7 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });
@@ -352,6 +353,12 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
           accessibilityNotes: 'Ramp access to the stage',
         })
         .expect(201);
+      // The Lead's assignment is a separate story; here the request is simply
+      // already in this Coordinator's hands.
+      await prisma.eventRequest.update({
+        where: { id: res.body.id },
+        data: { coordinatorId: ids.coordinator },
+      });
       return res.body.id as string;
     };
 

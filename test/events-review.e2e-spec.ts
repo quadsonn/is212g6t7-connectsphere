@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-07 e2e — one describe per acceptance criterion. */
 describe('US-07 coordinator reviews and approves (e2e)', () => {
@@ -51,7 +52,7 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });
@@ -265,25 +266,22 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.SUBMITTED);
     });
 
-    it('refuses to approve an unassigned request from the pool', async () => {
-      const event = await seedEvent({ coordinatorId: null });
-
-      const res = await http()
-        .post(`/events/${event.id}/approve`)
-        .set('Authorization', as('coordinatorB'))
-        .expect(409);
-
-      expect(res.body.message).toMatch(/assign a coordinator/i);
-    });
-
-    it('approves once that request has been assigned (US-10 then US-07)', async () => {
+    it('refuses to approve a request still in the Lead’s unassigned queue', async () => {
       const event = await seedEvent({ coordinatorId: null });
 
       await http()
-        .patch(`/events/${event.id}/coordinator`)
+        .post(`/events/${event.id}/approve`)
         .set('Authorization', as('coordinatorB'))
-        .send({ coordinatorId: ids.coordinatorB })
-        .expect(200);
+        .expect(404);
+
+      const stored = await prisma.eventRequest.findUniqueOrThrow({
+        where: { id: event.id },
+      });
+      expect(stored.status).toBe(EventStatus.SUBMITTED);
+    });
+
+    it('approves once that request has been assigned', async () => {
+      const event = await seedEvent({ coordinatorId: ids.coordinatorB });
 
       await http()
         .post(`/events/${event.id}/approve`)

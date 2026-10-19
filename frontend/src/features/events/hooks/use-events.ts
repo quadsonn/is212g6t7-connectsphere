@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
+  CancelEventPayload,
+  CancellationResult,
   CatalogueOption,
+  ConfirmationReadiness,
   ChangeRequest,
   ChangeRequestApproval,
   ChangeRequestPayload,
@@ -16,6 +19,8 @@ import type {
   PublicEventView,
   RelatedEventView,
   TechnicalRequirementsPayload,
+  RejectUnfulfillablePayload,
+  UnfulfillableRejection,
 } from '@/types/api';
 import { eventsApi } from '../api/events.api';
 
@@ -26,6 +31,7 @@ export const eventKeys = {
   assigned: ['events', 'assigned'] as const,
   assignedDetail: (id: string) => ['events', 'assigned', id] as const,
   history: (id: string) => ['events', id, 'history'] as const,
+  readiness: (id: string) => ['events', id, 'confirmation-readiness'] as const,
   related: ['events', 'related'] as const,
   equipmentCatalogue: ['events', 'equipment-catalogue'] as const,
   pendingChangeRequests: ['events', 'change-requests', 'pending'] as const,
@@ -164,15 +170,17 @@ export function useReviewEvent() {
   return { approve, requestClarification, reject, returnForAmendment };
 }
 
-/** US-10 — link a Coordinator to a request as its main point of contact. */
-export function useAssignCoordinator() {
+/**
+ * US-47 — reject an approved request that cannot be fulfilled. Refreshes the
+ * event and every booking list, since its bookings are released with it.
+ */
+export function useRejectUnfulfillable(id: string) {
   const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, coordinatorId }: { id: string; coordinatorId: string }) =>
-      eventsApi.assignCoordinator(id, coordinatorId),
+  return useMutation<UnfulfillableRejection, unknown, RejectUnfulfillablePayload>({
+    mutationFn: (payload) => eventsApi.rejectUnfulfillable(id, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
 }
@@ -268,32 +276,6 @@ export function useRelatedEvent(id: string) {
   });
 }
 
-/** US-27 AC-1 — only fetched once the Coordinator asks to reassign. */
-export function useReassignmentCandidates(id: string, enabled: boolean) {
-  return useQuery({
-    queryKey: [...eventKeys.detail(id), 'reassignment-candidates'],
-    queryFn: () => eventsApi.getReassignmentCandidates(id),
-    enabled: enabled && Boolean(id),
-  });
-}
-
-/**
- * US-27 — hand the event on. The caller loses access to it on success, so
- * only the lists are invalidated; refetching this event's detail would 404.
- */
-export function useReassignEvent(id: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (coordinatorId: string) => eventsApi.reassign(id, coordinatorId),
-    onSuccess: () => {
-      queryClient.removeQueries({ queryKey: eventKeys.assignedDetail(id) });
-      void queryClient.invalidateQueries({ queryKey: eventKeys.all, exact: true });
-      void queryClient.invalidateQueries({ queryKey: eventKeys.assigned, exact: true });
-    },
-  });
-}
-
 /** US-28 — save equipment and technical requirements; refreshes detail and history. */
 export function useSetTechnicalRequirements(id: string) {
   const queryClient = useQueryClient();
@@ -331,6 +313,22 @@ export function useRequestChange(id: string) {
   });
 }
 
+/**
+ * US-43 — cancel an event. A cancellation touches the event, its bookings and
+ * reservations, the calendars and other people's notifications, so every cached
+ * query is refreshed rather than a hand-picked few.
+ */
+export function useCancelEvent(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<CancellationResult, unknown, CancelEventPayload>({
+    mutationFn: (body) => eventsApi.cancel(id, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+    },
+  });
+}
+
 /** US-38 AC-1 — pending change requests on the Coordinator's own events. */
 export function usePendingChangeRequests() {
   return useQuery<PendingChangeRequestSummary[]>({
@@ -345,6 +343,12 @@ export function useChangeRequestReview(requestId: string | undefined) {
     queryKey: eventKeys.changeRequestReview(requestId ?? ''),
     queryFn: () => eventsApi.getChangeRequestForReview(requestId!),
     enabled: Boolean(requestId),
+    // US-48: every fetch re-runs the arrangement check, so it is never served
+    // stale, and it runs again whenever the page regains focus — another
+    // booking may have been made meanwhile. (The app turns focus refetching
+    // off by default; this query opts back in.)
+    staleTime: 0,
+    refetchOnWindowFocus: 'always',
   });
 }
 
@@ -361,7 +365,9 @@ export function useDecideChangeRequest(requestId: string) {
 
   const approve = useMutation<ChangeRequestApproval>({
     mutationFn: () => eventsApi.approveChangeRequest(requestId),
-    onSuccess: refresh,
+    // US-48 AC-8: a refused approval (something changed after the page
+    // loaded) must refresh the check too, so Approve becomes disabled.
+    onSettled: refresh,
   });
 
   const reject = useMutation<ChangeRequest, unknown, string>({
@@ -370,4 +376,42 @@ export function useDecideChangeRequest(requestId: string) {
   });
 
   return { approve, reject };
+}
+
+/** US-42 — the Coordinator's confirmation checklist. */
+export function useConfirmationReadiness(id: string, enabled = true) {
+  return useQuery<ConfirmationReadiness>({
+    queryKey: eventKeys.readiness(id),
+    queryFn: () => eventsApi.getConfirmationReadiness(id),
+    enabled: enabled && Boolean(id),
+  });
+}
+
+/**
+ * US-42 — confirm the arrangements. Everything under 'events' is refreshed:
+ * the status badge, the queue and the checklist all change.
+ */
+export function useConfirmArrangements(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => eventsApi.confirmArrangements(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    },
+  });
+}
+
+/** US-42 — tick or untick a free-text line; the checklist is refetched. */
+export function useManualCheck(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ requirementId, checked }: { requirementId: string; checked: boolean }) =>
+      eventsApi.setManualCheck(id, requirementId, checked),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.readiness(id) });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.assignedDetail(id) });
+    },
+  });
 }

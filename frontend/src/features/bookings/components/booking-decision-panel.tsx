@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { CircleCheck, Ban } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,8 @@ import { apiErrorMessage } from '@/lib/api-client';
 import { BOOKING_STATUS_STYLES } from '@/lib/status';
 import type { BookingConflictErrorBody, VenueBooking } from '@/types/api';
 import { useBookingConflicts, useDecideBooking } from '../hooks/use-bookings';
+import { fitsCapacityMessage, overCapacityWarning } from '../lib/capacity';
+import { AlternativeVenuesPicker } from './alternative-venues-picker';
 import { ConflictList } from './conflict-list';
 import { ConflictReportPanel } from './conflict-report';
 
@@ -25,16 +28,58 @@ type Choice = 'approve' | 'reject' | '';
  * Approve (Reject stays available); soft conflicts never do. The overlaps are
  * re-fetched immediately before an approval is sent, and a 409 from the
  * server refreshes them and explains what changed.
+ *
+ * US-41: rejecting — or reversing an approval to rejected — can carry
+ * alternative venues for the Coordinator.
+ *
+ * Capacity: the card's checks list the overlaps and whether the venue holds
+ * the expected attendance. Over capacity rules approval out — a decision or a
+ * reversal to approved — while Reject stays available. The server refuses an
+ * over-capacity approval regardless (BookingsService.recordDecision).
  */
+
+/** The server refused an approval because the venue is over capacity. */
+function isCapacityRefusal(err: unknown): boolean {
+  return (
+    axios.isAxiosError<{ code?: string }>(err) &&
+    err.response?.status === 409 &&
+    err.response.data?.code === 'CAPACITY_EXCEEDED'
+  );
+}
+
+/** One line of the checks list: the capacity check, pass or fail. */
+function CapacityCheck({ booking }: { booking: VenueBooking }) {
+  const over = overCapacityWarning(booking);
+  if (over) {
+    return (
+      <p className="flex items-center gap-2 text-sm font-medium text-red-800">
+        <Ban className="size-4" aria-hidden="true" />
+        {over}
+      </p>
+    );
+  }
+  const fits = fitsCapacityMessage(booking);
+  return fits ? (
+    <p className="flex items-center gap-2 text-sm text-emerald-800">
+      <CircleCheck className="size-4" aria-hidden="true" />
+      {fits}
+    </p>
+  ) : (
+    <p className="text-sm text-ink-600">Capacity not compared: no expected attendance recorded.</p>
+  );
+}
 export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
   const { approve, reject, reverse } = useDecideBooking();
   const [choice, setChoice] = useState<Choice>('');
   const [text, setText] = useState('');
   const [reversing, setReversing] = useState(false);
   const [staleNotice, setStaleNotice] = useState<string | null>(null);
+  const [alternatives, setAlternatives] = useState<string[]>([]);
   const conflictsQuery = useBookingConflicts(booking, booking.status === 'REQUESTED');
   const report = conflictsQuery.data;
   const hardConflict = report?.hasHardConflict ?? false;
+  const overCapacity = overCapacityWarning(booking) !== null;
+  const approveBlocked = hardConflict || overCapacity;
 
   const pending = approve.isPending || reject.isPending || reverse.isPending;
   const error = approve.error ?? reject.error ?? reverse.error;
@@ -50,6 +95,7 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
     setText('');
     setReversing(false);
     setStaleNotice(null);
+    setAlternatives([]);
     approve.reset();
     reject.reset();
     reverse.reset();
@@ -73,7 +119,8 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
           onSuccess: reset,
           onError: (err) => {
             // Lost a race to another approval: show what holds the slot now.
-            if (axios.isAxiosError(err) && err.response?.status === 409) {
+            // A capacity refusal is shown as it is, not as a lost race.
+            if (axios.isAxiosError(err) && err.response?.status === 409 && !isCapacityRefusal(err)) {
               void conflictsQuery.refetch();
               setChoice('');
               setStaleNotice(
@@ -85,12 +132,24 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
         },
       );
     } else if (choice === 'reject') {
-      reject.mutate({ id: booking.id, reason: text.trim() }, { onSuccess: reset });
+      reject.mutate(
+        { id: booking.id, reason: text.trim(), alternativeVenueIds: alternatives },
+        { onSuccess: reset },
+      );
     }
   }
 
   function submitReversal() {
-    reverse.mutate({ id: booking.id, reason: text.trim() }, { onSuccess: reset });
+    reverse.mutate(
+      {
+        id: booking.id,
+        reason: text.trim(),
+        // Only a reversal of an approval rejects — and only a rejection
+        // carries alternatives (US-41).
+        alternativeVenueIds: booking.status === 'APPROVED' ? alternatives : [],
+      },
+      { onSuccess: reset },
+    );
   }
 
   const errorBlock = error ? (
@@ -101,6 +160,10 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
   ) : null;
 
   // Pending: approve or reject.
+  // US-54: holds are converted, extended or released in HoldPanel instead;
+  // they are never approved, rejected or reversed here.
+  if (booking.status === 'HELD' || booking.status === 'RELEASED') return null;
+
   if (booking.status === 'REQUESTED') {
     return (
       <Card>
@@ -108,18 +171,23 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
           <CardTitle>Decision</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* US-24: overlaps on this venue, hard and soft. */}
-          <div aria-live="polite">
-            {conflictsQuery.isPending ? (
-              <p className="text-sm text-ink-500">Checking for overlapping bookings…</p>
-            ) : report ? (
-              <ConflictReportPanel report={report} />
-            ) : conflictsQuery.isError ? (
-              <p className="text-sm text-red-700">
-                {apiErrorMessage(conflictsQuery.error, 'Could not check for overlapping bookings.')}
-              </p>
-            ) : null}
-          </div>
+          <ul className="space-y-2" aria-label="Checks">
+            {/* US-24: overlaps on this venue, hard and soft. */}
+            <li aria-live="polite">
+              {conflictsQuery.isPending ? (
+                <p className="text-sm text-ink-500">Checking for overlapping bookings…</p>
+              ) : report ? (
+                <ConflictReportPanel report={report} />
+              ) : conflictsQuery.isError ? (
+                <p className="text-sm text-red-700">
+                  {apiErrorMessage(conflictsQuery.error, 'Could not check for overlapping bookings.')}
+                </p>
+              ) : null}
+            </li>
+            <li>
+              <CapacityCheck booking={booking} />
+            </li>
+          </ul>
 
           {staleNotice ? (
             <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
@@ -136,23 +204,30 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
                 role="radio"
                 aria-checked={choice === option}
                 variant={choice === option ? (option === 'approve' ? 'primary' : 'danger') : 'secondary'}
-                // US-24 AC-5: a hard conflict rules approval out; Reject stays.
-                disabled={option === 'approve' && hardConflict}
-                aria-describedby={option === 'approve' && hardConflict ? 'approve-blocked' : undefined}
+                // US-24 AC-5 / capacity: a hard conflict or an over-capacity
+                // request rules approval out; Reject stays.
+                disabled={option === 'approve' && approveBlocked}
+                aria-describedby={option === 'approve' && approveBlocked ? 'approve-blocked' : undefined}
                 onClick={() => {
                   setChoice(option);
                   setText('');
+                  setAlternatives([]);
                 }}
               >
                 {option === 'approve' ? 'Approve' : 'Reject'}
               </Button>
             ))}
           </div>
-          {hardConflict ? (
-            <p id="approve-blocked" className="text-xs text-red-800">
-              Approve is unavailable while a confirmed booking or blocked-out period overlaps this
-              time.
-            </p>
+          {approveBlocked ? (
+            <div id="approve-blocked" className="space-y-1 text-xs text-red-800">
+              {overCapacity ? <p>Cannot approve: venue is over capacity.</p> : null}
+              {hardConflict ? (
+                <p>
+                  Approve is unavailable while a confirmed booking or blocked-out period overlaps
+                  this time.
+                </p>
+              ) : null}
+            </div>
           ) : null}
 
           {choice ? (
@@ -175,6 +250,14 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
             </Field>
           ) : null}
 
+          {choice === 'reject' ? (
+            <AlternativeVenuesPicker
+              bookingId={booking.id}
+              selected={alternatives}
+              onChange={setAlternatives}
+            />
+          ) : null}
+
           {errorBlock}
 
           <div className="flex justify-end">
@@ -185,7 +268,7 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
                 !choice ||
                 pending ||
                 conflictsQuery.isFetching ||
-                (choice === 'approve' && hardConflict) ||
+                (choice === 'approve' && approveBlocked) ||
                 (choice === 'reject' && text.trim().length === 0)
               }
               onClick={() => void submitDecision()}
@@ -226,6 +309,18 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
                 onChange={(e) => setText(e.target.value)}
               />
             </Field>
+            {reversedTo === 'APPROVED' && overCapacity ? (
+              <p id="reverse-blocked" className="text-xs text-red-800">
+                Cannot approve: venue is over capacity. {overCapacityWarning(booking)}.
+              </p>
+            ) : null}
+            {reversedTo === 'REJECTED' ? (
+              <AlternativeVenuesPicker
+                bookingId={booking.id}
+                selected={alternatives}
+                onChange={setAlternatives}
+              />
+            ) : null}
             {errorBlock}
             <div className="flex flex-wrap justify-end gap-2">
               <Button type="button" size="sm" variant="secondary" onClick={reset}>
@@ -235,7 +330,12 @@ export function BookingDecisionPanel({ booking }: { booking: VenueBooking }) {
                 type="button"
                 size="sm"
                 variant="danger"
-                disabled={pending || text.trim().length === 0}
+                disabled={
+                  pending || text.trim().length === 0 || (reversedTo === 'APPROVED' && overCapacity)
+                }
+                aria-describedby={
+                  reversedTo === 'APPROVED' && overCapacity ? 'reverse-blocked' : undefined
+                }
                 onClick={submitReversal}
               >
                 {pending ? 'Saving…' : 'Confirm reversal'}

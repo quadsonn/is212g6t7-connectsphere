@@ -21,8 +21,6 @@ import {
   RoomLayout,
   VenueStatus,
 } from '@prisma/client';
-
-import { nextReadableId } from '../src/prisma/readable-id';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -340,8 +338,7 @@ async function main() {
   }
 
   // US-45: the history behind the items seeded as under maintenance and
-  // damaged, so their pages show who changed them and why. Readable IDs
-  // (ESC-001…) from the shared generator (CLAUDE.md, "IDs").
+  // damaged, so their pages show who changed them and why.
   const tech = await prisma.user.findUniqueOrThrow({
     where: { email: 'tech@connectsphere.local' },
   });
@@ -366,7 +363,6 @@ async function main() {
 
     await prisma.equipmentStatusChange.create({
       data: {
-        id: await nextReadableId(prisma, 'EquipmentStatusChange'),
         equipmentId: item.id,
         fromStatus: EquipmentStatus.OPERATIONAL,
         toStatus: change.to,
@@ -378,8 +374,7 @@ async function main() {
 
   // US-41: a request Venue Staff rejected with a suggested alternative, not
   // yet accepted — so "Request this venue" can be tried straight away. Its
-  // own event, so the guide's other scenarios are unaffected. Readable IDs
-  // (BSG-001…) from the shared generator.
+  // own event, so the guide's other scenarios are unaffected.
   const showcaseName = 'Design Week Showcase';
   if (!(await prisma.eventRequest.findFirst({ where: { name: showcaseName } }))) {
     const seminarRoom = await prisma.venue.findFirstOrThrow({ where: { name: 'Seminar Room 3-4' } });
@@ -423,7 +418,6 @@ async function main() {
     });
     await prisma.bookingSuggestion.create({
       data: {
-        id: await nextReadableId(prisma, 'BookingSuggestion'),
         bookingId: rejected.id,
         decisionId: decision.id,
         venueId: auditorium.id,

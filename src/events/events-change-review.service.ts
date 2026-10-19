@@ -48,6 +48,7 @@ import {
 } from './event-change.rules';
 import { CHANGE_REQUEST_INCLUDE } from './events-change-request.service';
 import { EventsService } from './events.service';
+import { inEntryOrder } from '../prisma/readable-id';
 
 const REQUIREMENTS_ORDER: Prisma.EquipmentRequirementOrderByWithRelationInput[] = [
   { createdAt: 'asc' },
@@ -150,14 +151,18 @@ export class EventsChangeReviewService {
   async getForReview(user: AuthenticatedUser, requestId: string) {
     const { request, event } = await this.load(user, requestId);
 
-    const [equipmentRequirements, check] = await Promise.all([
+    const [requirementRows, check] = await Promise.all([
       this.prisma.equipmentRequirement.findMany({
         where: { eventId: event.id },
         orderBy: REQUIREMENTS_ORDER,
-        select: { id: true, equipmentId: true, equipmentType: true, quantity: true },
+        select: { id: true, createdAt: true, equipmentId: true, equipmentType: true, quantity: true },
       }),
       this.arrangements.check(this.prisma, request, event),
     ]);
+    // In the order they were listed (readable IDs past 999 sort wrong as text).
+    const equipmentRequirements = inEntryOrder(requirementRows).map(
+      ({ createdAt: _createdAt, ...row }) => row,
+    );
 
     return {
       request,
@@ -398,10 +403,12 @@ export class EventsChangeReviewService {
     }
 
     if (request.equipmentChanged) {
-      const existing = await tx.equipmentRequirement.findMany({
-        where: { eventId: eventId },
-        orderBy: REQUIREMENTS_ORDER,
-      });
+      const existing = inEntryOrder(
+        await tx.equipmentRequirement.findMany({
+          where: { eventId: eventId },
+          orderBy: REQUIREMENTS_ORDER,
+        }),
+      );
       const notes = new Map(
         existing.filter((row) => row.equipmentId).map((row) => [row.equipmentId, row.notes]),
       );
@@ -421,10 +428,12 @@ export class EventsChangeReviewService {
         });
       }
 
-      const after = await tx.equipmentRequirement.findMany({
-        where: { eventId: eventId },
-        orderBy: REQUIREMENTS_ORDER,
-      });
+      const after = inEntryOrder(
+        await tx.equipmentRequirement.findMany({
+          where: { eventId: eventId },
+          orderBy: REQUIREMENTS_ORDER,
+        }),
+      );
 
       const previousLines = existing.map(describeRequirement);
       const nextLines = after.map(describeRequirement);

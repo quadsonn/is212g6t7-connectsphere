@@ -1,7 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Prisma, VenueStatus } from '@prisma/client';
 
-import { nextReadableIds } from '../prisma/readable-id';
 import { capacityShortfall } from '../venues/capacity';
 import { BookingConflictReport } from './booking.types';
 
@@ -74,11 +73,9 @@ export async function attachSuggestions(
     }
   }
 
-  // Readable IDs (BSG-001…), one block for the whole set.
-  const ids = await nextReadableIds(tx, 'BookingSuggestion', venueIds.length);
+  // Readable IDs (BSG-001…) come from the column default.
   await tx.bookingSuggestion.createMany({
-    data: venueIds.map((venueId, i) => ({
-      id: ids[i],
+    data: venueIds.map((venueId) => ({
       bookingId: context.booking.id,
       decisionId: context.decisionId,
       venueId,

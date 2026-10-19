@@ -281,7 +281,7 @@ enum ChangeRequestStatus {
 // ---------------------------------------------------------------------------
 
 model User {
-  id           String @id @default(cuid())
+  id           String @id @default(dbgenerated("next_readable_id('USR'::text)"))
   email        String @unique
   passwordHash String
   name         String
@@ -328,7 +328,7 @@ model User {
 }
 
 model EventRequest {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('EVT'::text)"))
 
   organiserId String
   organiser   User   @relation("EventOrganiser", fields: [organiserId], references: [id], onDelete: Restrict)
@@ -441,7 +441,7 @@ model EventRequest {
 }
 
 model Venue {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('VEN'::text)"))
 
   // US-13 AC-2: nullable so an incomplete venue can be saved as a draft.
   // Completeness is enforced at publish, and by a kCHECK constraint that only
@@ -510,7 +510,7 @@ model Venue {
 }
 
 model VenueBooking {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('BKG'::text)"))
 
   eventId String
   event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -635,7 +635,7 @@ model VenueBooking {
 }
 
 model Equipment {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('EQP'::text)"))
 
   // AMBIGUOUS: free text — the brief lists no equipment catalogue to enumerate.
   type String
@@ -667,8 +667,8 @@ model Equipment {
 // reason Technical Support gave (AC-2). Equipment.operationalStatus is the
 // current value; this is why it is what it is.
 model EquipmentStatusChange {
-  // Readable ID, e.g. ESC-001, from nextReadableId (src/prisma/readable-id.ts).
-  id String @id
+  // Readable ID, e.g. ESC-001 (CLAUDE.md, "IDs"), issued by the database.
+  id String @id @default(dbgenerated("next_readable_id('ESC'::text)"))
 
   equipmentId String
   equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
@@ -689,7 +689,7 @@ model EquipmentStatusChange {
 }
 
 model EquipmentReservation {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('RSV'::text)"))
 
   eventId String
   event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -725,7 +725,7 @@ model EquipmentReservation {
 }
 
 model Registration {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('REG'::text)"))
 
   eventId String
   event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -765,7 +765,7 @@ model Registration {
 }
 
 model Notification {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('NTF'::text)"))
 
   recipientId String
   recipient   User   @relation(fields: [recipientId], references: [id], onDelete: Cascade)
@@ -804,7 +804,7 @@ model Notification {
 // NOTE: this is a deliberate departure from the "stateless" rationale in
 // CLAUDE.md §2. See the AMBIGUOUS note in auth.service.ts.
 model RevokedToken {
-  id        String   @id @default(cuid())
+  id        String   @id @default(dbgenerated("next_readable_id('RVT'::text)"))
   jti       String   @unique
   userId    String
   expiresAt DateTime
@@ -822,7 +822,7 @@ model RevokedToken {
  * user record.
  */
 model ClarificationMessage {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('CLM'::text)"))
 
   eventId String
   event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -847,7 +847,7 @@ model ClarificationMessage {
  * which is what makes this an audit trail.
  */
 model EventChange {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('CHG'::text)"))
 
   eventId String
   event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -883,7 +883,7 @@ model EventChange {
  * the DTO).
  */
 model SafetyReview {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('SFR'::text)"))
 
   eventId String
   event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -930,7 +930,7 @@ model SafetyReview {
  * `equipmentType` is free text for the same reason Equipment.type is.
  */
 model EquipmentRequirement {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('REQ'::text)"))
 
   eventId String
   event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -975,7 +975,7 @@ model EquipmentRequirement {
  * event; Prisma cannot express it.
  */
 model EventChangeRequest {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('CRQ'::text)"))
 
   eventId String
   event   EventRequest @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -1012,7 +1012,7 @@ model EventChangeRequest {
  * US-37 — one line of a proposed equipment list, from the catalogue.
  */
 model EventChangeRequestEquipment {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('CRE'::text)"))
 
   changeRequestId String
   changeRequest   EventChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
@@ -1037,7 +1037,7 @@ model EventChangeRequestEquipment {
  * their event is, so this matches how the rest of an event's history goes.
  */
 model BookingDecision {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('BDC'::text)"))
 
   bookingId String
   booking   VenueBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
@@ -1071,8 +1071,8 @@ model BookingDecision {
 // asked for. Recorded against the rejecting decision (AC-1, AC-7), so who
 // suggested it and why the request was rejected come from that decision.
 model BookingSuggestion {
-  // Readable ID, e.g. BSG-001, from nextReadableId (src/prisma/readable-id.ts).
-  id String @id
+  // Readable ID, e.g. BSG-001 (CLAUDE.md, "IDs"), issued by the database.
+  id String @id @default(dbgenerated("next_readable_id('BSG'::text)"))
 
   bookingId String
   booking   VenueBooking @relation("SuggestionsForBooking", fields: [bookingId], references: [id], onDelete: Cascade)
@@ -1105,7 +1105,7 @@ model BookingSuggestion {
  * story's aim of not double-committing space. Confirm with the customer.
  */
 model VenueBlock {
-  id String @id @default(cuid())
+  id String @id @default(dbgenerated("next_readable_id('BLK'::text)"))
 
   venueId String
   venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)

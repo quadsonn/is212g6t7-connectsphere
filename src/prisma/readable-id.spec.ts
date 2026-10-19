@@ -1,6 +1,15 @@
-import { PrismaClient } from '@prisma/client';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-import { formatReadableId, ID_PREFIX, nextReadableId, nextReadableIds } from './readable-id';
+import { Prisma, PrismaClient } from '@prisma/client';
+
+import {
+  compareReadableIds,
+  formatReadableId,
+  ID_PREFIX,
+  inEntryOrder,
+  nextReadableId,
+} from './readable-id';
 
 /** Readable IDs (CLAUDE.md, "IDs"): prefix, dash, number zero-padded to 3 digits. */
 describe('readable IDs', () => {
@@ -11,39 +20,60 @@ describe('readable IDs', () => {
     expect(formatReadableId('BSG', 1000)).toBe('BSG-1000');
   });
 
-  it('uses BSG for BookingSuggestion and ESC for EquipmentStatusChange', () => {
-    expect(ID_PREFIX).toEqual({ BookingSuggestion: 'BSG', EquipmentStatusChange: 'ESC' });
+  describe('every model has a prefix, and its schema default uses it', () => {
+    const schema = readFileSync(join(__dirname, '../../prisma/schema.prisma'), 'utf8');
+    // IdCounter is keyed by the prefix itself.
+    const models = Object.values(Prisma.ModelName).filter((m) => m !== 'IdCounter');
+
+    it.each(models)('%s', (model) => {
+      const prefix = ID_PREFIX[model as keyof typeof ID_PREFIX];
+      expect(prefix).toMatch(/^[A-Z]{3}$/);
+
+      const body = new RegExp(`^model ${model} \\{([\\s\\S]*?)^\\}`, 'm').exec(schema)?.[1] ?? '';
+      expect(body).toContain(`@default(dbgenerated("next_readable_id('${prefix}'::text)"))`);
+      expect(body).not.toContain('cuid()');
+    });
+
+    it('no two models share a prefix, and no prefix is left over', () => {
+      const prefixes = Object.values(ID_PREFIX);
+      expect(new Set(prefixes).size).toBe(prefixes.length);
+      expect(Object.keys(ID_PREFIX).sort()).toEqual([...models].sort());
+    });
   });
 
-  describe('taking numbers from the counter', () => {
-    const counterAt = (last: number) =>
-      ({ $queryRaw: jest.fn().mockResolvedValue([{ last }]) }) as unknown as PrismaClient & {
-        $queryRaw: jest.Mock;
-      };
+  it('nextReadableId asks the database function, so it shares the column default’s counter', async () => {
+    const db = { $queryRaw: jest.fn().mockResolvedValue([{ id: 'VEN-054' }]) };
 
-    it('returns the counter value it moved to', async () => {
-      const db = counterAt(7);
+    await expect(nextReadableId(db as unknown as PrismaClient, 'Venue')).resolves.toBe('VEN-054');
+    const [sql, ...values] = db.$queryRaw.mock.calls[0];
+    expect(sql.join('?')).toContain('next_readable_id(');
+    expect(values).toEqual(['VEN']);
+  });
 
-      await expect(nextReadableId(db, 'BookingSuggestion')).resolves.toBe('BSG-007');
-    });
-
-    it('takes a block of numbers in one statement for several rows', async () => {
-      // The counter moved from 4 to 7: this caller owns 5, 6 and 7.
-      const db = counterAt(7);
-
-      await expect(nextReadableIds(db, 'EquipmentStatusChange', 3)).resolves.toEqual([
-        'ESC-005',
-        'ESC-006',
-        'ESC-007',
+  describe('ordering by ID number, which text order gets wrong past 999', () => {
+    it('puts REQ-999 before REQ-1000', () => {
+      expect(['REQ-1000', 'REQ-999', 'REQ-010'].sort(compareReadableIds)).toEqual([
+        'REQ-010',
+        'REQ-999',
+        'REQ-1000',
       ]);
-      expect(db.$queryRaw).toHaveBeenCalledTimes(1);
     });
 
-    it('asks for nothing when no rows are being created', async () => {
-      const db = counterAt(7);
+    it('falls back to text order for anything that is not a readable ID', () => {
+      expect(compareReadableIds('b', 'a')).toBeGreaterThan(0);
+      expect(compareReadableIds('REQ-001', 'VEN-001')).toBeLessThan(0);
+    });
 
-      await expect(nextReadableIds(db, 'BookingSuggestion', 0)).resolves.toEqual([]);
-      expect(db.$queryRaw).not.toHaveBeenCalled();
+    it('lists rows oldest first, and one save’s rows by ID number', () => {
+      const saved = new Date('2030-01-01T00:00:00Z');
+      const later = new Date('2030-01-02T00:00:00Z');
+      const rows = [
+        { id: 'REQ-1001', createdAt: later },
+        { id: 'REQ-1000', createdAt: saved },
+        { id: 'REQ-999', createdAt: saved },
+      ];
+
+      expect(inEntryOrder(rows).map((r) => r.id)).toEqual(['REQ-999', 'REQ-1000', 'REQ-1001']);
     });
   });
 });

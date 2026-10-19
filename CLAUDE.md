@@ -90,24 +90,29 @@ Every table's IDs are readable and prefixed: **`PREFIX-NNN`**, a 3-letter prefix
 |---|---|---|---|---|
 | User | `USR` | | EquipmentReservation | `RSV` |
 | EventRequest | `EVT` | | EquipmentRequirement | `REQ` |
-| Venue | `VEN` | | EventChange | `CHG` |
-| VenueBooking | `BKG` | | EventChangeRequest | `CRQ` |
-| BookingDecision | `BDC` | | EventChangeRequestEquipment | `CRE` |
+| Venue | `VEN` | | EquipmentStatusChange | `ESC` |
+| VenueBooking | `BKG` | | EventChange | `CHG` |
+| BookingDecision | `BDC` | | EventChangeRequest | `CRQ` |
+| BookingSuggestion | `BSG` | | EventChangeRequestEquipment | `CRE` |
 | VenueBlock | `BLK` | | Registration | `REG` |
 | Equipment | `EQP` | | Notification | `NTF` |
-| **BookingSuggestion** | **`BSG`** | | **EquipmentStatusChange** | **`ESC`** |
+| ClarificationMessage | `CLM` | | RevokedToken | `RVT` |
+| SafetyReview | `SFR` | | | |
 
-RevokedToken and ClarificationMessage have no prefix yet; choose one before moving them over.
+`IdCounter` holds one row per prefix and is keyed by the prefix itself.
 
-**How new IDs are generated:** `nextReadableId(db, model)` (or `nextReadableIds` for a batch) in `src/prisma/readable-id.ts`. It takes the next number from that prefix's row in the **IdCounter** table in one atomic statement, so concurrent writers never get the same ID, and a rolled-back transaction gives its number back. To use it for a table:
-1. add the table's prefix to `ID_PREFIX`;
-2. in `schema.prisma`, make the key `id String @id` with no default;
-3. create rows with `id: await nextReadableId(tx, '<Model>')`, inside the same transaction as the write;
-4. in the migration, add a CHECK constraint for the format (see `BookingSuggestion_readable_id`).
+**How IDs are generated:** by the database. Every table's `id` defaults to `next_readable_id('<PREFIX>')`, a Postgres function that takes the next number from that prefix's `IdCounter` row in one atomic statement. So every insert gets a readable ID: application code, nested and bulk creates, upserts, seeds, scripts, tests and raw SQL. Concurrent inserts never get the same number, and a rolled-back transaction gives its number back. **Code never passes an `id` when creating a row.** For the rare case that needs an ID before inserting, `nextReadableId(db, '<Model>')` in `src/prisma/readable-id.ts` asks the same function.
 
-**Current state, to be finished:** only **BookingSuggestion** and **EquipmentStatusChange** use the generator. Every other model still has `@default(cuid())` in `schema.prisma`. Their readable IDs exist only in the shared database's data, converted outside the codebase, so rows created by the app, the seed and the tests still get cuid IDs. Moving them to the generator needs team agreement, since it changes everyone's models and the shared seed.
+**Every model must have a prefix.** A new model:
+1. picks an unused 3-letter prefix and adds it to `ID_PREFIX` in `src/prisma/readable-id.ts`;
+2. declares its key as `id String @id @default(dbgenerated("next_readable_id('XYZ'::text)"))` in `schema.prisma`;
+3. adds a CHECK for the format in its migration (see `20261019100000_readable_ids_all_models`).
 
-**Never use `cuid()` or `uuid()` for a new table.** Give it a prefix and use the generator.
+A unit test (`src/prisma/readable-id.spec.ts`) fails if any model is missing from `ID_PREFIX`, shares a prefix, or has a different default.
+
+**Never use `cuid()` or `uuid()` for a table's ID.**
+
+**Ordering:** IDs are text, so ordering by `id` in a query is only right up to 999 (`REQ-1000` sorts before `REQ-999`). Use it only as a tie-breaker. Where ID order carries meaning, such as rows saved together, re-sort with `inEntryOrder()` or `compareReadableIds()` from `src/prisma/readable-id.ts`.
 
 ## 6. Auth & authorisation (E1 — build first)
 

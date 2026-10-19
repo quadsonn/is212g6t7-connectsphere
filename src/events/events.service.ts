@@ -63,6 +63,7 @@ import {
 import { BookingsService } from '../bookings/bookings.service';
 import { evaluateRegistration } from '../registrations/registration-rules';
 import { CHANGE_REQUEST_INCLUDE } from './events-change-request.service';
+import { inEntryOrder } from '../prisma/readable-id';
 
 
 /** US-42 — a free-text equipment line is "unchanged" when all three match. */
@@ -119,8 +120,9 @@ export const CLARIFICATION_THREAD_INCLUDE = {
 
 /**
  * US-28 — the event's equipment requirements, in the order they were listed.
- * Rows of one save share a createdAt, so id (a cuid, time-ordered) breaks
- * the tie.
+ * Rows of one save share a createdAt, so the ID number breaks the tie. The
+ * database orders IDs as text, which goes wrong past 999 (REQ-1000 before
+ * REQ-999), so every read re-sorts with inEntryOrder() (prisma/readable-id.ts).
  */
 const REQUIREMENTS_ORDER: Prisma.EquipmentRequirementOrderByWithRelationInput[] = [
   { createdAt: 'asc' },
@@ -528,7 +530,9 @@ export class EventsService {
       },
     });
 
-    return this.toOrganiserView(event);
+    // US-28: the requirements in the order they were listed.
+    const inOrder = { ...event, equipmentRequirements: inEntryOrder(event.equipmentRequirements) };
+    return this.toOrganiserView(inOrder);
   }
 
   /**
@@ -952,10 +956,12 @@ export class EventsService {
     const changes: FieldChange[] = [];
 
     if (incoming) {
-      const current = await this.prisma.equipmentRequirement.findMany({
-        where: { eventId: event.id },
-        orderBy: REQUIREMENTS_ORDER,
-      });
+      const current = inEntryOrder(
+        await this.prisma.equipmentRequirement.findMany({
+          where: { eventId: event.id },
+          orderBy: REQUIREMENTS_ORDER,
+        }),
+      );
       const previous = current.map(describeRequirement);
       const next = incoming.map(describeRequirement);
 
@@ -1335,8 +1341,10 @@ export class EventsService {
       },
     });
 
+    // US-28: the requirements in the order they were listed.
+    const inOrder = { ...event, equipmentRequirements: inEntryOrder(event.equipmentRequirements) };
     return {
-      ...this.toOrganiserView(event),
+      ...this.toOrganiserView(inOrder),
       pendingChangeRequest: await this.findPendingChangeRequest(id),
       latestChangeDecision: await this.findLatestChangeDecision(id),
     };
@@ -1449,10 +1457,12 @@ export class EventsService {
     // US-28 AC-3: Technical Support (and every other full-record reader)
     // sees the recorded requirements. The Attendee projection rebuilds the
     // record from an explicit field list, so they are dropped there.
-    const equipmentRequirements = await this.prisma.equipmentRequirement.findMany({
-      where: { eventId: event.id },
-      orderBy: REQUIREMENTS_ORDER,
-    });
+    const equipmentRequirements = inEntryOrder(
+      await this.prisma.equipmentRequirement.findMany({
+        where: { eventId: event.id },
+        orderBy: REQUIREMENTS_ORDER,
+      }),
+    );
 
     const withRequirements = { ...event, equipmentRequirements };
     const projected = this.access.projectEvent(user, withRequirements);

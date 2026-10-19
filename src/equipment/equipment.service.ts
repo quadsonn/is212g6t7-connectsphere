@@ -10,7 +10,6 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
-import { nextReadableId } from '../prisma/readable-id';
 import { BrowseEquipmentDto, EquipmentSortField, SortOrder } from './dto/browse-equipment.dto';
 import { ChangeEquipmentStatusDto } from './dto/change-equipment-status.dto';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
@@ -280,7 +279,6 @@ export class EquipmentService {
 
       await tx.equipmentStatusChange.create({
         data: {
-          id: await nextReadableId(tx, 'EquipmentStatusChange'),
           equipmentId,
           fromStatus: from,
           toStatus: dto.status,

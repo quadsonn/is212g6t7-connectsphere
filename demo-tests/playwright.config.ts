@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { COORDINATOR_STATE } from './tests/support';
 
 /**
  * W10 demo — runs the agent-generated tests against whichever branch is
@@ -26,10 +27,16 @@ export default defineConfig({
   },
   projects: [
     {
+      // Logs in once over the API and saves the session for the tests below.
+      name: 'setup',
+      testMatch: /.*\.setup\.ts/,
+    },
+    {
       name: 'chrome',
       // Uses the Google Chrome already installed (the one Playwright MCP
       // drives), so no extra browser download is needed.
-      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+      use: { ...devices['Desktop Chrome'], channel: 'chrome', storageState: COORDINATOR_STATE },
+      dependencies: ['setup'],
     },
   ],
 });

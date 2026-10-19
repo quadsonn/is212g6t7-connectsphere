@@ -7,6 +7,9 @@ import { expect, test } from '@playwright/test';
  *
  * Should pass on BOTH branches; the planted bugs don't touch login or listing.
  */
+// Start logged out: this test checks the real login form, not the saved session.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test('Coordinator can log in and see the seeded venues', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email address').fill('coordinator@connectsphere.local');

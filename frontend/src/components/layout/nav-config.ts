@@ -36,10 +36,9 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: 'My requests', to: '/organiser', icon: LayoutDashboard },
   ],
   EVENT_COORDINATOR: [
-    { label: 'Review queue', to: '/coordinator', icon: ClipboardList },
+    { label: 'My events', to: '/coordinator', icon: ClipboardList },
     { label: 'Change requests', to: '/coordinator/change-requests', icon: Repeat2 },
     { label: 'My venue requests', to: '/coordinator/bookings', icon: MapPin },
-    { label: 'All events', to: '/coordinator/events', icon: CalendarCheck, comingSoon: true },
     { label: 'Venues', to: '/coordinator/venues', icon: Building2 },
   ],
   VENUE_STAFF: [
@@ -60,13 +59,11 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   // Requirement changes 5 and 6 — accounts exist; screens are to come.
   EVENT_COORDINATOR_LEAD: [
-    { label: 'Overview', to: '/lead', icon: LayoutDashboard },
-    { label: 'Unassigned queue', to: '/lead/unassigned', icon: ClipboardList, comingSoon: true },
-    { label: 'Coordinator assignments', to: '/lead/assignments', icon: Users, comingSoon: true },
+    { label: 'Unassigned queue', to: '/lead/unassigned', icon: ClipboardList },
+    { label: 'Coordinator assignments', to: '/lead/assignments', icon: Users },
   ],
   SAFETY_OFFICER: [
-    { label: 'Overview', to: '/safety', icon: LayoutDashboard },
-    { label: 'Safety checks', to: '/safety/checks', icon: ShieldCheck, comingSoon: true },
+    { label: 'Safety checks', to: '/safety/checks', icon: ShieldCheck },
   ],
 };
 

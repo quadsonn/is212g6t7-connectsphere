@@ -2,14 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
   BrowseEquipmentQuery,
+  ChangeEquipmentStatusPayload,
   CommitReservationPayload,
   CommittedReservation,
   Equipment,
   EquipmentListItem,
+  EquipmentStatusChangeResult,
   EventRequirementDetails,
   EventRequirements,
   ItemAvailability,
   ReleasedReservation,
+  UpcomingReservation,
 } from '@/types/api';
 import { equipmentApi } from '../api/equipment.api';
 
@@ -17,6 +20,7 @@ export const equipmentKeys = {
   all: ['equipment'] as const,
   catalogue: (query: BrowseEquipmentQuery) => ['equipment', 'catalogue', query] as const,
   detail: (id: string) => ['equipment', 'detail', id] as const,
+  upcoming: (id: string) => ['equipment', 'detail', id, 'upcoming-reservations'] as const,
   requirements: ['equipment', 'requirements'] as const,
   eventRequirements: (eventId: string) => ['equipment', 'requirements', eventId] as const,
   eventDetails: (eventId: string) => ['equipment', 'requirements', eventId, 'details'] as const,
@@ -38,6 +42,31 @@ export function useEquipmentItem(id: string) {
     queryKey: equipmentKeys.detail(id),
     queryFn: () => equipmentApi.getById(id),
     enabled: Boolean(id),
+  });
+}
+
+/**
+ * US-45 AC-5 — the item's reservations that have not ended, fetched only
+ * while a Damaged or Under Maintenance change is being prepared.
+ */
+export function useUpcomingReservations(id: string, enabled: boolean) {
+  return useQuery<UpcomingReservation[]>({
+    queryKey: equipmentKeys.upcoming(id),
+    queryFn: () => equipmentApi.listUpcomingReservations(id),
+    enabled: Boolean(id) && enabled,
+    staleTime: 0,
+  });
+}
+
+/**
+ * US-45 — change an item's status. Invalidates every equipment query: the
+ * item's detail, and any availability the status now changes (AC-4).
+ */
+export function useChangeEquipmentStatus(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation<EquipmentStatusChangeResult, unknown, ChangeEquipmentStatusPayload>({
+    mutationFn: (payload) => equipmentApi.changeStatus(id, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: equipmentKeys.all }),
   });
 }
 

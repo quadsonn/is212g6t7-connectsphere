@@ -7,6 +7,7 @@ import { EquipmentReservationsService } from '../equipment/equipment-reservation
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
+import { BookingsService } from '../bookings/bookings.service';
 
 /** US-05 — the Organiser's read-only status view. */
 describe('EventsService status view (US-05)', () => {
@@ -70,6 +71,7 @@ describe('EventsService status view (US-05)', () => {
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
   });
 

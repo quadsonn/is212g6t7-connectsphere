@@ -85,11 +85,11 @@ export function LoginPage() {
           <BrandMark />
           <div className="max-w-lg">
             <h1 className="text-3xl font-semibold leading-snug text-white sm:text-4xl">
-              Every event, from first request to final headcount.
+              Event planning, made easy.
             </h1>
             <p className="mt-3 text-sm leading-relaxed text-white/60 sm:text-base">
-              ConnectSphere brings organisers, coordinators, venue teams and
-              attendees into one coordinated workflow.
+              ConnectSphere brings organisers, coordinators, venue staffs and
+              attendees together on one platform.
             </p>
           </div>
           <Button size="lg" onClick={scrollToLogin}>

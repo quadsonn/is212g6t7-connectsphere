@@ -18,6 +18,7 @@ import {
   venueLetter,
   visibleRange,
 } from '@/features/calendar/calendar-utils';
+import { HoldForm } from '@/features/bookings/components/hold-form';
 import { BlockForm, EntryDetail } from '@/features/calendar/components/calendar-panels';
 import {
   AgendaList,
@@ -48,6 +49,8 @@ export function VenueCalendar() {
   const [anchor, setAnchor] = useState(() => new Date());
   const [selected, setSelected] = useState<CalendarEntry | null>(null);
   const [blocking, setBlocking] = useState(false);
+  // US-54: placing a tentative hold, from the same page as blocking time.
+  const [holding, setHolding] = useState(false);
   const [filters, setFilters] = useState<CalendarFilters>(NO_FILTERS);
   const [weekPage, setWeekPage] = useState(1);
   const detailRef = useRef<HTMLDivElement>(null);
@@ -89,10 +92,15 @@ export function VenueCalendar() {
         title="Availability calendar"
         description="Bookings and blocked-out time across the venues you manage."
         action={
-          !blocking && allVenues.length > 0 ? (
-            <Button type="button" size="sm" onClick={() => setBlocking(true)}>
-              Block out time
-            </Button>
+          !blocking && !holding && allVenues.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="secondary" onClick={() => setHolding(true)}>
+                Place hold
+              </Button>
+              <Button type="button" size="sm" onClick={() => setBlocking(true)}>
+                Block out time
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -105,6 +113,16 @@ export function VenueCalendar() {
             </CardHeader>
             <CardContent>
               <BlockForm venues={allVenues} onDone={() => setBlocking(false)} />
+            </CardContent>
+          </Card>
+        ) : null}
+        {holding ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Place a tentative hold</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <HoldForm venues={allVenues} onDone={() => setHolding(false)} />
             </CardContent>
           </Card>
         ) : null}

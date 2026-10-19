@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorState } from '@/components/ui/states';
+import { VenueBuffersCard } from '@/features/venues/components/venue-buffers-card';
 import { VenueDraftForm } from '@/features/venues/components/venue-draft-form';
 import { useVenue } from '@/features/venues/hooks/use-venues';
 import { apiErrorMessage } from '@/lib/api-client';
@@ -51,6 +52,13 @@ export function VenueEditRequest() {
                                 initialStatus={venue.status}
                                 onPublished={() => navigate('/venues')}
                             />
+
+                            <div className="mt-8 border-t border-ink-100 pt-6">
+                                <h3 className="mb-3 text-sm font-semibold text-ink-800">
+                                    Setup and turnaround time
+                                </h3>
+                                <VenueBuffersCard venue={venue} />
+                            </div>
 
                             <div className="mt-8 border-t border-ink-100 pt-6">
                                 <h3 className="mb-3 text-sm font-semibold text-ink-800">Photos</h3>

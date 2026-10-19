@@ -1,5 +1,21 @@
 import { BookingDecisionKind, BookingStatus, EventStatus, Prisma } from '@prisma/client';
 
+import { BookingAction, canTransition } from './booking-status.machine';
+
+/**
+ * Statuses that still hold a venue with no expiry. REJECTED and RELEASED hold
+ * nothing — nothing depends on them (US-14) and they block no date (US-17).
+ *
+ * US-54: a HELD booking is live only until its expiry, which a status list
+ * cannot say. Queries use liveBookingsWhere(now) and in-memory checks use
+ * isLive() (booking-overlap.ts); this list is what those build on, and what
+ * classifies a pending request as soft.
+ */
+export const LIVE_STATUSES: BookingStatus[] = [
+  BookingStatus.REQUESTED,
+  BookingStatus.APPROVED,
+];
+
 /**
  * US-21 — event statuses in which a Coordinator may request a venue.
  *
@@ -14,6 +30,18 @@ export const BOOKABLE_EVENT_STATUSES: readonly EventStatus[] = [
   EventStatus.AWAITING_ARRANGEMENTS,
 ];
 
+/**
+ * US-41 — one suggested alternative as it is shown: the venue, and the request
+ * created from it once the Coordinator accepted it (AC-6).
+ */
+export const SUGGESTION_SELECT = {
+  id: true,
+  venue: { select: { id: true, name: true, location: true, capacity: true } },
+  acceptedBookingId: true,
+  acceptedAt: true,
+  createdAt: true,
+} as const satisfies Prisma.BookingSuggestionSelect;
+
 /** The relations every booking read carries, so callers never see bare ids. */
 export const BOOKING_INCLUDE = {
   venue: { select: { id: true, name: true, location: true, capacity: true } },
@@ -27,9 +55,16 @@ export const BOOKING_INCLUDE = {
   },
   requestedBy: { select: { id: true, name: true, email: true } },
   // US-23 AC-4/AC-5: the full decision history, oldest first, attributed.
+  // US-41 AC-5/AC-7: each decision with the alternatives attached to it.
   decisions: {
     orderBy: { createdAt: 'asc' },
-    include: { decidedBy: { select: { id: true, name: true, email: true, role: true } } },
+    include: {
+      decidedBy: { select: { id: true, name: true, email: true, role: true } },
+      suggestions: {
+        orderBy: { createdAt: 'asc' },
+        select: SUGGESTION_SELECT,
+      },
+    },
   },
 } as const satisfies Prisma.VenueBookingInclude;
 
@@ -78,6 +113,8 @@ export interface OverlappingBooking {
   eventName: string | null;
   start: Date;
   end: Date;
+  /** US-54: APPROVED or HELD (hard), REQUESTED (soft). */
+  status: BookingStatus;
 }
 
 /** US-24 — a blocked-out period (US-16) overlapping the booking. */
@@ -129,10 +166,14 @@ export function classifyConflicts(
       eventName: booking.eventName,
       start: booking.start,
       end: booking.end,
+      status: booking.status,
     };
-    if (booking.status === BookingStatus.APPROVED) hardConflicts.push(entry);
-    else if (booking.status === BookingStatus.REQUESTED) softConflicts.push(entry);
-    // REJECTED holds nothing and is ignored.
+    // US-54 AC-3: a hold hard-blocks like an approved booking. Callers pass
+    // only live rows (liveBookingsWhere), so a HELD one here has not expired.
+    if (booking.status === BookingStatus.APPROVED || booking.status === BookingStatus.HELD) {
+      hardConflicts.push(entry);
+    } else if (booking.status === BookingStatus.REQUESTED) softConflicts.push(entry);
+    // REJECTED and RELEASED hold nothing and are ignored.
   }
 
   return {
@@ -162,34 +203,16 @@ export type BookingQueueEntry = BookingView & {
 };
 
 /**
- * US-23 — THE booking status transitions, the only ones a decision may make
- * (CLAUDE.md §3.4). Creation sets REQUESTED; everything after goes through
- * BookingsService.recordDecision(), which checks this table.
- *
- * AC-7: a DECISION is only possible while the request is pending, so the same
- * request cannot be approved or rejected twice. AC-6: once decided, the only
- * way to change the outcome is a REVERSAL, which is recorded as its own row.
- *
- * AMBIGUOUS: a reversal flips the outcome (approved <-> rejected) rather than
- * reopening the request as pending. The AC does not say which; flipping keeps
- * the decision with the person reversing it instead of returning it to the queue.
+ * US-23 — may a decision of this kind make this change? The table itself now
+ * lives in booking-status.machine.ts with every other booking transition; a
+ * decision's kind is its action there.
  */
-export const BOOKING_TRANSITIONS: Readonly<
-  Record<BookingDecisionKind, Partial<Record<BookingStatus, readonly BookingStatus[]>>>
-> = Object.freeze({
-  [BookingDecisionKind.DECISION]: {
-    [BookingStatus.REQUESTED]: [BookingStatus.APPROVED, BookingStatus.REJECTED],
-  },
-  [BookingDecisionKind.REVERSAL]: {
-    [BookingStatus.APPROVED]: [BookingStatus.REJECTED],
-    [BookingStatus.REJECTED]: [BookingStatus.APPROVED],
-  },
-});
-
 export function canDecide(
   kind: BookingDecisionKind,
   from: BookingStatus,
   to: BookingStatus,
 ): boolean {
-  return BOOKING_TRANSITIONS[kind][from]?.includes(to) ?? false;
+  // US-44: RELEASE is recorded by the system on cancellation, never decided.
+  if (kind === BookingDecisionKind.RELEASE) return false;
+  return canTransition(kind as unknown as BookingAction, from, to);
 }

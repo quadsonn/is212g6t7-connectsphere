@@ -2,14 +2,17 @@ import { apiClient } from '@/lib/api-client';
 import type {
   AvailabilityQuery,
   BrowseEquipmentQuery,
+  ChangeEquipmentStatusPayload,
   CommitReservationPayload,
   CommittedReservation,
   Equipment,
   EquipmentListItem,
+  EquipmentStatusChangeResult,
   EventRequirementDetails,
   EventRequirements,
   ItemAvailability,
   ReleasedReservation,
+  UpcomingReservation,
 } from '@/types/api';
 
 export const equipmentApi = {
@@ -20,6 +23,18 @@ export const equipmentApi = {
   // US-29 AC-2: one item's full detail, including operational status.
   getById: (id: string) =>
     apiClient.get<Equipment>(`/equipment/${id}`).then((r) => r.data),
+
+  // US-45 AC-5: reservations of the item that have not ended — the warning.
+  listUpcomingReservations: (id: string) =>
+    apiClient
+      .get<UpcomingReservation[]>(`/equipment/${id}/upcoming-reservations`)
+      .then((r) => r.data),
+
+  // US-45 AC-1/AC-2/AC-3: change an item's status, with a reason.
+  changeStatus: (id: string, payload: ChangeEquipmentStatusPayload) =>
+    apiClient
+      .patch<EquipmentStatusChangeResult>(`/equipment/${id}/status`, payload)
+      .then((r) => r.data),
 
   // US-30: free units of one item for a date and time.
   checkAvailability: (equipmentId: string, query: AvailabilityQuery) =>

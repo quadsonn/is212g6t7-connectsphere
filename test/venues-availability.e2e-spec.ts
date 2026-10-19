@@ -6,6 +6,7 @@ import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { dayKeyOf, resolveRange } from '../src/venues/availability';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-17 e2e — a Coordinator checking a venue's availability calendar. */
 describe('US-17 view a venue availability calendar (e2e)', () => {
@@ -72,7 +73,7 @@ describe('US-17 view a venue availability calendar (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });

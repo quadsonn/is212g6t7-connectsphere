@@ -11,6 +11,7 @@ import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { TECHNICAL_SUPPORT_VISIBLE_STATUSES } from '../events/event-status.machine';
 import { PrismaService } from '../prisma/prisma.service';
+import { inEntryOrder } from '../prisma/readable-id';
 
 /** US-31 AC-3 — shown in place of requirements when none are recorded. */
 export const NO_REQUIREMENTS_MESSAGE =
@@ -91,7 +92,7 @@ const EVENT_SELECT = {
   equipmentNeeds: true,
   technicalSupportNeeds: true,
   equipmentRequirements: {
-    select: { id: true, equipmentType: true, quantity: true, notes: true },
+    select: { id: true, createdAt: true, equipmentType: true, quantity: true, notes: true },
     orderBy: COORDINATOR_REQUIREMENTS_ORDER,
   },
 } as const satisfies Prisma.EventRequestSelect;
@@ -156,7 +157,9 @@ export function hasAnySource(event: {
 export function toRequirementsView(event: SelectedEvent): EventRequirementsView {
   const organiserEquipmentNeeds = recordedText(event.equipmentNeeds);
   const technicalSupportNeeds = recordedText(event.technicalSupportNeeds);
-  const coordinatorRequirements = event.equipmentRequirements.map((row) => ({
+  // In the order the Coordinator entered them: re-sorted, because the
+  // database orders readable IDs as text, which goes wrong past 999.
+  const coordinatorRequirements = inEntryOrder(event.equipmentRequirements).map((row) => ({
     id: row.id,
     equipmentType: row.equipmentType,
     quantity: row.quantity,

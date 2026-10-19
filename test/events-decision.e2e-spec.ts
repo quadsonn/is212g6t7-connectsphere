@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-08 e2e — reject and return as distinct decisions. */
 describe('US-08 reject / return with a mandatory reason (e2e)', () => {
@@ -51,7 +52,7 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });
@@ -395,14 +396,14 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       },
     );
 
-    it('refuses to decide an unassigned request from the pool', async () => {
+    it('refuses to decide a request still in the Lead’s unassigned queue', async () => {
       const event = await seedEvent({ coordinatorId: null });
 
       await http()
         .post(`/events/${event.id}/reject`)
         .set('Authorization', as('coordinatorB'))
         .send({ reason: 'No' })
-        .expect(409);
+        .expect(404);
     });
 
     it.each(['organiser', 'attendee'])('refuses %s at the role gate', async (who) => {

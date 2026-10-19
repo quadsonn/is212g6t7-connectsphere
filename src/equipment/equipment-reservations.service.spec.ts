@@ -263,7 +263,7 @@ describe('EquipmentReservationsService', () => {
       expect(notifications.notifySafely).toHaveBeenCalledWith({
         recipientId: 'coord-1',
         type: NotificationType.EQUIPMENT_RESERVATION_DECIDED,
-        message: expect.stringContaining('2 × Wireless microphone committed to "Capstone Showcase"'),
+        message: expect.stringMatching(/^2 × Wireless microphone for .* UTC\.$/),
         relatedEventId: 'event-1',
       });
       // After, not inside: the call order proves the transaction resolved first.

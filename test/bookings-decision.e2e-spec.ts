@@ -13,6 +13,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-23 e2e — Approve/Reject Booking Request with Reason. */
 describe('US-23 approve/reject a booking request with reason (e2e)', () => {
@@ -71,7 +72,7 @@ describe('US-23 approve/reject a booking request with reason (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });
@@ -238,6 +239,72 @@ describe('US-23 approve/reject a booking request with reason (e2e)', () => {
       await act(booking.id, 'approve');
 
       expect((await act(booking.id, 'reverse', {})).status).toBe(400);
+    });
+  });
+
+  describe('Capacity: an over-capacity request can be rejected but not approved', () => {
+    // An existing request over the venue's 200 seats — saved before capacity
+    // was enforced on submission. Written directly, as such data would be.
+    const overCapacity = async () => {
+      const booking = await seedBooking();
+      return prisma.venueBooking.update({
+        where: { id: booking.id },
+        data: { expectedAttendance: 499 },
+      });
+    };
+
+    it('Backend rejects approval of an over-capacity request (409), even with the page bypassed, and records nothing', async () => {
+      const booking = await overCapacity();
+
+      const res = await act(booking.id, 'approve').expect(409);
+
+      expect(res.body).toMatchObject({
+        code: 'CAPACITY_EXCEEDED',
+        message: expect.stringMatching(
+          /^Cannot approve: .+ holds 200, but expected attendance is 499\.$/,
+        ),
+        capacity: 200,
+        expectedAttendance: 499,
+      });
+      const after = await prisma.venueBooking.findUniqueOrThrow({ where: { id: booking.id } });
+      expect(after.status).toBe(BookingStatus.REQUESTED);
+      expect(await prisma.bookingDecision.count({ where: { bookingId: booking.id } })).toBe(0);
+    });
+
+    it('Backend rejects a reversal that would approve an over-capacity request', async () => {
+      const booking = await overCapacity();
+      await act(booking.id, 'reject', { reason: 'Too small' }).expect(200);
+
+      const res = await act(booking.id, 'reverse', { reason: 'Reconsidered' }).expect(409);
+
+      expect(res.body.code).toBe('CAPACITY_EXCEEDED');
+      const after = await prisma.venueBooking.findUniqueOrThrow({ where: { id: booking.id } });
+      expect(after.status).toBe(BookingStatus.REJECTED);
+    });
+
+    it('Reject still works on an over-capacity request', async () => {
+      const booking = await overCapacity();
+
+      const res = await act(booking.id, 'reject', {
+        reason: 'Over capacity: 499 attendees, venue holds 200',
+      }).expect(200);
+
+      expect(res.body.status).toBe(BookingStatus.REJECTED);
+    });
+
+    it.each([
+      ['equal to', 200],
+      ['below', 80],
+    ])('Approval still works when attendance is %s capacity', async (_label, attendance) => {
+      const booking = await seedBooking();
+      await prisma.venueBooking.update({
+        where: { id: booking.id },
+        data: { expectedAttendance: attendance },
+      });
+
+      const res = await act(booking.id, 'approve').expect(200);
+
+      expect(res.body.status).toBe(BookingStatus.APPROVED);
     });
   });
 

@@ -32,14 +32,104 @@ export function overlapsRange(
 }
 
 /**
- * US-18 AC-1 — a *confirmed* booking overlapping the range. Pending requests
- * deliberately do not count: the AC says "confirmed", and a venue with only a
- * pending request is still bookable. (US-21's conflict check also cares about
+ * US-51 — overlapsRange() for windows already in memory, so the sweep over a
+ * venue's bookings needs no query per pair. The same half-open comparison as
+ * the filter above (start < other.end and end > other.start); if one changes,
+ * change both. test/booking-review-flags.e2e-spec.ts checks they agree with
+ * Postgres.
+ */
+export function windowsOverlap(
+  a: { start: Date; end: Date },
+  b: { start: Date; end: Date },
+): boolean {
+  return a.start < b.end && a.end > b.start;
+}
+
+/**
+ * US-49 — the window a booking actually occupies once the venue's buffers
+ * apply: setup time before it, turnaround time after it. The customer's
+ * example: 10:00-12:00 with 30/45 minutes occupies 09:30-12:45.
+ *
+ * Deliberately not an overlap rule. Feed the result to overlapsRange() or
+ * overlapping() so there is still exactly one: padded windows that only touch
+ * at a boundary do not overlap, the same half-open [start, end) rule.
+ *
+ * Pure: returns new Dates and never mutates its arguments. Used by US-50
+ * (availability and conflict enforcement) and US-51.
+ */
+export function paddedRange(
+  start: Date,
+  end: Date,
+  setupMinutes: number,
+  turnaroundMinutes: number,
+): { start: Date; end: Date } {
+  const MINUTE = 60_000;
+  return {
+    start: new Date(start.getTime() - setupMinutes * MINUTE),
+    end: new Date(end.getTime() + turnaroundMinutes * MINUTE),
+  };
+}
+
+/** The statuses that occupy a slot with no expiry: pending and approved. */
+const UNEXPIRING_LIVE: BookingStatus[] = [BookingStatus.REQUESTED, BookingStatus.APPROVED];
+
+/**
+ * US-54 — is this a hold that still holds its slot? A HELD row whose expiry
+ * has passed is free, whether or not the expiry job has released it yet: the
+ * clock, not the job, decides (docs/adr/0001-held-hard-blocks-at-db-level.md).
+ */
+export function isLiveHold(
+  booking: { status: BookingStatus; holdExpiresAt: Date | null },
+  now: Date = new Date(),
+): boolean {
+  return (
+    booking.status === BookingStatus.HELD &&
+    booking.holdExpiresAt !== null &&
+    booking.holdExpiresAt > now
+  );
+}
+
+/** US-54 — does this booking occupy its slot at `now`? (Query form below.) */
+export function isLive(
+  booking: { status: BookingStatus; holdExpiresAt: Date | null },
+  now: Date = new Date(),
+): boolean {
+  return UNEXPIRING_LIVE.includes(booking.status) || isLiveHold(booking, now);
+}
+
+/**
+ * US-54 — THE filter for "this booking occupies its slot": pending, approved,
+ * or a hold that has not expired. Every conflict, availability, calendar and
+ * search query uses it instead of a status list, so an expired hold is free
+ * everywhere at once. An OR: combine with other ORs through AND.
+ */
+export function liveBookingsWhere(now: Date = new Date()): Prisma.VenueBookingWhereInput {
+  return {
+    OR: [
+      { status: { in: UNEXPIRING_LIVE } },
+      { status: BookingStatus.HELD, holdExpiresAt: { gt: now } },
+    ],
+  };
+}
+
+/**
+ * US-18 AC-1 / US-54 — a booking that firmly holds part of the range: an
+ * approved one, or a live hold. Pending requests deliberately do not count:
+ * the AC says "confirmed", and a venue with only a pending request is still
+ * bookable. A live hold does count: it hard-blocks requests (US-54 AC-3), so a
+ * search must not offer the venue. (US-21's conflict check also cares about
  * pending ones — that is a different question.)
  */
-export function confirmedOverlapping(
+export function committedOverlapping(
   from: Date,
   to: Date,
+  now: Date = new Date(),
 ): Prisma.VenueBookingWhereInput {
-  return { status: BookingStatus.APPROVED, ...overlapping(from, to) };
+  return {
+    ...overlapping(from, to),
+    OR: [
+      { status: BookingStatus.APPROVED },
+      { status: BookingStatus.HELD, holdExpiresAt: { gt: now } },
+    ],
+  };
 }

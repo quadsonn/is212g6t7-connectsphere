@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-03 e2e — one describe per acceptance criterion. */
 describe('US-03 submit new event request (e2e)', () => {
@@ -46,7 +47,7 @@ describe('US-03 submit new event request (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });
@@ -142,21 +143,22 @@ describe('US-03 submit new event request (e2e)', () => {
       expect(res.body.createdAt).toEqual(expect.any(String));
     });
 
-    it('makes the request visible to a Coordinator for review', async () => {
-      await http()
+    it('keeps the request out of every Coordinator’s view until the Lead assigns it', async () => {
+      // It sits in the Lead's unassigned queue instead — see
+      // events-assignment.e2e-spec.ts.
+      const res = await http()
         .post('/events')
         .set('Authorization', as('organiser'))
         .send(validPayload())
         .expect(201);
 
+      expect(res.body.coordinatorId).toBeNull();
       const queue = await http()
         .get('/events')
         .set('Authorization', as('coordinator'))
         .expect(200);
 
-      expect(queue.body).toHaveLength(1);
-      expect(queue.body[0].name).toBe('Freshman Orientation 2030');
-      expect(queue.body[0].status).toBe(EventStatus.SUBMITTED);
+      expect(queue.body).toHaveLength(0);
     });
 
     it('does not expose it to a different Organiser', async () => {

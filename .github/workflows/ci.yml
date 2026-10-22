@@ -45,6 +45,10 @@ jobs:
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/connectsphere_test?schema=public
       JWT_SECRET: ci-dummy-jwt-secret-not-used-anywhere-else
       JWT_EXPIRES_IN: 1h
+      # SupabaseStorageService builds its client at startup and throws without
+      # a URL. Placeholders only: no test uploads to a real bucket.
+      SUPABASE_URL: http://localhost:54321
+      SUPABASE_SERVICE_ROLE_KEY: ci-dummy-supabase-key-not-used-anywhere-else
 
     steps:
       - name: Check out the code

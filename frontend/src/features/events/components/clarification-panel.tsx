@@ -57,6 +57,8 @@ export function ClarificationPanel({
 }) {
   const respond = useRespondToClarification();
   const [response, setResponse] = useState('');
+  // AC6: once the Organiser has typed in or left the box, say why Send is off.
+  const [touched, setTouched] = useState(false);
   const [editing, setEditing] = useState(false);
   const [initial] = useState(() => mapExistingToForm(event));
   const [form, setForm] = useState<EventRequestFormState>(initial);
@@ -64,13 +66,18 @@ export function ClarificationPanel({
   const [problem, setProblem] = useState<string | null>(null);
 
   const awaiting = event.status === 'AWAITING_CLARIFICATION';
+  const blank = response.trim() === '';
+  const responseErrors = touched && blank ? ['Please write a response before sending.'] : [];
 
   const set: SetEventRequestField = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
 
   function send(e: React.FormEvent) {
     e.preventDefault();
-    if (response.trim() === '') return;
+    if (blank) {
+      setTouched(true);
+      return;
+    }
 
     setErrors({});
     setProblem(null);
@@ -85,6 +92,7 @@ export function ClarificationPanel({
       {
         onSuccess: () => {
           setResponse('');
+          setTouched(false);
           setEditing(false);
           onResponded?.();
         },
@@ -112,13 +120,23 @@ export function ClarificationPanel({
 
       {awaiting ? (
         <form onSubmit={send} noValidate className="space-y-4">
-          <Field label="Your response" htmlFor="clarification-response" required>
+          <Field
+            label="Your response"
+            htmlFor="clarification-response"
+            required
+            errors={responseErrors}
+          >
             <Textarea
               id="clarification-response"
               rows={3}
               maxLength={4000}
               value={response}
-              onChange={(e) => setResponse(e.target.value)}
+              aria-invalid={responseErrors.length > 0 ? true : undefined}
+              onChange={(e) => {
+                setResponse(e.target.value);
+                setTouched(true);
+              }}
+              onBlur={() => setTouched(true)}
               placeholder="Answer the coordinator's question"
             />
           </Field>
@@ -139,7 +157,7 @@ export function ClarificationPanel({
           {problem ? <ErrorState message={problem} /> : null}
 
           <div className="flex gap-3">
-            <Button type="submit" disabled={respond.isPending || response.trim() === ''}>
+            <Button type="submit" disabled={respond.isPending || blank}>
               {respond.isPending ? 'Sending…' : 'Send response'}
             </Button>
             {editing ? (

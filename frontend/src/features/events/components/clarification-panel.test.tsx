@@ -116,6 +116,45 @@ describe('US-58 clarification panel', () => {
       expect(submit).toBeDisabled();
     });
 
+    it('AC6: Given the Organiser has not typed yet, Then no message is shown', () => {
+      renderPanel();
+
+      expect(screen.queryByText('Please write a response before sending.')).not.toBeInTheDocument();
+    });
+
+    it('AC6: Given the Organiser types then clears the response, Then an inline message says why Send is disabled', async () => {
+      renderPanel();
+      const box = screen.getByLabelText(/Your response/);
+
+      await userEvent.type(box, 'Draft');
+      await userEvent.clear(box);
+
+      expect(screen.getByText('Please write a response before sending.')).toBeInTheDocument();
+      expect(box).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByRole('button', { name: 'Send response' })).toBeDisabled();
+    });
+
+    it('AC6: Given the Organiser leaves the box with only spaces, Then the message is shown', async () => {
+      renderPanel();
+
+      await userEvent.type(screen.getByLabelText(/Your response/), '   ');
+      await userEvent.tab();
+
+      expect(screen.getByText('Please write a response before sending.')).toBeInTheDocument();
+    });
+
+    it('AC6: Given the message is showing, When the Organiser writes something, Then it goes away', async () => {
+      renderPanel();
+      const box = screen.getByLabelText(/Your response/);
+      await userEvent.type(box, ' ');
+      await userEvent.tab();
+
+      await userEvent.type(box, 'Two exits.');
+
+      expect(screen.queryByText('Please write a response before sending.')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Send response' })).toBeEnabled();
+    });
+
     it('AC2/AC5: Given text only, When sent, Then just the trimmed response goes to the server', async () => {
       api.respondToClarification.mockResolvedValue(event({ status: 'UNDER_REVIEW' }));
       const onResponded = renderPanel();

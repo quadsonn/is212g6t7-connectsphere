@@ -7,6 +7,8 @@ import { LinkButton } from '@/components/ui/link-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/form';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
+import { Badge } from '@/components/ui/badge';
+import { useReplacementsNeeded } from '@/features/bookings/hooks/use-bookings';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { useEvents } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
@@ -21,6 +23,10 @@ import type { EventStatus } from '@/types/api';
  */
 export function CoordinatorDashboard() {
   const { data: events, isPending, isError, error } = useEvents();
+  // US-52 AC-2: events with a booking whose venue became unavailable. The
+  // server returns only this Coordinator's own.
+  const { data: replacementsNeeded } = useReplacementsNeeded();
+  const venueUnavailable = new Set((replacementsNeeded ?? []).map((b) => b.eventId));
   const [statusFilter, setStatusFilter] = useState<'ALL' | EventStatus>('ALL');
   // US-27: set when the Coordinator arrives here after reassigning an event.
   const notice = (useLocation().state as { notice?: string } | null)?.notice;
@@ -34,8 +40,8 @@ export function CoordinatorDashboard() {
   return (
     <>
       <PageHeader
-        title="Review queue"
-        description="Requests assigned to you that are waiting on a decision."
+        title="My events"
+        description="Every event assigned to you, from new requests to confirmed events."
       />
 
       {notice ? (
@@ -98,6 +104,9 @@ export function CoordinatorDashboard() {
                   <div className="flex items-center gap-2.5">
                     <span className="truncate font-medium text-ink-900">{event.name}</span>
                     <EventStatusBadge status={event.status} />
+                    {venueUnavailable.has(event.id) ? (
+                      <Badge className="bg-red-50 text-red-800 ring-red-300">Venue unavailable</Badge>
+                    ) : null}
                   </div>
                   <p className="mt-1 text-xs text-ink-500">
                     {formatDateRange(event.proposedStart, event.proposedEnd)} ·{' '}

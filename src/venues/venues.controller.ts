@@ -27,6 +27,7 @@ import { BrowseVenuesDto } from './dto/browse-venues.dto';
 import { VenueAvailabilityQueryDto } from './dto/venue-availability.dto';
 import { VenueSearchDto } from './dto/venue-search.dto';
 import { VenueSuitabilityQueryDto } from './dto/venue-suitability.dto';
+import { UpdateVenueBuffersDto, VenueBuffersDto } from './dto/venue-buffers.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -90,6 +91,32 @@ export class VenuesController {
     return this.venuesService.updateDraft(user, id, dto);
   }
 
+  /**
+   * US-49 — set the venue's setup and turnaround time. US-51: 409 with the
+   * clashes unless `confirmConflicts` is true.
+   */
+  @Patch(':id/buffers')
+  @Roles(Role.VENUE_STAFF)
+  updateBuffers(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateVenueBuffersDto,
+  ) {
+    return this.venuesService.updateBuffers(user, id, dto);
+  }
+
+  /** US-51 AC-3 — which bookings these buffers would flag. Saves nothing. */
+  @Post(':id/buffers/preview')
+  @Roles(Role.VENUE_STAFF)
+  @HttpCode(HttpStatus.OK)
+  previewBuffers(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: VenueBuffersDto,
+  ) {
+    return this.venuesService.previewBuffers(user, id, dto);
+  }
+
   /** AC-3/AC-5 — publish once complete. */
   @Post(':id/publish')
   @Roles(Role.VENUE_STAFF)
@@ -140,6 +167,21 @@ export class VenuesController {
     @Query() query: VenueAvailabilityQueryDto,
   ) {
     return this.venuesService.getAvailability(user, id, query);
+  }
+
+  /**
+   * US-50 AC-3 — the bookings occupying this venue over the same range, each
+   * as separate setup, event and turnaround segments. Anonymous, like US-17.
+   */
+  @Get(':id/availability/slots')
+  @RequirePermission(Resource.VENUE, Action.CHECK_AVAILABILITY)
+  @Header('Cache-Control', 'no-store')
+  getOccupancy(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query() query: VenueAvailabilityQueryDto,
+  ) {
+    return this.venuesService.getOccupancy(user, id, query);
   }
 
   /**

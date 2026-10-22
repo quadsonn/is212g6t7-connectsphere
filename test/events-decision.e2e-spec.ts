@@ -473,7 +473,7 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
         .post(`/events/${event.id}/reject`)
         .set('Authorization', as('coordinatorB'))
         .send({ reason: 'No' })
-        .expect(409);
+        .expect(404);
     });
 
     // TC-S1-14 · setup: base-users + tc-s1-01-setup · fails if an Organiser or Attendee could reject

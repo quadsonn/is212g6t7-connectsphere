@@ -6,11 +6,11 @@ import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { EquipmentController } from './equipment.controller';
 
 /**
- * US-28 to US-32 — only Technical Support Staff may use these features,
+ * US-29 to US-33 and US-45 — only Technical Support Staff may use these features,
  * enforced server-side. Reads the route metadata, so a route added later
  * without the restriction fails here rather than silently opening up.
  */
-describe('EquipmentController access (US-28–US-32)', () => {
+describe('EquipmentController access (US-29–US-33, US-45)', () => {
   const proto = EquipmentController.prototype as unknown as Record<string, unknown>;
   const handlers = Object.getOwnPropertyNames(proto)
     .filter((name) => name !== 'constructor')
@@ -19,6 +19,7 @@ describe('EquipmentController access (US-28–US-32)', () => {
   it('finds every route handler (guards against a vacuous scan)', () => {
     expect(handlers.sort()).toEqual(
       [
+        'changeStatus',
         'checkAvailability',
         'commit',
         'findAll',
@@ -27,11 +28,13 @@ describe('EquipmentController access (US-28–US-32)', () => {
         'findReleased',
         'findRequirements',
         'findRequirementsForEvent',
+        'findUpcomingReservations',
       ].sort(),
     );
   });
 
   it.each([
+    'changeStatus',
     'checkAvailability',
     'commit',
     'findAll',
@@ -40,6 +43,7 @@ describe('EquipmentController access (US-28–US-32)', () => {
     'findReleased',
     'findRequirements',
     'findRequirementsForEvent',
+    'findUpcomingReservations',
   ])('%s is restricted to TECHNICAL_SUPPORT_STAFF alone', (name) => {
     const handler = proto[name] as object;
 

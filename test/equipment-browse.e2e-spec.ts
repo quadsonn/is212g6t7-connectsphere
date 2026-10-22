@@ -142,6 +142,8 @@ describe('Story 28 view the equipment catalogue (integration)', () => {
         location: 'AV Store, Level 2',
         totalQuantity: 8,
         operationalStatus: 'UNDER_MAINTENANCE',
+        // US-45: the reason for the status, once one has been recorded.
+        latestStatusChange: null,
       });
       const fromList = (await list().expect(200)).body.find((item: { id: string }) => item.id === ITEM.projector);
       expect(fromList).not.toHaveProperty('operationalStatus');

@@ -1,7 +1,8 @@
 import { IsNotEmpty, IsString } from 'class-validator';
 
 /**
- * US-10 — the Coordinator to link as the event's main point of contact.
+ * The Coordinator the Lead assigns a queued request to, or reassigns an event
+ * to — the event's main point of contact.
  *
  * The target's existence and role are checked in the service, not here: a DTO
  * can validate shape but cannot ask the database whether this id belongs to a

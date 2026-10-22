@@ -1,6 +1,6 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { BookingStatus } from '@prisma/client';
-import { IsDate, IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsDate, IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
 
 export enum QueueView {
   /** AC-1: requests still waiting on a decision. */
@@ -28,8 +28,8 @@ export class BookingQueueQueryDto {
   venueId?: string;
 
   /**
-   * AC-4: narrows within the chosen view — in practice APPROVED or REJECTED
-   * on the decided view. A status outside the view returns nothing rather
+   * AC-4: narrows within the chosen view — in practice APPROVED, REJECTED
+   * or (US-44) RELEASED on the decided view. A status outside the view returns nothing rather
    * than an error, so a client can keep the filter while switching views.
    */
   @IsOptional()
@@ -48,6 +48,12 @@ export class BookingQueueQueryDto {
   @Type(() => Date)
   @IsDate({ message: 'to must be a valid ISO 8601 date' })
   to?: Date;
+
+  /** US-51: only bookings flagged "Conflict - needs review" ("true"). */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  needsReview?: boolean;
 
   @IsOptional()
   @IsEnum(QueueSortField, { message: 'sortBy must be one of: eventDate, submitted' })

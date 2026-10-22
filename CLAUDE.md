@@ -82,6 +82,38 @@ Refine as stories are estimated — this is the starting shape, not the final sc
 - **BookingStatus:** REQUESTED, APPROVED, REJECTED
 - **RegistrationStatus:** REGISTERED, WITHDRAWN
 
+## 5a. IDs: readable, prefixed (team convention)
+
+Every table's IDs are readable and prefixed: **`PREFIX-NNN`**, a 3-letter prefix per table, a dash, and a number zero-padded to 3 digits (`EQP-001`). Past 999 the number simply grows (`BSG-1000`).
+
+| Table | Prefix | | Table | Prefix |
+|---|---|---|---|---|
+| User | `USR` | | EquipmentReservation | `RSV` |
+| EventRequest | `EVT` | | EquipmentRequirement | `REQ` |
+| Venue | `VEN` | | EquipmentStatusChange | `ESC` |
+| VenueBooking | `BKG` | | EventChange | `CHG` |
+| BookingDecision | `BDC` | | EventChangeRequest | `CRQ` |
+| BookingSuggestion | `BSG` | | EventChangeRequestEquipment | `CRE` |
+| VenueBlock | `BLK` | | Registration | `REG` |
+| Equipment | `EQP` | | Notification | `NTF` |
+| ClarificationMessage | `CLM` | | RevokedToken | `RVT` |
+| SafetyReview | `SFR` | | | |
+
+`IdCounter` holds one row per prefix and is keyed by the prefix itself.
+
+**How IDs are generated:** by the database. Every table's `id` defaults to `next_readable_id('<PREFIX>')`, a Postgres function that takes the next number from that prefix's `IdCounter` row in one atomic statement. So every insert gets a readable ID: application code, nested and bulk creates, upserts, seeds, scripts, tests and raw SQL. Concurrent inserts never get the same number, and a rolled-back transaction gives its number back. **Code never passes an `id` when creating a row.** For the rare case that needs an ID before inserting, `nextReadableId(db, '<Model>')` in `src/prisma/readable-id.ts` asks the same function.
+
+**Every model must have a prefix.** A new model:
+1. picks an unused 3-letter prefix and adds it to `ID_PREFIX` in `src/prisma/readable-id.ts`;
+2. declares its key as `id String @id @default(dbgenerated("next_readable_id('XYZ'::text)"))` in `schema.prisma`;
+3. adds a CHECK for the format in its migration (see `20261019100000_readable_ids_all_models`).
+
+A unit test (`src/prisma/readable-id.spec.ts`) fails if any model is missing from `ID_PREFIX`, shares a prefix, or has a different default.
+
+**Never use `cuid()` or `uuid()` for a table's ID.**
+
+**Ordering:** IDs are text, so ordering by `id` in a query is only right up to 999 (`REQ-1000` sorts before `REQ-999`). Use it only as a tie-breaker. Where ID order carries meaning, such as rows saved together, re-sort with `inEntryOrder()` or `compareReadableIds()` from `src/prisma/readable-id.ts`.
+
 ## 6. Auth & authorisation (E1 — build first)
 
 - **Login** issues a signed JWT containing `userId` and `role`.
@@ -123,6 +155,7 @@ Later sprints add venue (`/venues`, `/bookings`), equipment (`/equipment`), regi
 - Don't change a status by writing the field directly — go through the transition method.
 - Don't bulk-generate modules we haven't estimated. Build the Sprint 1 slice first, learn our velocity, then expand.
 - Don't invent requirements the customer briefing doesn't state — flag gaps instead.
+- Don't let a migration silently discard existing values when converting free text to an enum or controlled list. Follow the US-18 pattern (`20261003120000_us18_venue_vocabulary`): map known values, move anything unmatched into a notes column with a clear marker, announce it, and add a migration test against old-format data (see `test/venue-vocabulary-migration.e2e-spec.ts`). US-06 and US-13 set unmatched layouts to NULL or dropped them — don't copy that.
 
 ---
 

@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { listenOnLoopback } from './listen-on-loopback';
 
 /** US-12 e2e — one describe per acceptance criterion. */
 describe('US-12 coordinator views all details (e2e)', () => {
@@ -57,7 +58,7 @@ describe('US-12 coordinator views all details (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    await listenOnLoopback(app);
 
     prisma = new PrismaClient();
   });
@@ -274,27 +275,26 @@ describe('US-12 coordinator views all details (e2e)', () => {
     });
   });
 
-  describe('the unassigned review pool (US-03 AC-2 interaction)', () => {
-    it('lets any Coordinator see an unassigned SUBMITTED request', async () => {
-      // Not a hole: US-03 AC-2 requires submitted requests to reach
-      // Coordinators before anyone is assigned, or review could never start.
+  describe('the unassigned queue belongs to the Lead', () => {
+    it('hides an unassigned SUBMITTED request from every Coordinator', async () => {
+      // It waits in the Lead's queue until assigned (events-assignment.e2e-spec.ts).
       const event = await seedEvent({ coordinatorId: null });
+
+      for (const who of ['coordinatorA', 'coordinatorB']) {
+        await http()
+          .get(`/events/assigned/${event.id}`)
+          .set('Authorization', as(who))
+          .expect(404);
+      }
+    });
+
+    it('shows an assigned request only to its own Coordinator', async () => {
+      const event = await seedEvent({ coordinatorId: ids.coordinatorA });
 
       await http()
         .get(`/events/assigned/${event.id}`)
-        .set('Authorization', as('coordinatorB'))
-        .expect(200);
-    });
-
-    it('closes the pool once the event is assigned', async () => {
-      const event = await seedEvent({ coordinatorId: null });
-
-      await http()
-        .patch(`/events/${event.id}/coordinator`)
         .set('Authorization', as('coordinatorA'))
-        .send({ coordinatorId: ids.coordinatorA })
         .expect(200);
-
       await http()
         .get(`/events/assigned/${event.id}`)
         .set('Authorization', as('coordinatorB'))

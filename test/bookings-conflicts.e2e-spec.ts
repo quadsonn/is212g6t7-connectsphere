@@ -131,7 +131,9 @@ describe('Story 23 overlapping booking detection (integration)', () => {
       const res = await conflicts('b-s2-56-target-inside').expect(200);
 
       expect(res.body.hardConflicts).toEqual([
-        { bookingId: 'b-s2-56-inside', eventName: 'Gala', start: at('10:00'), end: at('11:00') },
+        // US-54 (Sprint 3): each conflict now carries its status, since a hard
+        // conflict may be an APPROVED booking or a live HELD hold.
+        { bookingId: 'b-s2-56-inside', eventName: 'Gala', start: at('10:00'), end: at('11:00'), status: BookingStatus.APPROVED },
       ]);
     });
   });

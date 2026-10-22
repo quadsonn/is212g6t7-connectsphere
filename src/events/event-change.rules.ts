@@ -43,7 +43,14 @@ export type HistoryField =
   // US-28: recorded through the technical requirements edit, not the
   // planning edit, so they sit outside TRACKED_FIELDS.
   | 'equipmentRequirements'
-  | 'technicalSupportNeeds';
+  | 'technicalSupportNeeds'
+  // US-48 AC-7: what an approved change request moved — each line says where
+  // a venue booking or equipment reservation was, and where it is now.
+  | 'venueBookings'
+  | 'equipmentReservations'
+  // US-43: a cancellation is recorded as the status move plus its reason.
+  | 'status'
+  | 'cancellationReason';
 
 /** US-26 AC-2 — one field's previous and new value. */
 export interface FieldChange {
@@ -101,6 +108,55 @@ export function describeRequirement(requirement: {
 }): string {
   const notes = requirement.notes ? ` (${requirement.notes})` : '';
   return `${requirement.quantity} × ${requirement.equipmentType}${notes}`;
+}
+
+/** Venue time (Singapore, as the calendars use) — history is read by people. */
+const VENUE_TIME = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Singapore',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+/** "1 Oct 2030, 09:00 – 1 Oct 2030, 12:00", in venue time. */
+export function describeWindow(window: { start: Date; end: Date }): string {
+  return `${VENUE_TIME.format(window.start)} – ${VENUE_TIME.format(window.end)}`;
+}
+
+/**
+ * US-48 AC-7 — the history lines for what an approval moved: one entry per
+ * kind of arrangement, previous = where each was, next = where it is now.
+ */
+export function movedArrangementChanges(moved: {
+  venueBookings: { venueName: string | null; from: { start: Date; end: Date }; to: { start: Date; end: Date } }[];
+  equipmentReservations: {
+    equipmentType: string;
+    quantity: number;
+    from: { start: Date; end: Date };
+    to: { start: Date; end: Date };
+  }[];
+}): FieldChange[] {
+  const changes: FieldChange[] = [];
+  if (moved.venueBookings.length > 0) {
+    const name = (b: { venueName: string | null }) => b.venueName ?? 'Unnamed venue';
+    changes.push({
+      field: 'venueBookings',
+      previous: moved.venueBookings.map((b) => `${name(b)}: ${describeWindow(b.from)}`),
+      next: moved.venueBookings.map((b) => `${name(b)}: ${describeWindow(b.to)}`),
+    });
+  }
+  if (moved.equipmentReservations.length > 0) {
+    const item = (r: { quantity: number; equipmentType: string }) => `${r.quantity} × ${r.equipmentType}`;
+    changes.push({
+      field: 'equipmentReservations',
+      previous: moved.equipmentReservations.map((r) => `${item(r)}: ${describeWindow(r.from)}`),
+      next: moved.equipmentReservations.map((r) => `${item(r)}: ${describeWindow(r.to)}`),
+    });
+  }
+  return changes;
 }
 
 function toChangeValue(value: unknown): ChangeValue {

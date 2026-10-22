@@ -175,21 +175,22 @@ describe('US-03 submit new event request (e2e)', () => {
       expect(res.body.createdAt).toEqual(expect.any(String));
     });
 
-    it('makes the request visible to a Coordinator for review', async () => {
-      await http()
+    it('keeps the request out of every Coordinator’s view until the Lead assigns it', async () => {
+      // It sits in the Lead's unassigned queue instead — see
+      // events-assignment.e2e-spec.ts.
+      const res = await http()
         .post('/events')
         .set('Authorization', as('organiser'))
         .send(validPayload())
         .expect(201);
 
+      expect(res.body.coordinatorId).toBeNull();
       const queue = await http()
         .get('/events')
         .set('Authorization', as('coordinator'))
         .expect(200);
 
-      expect(queue.body).toHaveLength(1);
-      expect(queue.body[0].name).toBe('Freshman Orientation 2030');
-      expect(queue.body[0].status).toBe(EventStatus.SUBMITTED);
+      expect(queue.body).toHaveLength(0);
     });
 
     // TC-S1-30 · setup: base-users + tc-s1-22-setup · fails if a client could set owner/status, or another Organiser could see the request

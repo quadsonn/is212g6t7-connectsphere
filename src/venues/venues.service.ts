@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { NotificationType, Prisma, Venue, VenueStatus } from '@prisma/client';
+import { BookingStatus, NotificationType, Prisma, Venue, VenueStatus } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
@@ -12,7 +12,10 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { VenueBookingLookup } from '../bookings/booking-impact';
-import { confirmedOverlapping } from '../bookings/booking-overlap';
+import { freeVenueIds, NO_BUFFERS, occupancySegments } from '../bookings/venue-occupancy';
+import { BookingReviewService, recheckReviewFlags } from '../bookings/booking-review.service';
+import { BufferClash } from '../bookings/buffer-clashes';
+import { lockVenue } from '../bookings/venue-lock';
 import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,12 +28,15 @@ import { PublishableVenueDto } from './dto/publishable-venue.dto';
 import {
   DayAvailabilityDto,
   VenueAvailabilityQueryDto,
+  VenueOccupancyDto,
 } from './dto/venue-availability.dto';
 import {
   aggregateAvailability,
+  DayStatus,
   rangeBounds,
   resolveRange,
 } from './availability';
+import { UpdateVenueBuffersDto, VenueBuffersDto } from './dto/venue-buffers.dto';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenueSearchDto } from './dto/venue-search.dto';
 import { assessSuitability, VenueSuitability } from './suitability';
@@ -78,6 +84,7 @@ export class VenuesService {
     private readonly notifications: NotificationsService,
     private readonly storage: SupabaseStorageService,
     private readonly events: EventsService,
+    private readonly reviews: BookingReviewService,
   ) {}
 
   /**
@@ -169,10 +176,10 @@ export class VenuesService {
   /**
    * US-18 — published venues matching every active filter.
    *
-   * One query, however many filters: the date filter is a relation filter
-   * (`bookings: none`), which Postgres answers with a single anti-join rather
-   * than an availability check per venue (AC-7). Containment filters use the
-   * GIN indexes on the two arrays.
+   * One query for every filter but the date; the date filter (US-50: buffer
+   * aware) adds a fixed two, whatever the number of venues — never an
+   * availability check per venue (AC-7). Containment filters use the GIN
+   * indexes on the two arrays.
    *
    * AC-6: no match is an empty array, not an error.
    */
@@ -211,17 +218,27 @@ export class VenuesService {
       where.facilities = { hasEvery: query.facilities };
     }
 
-    if (query.from && query.to) {
-      // AC-1: free of *confirmed* bookings in the slot.
-      where.bookings = {
-        none: confirmedOverlapping(new Date(query.from), new Date(query.to)),
-      };
-    }
-
-    return this.prisma.venue.findMany({
+    const venues = await this.prisma.venue.findMany({
       where,
       orderBy: [{ name: 'asc' }],
     });
+
+    if (!(query.from && query.to)) {
+      return venues;
+    }
+
+    // AC-1: free of *confirmed* bookings in the slot. US-50 AC-5: judged with
+    // each venue's own setup and turnaround time, so a venue held only by the
+    // buffer around another booking is not free. Buffers differ per venue,
+    // so this is the shared check (bookings/venue-occupancy.ts) over the
+    // matching venues — two more queries, not one per venue.
+    const free = await freeVenueIds(
+      this.prisma,
+      venues,
+      { start: new Date(query.from), end: new Date(query.to) },
+      { includeBlocks: false },
+    );
+    return venues.filter((venue) => free.has(venue.id));
   }
 
   /**
@@ -295,6 +312,42 @@ export class VenuesService {
   }
 
   /**
+   * US-50 AC-3 — what occupies this venue over a day range, each booking
+   * split into setup, event time and turnaround, for the availability
+   * calendar to draw separately. Same grant, venue rule and range rules as
+   * getAvailability (US-17), and as anonymous: no event, organiser or booking
+   * id crosses this boundary (VenueOccupancyDto).
+   */
+  async getOccupancy(
+    user: AuthenticatedUser,
+    id: string,
+    query: VenueAvailabilityQueryDto,
+    now: Date = new Date(),
+  ): Promise<VenueOccupancyDto[]> {
+    this.access.requireScope(user, Resource.VENUE, Action.CHECK_AVAILABILITY);
+
+    const venue = await this.prisma.venue.findFirst({
+      where: { id, status: VenueStatus.PUBLISHED },
+      select: { id: true },
+    });
+    if (!venue) {
+      throw new NotFoundException('venue not found');
+    }
+
+    const { from, to } = rangeBounds(resolveRange(query, now));
+    const slots = await this.bookings.findBookingSlotsForVenue(id, from, to);
+
+    return plainToInstance(
+      VenueOccupancyDto,
+      slots.map((slot) => ({
+        status: slot.status === BookingStatus.APPROVED ? DayStatus.BOOKED : DayStatus.TENTATIVE,
+        segments: occupancySegments(slot, slot.buffers ?? NO_BUFFERS),
+      })),
+      { excludeExtraneousValues: true },
+    );
+  }
+
+  /**
    * US-13 AC-1/AC-2 — save a venue as a draft, however incomplete.
    *
    * The creator becomes the managing staff member, which is what AC-4's
@@ -356,6 +409,81 @@ export class VenuesService {
     }
 
     return { ...updated, warnings: warning ? [warning] : [] };
+  }
+
+  /**
+   * US-49 — set a venue's setup and turnaround time.
+   *
+   * Only the managing Venue Staff member (AC-4); anyone else gets the same
+   * not-found as every other venue write (findManaged). Draft and published
+   * venues alike. Writes only the two buffer columns.
+   *
+   * US-51 — before saving, the venue's future bookings are re-checked under
+   * the proposed buffers. New clashes refuse the save with a 409 listing them
+   * (AC-3/AC-4) unless `confirmConflicts` is set; then the buffers are saved
+   * and each clashing booking is flagged "Conflict - needs review" (AC-5),
+   * all in one transaction under the venue lock, so no booking can be
+   * requested or decided between the check and the save. Bookings are never
+   * moved, cancelled or re-statused (AC-6).
+   */
+  async updateBuffers(
+    user: AuthenticatedUser,
+    id: string,
+    dto: UpdateVenueBuffersDto,
+  ): Promise<Venue & { flagged: number }> {
+    const venue = await this.findManaged(user, id, Action.UPDATE);
+    const proposed = {
+      setupMinutes: dto.setupMinutes,
+      turnaroundMinutes: dto.turnaroundMinutes,
+    };
+
+    return this.prisma.$transaction(async (tx) => {
+      await lockVenue(tx, venue.id);
+
+      // Re-read under the lock: the buffers may have changed since.
+      const current = await tx.venue.findUniqueOrThrow({
+        where: { id: venue.id },
+        select: { setupMinutes: true, turnaroundMinutes: true },
+      });
+      const clashes = await this.reviews.previewBufferChange(tx, venue.id, current, proposed);
+
+      if (clashes.length > 0 && !dto.confirmConflicts) {
+        throw new ConflictException({
+          statusCode: 409,
+          error: 'Conflict',
+          message:
+            'these buffer times would make existing bookings clash; confirm to save anyway and flag them for review',
+          clashes,
+        });
+      }
+
+      const updated = await tx.venue.update({ where: { id: venue.id }, data: proposed });
+      const flagged = clashes.length > 0 ? await this.reviews.flag(tx, clashes, proposed) : 0;
+      // Lowering a buffer may end earlier clashes: clear those flags.
+      await recheckReviewFlags(venue.id, tx);
+
+      return { ...updated, flagged };
+    });
+  }
+
+  /**
+   * US-51 AC-3 — what saving these buffers would flag, without saving. Same
+   * permission rule as the save. Advisory: the save checks again under the
+   * lock, since bookings may change in between.
+   */
+  async previewBuffers(
+    user: AuthenticatedUser,
+    id: string,
+    dto: VenueBuffersDto,
+  ): Promise<{ clashes: BufferClash[] }> {
+    const venue = await this.findManaged(user, id, Action.UPDATE);
+    const clashes = await this.reviews.previewBufferChange(
+      this.prisma,
+      venue.id,
+      { setupMinutes: venue.setupMinutes, turnaroundMinutes: venue.turnaroundMinutes },
+      { setupMinutes: dto.setupMinutes, turnaroundMinutes: dto.turnaroundMinutes },
+    );
+    return { clashes };
   }
 
   /**

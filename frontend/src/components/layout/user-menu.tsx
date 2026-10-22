@@ -3,7 +3,8 @@ import { ChevronDown, LogOut } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/hooks/use-auth';
-import { humanise, initialsFrom } from '@/lib/utils';
+import { ROLE_THEME } from '@/lib/role-theme';
+import { cn, humanise, initialsFrom } from '@/lib/utils';
 
 export function UserMenu() {
   const { session, signOut } = useAuth();
@@ -31,6 +32,17 @@ export function UserMenu() {
   if (!session) return null;
 
   const label = session.email ?? humanise(session.role);
+  const theme = ROLE_THEME[session.role];
+  const roleBadge = (
+    <span
+      className={cn(
+        'mt-0.5 inline-block rounded-full px-2 py-px text-[11px] font-medium ring-1 ring-inset',
+        theme.badge,
+      )}
+    >
+      {humanise(session.role)}
+    </span>
+  );
 
   return (
     <div className="relative" ref={containerRef}>
@@ -43,7 +55,7 @@ export function UserMenu() {
       >
         <span
           aria-hidden="true"
-          className="grid size-8 place-items-center rounded-full bg-brand-100 text-xs font-semibold text-brand-800"
+          className={cn('grid size-8 place-items-center rounded-full text-xs font-semibold', theme.avatar)}
         >
           {initialsFrom(label)}
         </span>
@@ -51,7 +63,7 @@ export function UserMenu() {
           <span className="block max-w-[14rem] truncate text-sm font-medium text-ink-900">
             {label}
           </span>
-          <span className="block text-xs text-ink-500">{humanise(session.role)}</span>
+          {roleBadge}
         </span>
         <ChevronDown className="size-4 text-ink-500" aria-hidden="true" />
       </button>
@@ -63,7 +75,7 @@ export function UserMenu() {
         >
           <div className="px-3 py-2">
             <p className="truncate text-sm font-medium text-ink-900">{label}</p>
-            <p className="text-xs text-ink-500">{humanise(session.role)}</p>
+            {roleBadge}
           </div>
           <div className="my-1 h-px bg-ink-200" />
           <Button

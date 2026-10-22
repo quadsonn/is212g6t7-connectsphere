@@ -9,6 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
+import { BookingsService } from '../bookings/bookings.service';
 
 describe('EventsService (US-03)', () => {
   let prisma: {
@@ -82,6 +83,7 @@ describe('EventsService (US-03)', () => {
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
   });
 
@@ -97,7 +99,7 @@ describe('EventsService (US-03)', () => {
       expect(result.status).toBe(EventStatus.SUBMITTED);
       expect(prisma.eventRequest.update).toHaveBeenCalledWith({
         where: { id: 'event-1' },
-        data: { status: EventStatus.SUBMITTED },
+        data: { status: EventStatus.SUBMITTED, submittedAt: expect.any(Date) },
       });
     });
 
@@ -295,37 +297,44 @@ describe('EventsService (US-03)', () => {
       await expect(idsFor()).resolves.toEqual([]);
     });
 
-    it('hides events that start within 3 days (registration closed)', async () => {
+    it('hides events whose registration has closed', async () => {
       prisma.eventRequest.findMany.mockResolvedValue([
+        // Default closing time is 3 days before the start.
         open('soon', { proposedStart: inDays(2) }),
         open('edge', { proposedStart: inDays(4) }),
+        open('explicit', {
+          proposedStart: inDays(20),
+          registrationClosesAt: new Date(Date.now() - 1000),
+        }),
       ]);
       await expect(idsFor()).resolves.toEqual(['edge']);
     });
 
-    it('hides events more than 2 months away (not open yet)', async () => {
+    it('keeps an event up to and including its closing time', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([
+        open('last-minute', {
+          proposedStart: inDays(20),
+          registrationClosesAt: new Date(Date.now() + 60_000),
+        }),
+      ]);
+      await expect(idsFor()).resolves.toEqual(['last-minute']);
+    });
+
+    it('keeps events that are not open yet', async () => {
       prisma.eventRequest.findMany.mockResolvedValue([
         open('far', { proposedStart: inDays(90) }),
       ]);
-      await expect(idsFor()).resolves.toEqual([]);
+      await expect(idsFor()).resolves.toEqual(['far']);
     });
 
-    it('hides full events, counting only REGISTERED rows', async () => {
+    it('keeps full events, so the page can show them as full', async () => {
       prisma.eventRequest.findMany.mockResolvedValue([
         open('full', { expectedAttendance: 2 }),
         open('room', { expectedAttendance: 3 }),
       ]);
-      prisma.registration.groupBy.mockResolvedValue([
-        { eventId: 'full', _count: { _all: 2 } },
-        { eventId: 'room', _count: { _all: 2 } },
-      ]);
+      prisma.registration.findMany.mockResolvedValue([]);
 
-      await expect(idsFor()).resolves.toEqual(['room']);
-      expect(prisma.registration.groupBy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ status: 'REGISTERED' }),
-        }),
-      );
+      await expect(idsFor()).resolves.toEqual(['full', 'room']);
     });
 
     it('hides events the attendee is already registered for', async () => {

@@ -27,6 +27,10 @@
     "prisma:reset": "prisma migrate reset",
     "prisma:seed": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed.ts",
     "prisma:seed:roles": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-new-roles.ts",
+    "prisma:seed:us51": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us51.ts",
+    "prisma:seed:us40": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us40.ts",
+    "prisma:seed:us42": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us42.ts",
+    "prisma:seed:us44": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us44.ts",
     "venues:vocabulary-review": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/review-venue-vocabulary.ts"
   },
   "dependencies": {
@@ -36,10 +40,12 @@
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/schedule": "6.1.3",
     "@supabase/supabase-js": "^2.117.2",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "libphonenumber-js": "^1.13.15",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",

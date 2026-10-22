@@ -46,6 +46,33 @@ export function BookingDetails({ booking }: { booking: VenueBooking }) {
               <Field label="Decision reason">{booking.decisionReason}</Field>
             </div>
           ) : null}
+          {/* US-52: the venue became unavailable, and what replaced it. */}
+          {booking.unavailableReason ? (
+            <div className="sm:col-span-2">
+              <Field label="Venue unavailable">
+                {booking.unavailableFrom && booking.unavailableUntil
+                  ? `${formatDateRange(booking.unavailableFrom, booking.unavailableUntil)} — `
+                  : ''}
+                {booking.unavailableReason}
+              </Field>
+            </div>
+          ) : null}
+          {booking.status === 'RELEASED' && booking.releasedAt ? (
+            <div className="sm:col-span-2">
+              <Field label="Released">
+                {new Date(booking.releasedAt).toLocaleString()} — a replacement booking was
+                confirmed. This record is kept for reference.
+              </Field>
+            </div>
+          ) : null}
+          {booking.replacesBookingId ? (
+            <div className="sm:col-span-2">
+              <Field label="Replacement">
+                Requested to replace a booking whose venue became unavailable. Approving it releases
+                that booking.
+              </Field>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

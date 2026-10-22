@@ -9,6 +9,7 @@ import { Action, Resource, Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BookingReviewService } from '../bookings/booking-review.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { VenueSearchDto } from './dto/venue-search.dto';
@@ -20,7 +21,11 @@ import { VenuesService } from './venues.service';
  * returns the right venues for it.
  */
 describe('US-18 VenuesService.search', () => {
-  let prisma: { venue: { findMany: jest.Mock } };
+  let prisma: {
+    venue: { findMany: jest.Mock };
+    venueBooking: { findMany: jest.Mock };
+    venueBlock: { findMany: jest.Mock };
+  };
   let access: { requireScope: jest.Mock };
   let service: VenuesService;
 
@@ -33,7 +38,12 @@ describe('US-18 VenuesService.search', () => {
   const where = () => prisma.venue.findMany.mock.calls[0][0].where;
 
   beforeEach(() => {
-    prisma = { venue: { findMany: jest.fn().mockResolvedValue([]) } };
+    prisma = {
+      venue: { findMany: jest.fn().mockResolvedValue([]) },
+      // US-50: the date filter's bookings, read by the shared check.
+      venueBooking: { findMany: jest.fn().mockResolvedValue([]) },
+      venueBlock: { findMany: jest.fn().mockResolvedValue([]) },
+    };
     access = { requireScope: jest.fn().mockReturnValue(Scope.PUBLIC) };
 
     service = new VenuesService(
@@ -43,6 +53,7 @@ describe('US-18 VenuesService.search', () => {
       {} as unknown as NotificationsService,
       {} as unknown as SupabaseStorageService,
       {} as unknown as EventsService,
+      {} as unknown as BookingReviewService,
     );
   });
 
@@ -101,18 +112,39 @@ describe('US-18 VenuesService.search', () => {
     expect(where()).toEqual({ status: VenueStatus.PUBLISHED });
   });
 
-  it('US-18 AC-1: excludes venues with an APPROVED booking overlapping the slot, in the same query', async () => {
-    await service.search(coordinator, {
+  it('US-18 AC-1 / US-54 AC-3: excludes venues with an APPROVED booking or a live hold overlapping the slot', async () => {
+    // US-50: the date filter is the shared, buffer-aware check over the
+    // venues the other filters matched — no longer part of the same query.
+    prisma.venue.findMany.mockResolvedValue([
+      { id: 'busy', setupMinutes: 0, turnaroundMinutes: 0 },
+      { id: 'free', setupMinutes: 0, turnaroundMinutes: 0 },
+    ]);
+    prisma.venueBooking.findMany.mockResolvedValue([
+      {
+        venueId: 'busy',
+        start: new Date('2027-03-10T02:00:00Z'),
+        end: new Date('2027-03-10T03:00:00Z'),
+      },
+    ]);
+
+    const result = await service.search(coordinator, {
       from: '2027-03-10T01:00:00Z',
       to: '2027-03-10T09:00:00Z',
     });
 
-    expect(where().bookings).toEqual({
-      none: {
-        status: BookingStatus.APPROVED,
+    expect(result.map((v) => v.id)).toEqual(['free']);
+    expect(prisma.venueBooking.findMany).toHaveBeenCalledWith({
+      where: {
+        venueId: { in: ['busy', 'free'] },
+        // US-54 AC-3: a live tentative hold blocks like a confirmed booking.
+        OR: [
+          { status: BookingStatus.APPROVED },
+          { status: BookingStatus.HELD, holdExpiresAt: { gt: expect.any(Date) } },
+        ],
         start: { lt: new Date('2027-03-10T09:00:00Z') },
         end: { gt: new Date('2027-03-10T01:00:00Z') },
       },
+      select: { venueId: true, start: true, end: true },
     });
     expect(prisma.venue.findMany).toHaveBeenCalledTimes(1);
   });
@@ -126,9 +158,9 @@ describe('US-18 VenuesService.search', () => {
       facilities: ['STAGE'],
     });
 
+    // US-50: the date is applied afterwards by the shared buffer-aware check.
     expect(Object.keys(where()).sort()).toEqual([
       'accessibilityFeatures',
-      'bookings',
       'capacity',
       'facilities',
       'status',

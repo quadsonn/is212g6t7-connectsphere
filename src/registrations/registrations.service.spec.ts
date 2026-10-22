@@ -50,7 +50,7 @@ describe('RegistrationsService', () => {
     id: 'reg-1',
     status: RegistrationStatus.REGISTERED,
     phone: '+65 9123 4567',
-    dietaryRequirements: null,
+    accessibilityFeature: null,
     accessibilityNeeds: null,
     createdAt: new Date('2999-09-01T00:00:00.000Z'),
     withdrawnAt: null,
@@ -350,6 +350,16 @@ describe('RegistrationsService', () => {
         proposedEnd: true,
         status: true,
       });
+    });
+
+    it('lists active registrations before withdrawn ones, then by event date', async () => {
+      await service.findMine(attendee);
+
+      expect(prisma.registration.findMany.mock.calls[0][0].orderBy).toEqual([
+        { status: 'asc' },
+        { event: { proposedStart: 'asc' } },
+        { id: 'asc' },
+      ]);
     });
 
     it('shows a null venue when none has been approved yet', async () => {

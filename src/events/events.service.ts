@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   BookingStatus,
@@ -17,23 +18,24 @@ import {
   RegistrationStatus,
   ReservationStatus,
   Role,
-  User,
+  SafetyOutcome,
 } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import {
   AccessControlService,
-  CoordinatorSummary,
   EventWithCoordinator,
   PublicEventView,
 } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
 import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
+import { AttendeeChangeNotifier } from '../notifications/attendee-change-notifier.service';
+import { scheduleChangesFrom } from '../notifications/event-schedule-change';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { AssignCoordinatorDto } from './dto/assign-coordinator.dto';
 import { AskClarificationDto } from './dto/ask-clarification.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
 import { RespondClarificationDto } from './dto/respond-clarification.dto';
@@ -50,16 +52,23 @@ import {
   sameValue,
 } from './event-change.rules';
 import {
-  ASSIGNABLE_STATUSES,
   buildStatusView,
   canTransition,
   EDITABLE_STATUSES,
   EventStatusView,
   PLANNING_STATUSES,
+  REVIEW_REJECTION_STATUSES,
+  RESUMABLE_PLANNING_STATUSES,
 } from './event-status.machine';
+import { BookingsService } from '../bookings/bookings.service';
 import { evaluateRegistration } from '../registrations/registration-rules';
 import { CHANGE_REQUEST_INCLUDE } from './events-change-request.service';
+import { inEntryOrder } from '../prisma/readable-id';
 
+
+/** US-42 — a free-text equipment line is "unchanged" when all three match. */
+const freeTextKey = (line: { equipmentType: string; quantity: number; notes: string | null }) =>
+  JSON.stringify([line.equipmentType, line.quantity, line.notes]);
 
 /**
  * US-20 — statuses in which an event has no use for a venue: not yet a
@@ -111,8 +120,9 @@ export const CLARIFICATION_THREAD_INCLUDE = {
 
 /**
  * US-28 — the event's equipment requirements, in the order they were listed.
- * Rows of one save share a createdAt, so id (a cuid, time-ordered) breaks
- * the tie.
+ * Rows of one save share a createdAt, so the ID number breaks the tie. The
+ * database orders IDs as text, which goes wrong past 999 (REQ-1000 before
+ * REQ-999), so every read re-sorts with inEntryOrder() (prisma/readable-id.ts).
  */
 const REQUIREMENTS_ORDER: Prisma.EquipmentRequirementOrderByWithRelationInput[] = [
   { createdAt: 'asc' },
@@ -236,6 +246,11 @@ export class EventsService {
     private readonly access: AccessControlService,
     private readonly notifications: NotificationsService,
     private readonly equipmentReservations: EquipmentReservationsService,
+    private readonly bookings: BookingsService,
+    // Requirement change 6: tells the Safety check that requirements changed.
+    @Optional() private readonly arrangements?: ArrangementsRegistry,
+    // Tells registered Attendees when a date or time change is applied.
+    @Optional() private readonly attendeeChanges?: AttendeeChangeNotifier,
   ) {}
 
   /**
@@ -515,7 +530,9 @@ export class EventsService {
       },
     });
 
-    return this.toOrganiserView(event);
+    // US-28: the requirements in the order they were listed.
+    const inOrder = { ...event, equipmentRequirements: inEntryOrder(event.equipmentRequirements) };
+    return this.toOrganiserView(inOrder);
   }
 
   /**
@@ -554,6 +571,12 @@ export class EventsService {
 
       return this.setStatus(event, EventStatus.APPROVED, tx);
     });
+
+    // setStatus() treats APPROVED -> APPROVED as a no-op, so a repeated click
+    // is not a second decision and must not produce a second notification.
+    if (event.status !== EventStatus.APPROVED) {
+      await this.notifyOrganiserOfDecision(event, 'approved');
+    }
 
     return this.toOrganiserView(approved);
   }
@@ -600,7 +623,8 @@ export class EventsService {
     await this.notifications.notifySafely({
       recipientId: event.organiserId,
       type: NotificationType.CLARIFICATION_REQUESTED,
-      message: `The coordinator has asked a question about "${event.name ?? 'your event request'}".`,
+      // US: the Organiser sees the question itself, not just that one exists.
+      message: `The coordinator has asked a question about "${event.name ?? 'your event request'}". Reason: ${dto.question}`,
       relatedEventId: event.id,
     });
 
@@ -669,11 +693,19 @@ export class EventsService {
     id: string,
     dto: RejectRequestDto,
   ): Promise<CoordinatorRequestView> {
-    return this.decide(user, id, EventStatus.REJECTED, {
-      decisionReason: dto.reason,
-      // A rejection supersedes any outstanding question.
-      clarificationRequest: null,
-    });
+    return this.decide(
+      user,
+      id,
+      EventStatus.REJECTED,
+      {
+        decisionReason: dto.reason,
+        // A rejection supersedes any outstanding question.
+        clarificationRequest: null,
+      },
+      // US-47 opened REJECTED to events being arranged; this review rejection
+      // stays limited to the statuses it always could reject from.
+      REVIEW_REJECTION_STATUSES,
+    );
   }
 
   /**
@@ -710,10 +742,18 @@ export class EventsService {
       decisionReason?: string | null;
       clarificationRequest?: string | null;
     },
+    allowedFrom?: readonly EventStatus[],
   ): Promise<CoordinatorRequestView> {
     const event = await this.access.assertEventAccess(user, id, Action.REVIEW);
 
     this.assertIsAssignedTo(user, event);
+
+    // Same refusal setStatus() gives for an edge it does not allow. A repeat of
+    // the decision the event already has is not refused here: it goes on to
+    // the usual idempotent path, which changes nothing and notifies no one.
+    if (allowedFrom && event.status !== next && !allowedFrom.includes(event.status)) {
+      throw new ConflictException(`cannot change status from ${event.status} to ${next}`);
+    }
 
     const decided = await this.prisma.$transaction(async (tx) => {
       await this.claimForDecision(event, tx);
@@ -726,8 +766,45 @@ export class EventsService {
       return this.setStatus(event, next, tx);
     });
 
+    if (event.status !== next) {
+      await this.notifyOrganiserOfDecision(
+        event,
+        next === EventStatus.REJECTED ? 'rejected' : 'returned for amendment',
+        reasonFields.decisionReason ?? reasonFields.clarificationRequest ?? null,
+      );
+    }
+
     return this.toOrganiserView(decided);
   }
+
+  /**
+   * The Organiser is told what the Coordinator decided on their request: the
+   * event, the outcome, and the Coordinator's reason where one was given. Only
+   * ever the owning Organiser — never the assignee, other Coordinators or
+   * Attendees — and raised after the decision commits, best-effort like every
+   * other notification (see NotificationsService). Event-detail link: the
+   * notification records relatedEventId, which the inbox turns into the
+   * Organiser's event page (notification-view.ts linkFor).
+   *
+   * Clarification has its own sender (askClarification, which keeps its type);
+   * approve, reject and return share EVENT_STATUS_CHANGED.
+   */
+  private async notifyOrganiserOfDecision(
+    event: EventRequest,
+    outcome: 'approved' | 'rejected' | 'returned for amendment',
+    reason: string | null = null,
+  ): Promise<void> {
+    const name = event.name ?? 'your event request';
+    const suffix = reason ? ` Reason: ${reason}` : '';
+
+    await this.notifications.notifySafely({
+      recipientId: event.organiserId,
+      type: NotificationType.EVENT_STATUS_CHANGED,
+      message: `Your event request "${name}" was ${outcome}.${suffix}`,
+      relatedEventId: event.id,
+    });
+  }
+
 
   /**
    * Audit gap #2 — two review decisions on the same request must not both
@@ -788,180 +865,6 @@ export class EventsService {
   }
 
   /**
-   * US-10 — link a Coordinator to an event as its main point of contact.
-   *
-   * Assignment is deliberately NOT a status change: AC-1 asks only that the
-   * Coordinator be linked, and moving SUBMITTED -> UNDER_REVIEW here would be
-   * inventing review behaviour this story does not describe. setStatus() is
-   * therefore not called, and the event's status is left exactly as found.
-   *
-   * AC-2 falls out of the single coordinatorId column: assigning a new
-   * Coordinator is what removes the previous one's ownership, so the two can
-   * never disagree.
-   */
-  async assignCoordinator(
-    user: AuthenticatedUser,
-    eventId: string,
-    dto: AssignCoordinatorDto,
-  ): Promise<EventRequest> {
-    const event = await this.access.assertEventAccess(
-      user,
-      eventId,
-      Action.ASSIGN,
-    );
-
-    if (!ASSIGNABLE_STATUSES.includes(event.status)) {
-      throw new ConflictException(
-        `a coordinator cannot be assigned while the request is ${event.status}`,
-      );
-    }
-
-    await this.assertIsCoordinator(dto.coordinatorId);
-
-    return this.prisma.eventRequest.update({
-      where: { id: event.id },
-      data: { coordinatorId: dto.coordinatorId },
-      include: COORDINATOR_SELECT,
-    });
-  }
-
-  /**
-   * The target must exist and actually hold the Coordinator role — otherwise
-   * an event could be handed to an Attendee, who would then be unable to see
-   * it at all.
-   */
-  private async assertIsCoordinator(userId: string): Promise<User> {
-    const target = await this.prisma.user.findUnique({ where: { id: userId } });
-
-    if (!target) {
-      throw new NotFoundException('coordinator not found');
-    }
-
-    if (target.role !== Role.EVENT_COORDINATOR) {
-      throw new BadRequestException(
-        'the assigned user must have the EVENT_COORDINATOR role',
-      );
-    }
-
-    return target;
-  }
-
-  /**
-   * US-27 AC-1 — the Coordinators this event could be handed to: everyone
-   * with the role except the caller, who is the one stepping away.
-   */
-  async getReassignmentCandidates(
-    user: AuthenticatedUser,
-    id: string,
-  ): Promise<CoordinatorSummary[]> {
-    await this.assertCanRequestReassignment(user, id);
-
-    return this.prisma.user.findMany({
-      where: { role: Role.EVENT_COORDINATOR, id: { not: user.userId } },
-      select: { id: true, name: true, email: true },
-      orderBy: { name: 'asc' },
-    });
-  }
-
-  /**
-   * US-27 — the responsible Coordinator hands their event to a colleague.
-   *
-   * Distinct from US-10's assignCoordinator(), which lets any Coordinator
-   * take any event and records nothing. This path is the owner stepping
-   * away, so it is limited to the currently assigned Coordinator (AC-1) and
-   * leaves a trail: the change goes in the event's history (AC-4) and both
-   * parties are notified (AC-3).
-   *
-   * AC-2 "confirmed" is the request itself: the client asks the Coordinator
-   * to confirm before sending it. AMBIGUOUS: the new Coordinator is not asked
-   * to accept — the story gives them no step. See the US-27 summary.
-   *
-   * Like assignCoordinator(), this is not a status change; setStatus() is not
-   * involved and the status is left exactly as found.
-   */
-  async reassign(
-    user: AuthenticatedUser,
-    id: string,
-    dto: AssignCoordinatorDto,
-  ): Promise<CoordinatorRequestView> {
-    const event = await this.assertCanRequestReassignment(user, id);
-
-    if (dto.coordinatorId === event.coordinatorId) {
-      throw new BadRequestException(
-        'choose a different coordinator — this event is already assigned to you',
-      );
-    }
-
-    const next = await this.assertIsCoordinator(dto.coordinatorId);
-    // assertCanRequestReassignment() guarantees the event has a coordinator.
-    const previous = event.coordinator!;
-
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const row = await tx.eventRequest.update({
-        where: { id: event.id },
-        data: { coordinatorId: next.id },
-        include: EVENT_CONTACTS_INCLUDE,
-      });
-
-      await this.recordChange(
-        tx,
-        event.id,
-        user.userId,
-        [{ field: 'coordinator', previous: previous.name, next: next.name }],
-        [],
-      );
-
-      return row;
-    });
-
-    // AC-3: raised after commit, so a failed notification cannot undo the
-    // reassignment (see NotificationsService.notifySafely).
-    const eventName = event.name ?? 'an event';
-    await this.notifications.notifySafely({
-      recipientId: previous.id,
-      type: NotificationType.EVENT_REASSIGNED,
-      message: `"${eventName}" has been reassigned from you to ${next.name}.`,
-      relatedEventId: event.id,
-    });
-    await this.notifications.notifySafely({
-      recipientId: next.id,
-      type: NotificationType.EVENT_REASSIGNED,
-      message: `You are now the coordinator for "${eventName}", reassigned to you by ${previous.name}.`,
-      relatedEventId: event.id,
-    });
-
-    return this.toOrganiserView(updated);
-  }
-
-  /**
-   * US-27 AC-1 — only the Coordinator responsible for the event may hand it
-   * on, and only at a status where a Coordinator can be assigned at all.
-   *
-   * Loaded through EVENT/ASSIGN (ANY scope, as US-10) so that a Coordinator
-   * who is not responsible gets an explicit 403 rather than a 404.
-   */
-  private async assertCanRequestReassignment(
-    user: AuthenticatedUser,
-    id: string,
-  ): Promise<EventWithCoordinator> {
-    const event = await this.access.assertEventAccess(user, id, Action.ASSIGN);
-
-    if (!this.access.isAssignedCoordinator(user, event)) {
-      throw new ForbiddenException(
-        'only the coordinator responsible for this event may request its reassignment',
-      );
-    }
-
-    if (!ASSIGNABLE_STATUSES.includes(event.status)) {
-      throw new ConflictException(
-        `an event cannot be reassigned while it is ${event.status}`,
-      );
-    }
-
-    return event;
-  }
-
-  /**
    * US-25 prerequisite — APPROVED -> PLANNING.
    *
    * The transition was already in the table, but no route reached it, so no
@@ -975,6 +878,18 @@ export class EventsService {
     const event = await this.access.assertEventAccess(user, id, Action.UPDATE);
 
     this.assertIsAssignedTo(user, event);
+
+    // Idempotent while already planning; otherwise only from the statuses that
+    // lead back into planning. A Coordinator cannot pull an event out of a
+    // pending safety check this way.
+    if (
+      event.status !== EventStatus.PLANNING &&
+      !RESUMABLE_PLANNING_STATUSES.includes(event.status)
+    ) {
+      throw new ConflictException(
+        `planning cannot be started while the event is ${event.status}`,
+      );
+    }
 
     return this.toOrganiserView(
       await this.setStatus(event, EventStatus.PLANNING),
@@ -1034,6 +949,12 @@ export class EventsService {
       return this.recordChange(tx, event.id, user.userId, changes, affected);
     });
 
+    // A new date or time is the Attendees' business; other edits are not.
+    await this.attendeeChanges?.notifyRegisteredAttendees(
+      event,
+      scheduleChangesFrom(changes),
+    );
+
     return { ...(await this.findAssignedRequest(user, id)), change };
   }
 
@@ -1078,10 +999,12 @@ export class EventsService {
     const changes: FieldChange[] = [];
 
     if (incoming) {
-      const current = await this.prisma.equipmentRequirement.findMany({
-        where: { eventId: event.id },
-        orderBy: REQUIREMENTS_ORDER,
-      });
+      const current = inEntryOrder(
+        await this.prisma.equipmentRequirement.findMany({
+          where: { eventId: event.id },
+          orderBy: REQUIREMENTS_ORDER,
+        }),
+      );
       const previous = current.map(describeRequirement);
       const next = incoming.map(describeRequirement);
 
@@ -1110,9 +1033,32 @@ export class EventsService {
 
     const change = await this.prisma.$transaction(async (tx) => {
       if (incoming && changes.some((c) => c.field === 'equipmentRequirements')) {
+        // US-42: a free-text line the Coordinator already checked by hand
+        // keeps its tick if it comes back unchanged; a changed or new line
+        // has to be checked again.
+        const ticked = new Map(
+          (
+            await tx.equipmentRequirement.findMany({
+              where: { eventId: event.id, equipmentId: null, manuallyConfirmedAt: { not: null } },
+            })
+          ).map((row) => [freeTextKey(row), row]),
+        );
+
         await tx.equipmentRequirement.deleteMany({ where: { eventId: event.id } });
         await tx.equipmentRequirement.createMany({
-          data: incoming.map((item) => ({ ...item, eventId: event.id })),
+          data: incoming.map((item) => {
+            const kept = item.equipmentId ? undefined : ticked.get(freeTextKey(item));
+            return {
+              ...item,
+              eventId: event.id,
+              ...(kept
+                ? {
+                    manuallyConfirmedAt: kept.manuallyConfirmedAt,
+                    manuallyConfirmedById: kept.manuallyConfirmedById,
+                  }
+                : {}),
+            };
+          }),
         });
       }
 
@@ -1126,6 +1072,9 @@ export class EventsService {
 
       return this.recordChange(tx, event.id, user.userId, changes, affected);
     });
+
+    // The equipment asked for may now be more or less than what is reserved.
+    await this.arrangements?.notifyChanged(event.id);
 
     return { ...(await this.findAssignedRequest(user, id)), change };
   }
@@ -1289,16 +1238,22 @@ export class EventsService {
    * Later stories (review, planning, cancellation) call this rather than
    * adding their own update statements.
    *
-   * US-33 AC-1: reaching CANCELLED releases the event's equipment
-   * reservations in the same transaction as the status change — whichever
-   * path cancels the event (#43 will add one), and with no window in which
-   * the event is cancelled but its equipment still locked. If the release
-   * fails, the cancellation rolls back with it.
+   * US-33 AC-1 / US-44: reaching CANCELLED releases the event's equipment
+   * reservations and venue bookings in the same transaction as the status
+   * change — whichever path cancels the event (US-43 will add one), and with
+   * no window in which the event is cancelled but its equipment or venues
+   * still held. If either release fails, the cancellation rolls back with it.
+   * `actorId`, when given, is recorded on each released booking's history.
+   *
+   * US-42 AC-4: a move to AWAITING_SAFETY_CHECK is the Coordinator confirming
+   * the arrangements, so it also records when and by whom (`actorId`). Other
+   * transitions record no actor; their stories keep their own trail.
    */
   async setStatus(
     event: EventRequest,
     next: EventStatus,
     tx?: Prisma.TransactionClient,
+    actorId?: string,
   ): Promise<EventRequest> {
     if (event.status === next) {
       return event;
@@ -1310,29 +1265,82 @@ export class EventsService {
       );
     }
 
+    // Requirement change 6: the state machine has no way into CONFIRMED except
+    // from AWAITING_SAFETY_CHECK; this is the second lock. Whatever path asks,
+    // an event is only confirmed while its latest safety review is an approval.
+    if (next === EventStatus.CONFIRMED) {
+      await this.assertSafetyApproved(event.id, tx ?? this.prisma);
+    }
+
     // The status write and the release must commit together; open a
     // transaction if the caller did not supply one.
     if (next === EventStatus.CANCELLED && !tx) {
       return this.prisma.$transaction((inner) =>
-        this.setStatus(event, next, inner),
+        this.setStatus(event, next, inner, actorId),
       );
     }
 
     const client = tx ?? this.prisma;
 
-    const updated = await client.eventRequest.update({
+    let updated = await client.eventRequest.update({
       where: { id: event.id },
-      data: { status: next },
+      data: {
+        status: next,
+        // Lead assignment story: the queue is ordered by when a request was
+        // submitted, and every route into SUBMITTED comes through here.
+        ...(next === EventStatus.SUBMITTED ? { submittedAt: new Date() } : {}),
+        // Requirement change 6: the Safety queue lists longest-waiting first.
+        ...(next === EventStatus.AWAITING_SAFETY_CHECK
+          ? { safetyQueuedAt: new Date() }
+          : {}),
+      },
     });
+
+    // Kept apart from the status write above, which events-status-audit.spec
+    // pins to exactly `{ status: next }`. Callers confirming pass a
+    // transaction, so the two commit together.
+    if (next === EventStatus.AWAITING_SAFETY_CHECK) {
+      updated = await client.eventRequest.update({
+        where: { id: event.id },
+        data: {
+          arrangementsConfirmedAt: new Date(),
+          arrangementsConfirmedById: actorId ?? null,
+        },
+      });
+    }
 
     if (next === EventStatus.CANCELLED) {
       await this.equipmentReservations.releaseForCancelledEvent(
         event.id,
         client,
       );
+      // US-44 (with US-40 AC-1's notice to each venue's manager).
+      await this.bookings.releaseForCancelledEvent(event.id, client, actorId ?? null);
     }
 
     return updated;
+  }
+
+  /**
+   * Requirement change 6 — an event may be confirmed only while its most
+   * recent safety review is an approval. A rejection or a request for changes
+   * after an earlier approval therefore re-blocks it.
+   */
+  private async assertSafetyApproved(
+    eventId: string,
+    client: Prisma.TransactionClient | PrismaService,
+  ): Promise<void> {
+    const latest = await client.safetyReview.findFirst({
+      where: { eventId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { outcome: true },
+    });
+
+    if (latest?.outcome !== SafetyOutcome.APPROVED) {
+      throw new ConflictException(
+        'this event cannot be confirmed without an approved safety check',
+      );
+    }
   }
 
   /**
@@ -1376,8 +1384,10 @@ export class EventsService {
       },
     });
 
+    // US-28: the requirements in the order they were listed.
+    const inOrder = { ...event, equipmentRequirements: inEntryOrder(event.equipmentRequirements) };
     return {
-      ...this.toOrganiserView(event),
+      ...this.toOrganiserView(inOrder),
       pendingChangeRequest: await this.findPendingChangeRequest(id),
       latestChangeDecision: await this.findLatestChangeDecision(id),
     };
@@ -1437,52 +1447,44 @@ export class EventsService {
   }
 
   /**
-   * An Attendee's list is the events they could register for right now:
-   * CONFIRMED, registration enabled, inside the registration window and not
-   * full (the same rules the Register endpoint enforces), and not already
-   * registered by them. Everything else is hidden rather than shown disabled.
+   * An Attendee's list is the events they could still take part in:
+   * CONFIRMED, with registration enabled, not yet started, whose registration
+   * period has not ended, and not already registered by them.
+   *
+   * Events that are not yet open or full stay in the list on purpose. The
+   * Register option is disabled for them with the reason and the open and
+   * close times beside it (GET /registrations/events/:id/options), and the
+   * Register endpoint refuses them regardless. An event whose registration
+   * has closed is over for the Attendee, so it is left out rather than listed.
    */
   private async onlyRegistrable<T extends EventWithCoordinator>(
     user: AuthenticatedUser,
     events: T[],
   ): Promise<T[]> {
+    const now = new Date();
     const candidates = events.filter(
       (event) =>
-        event.status === EventStatus.CONFIRMED && event.registrationEnabled,
+        event.status === EventStatus.CONFIRMED &&
+        event.registrationEnabled &&
+        (event.proposedStart === null || event.proposedStart > now) &&
+        // The headcount does not matter here: CLOSED is decided before FULL.
+        evaluateRegistration(event, 0, now).block !== 'CLOSED',
     );
     if (candidates.length === 0) {
       return [];
     }
 
-    const ids = candidates.map((event) => event.id);
-    const [counts, mine] = await Promise.all([
-      this.prisma.registration.groupBy({
-        by: ['eventId'],
-        where: { eventId: { in: ids }, status: RegistrationStatus.REGISTERED },
-        _count: { _all: true },
-      }),
-      this.prisma.registration.findMany({
-        where: {
-          eventId: { in: ids },
-          attendeeId: user.userId,
-          status: RegistrationStatus.REGISTERED,
-        },
-        select: { eventId: true },
-      }),
-    ]);
-
-    const registeredCount = new Map(
-      counts.map((row) => [row.eventId, row._count._all]),
-    );
+    const mine = await this.prisma.registration.findMany({
+      where: {
+        eventId: { in: candidates.map((event) => event.id) },
+        attendeeId: user.userId,
+        status: RegistrationStatus.REGISTERED,
+      },
+      select: { eventId: true },
+    });
     const alreadyMine = new Set(mine.map((row) => row.eventId));
-    const now = new Date();
 
-    return candidates.filter(
-      (event) =>
-        !alreadyMine.has(event.id) &&
-        evaluateRegistration(event, registeredCount.get(event.id) ?? 0, now)
-          .canRegister,
-    );
+    return candidates.filter((event) => !alreadyMine.has(event.id));
   }
 
   /**
@@ -1498,10 +1500,12 @@ export class EventsService {
     // US-28 AC-3: Technical Support (and every other full-record reader)
     // sees the recorded requirements. The Attendee projection rebuilds the
     // record from an explicit field list, so they are dropped there.
-    const equipmentRequirements = await this.prisma.equipmentRequirement.findMany({
-      where: { eventId: event.id },
-      orderBy: REQUIREMENTS_ORDER,
-    });
+    const equipmentRequirements = inEntryOrder(
+      await this.prisma.equipmentRequirement.findMany({
+        where: { eventId: event.id },
+        orderBy: REQUIREMENTS_ORDER,
+      }),
+    );
 
     const withRequirements = { ...event, equipmentRequirements };
     const projected = this.access.projectEvent(user, withRequirements);

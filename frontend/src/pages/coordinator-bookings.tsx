@@ -32,7 +32,7 @@ export function CoordinatorBookings() {
         {bookings && bookings.length === 0 ? (
           <EmptyState
             title="No venue requests yet"
-            description="Open an approved event from your review queue to request a venue for it."
+            description="Open an approved event from My events to request a venue for it."
           />
         ) : null}
 

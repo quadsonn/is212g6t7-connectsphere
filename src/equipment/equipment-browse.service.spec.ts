@@ -131,10 +131,15 @@ describe('EquipmentService browse (US-28)', () => {
 
   describe('US-28 AC-2: one item’s full detail', () => {
     it('returns the item when it exists and the caller may read it', async () => {
-      const item = { id: 'eq-1', type: 'Projector (4K)' };
+      const item = { id: 'eq-1', type: 'Projector (4K)', statusChanges: [] };
       prisma.equipment.findFirst.mockResolvedValue(item);
 
-      await expect(service.findOneForUser(tech, 'eq-1')).resolves.toBe(item);
+      // US-45: the latest status change, flattened; null when there is none.
+      await expect(service.findOneForUser(tech, 'eq-1')).resolves.toEqual({
+        id: 'eq-1',
+        type: 'Projector (4K)',
+        latestStatusChange: null,
+      });
       expect(prisma.equipment.findFirst).toHaveBeenCalledWith({
         where: { AND: [{ id: 'eq-1' }, {}] },
         select: {
@@ -144,6 +149,18 @@ describe('EquipmentService browse (US-28)', () => {
           totalQuantity: true,
           location: true,
           operationalStatus: true,
+          statusChanges: {
+            orderBy: [{ changedAt: 'desc' }, { id: 'desc' }],
+            take: 1,
+            select: {
+              id: true,
+              fromStatus: true,
+              toStatus: true,
+              reason: true,
+              changedAt: true,
+              changedBy: { select: { id: true, name: true } },
+            },
+          },
         },
       });
     });

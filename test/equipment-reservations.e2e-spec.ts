@@ -312,7 +312,8 @@ describe('Story 31 reserve equipment / Story 32 release for a cancelled event (i
         relatedEventId: EVENT.capstone,
         read: false,
       });
-      expect(notes[0].message).toContain('2 × Wireless microphone committed to "Capstone Showcase"');
+      // The event is shown beside the message (relatedEventId), not in it.
+      expect(notes[0].message).toMatch(/^2 × Wireless microphone for .* UTC\.$/);
     });
 
     // TC-S2-129 · US-31 (extra) · setup: base-users + tc-s2-122-setup · fails if a refused commitment still notified someone

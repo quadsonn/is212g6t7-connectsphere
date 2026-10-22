@@ -12,6 +12,7 @@ import { EquipmentReservationsService } from '../equipment/equipment-reservation
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
+import { BookingsService } from '../bookings/bookings.service';
 
 /** US-08 — reject and return as distinct decisions. */
 describe('EventsService reject / return (US-08)', () => {
@@ -93,6 +94,7 @@ describe('EventsService reject / return (US-08)', () => {
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
   });
 

@@ -22,7 +22,14 @@ describe('EquipmentRequirementsService (US-30)', () => {
     jti: 'j1',
   };
 
-  const row = { id: 'req-1', equipmentType: 'Wireless microphone', quantity: 6, notes: 'Lapel' };
+  const row = {
+    id: 'req-1',
+    // Read so rows can be listed in the order they were entered.
+    createdAt: new Date('2030-09-01T00:00:00.000Z'),
+    equipmentType: 'Wireless microphone',
+    quantity: 6,
+    notes: 'Lapel',
+  };
 
   /** An event with no requirement source; each test adds the ones it needs. */
   const bare = {
@@ -75,7 +82,9 @@ describe('EquipmentRequirementsService (US-30)', () => {
     it('Coordinator rows only — type, quantity and notes per line', () => {
       const view = toRequirementsView({ ...bare, equipmentRequirements: [row] });
 
-      expect(view.coordinatorRequirements).toEqual([row]);
+      // createdAt is read only to order the rows; the view does not carry it.
+      const { createdAt: _createdAt, ...shown } = row;
+      expect(view.coordinatorRequirements).toEqual([shown]);
       expect(view).toMatchObject({ organiserEquipmentNeeds: null, hasRequirements: true });
     });
 

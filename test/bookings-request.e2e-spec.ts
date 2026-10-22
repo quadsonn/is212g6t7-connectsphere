@@ -136,6 +136,37 @@ describe('Story 20 submit a venue booking request (integration)', () => {
     });
   });
 
+  // Sprint 3 (capacity validation, added with US-41/47/48/50/52/53): not a
+  // Story 20 acceptance criterion, so these have no TC-S2 number yet.
+  describe('Capacity AC-1/AC-2: a venue too small for the expected attendance cannot be requested', () => {
+    // Sprint 3 capacity · setup: base-users + base-venues + tc-s2-34-setup · fails if a request over the venue's capacity were accepted, or the reason not given
+    // Code: createRequest() runs capacityShortfall() (venues/capacity.ts) on the
+    // request's attendance; 499 > Main Hall's 300, so it answers 409
+    // CAPACITY_EXCEEDED before anything is saved.
+    it('Capacity AC-1/AC-2: refuses 499 attendees for Main Hall, which holds 300 (409), saying why, and creates nothing', async () => {
+      const res = await book({ ...validRequest, expectedAttendance: 499 }).expect(409);
+
+      expect(res.body).toMatchObject({
+        code: 'CAPACITY_EXCEEDED',
+        message: 'Main Hall holds 300, but expected attendance is 499.',
+        capacity: 300,
+        expectedAttendance: 499,
+      });
+      expect(await prisma.venueBooking.count()).toBe(0);
+    });
+
+    // Sprint 3 capacity · setup: base-users + base-venues + tc-s2-34-setup · fails if a request that fits the venue were refused
+    // Code: exceedsCapacity() is attendance > capacity, so equal attendance fits.
+    it.each([
+      ['equal to', 300],
+      ['below', 120],
+    ])('Capacity AC-1: allows attendance %s capacity (%i)', async (_label, attendance) => {
+      const res = await book({ ...validRequest, expectedAttendance: attendance }).expect(201);
+
+      expect(res.body.status).toBe(BookingStatus.REQUESTED);
+    });
+  });
+
   describe('AC-4: overlapping a confirmed booking is blocked', () => {
     // TC-S2-36 · setup: base-users + base-venues + tc-s2-34-setup + tc-s2-36-setup · fails if a doomed request overlapping a confirmed booking were accepted, or the clash weren't named
     it('returns 409 naming the conflicting booking, and creates nothing', async () => {

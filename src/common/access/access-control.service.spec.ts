@@ -91,21 +91,13 @@ describe('AccessControlService (US-02)', () => {
   });
 
   describe('AC-6: Coordinator sees only assigned', () => {
-    it('narrows the list query to assigned events plus the unassigned pool', () => {
-      // US-03 AC-2 widened this: a freshly submitted request has no
-      // coordinatorId, so a strict "assigned to me" filter would hide every
-      // request awaiting review. Another Coordinator's events stay excluded.
+    it('narrows the list query to events assigned to this Coordinator only', () => {
+      // The unassigned queue belongs to the Lead: a request with no
+      // coordinatorId matches no Coordinator's filter, so none can see,
+      // review or edit it until it is assigned.
       expect(
         service.scopedEventFilter(userWith(Role.EVENT_COORDINATOR, 'coordinator-1')),
-      ).toEqual({
-        OR: [
-          { coordinatorId: 'coordinator-1' },
-          {
-            coordinatorId: null,
-            status: { in: [EventStatus.SUBMITTED, EventStatus.UNDER_REVIEW] },
-          },
-        ],
-      });
+      ).toEqual({ coordinatorId: 'coordinator-1' });
     });
 
     it('denies an event assigned to a different coordinator', async () => {

@@ -11,6 +11,7 @@ import { EquipmentReservationsService } from '../equipment/equipment-reservation
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService, NO_CHANGES_MESSAGE } from './events.service';
+import { BookingsService } from '../bookings/bookings.service';
 
 /** US-24 / US-25 — planning edits and change history. */
 describe('EventsService planning edits and history (US-24, US-25)', () => {
@@ -83,6 +84,7 @@ describe('EventsService planning edits and history (US-24, US-25)', () => {
       access as unknown as AccessControlService,
       { notify: jest.fn(), notifySafely: jest.fn() } as unknown as NotificationsService,
       { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
   });
 
@@ -252,6 +254,88 @@ describe('EventsService planning edits and history (US-24, US-25)', () => {
 
       await expect(service.startPlanning(coordinator, 'event-1')).rejects.toBeInstanceOf(
         ConflictException,
+      );
+    });
+  });
+
+  describe('Attendee notice: a changed date or time notifies registered Attendees', () => {
+    let notifier: { notifyRegisteredAttendees: jest.Mock };
+    let noticeService: EventsService;
+
+    beforeEach(() => {
+      notifier = { notifyRegisteredAttendees: jest.fn().mockResolvedValue(0) };
+      noticeService = new EventsService(
+        prisma as unknown as PrismaService,
+        access as unknown as AccessControlService,
+        { notify: jest.fn(), notifySafely: jest.fn() } as unknown as NotificationsService,
+        { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+        { releaseForCancelledEvent: jest.fn() } as unknown as BookingsService,
+        undefined,
+        notifier as never,
+      );
+    });
+
+    const noticed = () => notifier.notifyRegisteredAttendees.mock.calls.flatMap(([, c]) => c);
+
+    it('AC-1/AC-3: a new start shows the old and new value, in venue time', async () => {
+      await noticeService.updateDuringPlanning(coordinator, 'event-1', {
+        proposedStart: new Date('2030-10-01T10:00:00Z'),
+      });
+
+      expect(notifier.notifyRegisteredAttendees).toHaveBeenCalledTimes(1);
+      expect(notifier.notifyRegisteredAttendees.mock.calls[0][0]).toMatchObject({
+        id: 'event-1',
+        name: 'Orientation',
+      });
+      expect(noticed()).toEqual([
+        { label: 'Start', previous: '1 Oct 2030, 17:00', next: '1 Oct 2030, 18:00' },
+      ]);
+    });
+
+    it('AC-4: start and end changed together are one call listing both', async () => {
+      await noticeService.updateDuringPlanning(coordinator, 'event-1', {
+        proposedStart: new Date('2030-10-02T01:00:00Z'),
+        proposedEnd: new Date('2030-10-02T09:00:00Z'),
+      });
+
+      expect(notifier.notifyRegisteredAttendees).toHaveBeenCalledTimes(1);
+      expect(noticed().map((c) => c.label)).toEqual(['Start', 'End']);
+    });
+
+    it('AC-6: other fields (description, programme, attendance) notify nobody', async () => {
+      await noticeService.updateDuringPlanning(coordinator, 'event-1', {
+        description: 'A new description',
+        programme: '09:00 Welcome',
+        expectedAttendance: 350,
+      });
+
+      expect(noticed()).toEqual([]);
+    });
+
+    it('only the date part of a mixed edit is reported', async () => {
+      await noticeService.updateDuringPlanning(coordinator, 'event-1', {
+        description: 'A new description',
+        proposedEnd: new Date('2030-10-01T10:00:00Z'),
+      });
+
+      expect(noticed().map((c) => c.label)).toEqual(['End']);
+    });
+
+    it('an edit that changes nothing sends nothing', async () => {
+      await noticeService.updateDuringPlanning(coordinator, 'event-1', {
+        proposedStart: new Date('2030-10-01T09:00:00Z'),
+      });
+
+      expect(notifier.notifyRegisteredAttendees).not.toHaveBeenCalled();
+    });
+
+    it('is raised after the change has committed', async () => {
+      await noticeService.updateDuringPlanning(coordinator, 'event-1', {
+        proposedStart: new Date('2030-10-01T10:00:00Z'),
+      });
+
+      expect(prisma.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
+        notifier.notifyRegisteredAttendees.mock.invocationCallOrder[0],
       );
     });
   });

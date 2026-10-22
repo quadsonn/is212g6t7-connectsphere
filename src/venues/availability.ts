@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { BookingStatus } from '@prisma/client';
 
 import { VenueBookingSlot } from '../bookings/booking-impact';
+import { NO_BUFFERS, occupiedWindow } from '../bookings/venue-occupancy';
 
 /**
  * US-17 — a venue's availability calendar, reduced to one status per day.
@@ -143,6 +144,8 @@ function statusFor(booking: VenueBookingSlot): DayStatus {
     case BookingStatus.APPROVED:
       return DayStatus.BOOKED;
     case BookingStatus.REQUESTED:
+    // US-54: callers pass live rows only, so a HELD one has not expired.
+    case BookingStatus.HELD:
       return DayStatus.TENTATIVE;
     default:
       // REJECTED holds nothing. The query already excludes it; this guards
@@ -158,6 +161,10 @@ function statusFor(booking: VenueBookingSlot): DayStatus {
  * its last instant. End is exclusive, so a booking ending exactly at midnight
  * does not touch the following day. Booked outranks tentative, which outranks
  * free.
+ *
+ * US-50 AC-1: "starts" and "ends" are the booking's occupied window — its
+ * setup time before and turnaround time after — so a turnaround running past
+ * midnight marks the next day too.
  */
 export function aggregateAvailability(
   range: DayRange,
@@ -172,10 +179,11 @@ export function aggregateAvailability(
     const status = statusFor(booking);
     if (status === DayStatus.FREE) continue;
 
-    const first = dayKeyOf(booking.start);
+    const occupied = occupiedWindow(booking, booking.buffers ?? NO_BUFFERS);
+    const first = dayKeyOf(occupied.start);
     const lastInstant = Math.max(
-      booking.start.getTime(),
-      booking.end.getTime() - 1,
+      occupied.start.getTime(),
+      occupied.end.getTime() - 1,
     );
     const last = dayKeyOf(new Date(lastInstant));
 

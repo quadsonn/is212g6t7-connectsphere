@@ -99,7 +99,7 @@ export function peakReservedQuantity(
  * AMBIGUOUS: the briefing gives an item one operational status, not a count
  * per condition, so an item marked UNDER_MAINTENANCE or OUT_OF_SERVICE (read
  * as "damaged") takes all of its units out of availability. Setting the
- * status is #45; this only reads it.
+ * status is US-45 (EquipmentService.changeStatus); this only reads it.
  */
 export function isLendable(status: EquipmentStatus): boolean {
   return status === EquipmentStatus.OPERATIONAL;

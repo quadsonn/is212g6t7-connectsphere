@@ -360,12 +360,15 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       await given('tc-s1-02-setup');
       const event = EVENT.unassigned;
 
-      const res = await http()
+      await http()
         .post(`/events/${event.id}/approve`)
         .set('Authorization', as('coordinatorB'))
-        .expect(409);
+        .expect(404);
 
-      expect(res.body.message).toMatch(/assign a coordinator/i);
+      const stored = await prisma.eventRequest.findUniqueOrThrow({
+        where: { id: event.id },
+      });
+      expect(stored.status).toBe(EventStatus.SUBMITTED);
     });
 
     it('approves once that request has been assigned (US-10 then US-07)', async () => {

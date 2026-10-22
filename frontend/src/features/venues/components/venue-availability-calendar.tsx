@@ -14,11 +14,12 @@ import {
 } from '@/lib/calendar';
 import { DAY_STATUS_STYLES } from '@/lib/status';
 import { cn } from '@/lib/utils';
-import type { DayStatus } from '@/types/api';
+import type { DayStatus, OccupancySegment } from '@/types/api';
 import {
   adjacentMonths,
   usePrefetchVenueAvailability,
   useVenueAvailability,
+  useVenueOccupancy,
 } from '../hooks/use-venues';
 
 /** AC-1: the current and next month are on screen together. */
@@ -30,14 +31,20 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
  * request it.
  *
  * Shows only what the API returns: one status per day. There is deliberately
- * no hover card, popover or click-through for a booked day — AC-3 forbids
- * revealing whose booking it is, and the cheapest way to keep that promise is
- * to have nothing to reveal it with.
+ * no hover card or popover naming a booking — AC-3 forbids revealing whose
+ * booking it is, and the cheapest way to keep that promise is to have nothing
+ * to reveal it with.
+ *
+ * US-50 AC-3: selecting a tentative or booked day lists what occupies it —
+ * each booking's setup time, event time and turnaround time, shown
+ * separately. That data is as anonymous as the day status: times and
+ * tentative/booked, never an event.
  */
 export function VenueAvailabilityCalendar({ venueId }: { venueId: string }) {
   const today = todayInVenueTime();
   const currentMonth = today.slice(0, 7);
   const [firstMonth, setFirstMonth] = useState(currentMonth);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const months = Array.from({ length: VISIBLE_MONTHS }, (_, i) => addMonths(firstMonth, i));
   usePrefetchVenueAvailability(venueId, adjacentMonths(firstMonth, VISIBLE_MONTHS));
@@ -70,10 +77,94 @@ export function VenueAvailabilityCalendar({ venueId }: { venueId: string }) {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {months.map((month) => (
-          <MonthGrid key={month} venueId={venueId} month={month} today={today} />
+          <MonthGrid
+            key={month}
+            venueId={venueId}
+            month={month}
+            today={today}
+            selectedDay={selectedDay}
+            onSelectDay={(day) => setSelectedDay((current) => (current === day ? null : day))}
+          />
         ))}
       </div>
+
+      {selectedDay ? (
+        <DayOccupancy venueId={venueId} day={selectedDay} />
+      ) : (
+        <p className="mt-4 text-xs text-ink-500">
+          Select a tentative or booked day to see its times, including setup and turnaround.
+        </p>
+      )}
     </div>
+  );
+}
+
+const SEGMENT_STYLES: Record<OccupancySegment['kind'], { label: string; className: string }> = {
+  SETUP: {
+    label: 'Setup',
+    className: 'border border-dashed border-ink-400 bg-ink-50 text-ink-700',
+  },
+  EVENT: { label: 'Event', className: 'bg-ink-800 text-white' },
+  TURNAROUND: {
+    label: 'Turnaround',
+    className: 'border border-dashed border-ink-400 bg-ink-50 text-ink-700',
+  },
+};
+
+const SINGAPORE_TIME = new Intl.DateTimeFormat('en-SG', {
+  timeZone: 'Asia/Singapore',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+const SINGAPORE_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' });
+
+/** "09:30", or "23:45 (30 Sep)" when the instant falls on another day. */
+function timeOn(day: string, iso: string): string {
+  const instant = new Date(iso);
+  const time = SINGAPORE_TIME.format(instant);
+  const instantDay = SINGAPORE_DAY.format(instant);
+  return instantDay === day ? time : `${time} (${formatDay(instantDay)})`;
+}
+
+/** US-50 AC-3 — the selected day's occupancy, buffers apart from event time. */
+function DayOccupancy({ venueId, day }: { venueId: string; day: string }) {
+  const { data, isPending, isError, error } = useVenueOccupancy(venueId, day);
+
+  return (
+    <section aria-labelledby="day-occupancy" className="mt-4 rounded-lg border border-ink-200 p-4">
+      <h3 id="day-occupancy" className="text-sm font-semibold text-ink-900">
+        {formatDay(day)}
+      </h3>
+      {isPending ? (
+        <p className="mt-2 text-sm text-ink-500">Loading times…</p>
+      ) : isError ? (
+        <ErrorState message={apiErrorMessage(error, 'Could not load the times for this day.')} />
+      ) : data.length === 0 ? (
+        <p className="mt-2 text-sm text-ink-600">Nothing occupies this venue on this day.</p>
+      ) : (
+        <ul className="mt-3 space-y-3">
+          {data.map((booking, i) => (
+            <li key={i} className="space-y-1.5">
+              <p className="text-xs font-medium text-ink-700">
+                {DAY_STATUS_STYLES[booking.status].label}
+              </p>
+              <ol className="flex flex-wrap gap-1.5" aria-label="Setup, event and turnaround times">
+                {booking.segments.map((segment) => (
+                  <li
+                    key={segment.kind}
+                    className={cn('rounded px-2 py-1 text-xs', SEGMENT_STYLES[segment.kind].className)}
+                  >
+                    <span className="font-medium">{SEGMENT_STYLES[segment.kind].label}</span>{' '}
+                    {timeOn(day, segment.start)}–{timeOn(day, segment.end)}
+                  </li>
+                ))}
+              </ol>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -100,7 +191,19 @@ function Legend() {
 }
 
 /** AC-2: each month is its own query, so it loads on its own. */
-function MonthGrid({ venueId, month, today }: { venueId: string; month: string; today: string }) {
+function MonthGrid({
+  venueId,
+  month,
+  today,
+  selectedDay,
+  onSelectDay,
+}: {
+  venueId: string;
+  month: string;
+  today: string;
+  selectedDay: string | null;
+  onSelectDay: (day: string) => void;
+}) {
   const { data, isPending, isError, error } = useVenueAvailability(venueId, month);
   const statusByDay = new Map(data?.map((day) => [day.date, day.status]));
 
@@ -140,7 +243,15 @@ function MonthGrid({ venueId, month, today }: { venueId: string; month: string; 
               <tr key={i}>
                 {week.map((day, j) =>
                   day ? (
-                    <DayCell key={day} day={day} status={statusByDay.get(day)} isPast={day < today} isToday={day === today} />
+                    <DayCell
+                      key={day}
+                      day={day}
+                      status={statusByDay.get(day)}
+                      isPast={day < today}
+                      isToday={day === today}
+                      isSelected={day === selectedDay}
+                      onSelect={() => onSelectDay(day)}
+                    />
                   ) : (
                     <td key={`blank-${j}`} aria-hidden="true" />
                   ),
@@ -159,11 +270,15 @@ function DayCell({
   status,
   isPast,
   isToday,
+  isSelected,
+  onSelect,
 }: {
   day: string;
   status: DayStatus | undefined;
   isPast: boolean;
   isToday: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
 }) {
   // Still loading: a neutral placeholder rather than a misleading "free".
   if (!status) {
@@ -175,16 +290,22 @@ function DayCell({
   }
 
   const style = DAY_STATUS_STYLES[status];
+  // US-50 AC-3: an occupied day can be selected to see its times.
+  const Cell = status === 'free' ? 'div' : 'button';
 
   return (
     <td>
-      <div
+      <Cell
+        {...(Cell === 'button'
+          ? { type: 'button' as const, onClick: onSelect, 'aria-pressed': isSelected }
+          : {})}
         className={cn(
-          'relative flex h-10 items-center justify-center rounded-md',
+          'relative flex h-10 w-full items-center justify-center rounded-md',
           style.className,
           // Past days keep their real status but recede: nothing to request there.
           isPast && 'opacity-40',
           isToday && 'ring-2 ring-brand-600',
+          isSelected && 'ring-2 ring-ink-900',
         )}
       >
         <span className="text-xs font-medium tabular-nums" aria-hidden="true">
@@ -198,7 +319,7 @@ function DayCell({
           {isPast ? ' (past)' : ''}
           {isToday ? ' (today)' : ''}
         </span>
-      </div>
+      </Cell>
     </td>
   );
 }

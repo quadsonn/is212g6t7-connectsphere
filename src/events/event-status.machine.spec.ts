@@ -295,7 +295,14 @@ describe('Event state machine (US-11)', () => {
       expect(UNASSIGNED_QUEUE_STATUSES).toEqual([EventStatus.SUBMITTED]);
     });
 
-    it('never shows an Attendee a request still under review', () => {
+    it('lets an Attendee reach only a CONFIRMED event', () => {
+      // US-02 AC-7: a CONFIRMED event is the only one whose arrangements are
+      // settled enough to be an Attendee's to see. Narrowed deliberately so the
+      // single-record view can never expose more than the browse list.
+      expect(ATTENDEE_VISIBLE_STATUSES).toEqual([EventStatus.CONFIRMED]);
+    });
+
+    it('never shows an Attendee anything but a CONFIRMED event', () => {
       for (const hidden of [
         EventStatus.DRAFT,
         EventStatus.SUBMITTED,
@@ -303,6 +310,13 @@ describe('Event state machine (US-11)', () => {
         EventStatus.AWAITING_CLARIFICATION,
         EventStatus.RETURNED,
         EventStatus.REJECTED,
+        // Before CONFIRMED: internal planning, not reachable even by direct id.
+        EventStatus.APPROVED,
+        EventStatus.PLANNING,
+        EventStatus.AWAITING_ARRANGEMENTS,
+        EventStatus.AWAITING_SAFETY_CHECK,
+        // After CONFIRMED: over, or no longer registration-facing.
+        EventStatus.COMPLETED,
         EventStatus.CANCELLED,
       ]) {
         expect(ATTENDEE_VISIBLE_STATUSES).not.toContain(hidden);

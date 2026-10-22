@@ -98,18 +98,29 @@ export function AttendeeRegistrations() {
               const active = registration.status === 'REGISTERED';
               const confirming = confirmingId === registration.id;
               const { withdrawal, event } = registration;
+              // US-02 AC-7: an Attendee may only open a CONFIRMED event. A past
+              // (COMPLETED) or cancelled event's detail page 404s, so it is not
+              // linked — the row still shows the registration, just not a
+              // dead-end link into it.
+              const openable = event.status === 'CONFIRMED';
 
               return (
                 <li key={registration.id} className="px-5 py-4">
                   <div className="flex flex-wrap items-start gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2.5">
-                        <Link
-                          to={`/events/${event.id}`}
-                          className="font-medium text-ink-900 hover:text-brand-700 hover:underline"
-                        >
-                          {event.name ?? 'Untitled event'}
-                        </Link>
+                        {openable ? (
+                          <Link
+                            to={`/events/${event.id}`}
+                            className="font-medium text-ink-900 hover:text-brand-700 hover:underline"
+                          >
+                            {event.name ?? 'Untitled event'}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-ink-900">
+                            {event.name ?? 'Untitled event'}
+                          </span>
+                        )}
                         <Badge
                           srPrefix="Registration"
                           className={cn(
@@ -143,12 +154,14 @@ export function AttendeeRegistrations() {
                           You can withdraw until {formatDate(withdrawal.withdrawalCutoffAt)}.
                         </p>
                       ) : null}
-                      <Link
-                        to={`/events/${event.id}`}
-                        className="mt-1.5 inline-block text-xs font-medium text-brand-700 hover:underline"
-                      >
-                        View details →
-                      </Link>
+                      {openable ? (
+                        <Link
+                          to={`/events/${event.id}`}
+                          className="mt-1.5 inline-block text-xs font-medium text-brand-700 hover:underline"
+                        >
+                          View details →
+                        </Link>
+                      ) : null}
                     </div>
 
                     {active && !confirming ? (

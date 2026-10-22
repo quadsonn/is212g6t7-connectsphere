@@ -301,9 +301,11 @@ describe('Notifications page (e2e)', () => {
       expect(await linkOf('coordinator')).toBe(`/coordinator/events/${ids.gala}`);
       expect(await linkOf('staff')).toBe(`/venues/events/${ids.gala}`);
       expect(await linkOf('tech')).toBe(`/equipment/requirements/${ids.gala}`);
-      // The gala is PLANNING — an attendee-visible status — so the Attendee
-      // links to their own event page.
-      expect(await linkOf('attendee')).toBe(`/events/${ids.gala}`);
+      // The gala is PLANNING. An Attendee may only reach a CONFIRMED event
+      // (US-02 AC-7), so no link is given here — a cancellation or a
+      // registration-window notice, which concern CONFIRMED events, is what
+      // links an Attendee to /events/:id (covered in notification-view.spec).
+      expect(await linkOf('attendee')).toBeNull();
       expect(await linkOf('lead')).toBeNull();
       expect(await linkOf('safety')).toBeNull();
     });

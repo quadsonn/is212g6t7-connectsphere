@@ -152,10 +152,14 @@ function friendlyMessage(message: string): string {
  * stays correct regardless of display wording); the message shown to the
  * user is passed through friendlyMessage first. Messages that do not start
  * with a known field name fall back to the form-level bucket.
+ *
+ * `prefix` is stripped first: fields validated as a nested object are
+ * reported under its name, e.g. "changes.proposedEnd must be …" (US-58).
  */
 export function fieldErrors(
   error: unknown,
   fields: readonly string[],
+  prefix = '',
 ): { byField: Record<string, string[]>; general: string[] } {
   const byField: Record<string, string[]> = {};
   const general: string[] = [];
@@ -167,7 +171,9 @@ export function fieldErrors(
   const raw = error.response?.data?.message;
   const messages = Array.isArray(raw) ? raw : raw ? [raw] : [];
 
-  for (const message of messages) {
+  for (const received of messages) {
+    const message =
+      prefix && received.startsWith(prefix) ? received.slice(prefix.length) : received;
     const field = fields.find((name) => message.startsWith(name));
     const display = friendlyMessage(message);
     if (field) {

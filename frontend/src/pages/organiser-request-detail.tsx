@@ -8,6 +8,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { CancelEventPanel } from '@/features/events/components/cancel-event-panel';
+import { ClarificationPanel } from '@/features/events/components/clarification-panel';
 import { ChangeRequestForm } from '@/features/events/components/change-request-form';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { PendingChangeRequest } from '@/features/events/components/pending-change-request';
@@ -165,6 +166,18 @@ export function OrganiserRequestDetail() {
             <p className="font-medium">The coordinator asked for clarification</p>
             <p className="mt-1">{event.clarificationRequest}</p>
           </div>
+        ) : null}
+
+        {/* US-58: answer here, where the notification leads, and see the history. */}
+        {event.status === 'AWAITING_CLARIFICATION' || (event.clarifications?.length ?? 0) > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Clarification</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ClarificationPanel key={event.id} event={event} />
+            </CardContent>
+          </Card>
         ) : null}
 
         {/* US-37: the original details stay below; the request sits alongside them. */}

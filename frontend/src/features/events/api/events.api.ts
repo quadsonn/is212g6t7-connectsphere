@@ -20,6 +20,7 @@ import type {
   PublicEventView,
   TechnicalRequirementsPayload,
   RelatedEventView,
+  RespondClarificationPayload,
   RejectUnfulfillablePayload,
   UnfulfillableRejection,
 } from '@/types/api';
@@ -184,10 +185,8 @@ export const eventsApi = {
   getRelated: (id: string) =>
     apiClient.get<RelatedEventView>(`/events/${id}`).then((r) => r.data),
 
-  respondToClarification: (id: string, response: string) =>
+  respondToClarification: (id: string, body: RespondClarificationPayload) =>
     apiClient
-      .post<OrganiserRequestView>(`/events/${id}/clarifications/responses`, {
-        response,
-      })
+      .post<OrganiserRequestView>(`/events/${id}/clarifications/responses`, body)
       .then((r) => r.data),
 };

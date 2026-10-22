@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field as FormField, Select, Textarea } from '@/components/ui/form';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import { ClarificationThread } from '@/features/events/components/clarification-thread';
 import { ChangeHistory } from '@/features/events/components/change-history';
 import { ConfirmArrangementsCard } from '@/features/events/components/confirm-arrangements-card';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
@@ -433,20 +434,8 @@ export function CoordinatorEventDetail() {
               <CardTitle>Clarification history</CardTitle>
             </CardHeader>
             <CardContent>
-              {event.clarifications.length > 0 ? (
-                <ol className="space-y-3 border-l border-ink-200 pl-4">
-                  {event.clarifications.map((message) => (
-                    <li key={message.id} className="text-sm">
-                      <p className="text-ink-800">{message.body}</p>
-                      <p className="mt-1 text-xs text-ink-500">
-                        {message.author.name} · {new Date(message.createdAt).toLocaleString()}
-                      </p>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="text-sm text-ink-500">No clarification messages yet.</p>
-              )}
+              {/* US-58 AC4: each response with the details it updated. */}
+              <ClarificationThread messages={event.clarifications} />
             </CardContent>
           </Card>
 

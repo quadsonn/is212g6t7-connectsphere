@@ -18,6 +18,7 @@ import type {
   PlanningUpdatePayload,
   PublicEventView,
   RelatedEventView,
+  RespondClarificationPayload,
   TechnicalRequirementsPayload,
   RejectUnfulfillablePayload,
   UnfulfillableRejection,
@@ -189,8 +190,8 @@ export function useRespondToClarification() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, response }: { id: string; response: string }) =>
-      eventsApi.respondToClarification(id, response),
+    mutationFn: ({ id, ...body }: { id: string } & RespondClarificationPayload) =>
+      eventsApi.respondToClarification(id, body),
     onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: eventKeys.all });
       void queryClient.invalidateQueries({ queryKey: eventKeys.mine });

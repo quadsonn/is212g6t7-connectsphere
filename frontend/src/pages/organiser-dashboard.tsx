@@ -6,14 +6,10 @@ import { PageHeader } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { LinkButton } from '@/components/ui/link-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Field, Textarea } from '@/components/ui/form';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
+import { ClarificationPanel } from '@/features/events/components/clarification-panel';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
-import {
-  useEventDetail,
-  useMyRequests,
-  useRespondToClarification,
-} from '@/features/events/hooks/use-events';
+import { useMyRequest, useMyRequests } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { formatDateRange } from '@/lib/utils';
@@ -24,14 +20,11 @@ export function OrganiserDashboard() {
   // reasons and outstanding clarifications.
   const { data: events, isPending, isError, error } = useMyRequests();
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [response, setResponse] = useState('');
-  const detail = useEventDetail(selectedEventId, false);
-  const respond = useRespondToClarification();
+  // US-58: the Organiser's view, which carries the clarification thread.
+  const detail = useMyRequest(selectedEventId ?? undefined);
 
   function closeDetail() {
-    if (respond.isPending) return;
     setSelectedEventId(null);
-    setResponse('');
   }
 
   return (
@@ -191,61 +184,14 @@ export function OrganiserDashboard() {
                   </p>
                 ) : null}
 
-                <div>
+                <div className="space-y-2">
                   <h3 className="text-sm font-medium text-ink-800">Clarification history</h3>
-                  {detail.data.clarifications?.length ? (
-                    <ol className="mt-2 space-y-3 border-l border-ink-200 pl-4">
-                      {detail.data.clarifications.map((message) => (
-                        <li key={message.id} className="text-sm">
-                          <p className="text-ink-800">{message.body}</p>
-                          <p className="mt-1 text-xs text-ink-500">
-                            {message.author.name} · {new Date(message.createdAt).toLocaleString()}
-                          </p>
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p className="mt-2 text-sm text-ink-500">No clarification messages yet.</p>
-                  )}
+                  {/* US-58: the same thread and reply form as the request page. */}
+                  <ClarificationPanel key={detail.data.id} event={detail.data} onResponded={closeDetail} />
                 </div>
-
-                {detail.data.status === 'AWAITING_CLARIFICATION' ? (
-                  <Field label="Response" htmlFor="clarification-response" required>
-                    <Textarea
-                      id="clarification-response"
-                      value={response}
-                      onChange={(event) => setResponse(event.target.value)}
-                      rows={3}
-                      placeholder="Answer the coordinator's question"
-                    />
-                  </Field>
-                ) : null}
-
-                {respond.error ? (
-                  <p className="text-sm text-red-700">
-                    {apiErrorMessage(respond.error, 'Could not submit the clarification response.')}
-                  </p>
-                ) : null}
               </div>
             ) : null}
 
-            {detail.data?.status === 'AWAITING_CLARIFICATION' ? (
-              <div className="flex justify-end border-t border-ink-100 px-6 py-4">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={respond.isPending || response.trim().length === 0}
-                  onClick={() =>
-                    respond.mutate(
-                      { id: selectedEventId, response: response.trim() },
-                      { onSuccess: closeDetail },
-                    )
-                  }
-                >
-                  Submit response
-                </Button>
-              </div>
-            ) : null}
           </div>
         </div>
       ) : null}

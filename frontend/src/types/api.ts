@@ -215,6 +215,15 @@ export interface ClarificationMessage {
   body: string;
   createdAt: string;
   author: { id: string; name: string; email: string; role: Role };
+  /** US-58 AC4: the request details this response updated; null otherwise. */
+  change?: { changes: FieldChange[] } | null;
+}
+
+/** POST /events/:id/clarifications/responses (US-09, US-58). */
+export interface RespondClarificationPayload {
+  response: string;
+  /** US-58 AC3: only the details that changed, as for an edit. */
+  changes?: EventRequestPayload;
 }
 
 /** Payload for POST /events (submit) and POST /events/drafts (save). */

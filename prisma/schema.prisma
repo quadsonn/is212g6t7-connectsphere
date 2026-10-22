@@ -838,6 +838,11 @@ model ClarificationMessage {
 
   body String
 
+  // US-58 AC4: the request details an Organiser's response updated, as the
+  // event's history entry (US-26). Null for questions and text-only answers.
+  changeId String?      @unique
+  change   EventChange? @relation(fields: [changeId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
 
   @@index([eventId, createdAt])
@@ -870,6 +875,9 @@ model EventChange {
   // depends on, so it needs review rather than being an ordinary edit.
   requiresReview       Boolean                @default(false)
   affectedArrangements ConfirmedArrangement[] @default([])
+
+  // US-58: the clarification response that made this change, if any.
+  clarificationMessage ClarificationMessage?
 
   createdAt DateTime @default(now())
 

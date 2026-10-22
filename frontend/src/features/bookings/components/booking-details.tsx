@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatDateRange, humanise } from '@/lib/utils';
+import { formatDateRange, formatDateTime, humanise } from '@/lib/utils';
 import { ACCESSIBILITY_FEATURE_LABELS, type VenueBooking } from '@/types/api';
 import { BookingDecisionHistory } from './booking-decision-history';
 import { BookingStatusBadge } from './booking-status-badge';
@@ -40,7 +40,7 @@ export function BookingDetails({ booking }: { booking: VenueBooking }) {
               <span className="text-ink-500"> (venue capacity {booking.venue.capacity})</span>
             ) : null}
           </Field>
-          <Field label="Submitted">{new Date(booking.createdAt).toLocaleString()}</Field>
+          <Field label="Submitted">{formatDateTime(booking.createdAt)}</Field>
           {booking.decisionReason ? (
             <div className="sm:col-span-2">
               <Field label="Decision reason">{booking.decisionReason}</Field>
@@ -60,7 +60,7 @@ export function BookingDetails({ booking }: { booking: VenueBooking }) {
           {booking.status === 'RELEASED' && booking.releasedAt ? (
             <div className="sm:col-span-2">
               <Field label="Released">
-                {new Date(booking.releasedAt).toLocaleString()} — a replacement booking was
+                {formatDateTime(booking.releasedAt)} — a replacement booking was
                 confirmed. This record is kept for reference.
               </Field>
             </div>

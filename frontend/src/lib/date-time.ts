@@ -57,19 +57,56 @@ export function slotsIncluding(slots: TimeSlot[], current: string): TimeSlot[] {
   );
 }
 
-/** Joins the separate date and time inputs into "YYYY-MM-DDTHH:mm" local time. */
+/**
+ * Event and booking times are authored in Singapore time (GMT+8) — the venue's
+ * timezone — so a typed "9:00" means 9:00 at the venue, whoever enters it and
+ * wherever their device clock is set. Singapore has a permanent +08:00 offset
+ * with no daylight saving, so the conversion is exact without a date library.
+ *
+ * (Read-only displays of these instants are shown in each viewer's own
+ * timezone — see formatDateTime in lib/utils.ts. This pair governs only the
+ * entry/edit forms, whose canonical zone is the venue's.)
+ */
+export const APP_TIME_ZONE = 'Asia/Singapore';
+const APP_UTC_OFFSET = '+08:00';
+
+/** Joins the separate date and time inputs into "YYYY-MM-DDTHH:mm". */
 export function combineDateTime(date: string, time: string): string {
   return date && time ? `${date}T${time}` : '';
 }
 
-/** Splits an ISO instant into the local date and time the two inputs show. */
+/** A "YYYY-MM-DDTHH:mm" wall-clock (read as Singapore time) → the UTC instant. */
+export function localStringToInstant(local: string): string {
+  if (!local || local.length < 16) return '';
+  const instant = new Date(`${local.slice(0, 16)}:00${APP_UTC_OFFSET}`);
+  return Number.isNaN(instant.getTime()) ? '' : instant.toISOString();
+}
+
+/** A UTC instant → the "YYYY-MM-DDTHH:mm" wall-clock at the venue (Singapore). */
+export function instantToLocalString(iso: string | null): string {
+  if (!iso) return '';
+  const instant = new Date(iso);
+  if (Number.isNaN(instant.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+}
+
+/** Splits a stored instant into the Singapore date and time the inputs show. */
 export function isoToLocalParts(iso: string | null): { date: string; time: string } {
-  if (!iso) return { date: '', time: '' };
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { date: '', time: '' };
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return {
-    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
-  };
+  const local = instantToLocalString(iso);
+  return local ? { date: local.slice(0, 10), time: local.slice(11, 16) } : { date: '', time: '' };
+}
+
+/** The two inputs → a UTC instant, reading the typed value as Singapore time. */
+export function partsToInstant(date: string, time: string): string {
+  return localStringToInstant(combineDateTime(date, time));
 }

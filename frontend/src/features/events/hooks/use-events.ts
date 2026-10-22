@@ -28,6 +28,7 @@ export const eventKeys = {
   all: ['events'] as const,
   mine: ['events', 'mine'] as const,
   detail: (id: string) => ['events', id] as const,
+  publicDetail: (id: string) => ['events', 'public', id] as const,
   assigned: ['events', 'assigned'] as const,
   assignedDetail: (id: string) => ['events', 'assigned', id] as const,
   history: (id: string) => ['events', id, 'history'] as const,
@@ -204,6 +205,19 @@ export function usePublicEvents() {
   return useQuery<PublicEventView[]>({
     queryKey: eventKeys.all,
     queryFn: eventsApi.listPublic,
+  });
+}
+
+/**
+ * US-02 — one event in the Attendee's public view, for the event detail
+ * screen. A separate key from the Organiser/Coordinator detail reads so the
+ * projected shape is never served to, or from, a full-record cache entry.
+ */
+export function usePublicEvent(id: string | undefined) {
+  return useQuery<PublicEventView>({
+    queryKey: eventKeys.publicDetail(id ?? ''),
+    queryFn: () => eventsApi.getPublicById(id!),
+    enabled: Boolean(id),
   });
 }
 

@@ -564,6 +564,8 @@ export interface PublicEventView {
   status: EventStatus;
   registrationEnabled: boolean;
   coordinator: ContactSummary | null;
+  /** US-10 — the confirmed venue, or null until a booking is approved. */
+  venue: { id: string; name: string | null; location: string | null } | null;
 }
 
 /** Venue catalogue. Endpoint not built yet — served by a mock service. */

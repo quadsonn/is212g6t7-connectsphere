@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
@@ -103,9 +104,12 @@ export function AttendeeRegistrations() {
                   <div className="flex flex-wrap items-start gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="font-medium text-ink-900">
+                        <Link
+                          to={`/events/${event.id}`}
+                          className="font-medium text-ink-900 hover:text-brand-700 hover:underline"
+                        >
                           {event.name ?? 'Untitled event'}
-                        </span>
+                        </Link>
                         <Badge
                           srPrefix="Registration"
                           className={cn(
@@ -139,6 +143,12 @@ export function AttendeeRegistrations() {
                           You can withdraw until {formatDate(withdrawal.withdrawalCutoffAt)}.
                         </p>
                       ) : null}
+                      <Link
+                        to={`/events/${event.id}`}
+                        className="mt-1.5 inline-block text-xs font-medium text-brand-700 hover:underline"
+                      >
+                        View details →
+                      </Link>
                     </div>
 
                     {active && !confirming ? (

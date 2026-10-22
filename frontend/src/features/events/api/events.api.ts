@@ -41,6 +41,15 @@ export const eventsApi = {
   listPublic: () =>
     apiClient.get<PublicEventView[]>('/events').then((r) => r.data),
 
+  /**
+   * US-02 — one event, projected to the public (Attendee) view. Same endpoint
+   * as the Coordinator/Organiser single reads; the server scopes the row to
+   * ATTENDEE_VISIBLE_STATUSES and strips internal planning fields, so the
+   * Attendee only ever receives the registration-facing shape.
+   */
+  getPublicById: (id: string) =>
+    apiClient.get<PublicEventView>(`/events/${id}`).then((r) => r.data),
+
   getById: (id: string) =>
     apiClient.get<EventRequest>(`/events/${id}`).then((r) => r.data),
 

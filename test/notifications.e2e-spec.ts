@@ -301,7 +301,9 @@ describe('Notifications page (e2e)', () => {
       expect(await linkOf('coordinator')).toBe(`/coordinator/events/${ids.gala}`);
       expect(await linkOf('staff')).toBe(`/venues/events/${ids.gala}`);
       expect(await linkOf('tech')).toBe(`/equipment/requirements/${ids.gala}`);
-      expect(await linkOf('attendee')).toBeNull();
+      // The gala is PLANNING — an attendee-visible status — so the Attendee
+      // links to their own event page.
+      expect(await linkOf('attendee')).toBe(`/events/${ids.gala}`);
       expect(await linkOf('lead')).toBeNull();
       expect(await linkOf('safety')).toBeNull();
     });

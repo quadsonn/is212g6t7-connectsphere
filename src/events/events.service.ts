@@ -27,6 +27,7 @@ import {
   AccessControlService,
   EventWithCoordinator,
   PublicEventView,
+  PUBLIC_VENUE_INCLUDE,
 } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
@@ -1392,7 +1393,12 @@ export class EventsService {
     const events = await this.prisma.eventRequest.findMany({
       where: this.access.scopedEventFilter(user),
       orderBy: { createdAt: 'desc' },
-      include: COORDINATOR_SELECT,
+      // Attendees also get the confirmed venue (US-10 "where"); other roles
+      // reach bookings through the bookings module, so their shape is unchanged.
+      include:
+        user.role === Role.ATTENDEE
+          ? { ...COORDINATOR_SELECT, ...PUBLIC_VENUE_INCLUDE }
+          : COORDINATOR_SELECT,
     });
 
     const visible =
@@ -1464,7 +1470,24 @@ export class EventsService {
       }),
     );
 
-    const withRequirements = { ...event, equipmentRequirements };
+    // US-10 — an Attendee opening one event also sees its confirmed venue.
+    // Loaded only for them: assertEventAccess resolves the coordinator, not
+    // bookings, and other roles do not receive the public projection here.
+    const venueBookings =
+      user.role === Role.ATTENDEE
+        ? await this.prisma.venueBooking.findMany({
+            where: { eventId: event.id, status: BookingStatus.APPROVED },
+            orderBy: { start: 'asc' },
+            take: 1,
+            select: { venue: { select: { id: true, name: true, location: true } } },
+          })
+        : undefined;
+
+    const withRequirements = {
+      ...event,
+      equipmentRequirements,
+      ...(venueBookings ? { venueBookings } : {}),
+    };
     const projected = this.access.projectEvent(user, withRequirements);
 
     // US-37: the Organiser sees their pending change request beside the

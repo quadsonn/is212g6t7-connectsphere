@@ -24,6 +24,7 @@ import { EquipmentEventDetails } from '@/pages/equipment-event-details';
 import { EquipmentReleased } from '@/pages/equipment-released';
 import { AttendeeDashboard } from '@/pages/attendee-dashboard';
 import { AttendeeRegistrations } from '@/pages/attendee-registrations';
+import { AttendeeEventDetail } from '@/pages/attendee-event-detail';
 import { VenueNewRequest } from '@/pages/venue-new-request';
 import { VenueEditRequest } from '@/pages/venue-edit-request';
 import { LeadAssignments } from '@/pages/lead-assignments';
@@ -122,6 +123,9 @@ export function AppRoutes() {
           <Route element={<ProtectedRoute allow={['ATTENDEE']} />}>
             <Route path="/events" element={<AttendeeDashboard />} />
             <Route path="/events/mine" element={<AttendeeRegistrations />} />
+            {/* Static "mine" outranks the dynamic ":id" in React Router, so a
+                registration list link is never captured as an event id. */}
+            <Route path="/events/:id" element={<AttendeeEventDetail />} />
           </Route>
         </Route>
       </Route>

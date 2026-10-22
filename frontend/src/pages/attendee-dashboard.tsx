@@ -79,11 +79,23 @@ export function AttendeeDashboard() {
               <li key={event.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="font-medium text-ink-900">{event.name}</span>
+                    <Link
+                      to={`/events/${event.id}`}
+                      className="font-medium text-ink-900 hover:text-brand-700 hover:underline"
+                    >
+                      {event.name}
+                    </Link>
                     <EventStatusBadge status={event.status} />
                   </div>
                   <p className="mt-1 text-xs text-ink-500">
                     {formatDateRange(event.proposedStart, event.proposedEnd)}
+                  </p>
+                  <p className="mt-1 text-xs text-ink-500">
+                    {event.venue
+                      ? `${event.venue.name ?? 'Venue'}${
+                          event.venue.location ? `, ${event.venue.location}` : ''
+                        }`
+                      : 'Venue to be confirmed'}
                   </p>
                   <p className="mt-1.5 max-w-2xl text-sm text-ink-600">{event.purpose}</p>
                   <p className="mt-1.5 text-xs text-ink-500">
@@ -96,6 +108,12 @@ export function AttendeeDashboard() {
                       <span className="italic">not yet assigned</span>
                     )}
                   </p>
+                  <Link
+                    to={`/events/${event.id}`}
+                    className="mt-1.5 inline-block text-xs font-medium text-brand-700 hover:underline"
+                  >
+                    View details →
+                  </Link>
                 </div>
 
                 {openFormId !== event.id ? (

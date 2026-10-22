@@ -118,8 +118,7 @@ export class EventsCancellationService {
       };
     });
 
-    const notified = await this.notifyCancelled(outcome.event, dto.reason);
-    await this.confirmToOrganiser(outcome, dto.reason);
+    const notified = await this.notifyCancelled(outcome, dto.reason);
 
     return {
       event: outcome.event,
@@ -166,11 +165,24 @@ export class EventsCancellationService {
   /**
    * AC-8 — the assigned Coordinator and every registered Attendee. Withdrawn
    * attendees are not told: they are no longer part of the event.
+   *
+   * US-65 AC2 — and the Organiser who cancelled, with a confirmation worded for
+   * them: what was released and the reason they gave. They get that one notice
+   * only, even if they are also registered as an attendee.
+   *
+   * Returns how many others were told (the Coordinator and Attendees); the
+   * Organiser's own confirmation is not counted.
    */
   private async notifyCancelled(
-    event: EventRequest,
+    outcome: {
+      event: EventRequest;
+      venueBookings: number;
+      equipmentReservations: number;
+      closedChangeRequests: number;
+    },
     reason: string,
   ): Promise<number> {
+    const { event } = outcome;
     const registrations = await this.prisma.registration.findMany({
       where: { eventId: event.id, status: RegistrationStatus.REGISTERED },
       select: { attendeeId: true },
@@ -182,12 +194,14 @@ export class EventsCancellationService {
     if (event.coordinatorId) {
       recipients.add(event.coordinatorId);
     }
+    // US-65: the Organiser gets their confirmation below instead.
+    recipients.delete(event.organiserId);
 
     const name = event.name ?? 'An event';
     const message = `${name} has been cancelled. Reason: ${reason}`;
 
-    await Promise.all(
-      [...recipients].map((recipientId) =>
+    await Promise.all([
+      ...[...recipients].map((recipientId) =>
         this.notifications.notifySafely({
           recipientId,
           type: NotificationType.EVENT_CANCELLED,
@@ -195,42 +209,39 @@ export class EventsCancellationService {
           relatedEventId: event.id,
         }),
       ),
-    );
+      this.notifications.notifySafely({
+        recipientId: event.organiserId,
+        type: NotificationType.EVENT_CANCELLED,
+        message: organiserConfirmation(outcome, reason),
+        relatedEventId: event.id,
+      }),
+    ]);
 
     return recipients.size;
   }
+}
 
-  /**
-   * US-65 — the Organiser who cancelled gets their own record of it: what was
-   * released and the reason they gave. Worded for them, so it is a separate
-   * notification from the one the Coordinator and Attendees get.
-   */
-  private async confirmToOrganiser(
-    outcome: {
-      event: EventRequest;
-      venueBookings: number;
-      equipmentReservations: number;
-      closedChangeRequests: number;
-    },
-    reason: string,
-  ): Promise<void> {
-    const { event } = outcome;
-    const released =
-      outcome.venueBookings + outcome.equipmentReservations > 0
-        ? ` ${countOf(outcome.venueBookings, 'venue booking')} and ${countOf(outcome.equipmentReservations, 'equipment reservation')} were released.`
-        : ' It held no venue bookings or equipment.';
-    const closed =
-      outcome.closedChangeRequests > 0 ? ' Your pending change request was closed.' : '';
+/**
+ * US-65 — "You cancelled <name>.", what was released, and the reason last,
+ * after " Reason: ", so the inbox shows it on its own line (splitReason).
+ */
+function organiserConfirmation(
+  outcome: {
+    event: EventRequest;
+    venueBookings: number;
+    equipmentReservations: number;
+    closedChangeRequests: number;
+  },
+  reason: string,
+): string {
+  const released =
+    outcome.venueBookings + outcome.equipmentReservations > 0
+      ? ` ${countOf(outcome.venueBookings, 'venue booking')} and ${countOf(outcome.equipmentReservations, 'equipment reservation')} were released.`
+      : ' It held no venue bookings or equipment.';
+  const closed =
+    outcome.closedChangeRequests > 0 ? ' Your pending change request was closed.' : '';
 
-    await this.notifications.notifySafely({
-      recipientId: event.organiserId,
-      type: NotificationType.EVENT_CANCELLED,
-      // The reason goes last, after " Reason: ", so the inbox shows it on its
-      // own line (splitReason).
-      message: `You cancelled "${event.name ?? 'your event'}".${released}${closed} Reason: ${reason}`,
-      relatedEventId: event.id,
-    });
-  }
+  return `You cancelled "${outcome.event.name ?? 'your event'}".${released}${closed} Reason: ${reason}`;
 }
 
 /** "1 venue booking", "2 venue bookings". */

@@ -349,6 +349,20 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(stored.coordinatorId).toBe(ids.marcus);
     });
 
+    it('US-65 AC1: Given the event is already assigned, When a Lead assigns it again, Then the Organiser is not notified again', async () => {
+      const event = await seedEvent();
+      await assign(event.id, ids.marcus).expect(200);
+
+      await assign(event.id, ids.fatima).expect(409);
+
+      const toOrganiser = await prisma.notification.findMany({
+        where: { relatedEventId: event.id, recipientId: ids.organiser },
+      });
+      // Only the first, successful assignment's notice.
+      expect(toOrganiser).toHaveLength(1);
+      expect(toOrganiser[0].message).toBe(`Marcus is now the coordinator for "${event.name}".`);
+    });
+
     it('lets only one of two simultaneous assignments win', async () => {
       const event = await seedEvent();
 

@@ -10,7 +10,7 @@
  *   2 Changing coordinator        PLANNING, coordinator@ (Marcus) → lead@ reassigns it to coordinator2@;
  *                                                                  organiser@ gets "Your coordinator for …
  *                                                                  is now <name>."
- *   3 Cancel me                   CONFIRMED, venue booked,        → organiser@ cancels it; the page lists
+ *   3 Cancel me                   CONFIRMED, venue booked,        → organiser@ cancels it; a toast lists
  *                                 2 equipment reservations,         what was released, and organiser@ gets
  *                                 1 registered attendee             "You cancelled …" with the reason
  *
@@ -187,7 +187,7 @@ ${reassignable.name}
     lead:      ${FRONTEND}/lead/assignments
 
 ${cancellable.name}
-    organiser@ cancels it → the page lists 1 venue booking and 2 equipment reservations released;
+    organiser@ cancels it → a toast lists 1 venue booking and 2 equipment reservations released;
     organiser@ gets "You cancelled …" with the reason; coordinator@ and attendee@ get the usual notice
     organiser: ${FRONTEND}/organiser/${cancellable.id}
 

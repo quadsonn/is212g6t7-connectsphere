@@ -197,6 +197,22 @@ describe('US-65 cancellation confirmation for the Organiser (e2e)', () => {
     }
   });
 
+  it('AC2: Given the Organiser is also registered as an attendee, When they cancel, Then they get exactly one notice', async () => {
+    const event = await seedHeldEvent();
+    // Only Attendees may register through the API; a row like this can still
+    // exist in the data, and the Organiser must not be told twice.
+    await prisma.registration.create({
+      data: { eventId: event.id, attendeeId: ids.organiser, phone: '+6598765432' },
+    });
+
+    const res = await cancel(event.id).expect(200);
+
+    const own = (await cancellationNotices(event.id)).filter((n) => n.recipientId === ids.organiser);
+    expect(own).toHaveLength(1);
+    expect(own[0].message).toMatch(/^You cancelled "Careers Fair"\./);
+    expect(res.body.notified).toBe(2);
+  });
+
   it('sends nothing when the cancellation is refused', async () => {
     const event = await seedHeldEvent();
     await prisma.eventRequest.update({ where: { id: event.id }, data: { status: EventStatus.COMPLETED } });

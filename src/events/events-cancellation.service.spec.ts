@@ -351,6 +351,21 @@ describe('EventsCancellationService (US-43)', () => {
       );
     });
 
+    it('AC2: Given the Organiser is also a registered attendee, When they cancel, Then they get exactly one notice: their confirmation', async () => {
+      prisma.registration.findMany.mockResolvedValue([
+        { attendeeId: 'organiser-1' },
+        { attendeeId: 'attendee-1' },
+      ]);
+
+      const result = await service.cancel(organiser, 'event-1', dto);
+
+      const own = ownConfirmation();
+      expect(own).toHaveLength(1);
+      expect(own[0].message).toMatch(/^You cancelled "Annual Summit"\./);
+      // The Coordinator and the other attendee; the Organiser is not counted twice, or at all.
+      expect(result.notified).toBe(2);
+    });
+
     it('is not counted among the AC-8 recipients', async () => {
       const result = await service.cancel(organiser, 'event-1', dto);
 

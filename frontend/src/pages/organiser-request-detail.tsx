@@ -22,7 +22,7 @@ import {
   EDITABLE_EVENT_STATUSES,
 } from '@/lib/status';
 import { formatDate, formatDateTime, humanise } from '@/lib/utils';
-import { ACCESSIBILITY_FEATURE_LABELS, type CancellationResult } from '@/types/api';
+import { ACCESSIBILITY_FEATURE_LABELS } from '@/types/api';
 
 /** A labelled value in the detail grid — dash when the field is still empty (a draft, US-04). */
 function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
@@ -41,23 +41,6 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
 }
 
 /** US-05 — full detail of one of the Organiser's own requests, view + entry point to edit. */
-/** "1 venue booking", "2 venue bookings". */
-function countOf(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
-}
-
-/** US-65: what the cancellation released and who was told, as the server reported it. */
-function releasedSentence({ released, closedChangeRequests, notified }: CancellationResult): string {
-  const held =
-    released.venueBookings + released.equipmentReservations > 0
-      ? `${countOf(released.venueBookings, 'venue booking')} and ${countOf(released.equipmentReservations, 'equipment reservation')} were released.`
-      : 'It held no venue bookings or equipment.';
-  const closed = closedChangeRequests > 0 ? ' Your pending change request was closed.' : '';
-  const told =
-    notified > 0 ? ` ${notified === 1 ? '1 person was' : `${notified} people were`} notified.` : '';
-  return `${held}${closed}${told}`;
-}
-
 export function OrganiserRequestDetail() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -68,8 +51,6 @@ export function OrganiserRequestDetail() {
   const [changing, setChanging] = useState(false);
   // US-43: whether the cancellation confirmation is open.
   const [cancelling, setCancelling] = useState(false);
-  // US-65: what this cancellation released, shown until the page is left.
-  const [cancellation, setCancellation] = useState<CancellationResult | null>(null);
 
   if (isPending) {
     return (
@@ -134,11 +115,7 @@ export function OrganiserRequestDetail() {
 
       <div className="max-w-3xl space-y-5">
         {cancelling && canCancel ? (
-          <CancelEventPanel
-            event={event}
-            onClose={() => setCancelling(false)}
-            onCancelled={setCancellation}
-          />
+          <CancelEventPanel event={event} onClose={() => setCancelling(false)} />
         ) : null}
 
         {event.status === 'CANCELLED' ? (
@@ -146,18 +123,8 @@ export function OrganiserRequestDetail() {
             role="status"
             className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900"
           >
-            {cancellation ? (
-              // US-65: right after cancelling, confirm exactly what was done.
-              <>
-                <p className="font-medium">You cancelled this event.</p>
-                <p className="mt-1">{releasedSentence(cancellation)}</p>
-              </>
-            ) : (
-              <p>
-                This event has been cancelled. Its venue bookings and equipment have been released,
-                and it can no longer be edited or changed.
-              </p>
-            )}
+            This event has been cancelled. Its venue bookings and equipment have been released, and
+            it can no longer be edited or changed.
           </div>
         ) : null}
 

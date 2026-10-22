@@ -264,6 +264,14 @@ enum NotificationType {
   // Sent to registered Attendees when an event's date, time or venue changes;
   // lists each changed field with its old and new value.
   EVENT_SCHEDULE_CHANGED
+  // Registration-window notices. OPENED → attendees not yet registered, when
+  // an event first becomes visible to them; CLOSED → registered attendees,
+  // when the registration window closes; NEAR_CAPACITY → registered
+  // attendees, the first time only 10 or fewer seats remain against the
+  // event's venue capacity.
+  REGISTRATION_OPENED
+  REGISTRATION_CLOSED
+  REGISTRATION_NEAR_CAPACITY
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;
@@ -406,6 +414,15 @@ model EventRequest {
   registrationOpensAt  DateTime?
   registrationClosesAt DateTime?
   withdrawalCutoffAt   DateTime?
+
+  // Registration-window notices (US — notify attendees when registration
+  // opens, closes or nears capacity). Each stamp marks that its one-time
+  // notice has been sent, so the sweep that detects these moments fires each
+  // exactly once per event and never retroactively re-announces. Null means
+  // not yet sent. See registration-notifications.ts.
+  registrationOpenedNotifiedAt      DateTime?
+  registrationClosedNotifiedAt      DateTime?
+  registrationNearCapacityNotifiedAt DateTime?
 
   // US-05 AC-2: why a Coordinator rejected the request. Written by the review
   // story; US-05 only reads it.

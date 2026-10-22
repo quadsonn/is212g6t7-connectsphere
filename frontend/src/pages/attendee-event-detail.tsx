@@ -258,8 +258,12 @@ function WithdrawPanel({ myRegistration }: { myRegistration: RegistrationView | 
           >
             Withdraw
           </Button>
-          {withdrawal && !withdrawal.canWithdraw && withdrawal.reason ? (
-            <p className="mt-1.5 max-w-md text-xs text-ink-500">{withdrawal.reason}</p>
+          {withdrawal && !withdrawal.canWithdraw ? (
+            <p className="mt-1.5 max-w-md text-xs text-ink-500">
+              {withdrawal.withdrawalCutoffAt
+                ? `The deadline to withdraw was ${formatDateTime(withdrawal.withdrawalCutoffAt)}.`
+                : withdrawal.reason}
+            </p>
           ) : null}
         </div>
       ) : (

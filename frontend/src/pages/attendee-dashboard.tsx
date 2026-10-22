@@ -10,7 +10,7 @@ import { usePublicEvents } from '@/features/events/hooks/use-events';
 import { RegisterAction } from '@/features/registrations/components/register-action';
 import { RegisterForm } from '@/features/registrations/components/register-form';
 import { apiErrorMessage } from '@/lib/api-client';
-import { formatDateRange } from '@/lib/utils';
+import { cn, formatDateRange } from '@/lib/utils';
 
 /**
  * REAL data — GET /events. For an Attendee the backend returns the confirmed,
@@ -76,12 +76,22 @@ export function AttendeeDashboard() {
         {openForRegistration && openForRegistration.length > 0 ? (
           <ul className="divide-y divide-ink-100">
             {openForRegistration.map((event) => (
-              <li key={event.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
+              <li
+                key={event.id}
+                className="relative flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-ink-50"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Stretched link: its ::after covers the whole card, so a
+                        click anywhere opens the event. Suppressed while the
+                        register form is open, so filling it never navigates. */}
                     <Link
                       to={`/events/${event.id}`}
-                      className="font-medium text-ink-900 hover:text-brand-700 hover:underline"
+                      className={cn(
+                        'font-medium text-ink-900 hover:text-brand-700 hover:underline',
+                        openFormId !== event.id &&
+                          'after:absolute after:inset-0 after:content-[""] focus-visible:outline-none focus-visible:after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-brand-600',
+                      )}
                     >
                       {event.name}
                     </Link>
@@ -108,25 +118,23 @@ export function AttendeeDashboard() {
                       <span className="italic">not yet assigned</span>
                     )}
                   </p>
-                  <Link
-                    to={`/events/${event.id}`}
-                    className="mt-1.5 inline-block text-xs font-medium text-brand-700 hover:underline"
-                  >
-                    View details →
-                  </Link>
                 </div>
 
+                {/* Above the stretched link, so the controls stay clickable. */}
                 {openFormId !== event.id ? (
-                  <RegisterAction
-                    eventId={event.id}
-                    onRegister={() => {
-                      setJustRegistered(null);
-                      setOpenFormId(event.id);
-                    }}
-                  />
+                  <div className="relative z-10 shrink-0">
+                    <RegisterAction
+                      eventId={event.id}
+                      onRegister={() => {
+                        setJustRegistered(null);
+                        setOpenFormId(event.id);
+                      }}
+                    />
+                  </div>
                 ) : null}
 
                 {openFormId === event.id ? (
+                  <div className="relative z-10 w-full">
                   <RegisterForm
                     eventId={event.id}
                     onCancel={() => setOpenFormId(null)}
@@ -135,6 +143,7 @@ export function AttendeeDashboard() {
                       setJustRegistered(registration.event.name ?? 'the event');
                     }}
                   />
+                  </div>
                 ) : null}
               </li>
             ))}

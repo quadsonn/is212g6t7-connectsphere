@@ -25,6 +25,7 @@ export interface CancellationResult {
   event: EventRequest;
   released: { venueBookings: number; equipmentReservations: number };
   closedChangeRequests: number;
+  /** AC-8 recipients: the Coordinator and Attendees, not the Organiser's own confirmation. */
   notified: number;
 }
 
@@ -118,6 +119,7 @@ export class EventsCancellationService {
     });
 
     const notified = await this.notifyCancelled(outcome.event, dto.reason);
+    await this.confirmToOrganiser(outcome, dto.reason);
 
     return {
       event: outcome.event,
@@ -197,4 +199,41 @@ export class EventsCancellationService {
 
     return recipients.size;
   }
+
+  /**
+   * US-65 — the Organiser who cancelled gets their own record of it: what was
+   * released and the reason they gave. Worded for them, so it is a separate
+   * notification from the one the Coordinator and Attendees get.
+   */
+  private async confirmToOrganiser(
+    outcome: {
+      event: EventRequest;
+      venueBookings: number;
+      equipmentReservations: number;
+      closedChangeRequests: number;
+    },
+    reason: string,
+  ): Promise<void> {
+    const { event } = outcome;
+    const released =
+      outcome.venueBookings + outcome.equipmentReservations > 0
+        ? ` ${countOf(outcome.venueBookings, 'venue booking')} and ${countOf(outcome.equipmentReservations, 'equipment reservation')} were released.`
+        : ' It held no venue bookings or equipment.';
+    const closed =
+      outcome.closedChangeRequests > 0 ? ' Your pending change request was closed.' : '';
+
+    await this.notifications.notifySafely({
+      recipientId: event.organiserId,
+      type: NotificationType.EVENT_CANCELLED,
+      // The reason goes last, after " Reason: ", so the inbox shows it on its
+      // own line (splitReason).
+      message: `You cancelled "${event.name ?? 'your event'}".${released}${closed} Reason: ${reason}`,
+      relatedEventId: event.id,
+    });
+  }
+}
+
+/** "1 venue booking", "2 venue bookings". */
+function countOf(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }

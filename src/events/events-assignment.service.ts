@@ -199,6 +199,13 @@ export class EventsAssignmentService {
       message: `"${event.name ?? 'An event'}" has been assigned to you by ${await this.actorName(user)}.`,
       relatedEventId: event.id,
     });
+    // US-65: the Organiser learns who is now their point of contact.
+    await this.notifications.notifySafely({
+      recipientId: event.organiserId,
+      type: NotificationType.COORDINATOR_ASSIGNED,
+      message: `${next.name} is now the coordinator for "${event.name ?? 'your event'}".`,
+      relatedEventId: event.id,
+    });
 
     return this.toResult(event.id, event.name, event.status, next);
   }
@@ -253,7 +260,7 @@ export class EventsAssignmentService {
    * hang off the event and stay as they are; pending change requests are read
    * through the event's coordinator, so they follow it to the new owner
    * without being touched. The change is recorded in the event's history and
-   * both Coordinators are notified.
+   * both Coordinators are notified, and so is the Organiser (US-65).
    */
   async reassign(
     user: AuthenticatedUser,
@@ -316,6 +323,13 @@ export class EventsAssignmentService {
       recipientId: next.id,
       type: NotificationType.EVENT_REASSIGNED,
       message: `You are now the coordinator for "${eventName}", reassigned to you from ${previous.name} by ${await this.actorName(user)}.`,
+      relatedEventId: event.id,
+    });
+    // US-65: the Organiser's point of contact changed.
+    await this.notifications.notifySafely({
+      recipientId: event.organiserId,
+      type: NotificationType.COORDINATOR_ASSIGNED,
+      message: `Your coordinator for "${eventName}" is now ${next.name}.`,
       relatedEventId: event.id,
     });
 

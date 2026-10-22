@@ -54,6 +54,26 @@ describe('US-43 cancel event panel', () => {
     expect(api.cancel).toHaveBeenCalledWith('e1', { reason: 'Speaker withdrew', confirm: true });
   });
 
+  it('US-65: hands the page what was released, so it can confirm the cancellation', async () => {
+    const result = {
+      released: { venueBookings: 1, equipmentReservations: 2 },
+      closedChangeRequests: 0,
+      notified: 3,
+    } as CancellationResult;
+    api.cancel.mockResolvedValue(result);
+    const onCancelled = vi.fn();
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <CancelEventPanel event={event} onClose={vi.fn()} onCancelled={onCancelled} />
+      </QueryClientProvider>,
+    );
+
+    await userEvent.type(screen.getByLabelText(/Reason for cancelling/), 'Speaker withdrew');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm cancellation' }));
+
+    await waitFor(() => expect(onCancelled).toHaveBeenCalledWith(result));
+  });
+
   it('keeping the event sends nothing', async () => {
     const onClose = renderPanel();
 

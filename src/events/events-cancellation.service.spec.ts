@@ -247,7 +247,11 @@ describe('EventsCancellationService (US-43)', () => {
     it('notifies the assigned Coordinator and each registered Attendee with the reason', async () => {
       const result = await service.cancel(organiser, 'event-1', dto);
 
-      const recipients = notifications.notifySafely.mock.calls.map(([n]) => n.recipientId);
+      // The Organiser's own confirmation (US-65) is a separate message.
+      const recipients = notifications.notifySafely.mock.calls
+        .map(([n]) => n)
+        .filter((n) => n.message.startsWith('Annual Summit has been cancelled'))
+        .map((n) => n.recipientId);
       expect(recipients.sort()).toEqual(['attendee-1', 'attendee-2', 'coordinator-1']);
       expect(notifications.notifySafely).toHaveBeenCalledWith({
         recipientId: 'attendee-1',
@@ -300,6 +304,64 @@ describe('EventsCancellationService (US-43)', () => {
       notifications.notifySafely.mockResolvedValue(undefined);
 
       await expect(service.cancel(organiser, 'event-1', dto)).resolves.toBeDefined();
+    });
+  });
+
+  describe('US-65: the Organiser gets a confirmation of their own cancellation', () => {
+    const ownConfirmation = () =>
+      notifications.notifySafely.mock.calls
+        .map(([n]) => n)
+        .filter((n) => n.recipientId === 'organiser-1');
+
+    it('sends one, worded for them, with what was released and their reason', async () => {
+      await service.cancel(organiser, 'event-1', dto);
+
+      expect(ownConfirmation()).toEqual([
+        {
+          recipientId: 'organiser-1',
+          type: NotificationType.EVENT_CANCELLED,
+          message:
+            'You cancelled "Annual Summit". 2 venue bookings and 4 equipment reservations were released. Your pending change request was closed. Reason: Speaker withdrew',
+          relatedEventId: 'event-1',
+        },
+      ]);
+    });
+
+    it('uses the singular for one of each, and leaves out the change request when none was pending', async () => {
+      bookings.countReleasableForEvent.mockResolvedValue(1);
+      reservations.countReleasable.mockResolvedValue(1);
+      tx.eventChangeRequest.updateMany.mockResolvedValue({ count: 0 });
+
+      await service.cancel(organiser, 'event-1', dto);
+
+      expect(ownConfirmation()[0].message).toBe(
+        'You cancelled "Annual Summit". 1 venue booking and 1 equipment reservation were released. Reason: Speaker withdrew',
+      );
+    });
+
+    it('says so when nothing was held', async () => {
+      bookings.countReleasableForEvent.mockResolvedValue(0);
+      reservations.countReleasable.mockResolvedValue(0);
+      tx.eventChangeRequest.updateMany.mockResolvedValue({ count: 0 });
+
+      await service.cancel(organiser, 'event-1', dto);
+
+      expect(ownConfirmation()[0].message).toBe(
+        'You cancelled "Annual Summit". It held no venue bookings or equipment. Reason: Speaker withdrew',
+      );
+    });
+
+    it('is not counted among the AC-8 recipients', async () => {
+      const result = await service.cancel(organiser, 'event-1', dto);
+
+      expect(result.notified).toBe(3);
+    });
+
+    it('is not sent when the cancellation is refused', async () => {
+      tx.eventRequest.findUniqueOrThrow.mockResolvedValue({ ...liveEvent, status: EventStatus.COMPLETED });
+
+      await expect(service.cancel(organiser, 'event-1', dto)).rejects.toThrow();
+      expect(ownConfirmation()).toEqual([]);
     });
   });
 });

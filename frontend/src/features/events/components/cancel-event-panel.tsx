@@ -6,7 +6,7 @@ import { Field, Textarea } from '@/components/ui/form';
 import { ErrorState } from '@/components/ui/states';
 import { useCancelEvent } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
-import type { OrganiserRequestView } from '@/types/api';
+import type { CancellationResult, OrganiserRequestView } from '@/types/api';
 
 /**
  * US-43 — the Organiser's cancellation form.
@@ -19,9 +19,12 @@ import type { OrganiserRequestView } from '@/types/api';
 export function CancelEventPanel({
   event,
   onClose,
+  onCancelled,
 }: {
   event: OrganiserRequestView;
   onClose: () => void;
+  /** US-65: what the cancellation released, for the page to confirm. */
+  onCancelled?: (result: CancellationResult) => void;
 }) {
   const [reason, setReason] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -34,7 +37,15 @@ export function CancelEventPanel({
     setSubmitted(true);
     if (reason.trim() === '') return;
 
-    cancel.mutate({ reason: reason.trim(), confirm: true }, { onSuccess: onClose });
+    cancel.mutate(
+      { reason: reason.trim(), confirm: true },
+      {
+        onSuccess: (result) => {
+          onCancelled?.(result);
+          onClose();
+        },
+      },
+    );
   }
 
   return (

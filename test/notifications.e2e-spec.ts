@@ -303,7 +303,8 @@ describe('Notifications page (e2e)', () => {
       expect(await linkOf('tech')).toBe(`/equipment/requirements/${ids.gala}`);
       expect(await linkOf('attendee')).toBeNull();
       expect(await linkOf('lead')).toBeNull();
-      expect(await linkOf('safety')).toBeNull();
+      // US-64: the Safety Officer goes to the event's safety review.
+      expect(await linkOf('safety')).toBe(`/safety/checks/${ids.gala}`);
     });
 
     it('is refused without a token (401)', async () => {

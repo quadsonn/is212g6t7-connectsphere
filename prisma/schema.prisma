@@ -264,6 +264,12 @@ enum NotificationType {
   // Sent to registered Attendees when an event's date, time or venue changes;
   // lists each changed field with its old and new value.
   EVENT_SCHEDULE_CHANGED
+  // US-64: sent to every Safety Officer when an event enters
+  // AWAITING_SAFETY_CHECK, by a Coordinator's confirmation or resubmission.
+  SAFETY_CHECK_REQUESTED
+  // US-65: sent to the Organiser when a Coordinator is assigned to, or
+  // reassigned on, their event.
+  COORDINATOR_ASSIGNED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;

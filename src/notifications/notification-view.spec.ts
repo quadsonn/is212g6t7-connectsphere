@@ -10,11 +10,13 @@ describe('Notifications page: presenting a notification', () => {
       [Role.EVENT_COORDINATOR, '/coordinator/events/e1'],
       [Role.VENUE_STAFF, '/venues/events/e1'],
       [Role.TECHNICAL_SUPPORT_STAFF, '/equipment/requirements/e1'],
+      // US-64: the event's safety review.
+      [Role.SAFETY_OFFICER, '/safety/checks/e1'],
     ])('%s → %s', (role, link) => {
       expect(linkFor(role, 'e1')).toBe(link);
     });
 
-    it.each([Role.ATTENDEE, Role.EVENT_COORDINATOR_LEAD, Role.SAFETY_OFFICER])(
+    it.each([Role.ATTENDEE, Role.EVENT_COORDINATOR_LEAD])(
       'gives %s no link — it has no event page to go to',
       (role) => {
         expect(linkFor(role, 'e1')).toBeNull();

@@ -84,7 +84,7 @@ describe('Notifications: the page', () => {
     expect(screen.getByText(/Flood damage\. The event has not been cancelled/)).toBeInTheDocument();
     expect(screen.getByText(/^Gala ·/)).toBeInTheDocument();
     // The notification itself is the link to its event.
-    expect(screen.getByRole('link', { name: item().summary })).toHaveAttribute('href', '/coordinator/events/e1');
+    expect(screen.getByRole('link', { name: 'Venue unavailable' })).toHaveAttribute('href', '/coordinator/events/e1');
   });
 
   it('US-47 AC-6 / US-48 AC-9: shows the Organiser’s rejection and change request outcome, with reasons', async () => {
@@ -113,6 +113,56 @@ describe('Notifications: the page', () => {
     for (const link of screen.getAllByRole('link')) {
       expect(link).toHaveAttribute('href', '/organiser/e1');
     }
+  });
+
+  it('gives every notification a title, with its message as the detail beneath', async () => {
+    api.list.mockResolvedValue([
+      item({
+        id: 'n4',
+        type: 'VENUE_BOOKING_DECIDED',
+        summary: 'The booking of Main Hall for "Gala" was approved.',
+        reason: null,
+      }),
+    ]);
+    wrap(<NotificationsPage />);
+
+    expect(await screen.findByRole('link', { name: 'Venue booking decision' })).toBeInTheDocument();
+    expect(screen.getByText('The booking of Main Hall for "Gala" was approved.')).toBeInTheDocument();
+  });
+
+  it('labels a clarification request’s question as a question, not a reason', async () => {
+    api.list.mockResolvedValue([
+      item({
+        id: 'n5',
+        type: 'CLARIFICATION_REQUESTED',
+        summary: 'The coordinator has asked a question about "Gala".',
+        reason: 'What is the expected headcount?',
+        link: '/organiser/e1',
+      }),
+    ]);
+    wrap(<NotificationsPage />);
+
+    const row = (await screen.findByRole('link', { name: 'Clarification requested' })).closest('li')!;
+    expect(within(row).getByText('Question:')).toBeInTheDocument();
+    expect(within(row).queryByText('Reason:')).not.toBeInTheDocument();
+    expect(within(row).getByText('What is the expected headcount?')).toBeInTheDocument();
+  });
+
+  it('starts an older lower-case message with a capital', async () => {
+    api.list.mockResolvedValue([
+      item({ id: 'n6', type: 'VENUE_BOOKING_DECIDED', summary: 'the booking of Main Hall was approved.', reason: null }),
+    ]);
+    wrap(<NotificationsPage />);
+
+    expect(await screen.findByText('The booking of Main Hall was approved.')).toBeInTheDocument();
+  });
+
+  it('gives a type it does not know a generic title rather than none', async () => {
+    api.list.mockResolvedValue([item({ id: 'n7', type: 'SOMETHING_NEW', reason: null })]);
+    wrap(<NotificationsPage />);
+
+    expect(await screen.findByRole('link', { name: 'Notification' })).toBeInTheDocument();
+    expect(screen.getByText(item().summary)).toBeInTheDocument();
   });
 
   it('makes unread items look different, with Mark as read on unread and Mark as unread on read', async () => {
@@ -183,7 +233,7 @@ describe('Notifications: the page', () => {
     wrap(<NotificationsPage />);
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('link', { name: item().summary }));
+    await user.click(await screen.findByRole('link', { name: 'Venue unavailable' }));
 
     expect(await screen.findByText('Coordinator event page')).toBeInTheDocument();
     await waitFor(() => expect(api.markRead).toHaveBeenCalledWith('n1'));

@@ -96,6 +96,26 @@ describe('US-40: the bell dropdown', () => {
     expect(api.list).toHaveBeenCalledWith({ limit: 10 });
   });
 
+  it('formats a notification as the page does: title, detail, then the labelled reason', async () => {
+    api.list.mockResolvedValue([
+      venueItem({
+        type: 'CLARIFICATION_REQUESTED',
+        summary: 'The coordinator has asked a question about "Gala".',
+        reason: 'What is the expected headcount?',
+        relatedBooking: null,
+        link: '/organiser/e1',
+      }),
+    ]);
+    wrap();
+
+    const dialog = await openBell();
+    const [row] = await within(dialog).findAllByRole('listitem');
+    expect(within(row).getByText('Clarification requested')).toBeInTheDocument();
+    expect(within(row).getByText('The coordinator has asked a question about "Gala".')).toBeInTheDocument();
+    expect(within(row).getByText('Question:')).toBeInTheDocument();
+    expect(within(row).getByText('What is the expected headcount?')).toBeInTheDocument();
+  });
+
   it('US-40 AC-3/AC-4: clicking one marks it read and opens the booking request', async () => {
     api.list.mockResolvedValue([venueItem()]);
     wrap();

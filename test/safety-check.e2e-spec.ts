@@ -156,6 +156,8 @@ describe('Safety check (e2e)', () => {
     await seedUser('coordinator', Role.EVENT_COORDINATOR, 'Marcus');
     await seedUser('otherCoordinator', Role.EVENT_COORDINATOR);
     await seedUser('officer', Role.SAFETY_OFFICER, 'Sam');
+    // US-64: a second officer, to show every Safety Officer is told.
+    await seedUser('officer2', Role.SAFETY_OFFICER, 'Mei');
     await seedUser('venueStaff', Role.VENUE_STAFF);
     await seedUser('techSupport', Role.TECHNICAL_SUPPORT_STAFF);
     await seedUser('attendee', Role.ATTENDEE);
@@ -682,6 +684,60 @@ describe('Safety check (e2e)', () => {
 
       await reviews(event.id, 'otherCoordinator').expect(404);
       await reviews(event.id, 'organiser').expect(403);
+    });
+  });
+
+  describe('US-64: every Safety Officer is told when an event enters the queue', () => {
+    const safetyNotices = (eventId: string) =>
+      prisma.notification.findMany({
+        where: { relatedEventId: eventId, type: NotificationType.SAFETY_CHECK_REQUESTED },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      });
+
+    it('notifies each Safety Officer once when the Coordinator confirms, and nobody else', async () => {
+      const { event } = await queuedEvent();
+
+      const notes = await safetyNotices(event.id);
+      expect(notes.map((n) => n.recipientId).sort()).toEqual([ids.officer, ids.officer2].sort());
+      expect(notes.every((n) => n.message.startsWith('Arrangements confirmed'))).toBe(true);
+    });
+
+    it('notifies nobody when the confirmation is refused', async () => {
+      const event = await seedEvent();
+      await seedBooking(event.id); // still REQUESTED, so not ready
+
+      await confirmArrangements(event.id).expect(409);
+
+      expect(await safetyNotices(event.id)).toEqual([]);
+    });
+
+    it('notifies them again, as a resubmission, when the Coordinator sends the event back', async () => {
+      const { event } = await queuedEvent();
+      await decide(event.id, { outcome: 'CHANGES_REQUESTED', returnStage: 'VENUE', reason: 'Add an exit' }).expect(200);
+      await http()
+        .patch(`/events/${event.id}/planning`)
+        .set('Authorization', as('coordinator'))
+        .send({ layoutNotes: 'Second exit added at the rear' })
+        .expect(200);
+
+      await http().post(`/safety/events/${event.id}/resubmit`).set('Authorization', as('coordinator')).expect(200);
+
+      const resent = (await safetyNotices(event.id)).filter((n) => n.message.startsWith('Sent back'));
+      expect(resent.map((n) => n.recipientId).sort()).toEqual([ids.officer, ids.officer2].sort());
+    });
+
+    it('shows in the officer’s inbox, titled by type and linked to the safety review', async () => {
+      const { event } = await queuedEvent();
+
+      const inbox = await http().get('/notifications').set('Authorization', as('officer2')).expect(200);
+
+      expect(inbox.body).toHaveLength(1);
+      expect(inbox.body[0]).toMatchObject({
+        type: 'SAFETY_CHECK_REQUESTED',
+        read: false,
+        relatedEvent: { id: event.id, name: 'Careers Fair' },
+        link: `/safety/checks/${event.id}`,
+      });
     });
   });
 });

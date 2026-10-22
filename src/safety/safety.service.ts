@@ -19,6 +19,7 @@ import { BookingsService } from '../bookings/bookings.service';
 import { SAFETY_CHECK_ELIGIBLE_STATUSES } from '../events/event-status.machine';
 import { EventsService } from '../events/events.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SafetyOfficerNotifier } from '../notifications/safety-officer-notifier.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ResubmitSafetyDto } from './dto/resubmit-safety.dto';
 import { SafetyDecisionDto } from './dto/safety-decision.dto';
@@ -150,6 +151,7 @@ export class SafetyService {
     private readonly bookings: BookingsService,
     private readonly readiness: SafetyReadinessService,
     private readonly notifications: NotificationsService,
+    private readonly safetyOfficers: SafetyOfficerNotifier,
   ) {}
 
   /** AC-1: events whose arrangements are confirmed and await a check. */
@@ -467,7 +469,7 @@ export class SafetyService {
     // 404 unless the event is assigned to this Coordinator.
     await this.access.assertEventAccess(user, eventId, Action.UPDATE);
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<{ id: string }[]>`
         SELECT "id" FROM "EventRequest" WHERE "id" = ${eventId} FOR UPDATE`;
       if (locked.length === 0) {
@@ -530,15 +532,19 @@ export class SafetyService {
       });
       // US-42 AC-4: sending it back re-confirms the arrangements, so it
       // records who did it and when, as the Coordinator's Confirm does.
-      const updated = await this.events.setStatus(
+      return this.events.setStatus(
         event,
         EventStatus.AWAITING_SAFETY_CHECK,
         tx,
         user.userId,
       );
-
-      return { eventStatus: updated.status };
     });
+
+    // US-64: back in the Safety queue. Raised after commit, so a failed
+    // notification cannot undo the resubmission.
+    await this.safetyOfficers.notifySafetyCheckDue(updated, { resubmitted: true });
+
+    return { eventStatus: updated.status };
   }
 
   /**

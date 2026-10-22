@@ -16,8 +16,12 @@ import { Role } from '@prisma/client';
  * sending stories store. The event pages reach both: the Coordinator's lists
  * its bookings and the Organiser's shows its change request.
  *
- * Roles with no event page of their own (Attendee, Coordinator Lead, Safety
- * Officer) get no link, rather than one that would 404 or bounce them home.
+ * Roles with no event page of their own (Attendee, Coordinator Lead) get no
+ * link, rather than one that would 404 or bounce them home.
+ *
+ * US-64: a Safety Officer goes to the event's safety review. The packet opens
+ * only while the event is in the Safety queue; afterwards the page shows its
+ * error state rather than the review.
  *
  * US-40 AC-3: a venue activity notification names its booking request, and
  * Venue Staff go straight to that request in their queue.
@@ -41,6 +45,8 @@ export function linkFor(
       return `/venues/events/${relatedEventId}`;
     case Role.TECHNICAL_SUPPORT_STAFF:
       return `/equipment/requirements/${relatedEventId}`;
+    case Role.SAFETY_OFFICER:
+      return `/safety/checks/${relatedEventId}`;
     default:
       return null;
   }

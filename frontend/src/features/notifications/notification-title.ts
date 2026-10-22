@@ -44,7 +44,7 @@ const TITLES: Record<string, string> = {
   CHANGE_REQUEST_DECIDED: 'Change request decision',
   // Requirement change 6 / US-64.
   SAFETY_CHECK_DECIDED: 'Safety check',
-  SAFETY_CHECK_REQUESTED: 'Safety check requested',
+  SAFETY_CHECK_DUE: 'New safety check',
   // US-43, and changes to an event Attendees are registered for.
   EVENT_CANCELLED: 'Event cancelled',
   EVENT_SCHEDULE_CHANGED: 'Event details changed',

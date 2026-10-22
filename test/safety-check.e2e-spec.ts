@@ -687,22 +687,39 @@ describe('Safety check (e2e)', () => {
     });
   });
 
-  describe('US-64: every Safety Officer is told when an event enters the queue', () => {
+  describe('US-64: Safety Officers alerted when a check is due', () => {
     const safetyNotices = (eventId: string) =>
       prisma.notification.findMany({
-        where: { relatedEventId: eventId, type: NotificationType.SAFETY_CHECK_REQUESTED },
+        where: { relatedEventId: eventId, type: NotificationType.SAFETY_CHECK_DUE },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       });
 
-    it('notifies each Safety Officer once when the Coordinator confirms, and nobody else', async () => {
+    /** The event's date as the venues' clock reads it (Singapore), e.g. "13 Nov 2026". */
+    const singaporeDate = (d: Date) =>
+      new Intl.DateTimeFormat('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Singapore',
+      }).format(d);
+
+    it('AC1: Given two Safety Officers, When the Coordinator confirms, Then each is alerted once, and nobody else', async () => {
       const { event } = await queuedEvent();
 
       const notes = await safetyNotices(event.id);
       expect(notes.map((n) => n.recipientId).sort()).toEqual([ids.officer, ids.officer2].sort());
-      expect(notes.every((n) => n.message.startsWith('Arrangements confirmed'))).toBe(true);
     });
 
-    it('notifies nobody when the confirmation is refused', async () => {
+    it('AC2: Given a dated event, When it enters the queue, Then the alert names the event and its date', async () => {
+      const { event } = await queuedEvent();
+
+      const notes = await safetyNotices(event.id);
+      for (const n of notes) {
+        expect(n.message).toBe(`Safety check due: Careers Fair on ${singaporeDate(start)}`);
+      }
+    });
+
+    it('AC1: Given the confirmation is refused, Then nobody is alerted', async () => {
       const event = await seedEvent();
       await seedBooking(event.id); // still REQUESTED, so not ready
 
@@ -711,7 +728,7 @@ describe('Safety check (e2e)', () => {
       expect(await safetyNotices(event.id)).toEqual([]);
     });
 
-    it('notifies them again, as a resubmission, when the Coordinator sends the event back', async () => {
+    it('AC1: Given feedback answered with a changed plan, When the Coordinator resubmits, Then every Safety Officer is alerted again', async () => {
       const { event } = await queuedEvent();
       await decide(event.id, { outcome: 'CHANGES_REQUESTED', returnStage: 'VENUE', reason: 'Add an exit' }).expect(200);
       await http()
@@ -722,18 +739,21 @@ describe('Safety check (e2e)', () => {
 
       await http().post(`/safety/events/${event.id}/resubmit`).set('Authorization', as('coordinator')).expect(200);
 
-      const resent = (await safetyNotices(event.id)).filter((n) => n.message.startsWith('Sent back'));
-      expect(resent.map((n) => n.recipientId).sort()).toEqual([ids.officer, ids.officer2].sort());
+      // One alert each for the confirmation, and one each for the resubmission.
+      const notes = await safetyNotices(event.id);
+      expect(notes.map((n) => n.recipientId).sort()).toEqual(
+        [ids.officer, ids.officer, ids.officer2, ids.officer2].sort(),
+      );
     });
 
-    it('shows in the officer’s inbox, titled by type and linked to the safety review', async () => {
+    it('AC1: the alert is in the officer’s inbox, titled by type and linked to the existing safety check page', async () => {
       const { event } = await queuedEvent();
 
       const inbox = await http().get('/notifications').set('Authorization', as('officer2')).expect(200);
 
       expect(inbox.body).toHaveLength(1);
       expect(inbox.body[0]).toMatchObject({
-        type: 'SAFETY_CHECK_REQUESTED',
+        type: 'SAFETY_CHECK_DUE',
         read: false,
         relatedEvent: { id: event.id, name: 'Careers Fair' },
         link: `/safety/checks/${event.id}`,

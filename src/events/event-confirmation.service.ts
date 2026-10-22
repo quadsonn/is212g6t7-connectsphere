@@ -22,7 +22,7 @@ import {
 } from '../common/access/access-control.service';
 import { Action } from '../common/access/permission.types';
 import { NotificationsService } from '../notifications/notifications.service';
-import { SafetyOfficerNotifier } from '../notifications/safety-officer-notifier.service';
+import { SafetyCheckNotifier } from '../notifications/safety-check-notifier.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ConfirmationReadiness,
@@ -54,7 +54,7 @@ export class EventConfirmationService {
     private readonly access: AccessControlService,
     private readonly events: EventsService,
     private readonly notifications: NotificationsService,
-    private readonly safetyOfficers: SafetyOfficerNotifier,
+    private readonly safetyChecks: SafetyCheckNotifier,
   ) {}
 
   /**
@@ -171,8 +171,8 @@ export class EventConfirmationService {
       message: `"${confirmed.name ?? 'Your event'}": ${ARRANGEMENTS_CONFIRMED_MESSAGE}.`,
       relatedEventId: confirmed.id,
     });
-    // US-64: the event is now in the Safety queue.
-    await this.safetyOfficers.notifySafetyCheckDue(confirmed, { resubmitted: false });
+    // US-64 AC1: the event is now in the Safety queue.
+    await this.safetyChecks.notifyCheckDue(confirmed);
 
     return confirmed;
   }

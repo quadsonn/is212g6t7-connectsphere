@@ -11,7 +11,7 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { AccessControlService } from '../common/access/access-control.service';
 import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { SafetyOfficerNotifier } from '../notifications/safety-officer-notifier.service';
+import { SafetyCheckNotifier } from '../notifications/safety-check-notifier.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventConfirmationService } from './event-confirmation.service';
 import { EventsService } from './events.service';
@@ -112,15 +112,15 @@ describe('US-42 EventConfirmationService', () => {
         .mockResolvedValue({ ...event, status: EventStatus.AWAITING_SAFETY_CHECK }),
     };
     const notifications = { notifySafely: jest.fn() };
-    const safetyOfficers = { notifySafetyCheckDue: jest.fn().mockResolvedValue(1) };
+    const safetyChecks = { notifyCheckDue: jest.fn().mockResolvedValue(1) };
     const service = new EventConfirmationService(
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       events as unknown as EventsService,
       notifications as unknown as NotificationsService,
-      safetyOfficers as unknown as SafetyOfficerNotifier,
+      safetyChecks as unknown as SafetyCheckNotifier,
     );
-    return { service, prisma, tx, access, events, notifications, safetyOfficers };
+    return { service, prisma, tx, access, events, notifications, safetyChecks };
   };
 
   it('US-42 AC-4: locks the venues in sorted order, then confirms through setStatus', async () => {
@@ -151,26 +151,33 @@ describe('US-42 EventConfirmationService', () => {
     });
   });
 
-  it('US-64: tells every Safety Officer the event is in the queue, as a first confirmation', async () => {
-    const { service, safetyOfficers } = build([{ status: BookingStatus.APPROVED, needsReview: false }]);
+  it('US-64 AC1: Given ready arrangements, When the Coordinator confirms, Then every Safety Officer is alerted about the event', async () => {
+    const { service, safetyChecks } = build([{ status: BookingStatus.APPROVED, needsReview: false }]);
 
     await service.confirm(coordinator, 'event-1');
 
-    expect(safetyOfficers.notifySafetyCheckDue).toHaveBeenCalledWith(
+    expect(safetyChecks.notifyCheckDue).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'event-1', status: EventStatus.AWAITING_SAFETY_CHECK }),
-      { resubmitted: false },
     );
   });
 
-  it('US-42: not ready inside the transaction -> 409, no status change, no notification', async () => {
-    const { service, events, notifications, safetyOfficers } = build([
+  it('US-42 / US-64: Given arrangements not ready, When the Coordinator confirms, Then 409, no status change, no alert', async () => {
+    const { service, events, notifications, safetyChecks } = build([
       { status: BookingStatus.REQUESTED, needsReview: false },
     ]);
 
     await expect(service.confirm(coordinator, 'event-1')).rejects.toThrow(ConflictException);
     expect(events.setStatus).not.toHaveBeenCalled();
     expect(notifications.notifySafely).not.toHaveBeenCalled();
-    expect(safetyOfficers.notifySafetyCheckDue).not.toHaveBeenCalled();
+    expect(safetyChecks.notifyCheckDue).not.toHaveBeenCalled();
+  });
+
+  it('US-64: Given the confirmation transaction rolls back, Then no Safety Officer is alerted', async () => {
+    const { service, events, safetyChecks } = build([{ status: BookingStatus.APPROVED, needsReview: false }]);
+    events.setStatus.mockRejectedValue(new Error('write failed; transaction rolled back'));
+
+    await expect(service.confirm(coordinator, 'event-1')).rejects.toThrow('rolled back');
+    expect(safetyChecks.notifyCheckDue).not.toHaveBeenCalled();
   });
 
   it('US-42 AC-3: a Coordinator not assigned to the event gets 403', async () => {

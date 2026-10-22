@@ -4,7 +4,7 @@ import { AttendeeChangeNotifier } from './attendee-change-notifier.service';
 import { NotificationsInboxService } from './notifications-inbox.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
-import { SafetyOfficerNotifier } from './safety-officer-notifier.service';
+import { SafetyCheckNotifier } from './safety-check-notifier.service';
 
 /**
  * E9 — notification records for significant events.
@@ -22,8 +22,8 @@ import { SafetyOfficerNotifier } from './safety-officer-notifier.service';
     NotificationsInboxService,
     AttendeeChangeNotifier,
     // US-64: every Safety Officer, when an event enters the Safety queue.
-    SafetyOfficerNotifier,
+    SafetyCheckNotifier,
   ],
-  exports: [NotificationsService, AttendeeChangeNotifier, SafetyOfficerNotifier],
+  exports: [NotificationsService, AttendeeChangeNotifier, SafetyCheckNotifier],
 })
 export class NotificationsModule {}

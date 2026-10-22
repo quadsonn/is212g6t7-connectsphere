@@ -7,10 +7,10 @@
  * Safety queue:
  *
  *   1 Ready to confirm          venue APPROVED                        → Confirm; every Safety Officer
- *                                                                       gets "Arrangements confirmed…"
+ *                                                                       gets "Safety check due: …"
  *   2 Sent back after changes   venue APPROVED, safety@ asked for     → "Send back for safety check";
  *                               changes, and the plan has changed since  every Safety Officer gets
- *                                                                       "Sent back by the Coordinator…"
+ *                                                                       "Safety check due: …" again
  *   3 Not ready                 venue REQUESTED                       → Confirm disabled; nobody is told
  *
  * The venue, [US-64] Seminar Room, is managed by venue@ (Aisha). Every user
@@ -75,14 +75,14 @@ const EVENTS: SeedEvent[] = [
     name: '1 Ready to confirm',
     day: 15,
     booking: BookingStatus.APPROVED,
-    demo: 'coordinator@ presses Confirm → each Safety Officer gets "Arrangements confirmed. Ready for a safety check."',
+    demo: 'coordinator@ presses Confirm → each Safety Officer gets "Safety check due: [US-64] 1 Ready to confirm on <date>"',
   },
   {
     name: '2 Sent back after changes',
     day: 16,
     booking: BookingStatus.APPROVED,
     changesRequested: true,
-    demo: 'coordinator@ sends it back for a safety check → each Safety Officer gets "Sent back by the Coordinator after changes."',
+    demo: 'coordinator@ sends it back for a safety check → each Safety Officer gets "Safety check due: [US-64] 2 Sent back after changes on <date>"',
   },
   {
     name: '3 Not ready',

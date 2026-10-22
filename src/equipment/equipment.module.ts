@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { NotificationsModule } from '../notifications/notifications.module';
+import { EquipmentNotifier } from './equipment-notifier';
 import { EquipmentRequirementsService } from './equipment-requirements.service';
 import { EquipmentReservationsService } from './equipment-reservations.service';
 import { EquipmentController } from './equipment.controller';
@@ -22,6 +23,7 @@ import { EquipmentService } from './equipment.service';
     EquipmentService,
     EquipmentRequirementsService,
     EquipmentReservationsService,
+    EquipmentNotifier,
   ],
   exports: [EquipmentService, EquipmentReservationsService],
 })

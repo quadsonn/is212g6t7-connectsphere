@@ -11,6 +11,7 @@ import { CancelEventPanel } from '@/features/events/components/cancel-event-pane
 import { ChangeRequestForm } from '@/features/events/components/change-request-form';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { PendingChangeRequest } from '@/features/events/components/pending-change-request';
+import { EquipmentUnavailableNotice } from '@/features/events/components/equipment-unavailable-notice';
 import { useMyRequest } from '@/features/events/hooks/use-events';
 import { EventBookingsList } from '@/features/bookings/components/event-bookings-list';
 import { useEventBookings } from '@/features/bookings/hooks/use-bookings';
@@ -182,6 +183,8 @@ export function OrganiserRequestDetail() {
             </CardContent>
           </Card>
         ) : null}
+
+        <EquipmentUnavailableNotice items={event.unavailableEquipment} />
 
         {pendingChange ? <PendingChangeRequest event={event} request={pendingChange} /> : null}
 

@@ -32,7 +32,10 @@ import {
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
-import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
+import {
+  EquipmentReservationsService,
+  UnavailableReservation,
+} from '../equipment/equipment-reservations.service';
 import { AttendeeChangeNotifier } from '../notifications/attendee-change-notifier.service';
 import { scheduleChangesFrom } from '../notifications/event-schedule-change';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -160,6 +163,12 @@ export type OrganiserRequestView = EventRequest & {
    * reason is visible to the Organiser.
    */
   latestChangeDecision?: PendingChangeRequest | null;
+  /**
+   * Upcoming equipment the event requested or reserved that is no longer
+   * available (the item was taken out of service). An indicator that something
+   * needs attention; empty when all is well. Set on single-event reads only.
+   */
+  unavailableEquipment?: UnavailableReservation[];
 };
 
 /** US-37 — a change request with its equipment resolved to catalogue names. */
@@ -533,7 +542,10 @@ export class EventsService {
 
     // US-28: the requirements in the order they were listed.
     const inOrder = { ...event, equipmentRequirements: inEntryOrder(event.equipmentRequirements) };
-    return this.toOrganiserView(inOrder);
+    return {
+      ...this.toOrganiserView(inOrder),
+      unavailableEquipment: await this.equipmentReservations.findUnavailableForEvent(id),
+    };
   }
 
   /**
@@ -1348,6 +1360,7 @@ export class EventsService {
       ...this.toOrganiserView(inOrder),
       pendingChangeRequest: await this.findPendingChangeRequest(id),
       latestChangeDecision: await this.findLatestChangeDecision(id),
+      unavailableEquipment: await this.equipmentReservations.findUnavailableForEvent(id),
     };
   }
 

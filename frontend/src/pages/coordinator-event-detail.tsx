@@ -15,6 +15,7 @@ import { EventStatusBadge } from '@/features/events/components/event-status-badg
 import { PlanningEditForm } from '@/features/events/components/planning-edit-form';
 import { RejectUnfulfillable } from '@/features/events/components/reject-unfulfillable';
 import { TechnicalRequirementsCard } from '@/features/events/components/technical-requirements';
+import { EquipmentUnavailableNotice } from '@/features/events/components/equipment-unavailable-notice';
 import { ARRANGEMENT_LABELS } from '@/features/events/lib/change-format';
 import { BookingRequestForm } from '@/features/bookings/components/booking-request-form';
 import { EventBookingsList } from '@/features/bookings/components/event-bookings-list';
@@ -386,6 +387,8 @@ export function CoordinatorEventDetail() {
               <Field label="Notes">{event.accessibilityNotes ?? '—'}</Field>
             </CardContent>
           </Card>
+
+          <EquipmentUnavailableNotice items={event.unavailableEquipment} />
 
           <TechnicalRequirementsCard event={event} editable={inPlanning && isAssignedToMe} />
 

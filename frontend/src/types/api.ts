@@ -311,6 +311,24 @@ export interface OrganiserRequestView extends EventRequest {
   pendingChangeRequest?: ChangeRequest | null;
   /** US-38 AC-5: the latest decided request, so a rejection's reason shows. */
   latestChangeDecision?: ChangeRequest | null;
+  /**
+   * Upcoming equipment the event requested or reserved that is no longer
+   * available (the item was taken out of service). An indicator only — it says
+   * attention is needed, with no action attached; empty when all is well.
+   */
+  unavailableEquipment?: UnavailableEquipment[];
+}
+
+/** One requested/reserved item whose equipment is now unavailable. */
+export interface UnavailableEquipment {
+  reservationId: string;
+  equipmentId: string;
+  equipmentType: string;
+  equipmentStatus: EquipmentStatus;
+  reservationStatus: ReservationStatus;
+  quantity: number;
+  start: string;
+  end: string;
 }
 
 /** CLOSED (US-43): withdrawn without a decision because the event was cancelled. */

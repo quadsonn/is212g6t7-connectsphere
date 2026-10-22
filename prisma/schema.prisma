@@ -272,6 +272,12 @@ enum NotificationType {
   REGISTRATION_OPENED
   REGISTRATION_CLOSED
   REGISTRATION_NEAR_CAPACITY
+  // Sent to the event's Coordinator (or the Leads if unassigned): equipment the
+  // event depends on was taken out of service (UNAVAILABLE), or a committed
+  // reservation was released because the event was cancelled or rejected
+  // (RELEASED).
+  EQUIPMENT_UNAVAILABLE
+  EQUIPMENT_RELEASED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;

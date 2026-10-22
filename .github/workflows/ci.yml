@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [Sprint3-MAIN, main]
+  pull_request:
+    branches: [Sprint3-MAIN, main]
+
+# A newer push to the same branch or PR cancels the run still in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (build, lint, unit + integration tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Throwaway Postgres for the integration tests. It only exists for this
+    # job, on this runner, and is deleted afterwards.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: connectsphere_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d connectsphere_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # Dummy, CI-only values. Every database variable points at the service
+    # container above, so nothing can reach a real database.
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/connectsphere_test?schema=public
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/connectsphere_test?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/connectsphere_test?schema=public
+      JWT_SECRET: ci-dummy-jwt-secret-not-used-anywhere-else
+      JWT_EXPIRES_IN: 1h
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22 with npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Generate the Prisma client
+        run: npx prisma generate
+
+      - name: Build and type-check the backend
+        run: npm run build
+
+      - name: Lint the backend
+        run: npm run lint
+
+      - name: Run unit tests with coverage
+        run: npm run test:cov
+
+      - name: Upload unit test coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-coverage
+          path: coverage/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Run integration tests against the Postgres container
+        env:
+          # Lets e2e-setup's `createdb` reach the container too.
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: npm run test:e2e
+
+  frontend:
+    name: Frontend (lint, build, Vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22 with npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      # The frontend depends on the backend package ("connectsphere": "file:..").
+      - name: Install backend dependencies (needed by the frontend)
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Lint the frontend
+        run: npm run lint
+        working-directory: frontend
+
+      - name: Build the frontend
+        run: npm run build
+        working-directory: frontend
+
+      - name: Run frontend tests (Vitest)
+        run: npm test
+        working-directory: frontend

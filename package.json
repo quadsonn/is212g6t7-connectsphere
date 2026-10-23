@@ -32,6 +32,7 @@
     "prisma:seed:us42": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us42.ts",
     "prisma:seed:us44": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us44.ts",
     "prisma:seed:us61": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us61.ts",
+    "prisma:seed:us66": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us66.ts",
     "venues:vocabulary-review": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/review-venue-vocabulary.ts"
   },
   "dependencies": {

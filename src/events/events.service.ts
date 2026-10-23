@@ -32,6 +32,7 @@ import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
 import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
+import { TechnicalSupportNotifier } from '../equipment/technical-support-notifier';
 import { AttendeeChangeNotifier } from '../notifications/attendee-change-notifier.service';
 import { scheduleChangesFrom } from '../notifications/event-schedule-change';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -251,6 +252,8 @@ export class EventsService {
     @Optional() private readonly arrangements?: ArrangementsRegistry,
     // Tells registered Attendees when a date or time change is applied.
     @Optional() private readonly attendeeChanges?: AttendeeChangeNotifier,
+    // US-66 AC-3: tells Technical Support of a new or changed equipment request.
+    @Optional() private readonly technicalSupport?: TechnicalSupportNotifier,
   ) {}
 
   /**
@@ -1075,6 +1078,11 @@ export class EventsService {
 
     // The equipment asked for may now be more or less than what is reserved.
     await this.arrangements?.notifyChanged(event.id);
+
+    // US-66 AC-3: the equipment request is submitted (or changed) — to the
+    // whole Technical Support pool until someone is assigned (US-61), then
+    // to the assignee only. After commit and best-effort.
+    await this.technicalSupport?.requirementsChanged(event.id);
 
     return { ...(await this.findAssignedRequest(user, id)), change };
   }

@@ -6,6 +6,7 @@ import { EquipmentReservationsService } from './equipment-reservations.service';
 import { EquipmentController } from './equipment.controller';
 import { EquipmentService } from './equipment.service';
 import { EquipmentStatusNotifier } from './equipment-status-notifier';
+import { TechnicalSupportNotifier } from './technical-support-notifier';
 import { TechnicalSupportAssignmentsController } from './technical-support-assignments.controller';
 import { TechnicalSupportAssignmentsService } from './technical-support-assignments.service';
 
@@ -29,7 +30,11 @@ import { TechnicalSupportAssignmentsService } from './technical-support-assignme
     TechnicalSupportAssignmentsService,
     // US-60: tells Technical Support when an item is taken out of use.
     EquipmentStatusNotifier,
+    // US-66: tells an event's assigned Technical Support member.
+    TechnicalSupportNotifier,
   ],
-  exports: [EquipmentService, EquipmentReservationsService],
+  // US-66: TechnicalSupportNotifier, so EventsService can tell Technical
+  // Support when an event's requirements change.
+  exports: [EquipmentService, EquipmentReservationsService, TechnicalSupportNotifier],
 })
 export class EquipmentModule {}

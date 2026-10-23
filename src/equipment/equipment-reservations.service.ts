@@ -26,6 +26,7 @@ import {
   holdingReservationsWhere,
   ItemAvailability,
 } from './equipment-availability';
+import { TechnicalSupportNotifier } from './technical-support-notifier';
 
 /**
  * US-33 AC-1/AC-4 — the statuses a release moves out of. RELEASED is absent,
@@ -118,6 +119,8 @@ export class EquipmentReservationsService {
     private readonly notifications: NotificationsService,
     // Requirement change 6: tells the Safety check that reservations changed.
     @Optional() private readonly arrangements?: ArrangementsRegistry,
+    // US-66: tells the event's assigned Technical Support member.
+    @Optional() private readonly technicalSupport?: TechnicalSupportNotifier,
   ) {}
 
   /**
@@ -234,6 +237,10 @@ export class EquipmentReservationsService {
    * Scoped by eventId (only that event's reservations) and by status (an
    * already-released one is not released again, so a repeat call is a no-op
    * that returns 0).
+   *
+   * US-66 AC-1: when something was released, the event's assigned Technical
+   * Support member is told in this transaction, as US-40 tells each venue's
+   * manager. The lines are read first only when there is a notifier to tell.
    */
   async releaseForCancelledEvent(
     eventId: string,
@@ -253,10 +260,24 @@ export class EquipmentReservationsService {
       );
     }
 
+    const releasing = this.technicalSupport
+      ? await tx.equipmentReservation.findMany({
+          where: { eventId, status: { in: [...RELEASABLE_STATUSES] } },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: { quantity: true, equipment: { select: { type: true } } },
+        })
+      : [];
+
     const result = await tx.equipmentReservation.updateMany({
       where: { eventId, status: { in: [...RELEASABLE_STATUSES] } },
       data: { status: ReservationStatus.RELEASED, releasedAt: new Date() },
     });
+
+    await this.technicalSupport?.reservationsReleased(
+      tx,
+      eventId,
+      releasing.map((r) => ({ quantity: r.quantity, equipmentType: r.equipment.type })),
+    );
 
     return result.count;
   }
@@ -268,7 +289,7 @@ export class EquipmentReservationsService {
    *
    * Replaces US-38's release, which gave the units back for Technical Support
    * to commit again. Per the customer, the Coordinator's approval is what
-   * matters and Technical Support are informed offline, so a committed
+   * matters and Technical Support are informed (US-66, below), so a committed
    * (APPROVED) reservation stays committed for the new time. Same item, same
    * quantity; equipment has no transit or turnaround time, so the new window
    * is the event's own (as US-32 commits it).
@@ -277,6 +298,9 @@ export class EquipmentReservationsService {
    * the originals are released — RELEASED, kept, each linked to its
    * replacement. Availability at the new time was checked before this runs
    * (US-48's check), with the item rows locked like a US-32 commit.
+   *
+   * US-66 AC-2: the event's assigned Technical Support member is then told,
+   * in this transaction, as US-40 tells each venue's manager.
    */
   async rebookForEventChange(
     eventId: string,
@@ -320,6 +344,8 @@ export class EquipmentReservationsService {
         data: { status: ReservationStatus.RELEASED, releasedAt, replacedById: r.replacementId },
       });
     }
+
+    await this.technicalSupport?.reservationsRebooked(tx, eventId, rebooked);
 
     return rebooked;
   }

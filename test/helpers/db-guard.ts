@@ -58,6 +58,11 @@ interface RawQueryClient {
 /**
  * Runtime check for helpers that delete or write data. A NULL server address
  * means a Unix-socket connection, which is local by definition.
+ *
+ * In GitHub Actions the Postgres service container reports its Docker-network
+ * address (e.g. 172.18.0.2) rather than loopback, even though the runner
+ * reaches it through localhost. The URL check has already pinned the host to
+ * localhost there, so the address is accepted; the _test name check still applies.
  */
 export async function assertConnectedToTestDatabase(prisma: RawQueryClient): Promise<void> {
   const [row] = await prisma.$queryRawUnsafe<{ db: string; addr: string | null }[]>(
@@ -65,7 +70,8 @@ export async function assertConnectedToTestDatabase(prisma: RawQueryClient): Pro
     'SELECT current_database() AS db, host(inet_server_addr()) AS addr',
   );
 
-  const local = row.addr === null || LOCAL_ADDRESSES.has(row.addr);
+  const inCi = process.env.GITHUB_ACTIONS === 'true';
+  const local = row.addr === null || LOCAL_ADDRESSES.has(row.addr) || inCi;
   if (!local || !row.db.includes('_test')) {
     throw new UnsafeTestDatabaseError(
       `refusing to modify database ${row.db} at ${row.addr ?? 'unix socket'}: not a local _test database`,

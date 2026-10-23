@@ -231,6 +231,20 @@ export const TECHNICAL_SUPPORT_VISIBLE_STATUSES: readonly EventStatus[] =
   Object.values(EventStatus).filter((status) => status !== EventStatus.DRAFT);
 
 /**
+ * #30 AC-4: statuses of an event that will not go ahead, which Technical
+ * Support's requirements list leaves out unless asked for finished events.
+ * The event itself can still be opened (TECHNICAL_SUPPORT_VISIBLE_STATUSES).
+ *
+ * SAFETY_REJECTED is not here: it can return to PLANNING, so its equipment
+ * may still be needed.
+ */
+export const FINISHED_EVENT_STATUSES: readonly EventStatus[] = [
+  EventStatus.REJECTED,
+  EventStatus.CANCELLED,
+  EventStatus.COMPLETED,
+];
+
+/**
  * US-32: statuses an event may have for equipment to be committed to it.
  *
  * AMBIGUOUS: the AC does not say. Excluded are a DRAFT (not submitted, and

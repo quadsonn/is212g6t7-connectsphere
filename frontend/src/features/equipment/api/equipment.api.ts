@@ -43,8 +43,13 @@ export const equipmentApi = {
       .then((r) => r.data),
 
   // US-31 AC-4: submitted events that have equipment requirements.
-  listRequirements: () =>
-    apiClient.get<EventRequirements[]>('/equipment/requirements').then((r) => r.data),
+  // #30 AC-4: finished events only when asked for.
+  listRequirements: (includeFinished = false) =>
+    apiClient
+      .get<EventRequirements[]>('/equipment/requirements', {
+        params: includeFinished ? { includeFinished: true } : undefined,
+      })
+      .then((r) => r.data),
 
   // US-31 AC-1/AC-2/AC-3: one event's requirements.
   getRequirements: (eventId: string) =>

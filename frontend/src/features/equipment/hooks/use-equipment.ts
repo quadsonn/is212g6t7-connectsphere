@@ -93,10 +93,11 @@ export function useCheckAvailability() {
 }
 
 /** US-31 — events with equipment requirements. */
-export function useEventRequirementsList() {
+export function useEventRequirementsList(includeFinished = false) {
   return useQuery<EventRequirements[]>({
-    queryKey: equipmentKeys.requirements,
-    queryFn: equipmentApi.listRequirements,
+    // Under the shared key, so invalidating the requirements refreshes both lists.
+    queryKey: [...equipmentKeys.requirements, { includeFinished }],
+    queryFn: () => equipmentApi.listRequirements(includeFinished),
     staleTime: 0,
   });
 }

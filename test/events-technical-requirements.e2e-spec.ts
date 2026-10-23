@@ -162,12 +162,24 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     });
 
     // TC-S2-90 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a type made only of spaces counted as a type
-    // Code gap: EquipmentRequirementDto has no @Trim(), so '   ' passes
-    // @IsNotEmpty() and the service saves it trimmed to ''. it.failing: this
-    // test is expected to fail until the DTO trims first; once fixed, Jest
-    // reports it and it becomes a plain it().
-    it.failing('rejects a type made only of spaces (400)', async () => {
-      await record({ equipment: [{ equipmentType: '   ', quantity: 1 }] }).expect(400);
+    // Code: EquipmentRequirementDto trims equipmentType (@Trim()) before
+    // @IsNotEmpty() checks it, so '   ' is refused like an empty type.
+    it('US-27 AC-1: whitespace-only equipment type refused', async () => {
+      const res = await record({ equipment: [{ equipmentType: '   ', quantity: 1 }] }).expect(400);
+
+      expect(res.body.message).toEqual([expect.stringContaining('equipmentType is required')]);
+      expect(await rows()).toBe(0);
+    });
+
+    // TC-S2-90 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a type with surrounding spaces were refused, or saved with the spaces
+    // Code: @Trim() keeps the words and drops only the surrounding spaces.
+    it('US-27 AC-1: a normal equipment type is still saved, trimmed', async () => {
+      const res = await record({ equipment: [{ equipmentType: '  Laser projector  ', quantity: 2 }] }).expect(200);
+
+      expect(res.body.equipmentRequirements).toEqual([
+        expect.objectContaining({ equipmentType: 'Laser projector', quantity: 2 }),
+      ]);
+      expect(await rows()).toBe(1);
     });
 
     // TC-S2-90 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if the same type could be listed twice, leaving Technical Support unsure of the total

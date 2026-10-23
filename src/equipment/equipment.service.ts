@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -23,6 +24,7 @@ import {
   statusChangeError,
   upcomingReservationsWhere,
 } from './equipment-status';
+import { EquipmentStatusNotifier } from './equipment-status-notifier';
 
 /**
  * US-29 AC-1 — the four fields a catalogue row shows at a glance.
@@ -113,6 +115,8 @@ export class EquipmentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessControlService,
+    // US-60: tells the other Technical Support members once a change commits.
+    @Optional() private readonly statusNotifier?: EquipmentStatusNotifier,
   ) {}
 
   /**
@@ -235,6 +239,9 @@ export class EquipmentService {
    *
    * Existing reservations are left as they are — the story asks for a warning,
    * not for them to be released.
+   *
+   * US-60: once the change has committed, every other Technical Support member
+   * is told (EquipmentStatusNotifier), best-effort.
    */
   async changeStatus(
     user: AuthenticatedUser,
@@ -243,7 +250,7 @@ export class EquipmentService {
   ): Promise<StatusChangeResult> {
     this.access.requireScope(user, Resource.EQUIPMENT, Action.UPDATE);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<{ id: string }[]>`
         SELECT "id" FROM "Equipment" WHERE "id" = ${equipmentId} FOR UPDATE`;
 
@@ -299,6 +306,15 @@ export class EquipmentService {
 
       return { equipment: equipment!, affectedReservations };
     }, STATUS_TRANSACTION_OPTIONS);
+
+    await this.statusNotifier?.statusChanged({
+      equipmentId,
+      toStatus: dto.status,
+      reason: dto.reason,
+      actorId: user.userId,
+    });
+
+    return result;
   }
 
   /** The detail fields plus the latest status change, flattened. */

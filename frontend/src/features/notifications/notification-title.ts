@@ -17,6 +17,8 @@ const TITLES: Record<string, string> = {
   EQUIPMENT_RESERVATION_DECIDED: 'Equipment reserved',
   // Requirement change 6: the message starts with the outcome.
   SAFETY_CHECK_DECIDED: 'Safety check',
+  // US-60: the message names the item, its new status and who changed it.
+  EQUIPMENT_STATUS_CHANGED: 'Equipment status changed',
 };
 
 export function notificationTitle(type: string): string | null {

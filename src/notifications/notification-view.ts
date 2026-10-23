@@ -21,14 +21,21 @@ import { Role } from '@prisma/client';
  *
  * US-40 AC-3: a venue activity notification names its booking request, and
  * Venue Staff go straight to that request in their queue.
+ *
+ * US-60: an equipment status-change notice names its item, and Technical
+ * Support go straight to that item in the catalogue.
  */
 export function linkFor(
   role: string,
   relatedEventId: string | null,
   relatedBookingId: string | null = null,
+  relatedEquipmentId: string | null = null,
 ): string | null {
   if (role === Role.VENUE_STAFF && relatedBookingId) {
     return `/venues/bookings/${relatedBookingId}`;
+  }
+  if (role === Role.TECHNICAL_SUPPORT_STAFF && relatedEquipmentId) {
+    return `/equipment/inventory/${relatedEquipmentId}`;
   }
   if (!relatedEventId) return null;
 

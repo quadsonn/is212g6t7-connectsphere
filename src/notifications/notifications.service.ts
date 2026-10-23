@@ -10,6 +10,8 @@ export interface NotifyInput {
   relatedEventId?: string | null;
   /** US-40: the booking request a venue activity notification is about. */
   relatedBookingId?: string | null;
+  /** US-60: the equipment item a status-change notice is about. */
+  relatedEquipmentId?: string | null;
 }
 
 /**
@@ -50,6 +52,8 @@ export class NotificationsService {
         message: input.message,
         relatedEventId: input.relatedEventId ?? null,
         relatedBookingId: input.relatedBookingId ?? null,
+        // Only when given, so every other notice is written exactly as before.
+        ...(input.relatedEquipmentId ? { relatedEquipmentId: input.relatedEquipmentId } : {}),
       },
     });
   }

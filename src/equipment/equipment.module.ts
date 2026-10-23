@@ -5,6 +5,7 @@ import { EquipmentRequirementsService } from './equipment-requirements.service';
 import { EquipmentReservationsService } from './equipment-reservations.service';
 import { EquipmentController } from './equipment.controller';
 import { EquipmentService } from './equipment.service';
+import { EquipmentStatusNotifier } from './equipment-status-notifier';
 import { TechnicalSupportAssignmentsController } from './technical-support-assignments.controller';
 import { TechnicalSupportAssignmentsService } from './technical-support-assignments.service';
 
@@ -26,6 +27,8 @@ import { TechnicalSupportAssignmentsService } from './technical-support-assignme
     EquipmentReservationsService,
     // US-61 AC-3: a Technical Support member's assignment list.
     TechnicalSupportAssignmentsService,
+    // US-60: tells Technical Support when an item is taken out of use.
+    EquipmentStatusNotifier,
   ],
   exports: [EquipmentService, EquipmentReservationsService],
 })

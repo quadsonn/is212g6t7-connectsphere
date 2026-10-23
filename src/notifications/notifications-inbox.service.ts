@@ -168,6 +168,7 @@ export class NotificationsInboxService {
       createdAt: Date;
       relatedEventId: string | null;
       relatedBookingId: string | null;
+      relatedEquipmentId?: string | null;
       relatedEvent: { id: string; name: string | null } | null;
       relatedBooking: { id: string; venue: { id: string; name: string | null } } | null;
     },
@@ -184,7 +185,7 @@ export class NotificationsInboxService {
       createdAt: row.createdAt,
       relatedEvent: row.relatedEvent,
       relatedBooking: row.relatedBooking,
-      link: linkFor(user.role, row.relatedEventId, row.relatedBookingId),
+      link: linkFor(user.role, row.relatedEventId, row.relatedBookingId, row.relatedEquipmentId ?? null),
     };
   }
 }

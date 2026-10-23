@@ -196,6 +196,51 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     });
   });
 
+  describe('AC-1: equipment is picked from the catalogue', () => {
+    // US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if the Coordinator couldn't load the catalogue to pick from
+    // Code: GET /events/equipment-catalogue is @Roles(EVENT_ORGANISER, EVENT_COORDINATOR).
+    it('lets the Coordinator list the catalogue', async () => {
+      const projector = await prisma.equipment.create({
+        data: { type: 'Laser projector', location: 'AV store', totalQuantity: 4 },
+      });
+
+      const res = await http().get('/events/equipment-catalogue').set('Authorization', as('coordinator')).expect(200);
+
+      expect(res.body).toEqual([{ id: projector.id, type: 'Laser projector', description: null, location: 'AV store' }]);
+    });
+
+    // US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a role with no picker could read the catalogue through this route
+    // Code: RolesGuard answers 403 to anyone but Organisers and Coordinators.
+    it.each(['tech', 'attendee'] as const)('refuses %s (403)', async (who) => {
+      await http().get('/events/equipment-catalogue').set('Authorization', as(who)).expect(403);
+    });
+
+    // US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a picked item wasn't linked to the catalogue, or kept a name other than the catalogue's
+    // Code: setTechnicalRequirements() names a line with an equipmentId after its catalogue item.
+    it('saves a picked item linked to the catalogue, under its catalogue name', async () => {
+      const projector = await prisma.equipment.create({
+        data: { type: 'Laser projector', location: 'AV store', totalQuantity: 4 },
+      });
+
+      await record({
+        equipment: [
+          { equipmentId: projector.id, equipmentType: 'projector', quantity: 2 },
+          { equipmentType: 'Smoke machine', quantity: 1 },
+        ],
+      }).expect(200);
+
+      const saved = await prisma.equipmentRequirement.findMany({
+        where: { eventId: EVENT.planning },
+        orderBy: { equipmentType: 'asc' },
+        select: { equipmentId: true, equipmentType: true, quantity: true },
+      });
+      expect(saved).toEqual([
+        { equipmentId: projector.id, equipmentType: 'Laser projector', quantity: 2 },
+        { equipmentId: null, equipmentType: 'Smoke machine', quantity: 1 },
+      ]);
+    });
+  });
+
   describe('AC-2: technical support needed is saved', () => {
     // TC-S2-91 · US-27 AC-2 · setup: base-users + tc-s2-68-setup · fails if the technical support description wasn't saved against the event
     // Code: setTechnicalRequirements() saves the trimmed text to technicalSupportNeeds.

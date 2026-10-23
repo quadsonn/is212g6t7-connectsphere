@@ -404,13 +404,14 @@ export class EventsController {
 
   /**
    * US-37 — the equipment catalogue, as the change request form's picker.
+   * #27: also the Coordinator's picker for an event's required equipment.
    *
-   * MUST be declared before @Get(':id'). A dedicated Organiser route because
+   * MUST be declared before @Get(':id'). A dedicated route because
    * GET /equipment is Technical Support only; this returns just id, type,
    * description and location.
    */
   @Get('equipment-catalogue')
-  @Roles(Role.EVENT_ORGANISER)
+  @Roles(Role.EVENT_ORGANISER, Role.EVENT_COORDINATOR)
   listEquipmentCatalogue() {
     return this.changeRequests.listCatalogue();
   }

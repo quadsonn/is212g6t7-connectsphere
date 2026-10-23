@@ -205,7 +205,13 @@ export interface ConfirmationReadiness {
 
 /** PATCH /events/:id/technical-requirements. Omit a key to leave it as is. */
 export interface TechnicalRequirementsPayload {
-  equipment?: { equipmentType: string; quantity: number; notes?: string | null }[];
+  equipment?: {
+    /** #27: the catalogue item picked, or absent for an "Other" free-text line. */
+    equipmentId?: string;
+    equipmentType: string;
+    quantity: number;
+    notes?: string | null;
+  }[];
   technicalSupportNeeds?: string | null;
 }
 

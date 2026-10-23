@@ -25,8 +25,9 @@ import { ATTENDEE_VISIBLE_STATUSES } from '../events/event-status.machine';
  * stays unlinked rather than leading to a 404. When the status is not supplied
  * the link is given anyway and the page handles an unreadable event itself.
  *
- * Roles with no event page of their own (Coordinator Lead, Safety Officer) get
- * no link, rather than one that would 404 or bounce them home.
+ * A Coordinator Lead goes to their incoming-work queue (where a just-submitted
+ * request waits). A Safety Officer, who has no event page of their own, gets no
+ * link, rather than one that would 404 or bounce them home.
  *
  * US-40 AC-3: a venue activity notification names its booking request, and
  * Venue Staff go straight to that request in their queue.
@@ -51,6 +52,11 @@ export function linkFor(
       return `/venues/events/${relatedEventId}`;
     case Role.TECHNICAL_SUPPORT_STAFF:
       return `/equipment/requirements/${relatedEventId}`;
+    case Role.EVENT_COORDINATOR_LEAD:
+      // The Lead's incoming-work queue. It lists unassigned requests, so the
+      // link is live while a just-submitted request is waiting; once the
+      // request is assigned it is no longer there (it moves to a Coordinator).
+      return `/lead/unassigned/${relatedEventId}`;
     case Role.ATTENDEE:
       return relatedEventStatus === null ||
         ATTENDEE_VISIBLE_STATUSES.includes(relatedEventStatus)

@@ -10,16 +10,15 @@ describe('Notifications page: presenting a notification', () => {
       [Role.EVENT_COORDINATOR, '/coordinator/events/e1'],
       [Role.VENUE_STAFF, '/venues/events/e1'],
       [Role.TECHNICAL_SUPPORT_STAFF, '/equipment/requirements/e1'],
+      // A Coordinator Lead goes to their incoming-work queue.
+      [Role.EVENT_COORDINATOR_LEAD, '/lead/unassigned/e1'],
     ])('%s → %s', (role, link) => {
       expect(linkFor(role, 'e1')).toBe(link);
     });
 
-    it.each([Role.EVENT_COORDINATOR_LEAD, Role.SAFETY_OFFICER])(
-      'gives %s no link — it has no event page to go to',
-      (role) => {
-        expect(linkFor(role, 'e1')).toBeNull();
-      },
-    );
+    it('gives a Safety Officer no link — it has no event page to go to', () => {
+      expect(linkFor(Role.SAFETY_OFFICER, 'e1')).toBeNull();
+    });
 
     it('sends an Attendee to their own event page', () => {
       expect(linkFor(Role.ATTENDEE, 'e1', null, EventStatus.CONFIRMED)).toBe('/events/e1');

@@ -39,6 +39,7 @@ import {
 import { AttendeeChangeNotifier } from '../notifications/attendee-change-notifier.service';
 import { scheduleChangesFrom } from '../notifications/event-schedule-change';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EventsRequestNotifier } from './events-request-notifier.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AskClarificationDto } from './dto/ask-clarification.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
@@ -261,6 +262,8 @@ export class EventsService {
     @Optional() private readonly arrangements?: ArrangementsRegistry,
     // Tells registered Attendees when a date or time change is applied.
     @Optional() private readonly attendeeChanges?: AttendeeChangeNotifier,
+    // Tells Coordinator Leads when a request is submitted or resubmitted.
+    @Optional() private readonly requestNotifier?: EventsRequestNotifier,
   ) {}
 
   /**
@@ -277,7 +280,7 @@ export class EventsService {
   ): Promise<EventRequest> {
     this.access.requireScope(user, Resource.EVENT, Action.CREATE);
 
-    return this.prisma.$transaction(async (tx) => {
+    const submitted = await this.prisma.$transaction(async (tx) => {
       const draft = await tx.eventRequest.create({
         data: {
           organiserId: user.userId,
@@ -302,6 +305,10 @@ export class EventsService {
 
       return this.setStatus(draft, EventStatus.SUBMITTED, tx);
     });
+
+    // AC-1: tell the Coordinator Leads, after the submission has committed.
+    await this.requestNotifier?.submitted(submitted);
+    return submitted;
   }
 
   /**
@@ -390,7 +397,10 @@ export class EventsService {
     this.assertIsEditable(event);
     await this.assertReadyForSubmission(event);
 
-    return this.setStatus(event, EventStatus.SUBMITTED);
+    const submitted = await this.setStatus(event, EventStatus.SUBMITTED);
+    // AC-1: a first submission or a resubmission both reach the Leads here.
+    await this.requestNotifier?.submitted(submitted);
+    return submitted;
   }
 
   /**

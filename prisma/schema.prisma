@@ -278,6 +278,9 @@ enum NotificationType {
   // (RELEASED).
   EQUIPMENT_UNAVAILABLE
   EQUIPMENT_RELEASED
+  // Sent to all Coordinator Leads when a new (or resubmitted) event request is
+  // submitted, so incoming work finds them without polling the queue.
+  EVENT_SUBMITTED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;

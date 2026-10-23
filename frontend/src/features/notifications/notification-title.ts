@@ -20,6 +20,9 @@ const TITLES: Record<string, string> = {
   // Equipment an event depends on went out of service, or was released.
   EQUIPMENT_UNAVAILABLE: 'Equipment unavailable',
   EQUIPMENT_RELEASED: 'Equipment released',
+  // Incoming work for Coordinators and Leads.
+  EVENT_SUBMITTED: 'New event request',
+  EVENT_CHANGE_REQUESTED: 'Change requested',
 };
 
 export function notificationTitle(type: string): string | null {

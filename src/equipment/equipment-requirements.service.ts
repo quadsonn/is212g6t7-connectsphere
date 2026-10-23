@@ -85,7 +85,8 @@ const COORDINATOR_REQUIREMENTS_ORDER: Prisma.EquipmentRequirementOrderByWithRela
   { id: 'asc' },
 ];
 
-const EVENT_SELECT = {
+// Exported for US-61's assignment list, which shows the same requirements.
+export const EVENT_SELECT = {
   id: true,
   name: true,
   description: true,
@@ -100,7 +101,7 @@ const EVENT_SELECT = {
   },
 } as const satisfies Prisma.EventRequestSelect;
 
-type SelectedEvent = Prisma.EventRequestGetPayload<{ select: typeof EVENT_SELECT }>;
+export type SelectedEvent = Prisma.EventRequestGetPayload<{ select: typeof EVENT_SELECT }>;
 
 const DETAILS_SELECT = {
   id: true,

@@ -5,6 +5,8 @@ import { EquipmentRequirementsService } from './equipment-requirements.service';
 import { EquipmentReservationsService } from './equipment-reservations.service';
 import { EquipmentController } from './equipment.controller';
 import { EquipmentService } from './equipment.service';
+import { TechnicalSupportAssignmentsController } from './technical-support-assignments.controller';
+import { TechnicalSupportAssignmentsService } from './technical-support-assignments.service';
 
 /**
  * E6 — equipment: catalogue (US-29), availability (US-30), event requirements
@@ -17,11 +19,13 @@ import { EquipmentService } from './equipment.service';
  */
 @Module({
   imports: [NotificationsModule],
-  controllers: [EquipmentController],
+  controllers: [EquipmentController, TechnicalSupportAssignmentsController],
   providers: [
     EquipmentService,
     EquipmentRequirementsService,
     EquipmentReservationsService,
+    // US-61 AC-3: a Technical Support member's assignment list.
+    TechnicalSupportAssignmentsService,
   ],
   exports: [EquipmentService, EquipmentReservationsService],
 })

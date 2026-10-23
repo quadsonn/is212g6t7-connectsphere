@@ -25,6 +25,8 @@ export const CHANGE_FIELD_LABELS: Record<FieldChange['field'], string> = {
   coordinator: 'Coordinator',
   equipmentRequirements: 'Equipment requirements',
   technicalSupportNeeds: 'Technical support',
+  // US-61: the assigned Technical Support member.
+  technicalSupport: 'Technical support staff',
   // US-48 AC-7: rebooked by an approved change request.
   venueBookings: 'Venue bookings',
   equipmentReservations: 'Equipment reservations',

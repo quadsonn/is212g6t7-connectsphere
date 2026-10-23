@@ -22,6 +22,7 @@ import { EquipmentAvailability } from '@/pages/equipment-availability';
 import { EquipmentEventRequirements } from '@/pages/equipment-event-requirements';
 import { EquipmentEventDetails } from '@/pages/equipment-event-details';
 import { EquipmentReleased } from '@/pages/equipment-released';
+import { EquipmentAssignments } from '@/pages/equipment-assignments';
 import { AttendeeDashboard } from '@/pages/attendee-dashboard';
 import { AttendeeRegistrations } from '@/pages/attendee-registrations';
 import { VenueNewRequest } from '@/pages/venue-new-request';
@@ -104,6 +105,7 @@ export function AppRoutes() {
             <Route path="/equipment/requirements/:eventId" element={<EquipmentEventRequirements />} />
             <Route path="/equipment/requirements/:eventId/details" element={<EquipmentEventDetails />} />
             <Route path="/equipment/released" element={<EquipmentReleased />} />
+            <Route path="/equipment/assignments" element={<EquipmentAssignments />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={['EVENT_COORDINATOR_LEAD']} />}>

@@ -12,6 +12,7 @@ import type {
   EventRequirements,
   ItemAvailability,
   ReleasedReservation,
+  TechnicalSupportAssignment,
   UpcomingReservation,
 } from '@/types/api';
 
@@ -73,5 +74,11 @@ export const equipmentApi = {
   listReleased: () =>
     apiClient
       .get<ReleasedReservation[]>('/equipment/reservations/released')
+      .then((r) => r.data),
+
+  // US-61 AC-3: the events the caller is assigned to as Technical Support.
+  listMyAssignments: () =>
+    apiClient
+      .get<TechnicalSupportAssignment[]>('/technical-support/assignments')
       .then((r) => r.data),
 };

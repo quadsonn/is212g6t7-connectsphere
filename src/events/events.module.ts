@@ -12,6 +12,7 @@ import { EventsCancellationService } from './events-cancellation.service';
 import { EventsController } from './events.controller';
 import { ChangeArrangementCheckService } from './change-arrangement-check.service';
 import { EventsService } from './events.service';
+import { EventsTechnicalSupportService } from './events-technical-support.service';
 import { EventsUnfulfillableService } from './events-unfulfillable.service';
 
 /**
@@ -35,6 +36,8 @@ import { EventsUnfulfillableService } from './events-unfulfillable.service';
     // US-42: confirming the arrangements.
     EventConfirmationService,
     EventsCancellationService,
+    // US-61: assign a Technical Support member to an event.
+    EventsTechnicalSupportService,
   ],
   exports: [EventsService],
 })

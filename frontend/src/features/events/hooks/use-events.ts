@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
+  TechnicalSupportAssignmentView,
   CancelEventPayload,
   CancellationResult,
   CatalogueOption,
@@ -37,7 +38,37 @@ export const eventKeys = {
   pendingChangeRequests: ['events', 'change-requests', 'pending'] as const,
   changeRequestReview: (id: string) => ['events', 'change-requests', id] as const,
   relatedDetail: (id: string) => ['events', 'related', id] as const,
+  technicalSupport: (id: string) => ['events', id, 'technical-support'] as const,
 };
+
+/** US-61 — the event's Technical Support assignee and every member's availability. */
+export function useTechnicalSupportAssignment(id: string) {
+  return useQuery<TechnicalSupportAssignmentView>({
+    queryKey: eventKeys.technicalSupport(id),
+    queryFn: () => eventsApi.getTechnicalSupport(id),
+    enabled: Boolean(id),
+    staleTime: 0,
+  });
+}
+
+/**
+ * US-61 — assign, change or remove the member (staffId null removes).
+ * Refreshes every event query: the availability and the history both change.
+ */
+export function useSetTechnicalSupport(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation<TechnicalSupportAssignmentView, unknown, string | null>({
+    mutationFn: (staffId) =>
+      staffId ? eventsApi.assignTechnicalSupport(id, staffId) : eventsApi.unassignTechnicalSupport(id),
+    onSuccess: (view) => {
+      queryClient.setQueryData(eventKeys.technicalSupport(id), view);
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    },
+    // AC-2/AC-4: a refusal may mean someone else just took the member, so
+    // reload who is free.
+    onError: () => void queryClient.invalidateQueries({ queryKey: eventKeys.technicalSupport(id) }),
+  });
+}
 
 /**
  * The caller's events, scoped by the server. Organiser and Coordinator both

@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  TechnicalSupportAssignmentView,
   CancelEventPayload,
   CancellationResult,
   CatalogueOption,
@@ -171,6 +172,24 @@ export const eventsApi = {
   setTechnicalRequirements: (id: string, body: TechnicalRequirementsPayload) =>
     apiClient
       .patch<PlanningUpdateResult>(`/events/${id}/technical-requirements`, body)
+      .then((r) => r.data),
+
+  // US-61: the event's Technical Support assignee and who is free.
+  getTechnicalSupport: (id: string) =>
+    apiClient
+      .get<TechnicalSupportAssignmentView>(`/events/${id}/technical-support`)
+      .then((r) => r.data),
+
+  // US-61 AC-1: assign or change the member; 409 on a conflict (AC-2/AC-4).
+  assignTechnicalSupport: (id: string, staffId: string) =>
+    apiClient
+      .put<TechnicalSupportAssignmentView>(`/events/${id}/technical-support`, { staffId })
+      .then((r) => r.data),
+
+  // US-61: remove the assignment.
+  unassignTechnicalSupport: (id: string) =>
+    apiClient
+      .delete<TechnicalSupportAssignmentView>(`/events/${id}/technical-support`)
       .then((r) => r.data),
 
   /** US-26 — the event's change history, oldest first. */

@@ -269,6 +269,8 @@ export interface FieldChange {
     | 'coordinator'
     | 'equipmentRequirements'
     | 'technicalSupportNeeds'
+    // US-61: the assigned Technical Support member, by name.
+    | 'technicalSupport'
     // US-48 AC-7: what an approved change request rebooked.
     | 'venueBookings'
     | 'equipmentReservations'
@@ -1529,4 +1531,46 @@ export interface InboxNotification {
 export interface NotificationsPageQuery {
   limit?: number;
   cursor?: string;
+}
+
+/** US-61 — another event a Technical Support member is already assigned to. */
+export interface StaffAssignmentConflict {
+  eventId: string;
+  name: string | null;
+  start: string;
+  end: string;
+}
+
+/** US-61 — one Technical Support member on the assignment screen. */
+export interface TechnicalSupportStaffOption extends ContactSummary {
+  /** AC-2/AC-4: free for the event's date and time. */
+  available: boolean;
+  /** AC-2: the overlapping events that make them unavailable. */
+  conflicts: StaffAssignmentConflict[];
+}
+
+/** US-61 — GET /events/:id/technical-support. */
+export interface TechnicalSupportAssignmentView {
+  eventId: string;
+  requiresTechnicalSupport: boolean;
+  assignable: boolean;
+  assignee: ContactSummary | null;
+  staff: TechnicalSupportStaffOption[];
+  /** AC-4: nobody can be assigned; `message` says so. */
+  noneAvailable: boolean;
+  message: string | null;
+}
+
+/** US-61 AC-3 — a venue on one of the member's assigned events. */
+export interface AssignmentVenue {
+  bookingId: string;
+  venueName: string | null;
+  status: BookingStatus;
+  start: string;
+  end: string;
+}
+
+/** US-61 AC-3 — GET /technical-support/assignments: one assigned event. */
+export interface TechnicalSupportAssignment extends EventRequirements {
+  venues: AssignmentVenue[];
 }

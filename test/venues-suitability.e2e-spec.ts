@@ -33,18 +33,18 @@ describe('Story 19 venue suitability flags (integration)', () => {
   const tokens: Record<string, string> = {};
 
   /** Fixed rows from tc-s2-28/29/31/33-setup.sql. */
-  const VENUE = { hall: 'v-s2-suit-hall', draft: 'v-s2-suit-draft' } as const;
+  const VENUE = { hall: 'VEN-035', draft: 'VEN-034' } as const;
   const EVENT = {
-    fits: 'e-s2-fits',
-    oneOver: 'e-s2-misfit-one-over',
-    large: 'e-s2-misfit-large',
-    theirs: 'e-s2-theirs',
-    pool: 'e-s2-pool',
+    fits: 'EVT-076',
+    oneOver: 'EVT-092',
+    misfit: 'EVT-091',
+    theirs: 'EVT-126',
+    pool: 'EVT-106',
   } as const;
   const INACTIVE: Record<string, string> = {
-    [EventStatus.REJECTED]: 'e-s2-rejected',
-    [EventStatus.CANCELLED]: 'e-s2-cancelled',
-    [EventStatus.COMPLETED]: 'e-s2-completed',
+    [EventStatus.REJECTED]: 'EVT-113',
+    [EventStatus.CANCELLED]: 'EVT-059',
+    [EventStatus.COMPLETED]: 'EVT-061',
   };
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
@@ -145,14 +145,14 @@ describe('Story 19 venue suitability flags (integration)', () => {
     // TC-S2-31 · setup: base-users + tc-s2-28-setup + tc-s2-31-setup · fails if running the check created or changed anything
     it('US-19: changes nothing — no booking, reservation, notification or event edit', async () => {
       await given('tc-s2-31-setup');
-      const before = await prisma.eventRequest.findUniqueOrThrow({ where: { id: EVENT.large } });
+      const before = await prisma.eventRequest.findUniqueOrThrow({ where: { id: EVENT.misfit } });
 
-      await suitability(VENUE.hall, EVENT.large).expect(200);
+      await suitability(VENUE.hall, EVENT.misfit).expect(200);
 
       expect(await prisma.venueBooking.count()).toBe(0);
       expect(await prisma.equipmentReservation.count()).toBe(0);
       expect(await prisma.notification.count()).toBe(0);
-      const after = await prisma.eventRequest.findUniqueOrThrow({ where: { id: EVENT.large } });
+      const after = await prisma.eventRequest.findUniqueOrThrow({ where: { id: EVENT.misfit } });
       expect(after.updatedAt).toEqual(before.updatedAt);
       expect(after.status).toBe(before.status);
     });
@@ -160,21 +160,22 @@ describe('Story 19 venue suitability flags (integration)', () => {
     // TC-S2-31 · setup: base-users + tc-s2-28-setup + tc-s2-31-setup · fails if a NOT_SUITABLE flag blocked the booking request
     it('US-19 AC-5: a booking request still submits after suitability reports flags', async () => {
       // Flags are advice, not a gate: the Coordinator may know something the
-      // system doesn't. Submits through Story 20.
+      // system doesn't. Submits through Story 20. The flag here is accessibility:
+      // capacity is the exception, refused outright (CAPACITY_EXCEEDED).
       await given('tc-s2-31-setup');
 
-      const check = await suitability(VENUE.hall, EVENT.large).expect(200);
+      const check = await suitability(VENUE.hall, EVENT.misfit).expect(200);
       expect(check.body.overall).toBe('NOT_SUITABLE');
 
       const submitted = await http()
         .post('/bookings')
         .set('Authorization', as('coordinator'))
         .send({
-          eventId: EVENT.large,
+          eventId: EVENT.misfit,
           venueId: VENUE.hall,
           start: '2027-03-10T01:00:00.000Z',
           end: '2027-03-10T09:00:00.000Z',
-          expectedAttendance: 500,
+          expectedAttendance: 80,
         })
         .expect(201);
 

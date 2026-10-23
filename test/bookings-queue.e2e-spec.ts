@@ -36,7 +36,7 @@ describe('Story 21 venue booking request queue (integration)', () => {
   const tokens: Record<string, string> = {};
 
   /** Fixed venues from base-venues.sql. */
-  const VENUE = { hall: 'v-main-hall', room: 'v-seminar-room' } as const;
+  const VENUE = { hall: 'VEN-002', room: 'VEN-038' } as const;
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
@@ -121,8 +121,8 @@ describe('Story 21 venue booking request queue (integration)', () => {
         end: '2030-09-21T12:00:00.000Z',
         expectedAttendance: 80,
         venue: { name: 'Main Hall' },
-        event: { name: 'Showcase', organiser: { id: 'u-organiser', name: 'Olivia Organiser' } },
-        requestedBy: { id: 'u-coordinator-a', name: 'Cody Coordinator' },
+        event: { name: 'Showcase', organiser: { id: 'USR-006', name: 'Olivia Organiser' } },
+        requestedBy: { id: 'USR-004', name: 'Cody Coordinator' },
       });
     });
   });
@@ -227,7 +227,7 @@ describe('Story 21 venue booking request queue (integration)', () => {
       const res = await http().get(`/bookings/${entry.id}`).set('Authorization', as('staff')).expect(200);
 
       expect(res.body).toMatchObject({
-        id: 'b-s2-showcase',
+        id: 'BKG-070',
         preferredLayout: 'THEATRE',
         accessibilityRequirements: ['HEARING_LOOP'],
         accessibilityNotes: 'Two hearing aid users',
@@ -242,9 +242,9 @@ describe('Story 21 venue booking request queue (integration)', () => {
       await given('tc-s2-47-setup');
       expect(names((await queue().expect(200)).body).sort()).toEqual(['Will approve', 'Will reject']);
 
-      await http().post('/bookings/b-s2-will-approve/approve').set('Authorization', as('staff')).send({}).expect(200);
+      await http().post('/bookings/BKG-072/approve').set('Authorization', as('staff')).send({}).expect(200);
       await http()
-        .post('/bookings/b-s2-will-reject/reject')
+        .post('/bookings/BKG-073/reject')
         .set('Authorization', as('staff'))
         .send({ reason: 'Room under renovation' })
         .expect(200);

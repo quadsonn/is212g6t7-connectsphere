@@ -22,10 +22,11 @@ import { resetDb } from './helpers/reset-db';
  *    open/close window (AC-6), not full (AC-7). It also says whether the
  *    caller is already registered (AC-5).
  *  - POST /registrations -> register(): RegisterDto validates the form (phone
- *    required and valid, trimmed first; dietary and accessibility notes
- *    optional) (AC-2). Under a row lock on the event, it refuses a second
- *    active registration (AC-4/AC-5) and re-checks evaluateRegistration(),
- *    answering 409 with the reason; otherwise it saves a REGISTERED row and
+ *    required, international with its country code, stored as E.164;
+ *    accessibility optional; dietary requirements are no longer asked) (AC-2).
+ *    Under a row lock on the event, it refuses a second active registration
+ *    (AC-4/AC-5) and re-checks evaluateRegistration(), answering 409 with the
+ *    reason; otherwise it saves a REGISTERED row and
  *    sends a REGISTRATION_CONFIRMED notification (AC-3).
  *  - Events an Attendee can't see at all (e.g. DRAFT) read as 404.
  *
@@ -43,7 +44,7 @@ describe('Story 33 register for an event (integration)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
 
-  /** Fixed users: base-users.sql, plus u-attendee-b/c from tc-s2-142-setup.sql. */
+  /** Fixed users: base-users.sql, plus USR-002/c from tc-s2-142-setup.sql. */
   const USERS = {
     attendee: 'attendee@example.com',
     attendeeC: 'attendee.c@example.com',
@@ -56,18 +57,18 @@ describe('Story 33 register for an event (integration)', () => {
 
   /** Fixed events from tc-s2-136/137/143-setup.sql. */
   const EVENT = {
-    gala: 'e-s2-gala',
-    disabled: 'e-s2-reg-disabled',
-    planning: 'e-s2-reg-planning',
-    draft: 'e-s2-reg-draft',
-    notOpen: 'e-s2-reg-not-open',
-    closed: 'e-s2-reg-closed',
-    full: 'e-s2-full',
-    lastPlace: 'e-s2-last-place',
+    gala: 'EVT-078',
+    disabled: 'EVT-109',
+    planning: 'EVT-112',
+    draft: 'EVT-110',
+    notOpen: 'EVT-111',
+    closed: 'EVT-108',
+    full: 'EVT-077',
+    lastPlace: 'EVT-085',
   } as const;
 
   /** A complete, valid registration form. */
-  const FORM = { phone: '+65 9123 4567', dietaryRequirements: 'Vegetarian', accessibilityNeeds: 'Aisle seat' };
+  const FORM = { phone: '+65 9123 4567', accessibilityNeeds: 'Aisle seat' };
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
@@ -169,9 +170,9 @@ describe('Story 33 register for an event (integration)', () => {
     // TC-S2-138 · US-33 AC-2 · setup: base-users + tc-s2-136-setup · fails if a registration without a valid phone number went through, or a field wasn't named
     // Code: RegisterDto trims the phone, then requires it and checks its format; each failure is a 400 naming the field.
     it.each([
-      ['a missing phone', { dietaryRequirements: 'None' }, 'phone is required'],
+      ['a missing phone', { accessibilityNeeds: 'None' }, 'phone is required'],
       ['a phone made only of spaces', { phone: '   ' }, 'phone is required'],
-      ['an invalid phone', { phone: 'call me' }, 'phone must be a valid phone number'],
+      ['an invalid phone', { phone: 'call me' }, 'phone must start with + and the country code, and use only digits and spaces'],
     ])('flags %s (400) and saves nothing', async (_case, body, message) => {
       const res = await register(EVENT.gala, body).expect(400);
 
@@ -186,12 +187,12 @@ describe('Story 33 register for an event (integration)', () => {
     });
 
     // TC-S2-138 · US-33 AC-2 · setup: base-users + tc-s2-136-setup · fails if the optional fields were required, or the phone wasn't stored trimmed
-    // Code: dietary and accessibility notes are @IsOptional; the phone's surrounding spaces are trimmed before saving.
-    it('accepts a phone alone, stored without surrounding spaces', async () => {
-      await register(EVENT.gala, { phone: '  91234567  ' }).expect(201);
+    // Code: accessibility notes are @IsOptional; the phone is trimmed, then stored as E.164 (toE164).
+    it('accepts a phone alone, stored trimmed in international format', async () => {
+      await register(EVENT.gala, { phone: '  +65 9123 4567  ' }).expect(201);
 
       expect((await registrationsOn(EVENT.gala))[0]).toMatchObject({
-        phone: '91234567',
+        phone: '+6591234567',
         dietaryRequirements: null,
         accessibilityNeeds: null,
       });
@@ -206,16 +207,15 @@ describe('Story 33 register for an event (integration)', () => {
 
       expect(res.body).toMatchObject({
         status: RegistrationStatus.REGISTERED,
-        phone: '+65 9123 4567',
-        dietaryRequirements: 'Vegetarian',
+        phone: '+6591234567',
         accessibilityNeeds: 'Aisle seat',
         withdrawnAt: null,
         event: { id: EVENT.gala, name: 'Spring Gala' },
       });
       expect(await registrationsOn(EVENT.gala)).toEqual([
-        expect.objectContaining({ attendeeId: 'u-attendee', status: RegistrationStatus.REGISTERED }),
+        expect.objectContaining({ attendeeId: 'USR-001', status: RegistrationStatus.REGISTERED }),
       ]);
-      const [note] = await prisma.notification.findMany({ where: { recipientId: 'u-attendee' } });
+      const [note] = await prisma.notification.findMany({ where: { recipientId: 'USR-001' } });
       expect(note).toMatchObject({
         type: NotificationType.REGISTRATION_CONFIRMED,
         relatedEventId: EVENT.gala,

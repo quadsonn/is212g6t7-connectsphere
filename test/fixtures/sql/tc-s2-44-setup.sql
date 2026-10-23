@@ -4,54 +4,54 @@
 -- The test freezes its clock at 2030-09-01 00:00 UTC ("now"), so dates below
 -- are fixed: +3 days is 2030-09-04, always inside the 7-day urgency window.
 -- Every booking carries THEATRE, HEARING_LOOP ("Two hearing aid users") and
--- "2 wireless mics", requested by u-coordinator-a, 80 expected.
+-- "2 wireless mics", requested by USR-004, 80 expected.
 --
---   b-s2-in-hall            v-main-hall      2030-09-21 09:00-12:00  REQUESTED "In hall"  submitted 2030-08-20
---   b-s2-in-room            v-seminar-room   2030-09-21 09:00-12:00  REQUESTED "In room"  submitted 2030-08-20
---   b-s2-inside             v-main-hall      2030-09-11 09:00-12:00  REQUESTED "Inside"  submitted 2030-08-20
---   b-s2-outside            v-main-hall      2030-10-11 09:00-12:00  REQUESTED "Outside"  submitted 2030-08-20
---   b-s2-approved-one       v-rooftop        2030-09-21 09:00-12:00  APPROVED  "Approved one"  submitted 2030-08-20
---   b-s2-rejected-one       v-rooftop        2030-09-22 09:00-12:00  REJECTED  "Rejected one"  submitted 2030-08-20
+--   BKG-059            VEN-002      2030-09-21 09:00-12:00  REQUESTED "In hall"  submitted 2030-08-20
+--   BKG-060            VEN-038   2030-09-21 09:00-12:00  REQUESTED "In room"  submitted 2030-08-20
+--   BKG-061             VEN-002      2030-09-11 09:00-12:00  REQUESTED "Inside"  submitted 2030-08-20
+--   BKG-067            VEN-002      2030-10-11 09:00-12:00  REQUESTED "Outside"  submitted 2030-08-20
+--   BKG-055       VEN-004        2030-09-21 09:00-12:00  APPROVED  "Approved one"  submitted 2030-08-20
+--   BKG-069       VEN-004        2030-09-22 09:00-12:00  REJECTED  "Rejected one"  submitted 2030-08-20
 
 INSERT INTO "EventRequest" ("id", "organiserId", "coordinatorId", "name", "purpose", "description", "category",
   "proposedStart", "proposedEnd", "expectedAttendance", "preferredLayout", "accessibilityRequirements",
   "accessibilityNotes", "equipmentNeeds", "status", "createdAt", "updatedAt") VALUES
-  ('e-s2-in-hall', 'u-organiser', 'u-coordinator-a', 'In hall', 'Purpose', 'Description', 'Talk',
+  ('EVT-080', 'USR-006', 'USR-004', 'In hall', 'Purpose', 'Description', 'Talk',
      '2030-09-21 09:00:00', '2030-09-21 12:00:00', 80, 'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[],
      'Two hearing aid users', '2 wireless mics', 'APPROVED'::"EventStatus", '2030-08-01 09:00:00', '2030-08-01 09:00:00'),
-  ('e-s2-in-room', 'u-organiser', 'u-coordinator-a', 'In room', 'Purpose', 'Description', 'Talk',
+  ('EVT-081', 'USR-006', 'USR-004', 'In room', 'Purpose', 'Description', 'Talk',
      '2030-09-21 09:00:00', '2030-09-21 12:00:00', 80, 'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[],
      'Two hearing aid users', '2 wireless mics', 'APPROVED'::"EventStatus", '2030-08-01 09:00:00', '2030-08-01 09:00:00'),
-  ('e-s2-inside', 'u-organiser', 'u-coordinator-a', 'Inside', 'Purpose', 'Description', 'Talk',
+  ('EVT-084', 'USR-006', 'USR-004', 'Inside', 'Purpose', 'Description', 'Talk',
      '2030-09-11 09:00:00', '2030-09-11 12:00:00', 80, 'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[],
      'Two hearing aid users', '2 wireless mics', 'APPROVED'::"EventStatus", '2030-08-01 09:00:00', '2030-08-01 09:00:00'),
-  ('e-s2-outside', 'u-organiser', 'u-coordinator-a', 'Outside', 'Purpose', 'Description', 'Talk',
+  ('EVT-103', 'USR-006', 'USR-004', 'Outside', 'Purpose', 'Description', 'Talk',
      '2030-10-11 09:00:00', '2030-10-11 12:00:00', 80, 'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[],
      'Two hearing aid users', '2 wireless mics', 'APPROVED'::"EventStatus", '2030-08-01 09:00:00', '2030-08-01 09:00:00'),
-  ('e-s2-approved-one', 'u-organiser', 'u-coordinator-a', 'Approved one', 'Purpose', 'Description', 'Talk',
+  ('EVT-057', 'USR-006', 'USR-004', 'Approved one', 'Purpose', 'Description', 'Talk',
      '2030-09-21 09:00:00', '2030-09-21 12:00:00', 80, 'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[],
      'Two hearing aid users', '2 wireless mics', 'APPROVED'::"EventStatus", '2030-08-01 09:00:00', '2030-08-01 09:00:00'),
-  ('e-s2-rejected-one', 'u-organiser', 'u-coordinator-a', 'Rejected one', 'Purpose', 'Description', 'Talk',
+  ('EVT-114', 'USR-006', 'USR-004', 'Rejected one', 'Purpose', 'Description', 'Talk',
      '2030-09-22 09:00:00', '2030-09-22 12:00:00', 80, 'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[],
      'Two hearing aid users', '2 wireless mics', 'APPROVED'::"EventStatus", '2030-08-01 09:00:00', '2030-08-01 09:00:00');
 
 INSERT INTO "VenueBooking" ("id", "eventId", "venueId", "start", "end", "status", "expectedAttendance", "requestedById",
   "preferredLayout", "accessibilityRequirements", "accessibilityNotes", "equipmentNeeds", "createdAt", "updatedAt") VALUES
-  ('b-s2-in-hall', 'e-s2-in-hall', 'v-main-hall', '2030-09-21 09:00:00', '2030-09-21 12:00:00', 'REQUESTED'::"BookingStatus", 80, 'u-coordinator-a',
+  ('BKG-059', 'EVT-080', 'VEN-002', '2030-09-21 09:00:00', '2030-09-21 12:00:00', 'REQUESTED'::"BookingStatus", 80, 'USR-004',
      'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[], 'Two hearing aid users', '2 wireless mics',
      '2030-08-20 09:00:00', '2030-08-20 09:00:00'),
-  ('b-s2-in-room', 'e-s2-in-room', 'v-seminar-room', '2030-09-21 09:00:00', '2030-09-21 12:00:00', 'REQUESTED'::"BookingStatus", 80, 'u-coordinator-a',
+  ('BKG-060', 'EVT-081', 'VEN-038', '2030-09-21 09:00:00', '2030-09-21 12:00:00', 'REQUESTED'::"BookingStatus", 80, 'USR-004',
      'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[], 'Two hearing aid users', '2 wireless mics',
      '2030-08-20 09:00:00', '2030-08-20 09:00:00'),
-  ('b-s2-inside', 'e-s2-inside', 'v-main-hall', '2030-09-11 09:00:00', '2030-09-11 12:00:00', 'REQUESTED'::"BookingStatus", 80, 'u-coordinator-a',
+  ('BKG-061', 'EVT-084', 'VEN-002', '2030-09-11 09:00:00', '2030-09-11 12:00:00', 'REQUESTED'::"BookingStatus", 80, 'USR-004',
      'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[], 'Two hearing aid users', '2 wireless mics',
      '2030-08-20 09:00:00', '2030-08-20 09:00:00'),
-  ('b-s2-outside', 'e-s2-outside', 'v-main-hall', '2030-10-11 09:00:00', '2030-10-11 12:00:00', 'REQUESTED'::"BookingStatus", 80, 'u-coordinator-a',
+  ('BKG-067', 'EVT-103', 'VEN-002', '2030-10-11 09:00:00', '2030-10-11 12:00:00', 'REQUESTED'::"BookingStatus", 80, 'USR-004',
      'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[], 'Two hearing aid users', '2 wireless mics',
      '2030-08-20 09:00:00', '2030-08-20 09:00:00'),
-  ('b-s2-approved-one', 'e-s2-approved-one', 'v-rooftop', '2030-09-21 09:00:00', '2030-09-21 12:00:00', 'APPROVED'::"BookingStatus", 80, 'u-coordinator-a',
+  ('BKG-055', 'EVT-057', 'VEN-004', '2030-09-21 09:00:00', '2030-09-21 12:00:00', 'APPROVED'::"BookingStatus", 80, 'USR-004',
      'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[], 'Two hearing aid users', '2 wireless mics',
      '2030-08-20 09:00:00', '2030-08-20 09:00:00'),
-  ('b-s2-rejected-one', 'e-s2-rejected-one', 'v-rooftop', '2030-09-22 09:00:00', '2030-09-22 12:00:00', 'REJECTED'::"BookingStatus", 80, 'u-coordinator-a',
+  ('BKG-069', 'EVT-114', 'VEN-004', '2030-09-22 09:00:00', '2030-09-22 12:00:00', 'REJECTED'::"BookingStatus", 80, 'USR-004',
      'THEATRE'::"RoomLayout", ARRAY['HEARING_LOOP']::"AccessibilityFeature"[], 'Two hearing aid users', '2 wireless mics',
      '2030-08-20 09:00:00', '2030-08-20 09:00:00');

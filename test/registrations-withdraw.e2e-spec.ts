@@ -31,7 +31,7 @@ import { resetDb } from './helpers/reset-db';
  *
  * Pre-condition for every test: reset the testDB, then run
  * test/fixtures/sql/base-users.sql, tc-s2-142-setup.sql (two more Attendees,
- * a full event) and tc-s2-151-setup.sql (u-attendee's registrations before
+ * a full event) and tc-s2-151-setup.sql (USR-001's registrations before
  * and after their cutoff, and one already withdrawn)
  * (docs/testing/sprint2-test-cases.md).
  */
@@ -41,7 +41,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
 
-  /** Fixed users: base-users.sql, plus u-attendee-b from tc-s2-142-setup.sql. */
+  /** Fixed users: base-users.sql, plus USR-002 from tc-s2-142-setup.sql. */
   const USERS = {
     attendee: 'attendee@example.com',
     attendeeB: 'attendee.b@example.com',
@@ -54,10 +54,10 @@ describe('Story 35 withdraw my registration (integration)', () => {
 
   /** Fixed rows from tc-s2-151-setup.sql and tc-s2-142-setup.sql. */
   const REG = {
-    dinner: 'g-s2-dinner', // before its cutoff
-    late: 'g-s2-late', // cutoff passed
-    left: 'g-s2-left', // already withdrawn
-    bea: 'g-s2-full-b', // u-attendee-b's place at the full "Sold Out Talk"
+    dinner: 'REG-002', // before its cutoff
+    late: 'REG-006', // cutoff passed
+    left: 'REG-007', // already withdrawn
+    bea: 'REG-003', // USR-002's place at the full "Sold Out Talk"
   } as const;
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
@@ -156,7 +156,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
       expect(res.body).toMatchObject({ id: REG.dinner, status: RegistrationStatus.WITHDRAWN });
       expect(Number.isNaN(Date.parse(res.body.withdrawnAt))).toBe(false);
       expect(await statusOf(REG.dinner)).toBe(RegistrationStatus.WITHDRAWN);
-      const [note] = await prisma.notification.findMany({ where: { recipientId: 'u-attendee' } });
+      const [note] = await prisma.notification.findMany({ where: { recipientId: 'USR-001' } });
       expect(note).toMatchObject({
         type: NotificationType.REGISTRATION_WITHDRAWN,
         message: 'Your registration for "Charity Dinner" has been withdrawn.',
@@ -169,7 +169,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
       const results = await Promise.all([withdraw(REG.dinner), withdraw(REG.dinner)]);
 
       expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
-      expect(await prisma.notification.count({ where: { recipientId: 'u-attendee' } })).toBe(1);
+      expect(await prisma.notification.count({ where: { recipientId: 'USR-001' } })).toBe(1);
     });
   });
 
@@ -179,7 +179,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
     // one lower and Story 33's capacity check lets someone else in.
     it('frees the place at a full event for another Attendee', async () => {
       const options = () =>
-        http().get('/registrations/events/e-s2-full/options').set('Authorization', as('attendee'));
+        http().get('/registrations/events/EVT-077/options').set('Authorization', as('attendee'));
       expect((await options().expect(200)).body).toMatchObject({ registeredCount: 2, block: 'FULL' });
 
       await withdraw(REG.bea, { confirm: true }, 'attendeeB').expect(200);
@@ -188,7 +188,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
       await http()
         .post('/registrations')
         .set('Authorization', as('attendee'))
-        .send({ eventId: 'e-s2-full', phone: '+65 9123 4567' })
+        .send({ eventId: 'EVT-077', phone: '+65 9123 4567' })
         .expect(201);
     });
   });
@@ -234,11 +234,12 @@ describe('Story 35 withdraw my registration (integration)', () => {
       const res = await http()
         .post('/registrations')
         .set('Authorization', as('attendee'))
-        .send({ eventId: 'e-s2-left', phone: '+65 8000 0000' })
+        // A real number: +65 8000 0000 is not one, so RegisterDto now refuses it.
+        .send({ eventId: 'EVT-088', phone: '+65 9123 4567' })
         .expect(201);
 
-      expect(res.body).toMatchObject({ id: REG.left, status: RegistrationStatus.REGISTERED, withdrawnAt: null, phone: '+65 8000 0000' });
-      expect(await prisma.registration.count({ where: { eventId: 'e-s2-left' } })).toBe(1);
+      expect(res.body).toMatchObject({ id: REG.left, status: RegistrationStatus.REGISTERED, withdrawnAt: null, phone: '+6591234567' });
+      expect(await prisma.registration.count({ where: { eventId: 'EVT-088' } })).toBe(1);
     });
   });
 

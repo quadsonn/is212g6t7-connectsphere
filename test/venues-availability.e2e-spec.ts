@@ -35,16 +35,16 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
 
   /** Fixed venues from base-venues.sql. */
   const VENUE = {
-    hall: 'v-main-hall',
-    room: 'v-seminar-room',
-    draft: 'v-draft-annex',
+    hall: 'VEN-002',
+    room: 'VEN-038',
+    draft: 'VEN-001',
   } as const;
 
   /** The event in tc-s2-12/14/15-setup whose details must never leak (AC-3). */
   const SECRET = {
-    eventId: 'e-s2-secret',
+    eventId: 'EVT-123',
     eventName: 'Secret Board Offsite',
-    organiserId: 'u-organiser',
+    organiserId: 'USR-006',
     organiserName: 'Olivia Organiser',
   } as const;
 

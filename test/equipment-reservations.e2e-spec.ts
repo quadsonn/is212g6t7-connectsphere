@@ -60,13 +60,20 @@ describe('Story 31 reserve equipment / Story 32 release for a cancelled event (i
   const OTHER_ROLES = ['coordinator', 'organiser', 'attendee', 'venueStaff'] as const;
 
   /** Fixed rows from tc-s2-122-setup.sql (and tc-s2-123/129/130/134). */
-  const ITEM = { mic: 'q-s2-res-mic', pa: 'q-s2-res-pa', projector: 'q-s2-res-projector' } as const;
+  const ITEM = { mic: 'EQP-009', pa: 'EQP-010', projector: 'EQP-011' } as const;
   const EVENT = {
-    capstone: 'e-s2-capstone', // 09:00-17:00, the main event
-    overlapping: 'e-s2-industry', // 12:00-20:00
-    backToBack: 'e-s2-mixer', // 17:00-21:00
-    nextDay: 'e-s2-alumni',
+    capstone: 'EVT-060', // 09:00-17:00, the main event
+    overlapping: 'EVT-082', // 12:00-20:00
+    backToBack: 'EVT-093', // 17:00-21:00
+    nextDay: 'EVT-055',
   } as const;
+  /** tc-s2-123-setup.sql: one event per status equipment can't be committed to. */
+  const NOT_LIVE_EVENT: Partial<Record<EventStatus, string>> = {
+    [EventStatus.DRAFT]: 'EVT-098',
+    [EventStatus.REJECTED]: 'EVT-099',
+    [EventStatus.CANCELLED]: 'EVT-096',
+    [EventStatus.COMPLETED]: 'EVT-097',
+  };
 
   /** The main event's window: 1 Oct 2030, 09:00-17:00 UTC. */
   const START = '2030-10-01T09:00:00.000Z';
@@ -159,7 +166,7 @@ describe('Story 31 reserve equipment / Story 32 release for a cancelled event (i
       async (status) => {
         await given('tc-s2-123-setup');
 
-        const res = await commit(`e-s2-not-live-${status.toLowerCase()}`, ITEM.mic, 1).expect(409);
+        const res = await commit(NOT_LIVE_EVENT[status]!, ITEM.mic, 1).expect(409);
 
         expect(res.body.message).toMatch(new RegExp(`event that is ${status}`));
       },
@@ -305,7 +312,7 @@ describe('Story 31 reserve equipment / Story 32 release for a cancelled event (i
     it('records a notification for the assigned Coordinator', async () => {
       await commit(EVENT.capstone, ITEM.mic, 2).expect(201);
 
-      const notes = await prisma.notification.findMany({ where: { recipientId: 'u-coordinator-a' } });
+      const notes = await prisma.notification.findMany({ where: { recipientId: 'USR-004' } });
       expect(notes).toHaveLength(1);
       expect(notes[0]).toMatchObject({
         type: NotificationType.EQUIPMENT_RESERVATION_DECIDED,
@@ -329,7 +336,7 @@ describe('Story 31 reserve equipment / Story 32 release for a cancelled event (i
     it('still commits, notifying nobody, when the event has no Coordinator', async () => {
       await given('tc-s2-129-setup');
 
-      await commit('e-s2-unassigned', ITEM.mic, 1).expect(201);
+      await commit('EVT-127', ITEM.mic, 1).expect(201);
       expect(await prisma.notification.count()).toBe(0);
     });
   });
@@ -364,8 +371,8 @@ describe('Story 31 reserve equipment / Story 32 release for a cancelled event (i
       await cancel(EVENT.capstone);
 
       const byId = Object.fromEntries((await reservationsOf(EVENT.capstone)).map((r) => [r.id, r]));
-      expect(byId['r-s2-130-pending'].status).toBe(ReservationStatus.RELEASED);
-      expect(byId['r-s2-130-rejected']).toMatchObject({ status: ReservationStatus.REJECTED, releasedAt: null });
+      expect(byId['RSV-011'].status).toBe(ReservationStatus.RELEASED);
+      expect(byId['RSV-012']).toMatchObject({ status: ReservationStatus.REJECTED, releasedAt: null });
     });
 
     // TC-S2-131 · US-32 AC-1 · setup: base-users + tc-s2-122-setup · fails if any other status change released the reservations
@@ -373,7 +380,12 @@ describe('Story 31 reserve equipment / Story 32 release for a cancelled event (i
     it('releases nothing when the event moves to any other status', async () => {
       await commit(EVENT.capstone, ITEM.mic, 4).expect(201);
 
-      await events.setStatus(await prisma.eventRequest.findUniqueOrThrow({ where: { id: EVENT.capstone } }), EventStatus.CONFIRMED);
+      // Any legal move that is not a cancellation. (CONFIRMED is no longer
+      // reachable from here: it needs an approved safety check.)
+      await events.setStatus(
+        await prisma.eventRequest.findUniqueOrThrow({ where: { id: EVENT.capstone } }),
+        EventStatus.AWAITING_SAFETY_CHECK,
+      );
 
       expect((await reservationsOf(EVENT.capstone))[0].status).toBe(ReservationStatus.APPROVED);
     });
@@ -462,7 +474,7 @@ describe('Story 31 reserve equipment / Story 32 release for a cancelled event (i
 
       await cancel(EVENT.capstone);
 
-      const old = await prisma.equipmentReservation.findUniqueOrThrow({ where: { id: 'r-s2-134-old' } });
+      const old = await prisma.equipmentReservation.findUniqueOrThrow({ where: { id: 'RSV-013' } });
       expect(old.releasedAt).toEqual(new Date('2030-01-01T00:00:00.000Z'));
     });
 

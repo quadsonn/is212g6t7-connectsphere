@@ -28,7 +28,7 @@ import { resetDb } from './helpers/reset-db';
  *
  * Pre-condition for every test: reset the testDB, then run
  * test/fixtures/sql/base-users.sql and tc-s2-68-setup.sql (an event in
- * planning, assigned to u-coordinator-a); some tests then load a further tc-s2
+ * planning, assigned to USR-004); some tests then load a further tc-s2
  * script, as their test case names (docs/testing/sprint2-test-cases.md).
  */
 describe('Story 27 record equipment and technical requirements (integration)', () => {
@@ -49,11 +49,11 @@ describe('Story 27 record equipment and technical requirements (integration)', (
 
   /** Fixed events from tc-s2-68/70/74/94/95-setup.sql. */
   const EVENT = {
-    planning: 'e-s2-planning',
-    approved: 'e-s2-approved',
-    withEquipment: 'e-s2-94-equipment',
-    supportOnly: 'e-s2-94-support-only',
-    open: 'e-s2-open',
+    planning: 'EVT-105',
+    approved: 'EVT-056',
+    withEquipment: 'EVT-052',
+    supportOnly: 'EVT-054',
+    open: 'EVT-101',
   } as const;
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;

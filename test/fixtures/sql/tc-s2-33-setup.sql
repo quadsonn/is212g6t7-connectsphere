@@ -4,27 +4,27 @@
 -- Pre-condition for TC-S2-33 (Story 19 access rules). Load AFTER base-users.sql
 -- and tc-s2-28-setup.sql.
 --
---   e-s2-theirs     APPROVED, assigned to u-coordinator-b
---   e-s2-pool       SUBMITTED, no coordinator (the review pool)
---   e-s2-rejected   REJECTED,  u-coordinator-a
---   e-s2-cancelled  CANCELLED, u-coordinator-a
---   e-s2-completed  COMPLETED, u-coordinator-a
+--   EVT-126     APPROVED, assigned to USR-005
+--   EVT-106       SUBMITTED, no coordinator (the review pool)
+--   EVT-113   REJECTED,  USR-004
+--   EVT-059  CANCELLED, USR-004
+--   EVT-061  COMPLETED, USR-004
 
 INSERT INTO "EventRequest" ("id", "organiserId", "coordinatorId", "name", "purpose", "description", "category",
   "proposedStart", "proposedEnd", "expectedAttendance", "accessibilityRequirements", "preferredLayout",
   "status", "createdAt", "updatedAt") VALUES
-  ('e-s2-theirs', 'u-organiser', 'u-coordinator-b', 'Theirs', 'Purpose', 'Description', 'Talk',
+  ('EVT-126', 'USR-006', 'USR-005', 'Theirs', 'Purpose', 'Description', 'Talk',
      '2027-03-10 01:00:00', '2027-03-10 09:00:00', 80, ARRAY['STEP_FREE_ACCESS']::"AccessibilityFeature"[], 'THEATRE'::"RoomLayout",
      'APPROVED'::"EventStatus", '2026-09-02 09:00:00', '2026-09-02 09:00:00'),
-  ('e-s2-pool', 'u-organiser', NULL, 'Pool', 'Purpose', 'Description', 'Talk',
+  ('EVT-106', 'USR-006', NULL, 'Pool', 'Purpose', 'Description', 'Talk',
      '2027-03-10 01:00:00', '2027-03-10 09:00:00', 80, ARRAY['STEP_FREE_ACCESS']::"AccessibilityFeature"[], 'THEATRE'::"RoomLayout",
      'SUBMITTED'::"EventStatus", '2026-09-02 09:00:00', '2026-09-02 09:00:00'),
-  ('e-s2-rejected', 'u-organiser', 'u-coordinator-a', 'Rejected', 'Purpose', 'Description', 'Talk',
+  ('EVT-113', 'USR-006', 'USR-004', 'Rejected', 'Purpose', 'Description', 'Talk',
      '2027-03-10 01:00:00', '2027-03-10 09:00:00', 80, ARRAY['STEP_FREE_ACCESS']::"AccessibilityFeature"[], 'THEATRE'::"RoomLayout",
      'REJECTED'::"EventStatus", '2026-09-02 09:00:00', '2026-09-02 09:00:00'),
-  ('e-s2-cancelled', 'u-organiser', 'u-coordinator-a', 'Cancelled', 'Purpose', 'Description', 'Talk',
+  ('EVT-059', 'USR-006', 'USR-004', 'Cancelled', 'Purpose', 'Description', 'Talk',
      '2027-03-10 01:00:00', '2027-03-10 09:00:00', 80, ARRAY['STEP_FREE_ACCESS']::"AccessibilityFeature"[], 'THEATRE'::"RoomLayout",
      'CANCELLED'::"EventStatus", '2026-09-02 09:00:00', '2026-09-02 09:00:00'),
-  ('e-s2-completed', 'u-organiser', 'u-coordinator-a', 'Completed', 'Purpose', 'Description', 'Talk',
+  ('EVT-061', 'USR-006', 'USR-004', 'Completed', 'Purpose', 'Description', 'Talk',
      '2027-03-10 01:00:00', '2027-03-10 09:00:00', 80, ARRAY['STEP_FREE_ACCESS']::"AccessibilityFeature"[], 'THEATRE'::"RoomLayout",
      'COMPLETED'::"EventStatus", '2026-09-02 09:00:00', '2026-09-02 09:00:00');

@@ -14,16 +14,16 @@ Both helpers check that they are connected to a local `_test` database before wr
 | Script | Creates | Used by |
 |---|---|---|
 | `base-users.sql` | 6 users: one per Sprint 1 role, with two Coordinators | Every converted spec (`beforeEach`) |
-| `base-venues.sql` | 4 venues (3 published, 1 draft), all managed by `u-venue-staff`. Load after `base-users.sql`. | Venue specs, once converted |
-| `tc-s1-01-setup.sql` | 1 SUBMITTED request, `e-submitted`, assigned to `u-coordinator-a` | TC-S1-01, 03, 05, 06, 09–14, 16, 17, 19–22 (US-07/08/09), 43 (US-05) |
+| `base-venues.sql` | 4 venues (3 published, 1 draft), all managed by `USR-010`. Load after `base-users.sql`. | Venue specs, once converted |
+| `tc-s1-01-setup.sql` | 1 SUBMITTED request, `EVT-146`, assigned to `USR-004` | TC-S1-01, 03, 05, 06, 09–14, 16, 17, 19–22 (US-07/08/09), 43 (US-05) |
 | `tc-s1-02-setup.sql` | 12 requests covering every review state (see below) | TC-S1-02, 04, 08 (US-07/08), plus status-variant tests in the US-07/08/09 specs |
-| `tc-s1-22-setup.sql` | A second Organiser, `u-organiser-2` / other@example.com | TC-S1-22, 30, 38, 46 |
-| `tc-s1-39-setup.sql` | 12 requests of u-organiser's, one per status, named "Request <STATUS>" | TC-S1-39 (US-05 AC-1) |
+| `tc-s1-22-setup.sql` | A second Organiser, `USR-007` / other@example.com | TC-S1-22, 30, 38, 46 |
+| `tc-s1-39-setup.sql` | 12 requests of USR-006's, one per status, named "Request <STATUS>" | TC-S1-39 (US-05 AC-1) |
 | `tc-s1-41-setup.sql` | 2 REJECTED requests with reasons | TC-S1-41 (US-05 AC-2) |
 | `tc-s1-42-setup.sql` | 3 drafts: plain, returned with a question, and one asked about attendance | TC-S1-42 (US-05 AC-3) |
 | `tc-s1-45-setup.sql` | 1 APPROVED request | TC-S1-45 (US-05 AC-4) |
-| `tc-s1-46-setup.sql` | 1 request of u-organiser's and 2 of u-organiser-2's. Load after `tc-s1-22-setup`. | TC-S1-46 (US-05 AC-5) |
-| `tc-s1-54-setup.sql` | 1 SUBMITTED request with layout and accessibility, assigned to `u-coordinator-a` | TC-S1-54 (US-06 AC-6). Not yet loaded; linked when `events-coordinator-view` is converted (group 3). |
+| `tc-s1-46-setup.sql` | 1 request of USR-006's and 2 of USR-007's. Load after `tc-s1-22-setup`. | TC-S1-46 (US-05 AC-5) |
+| `tc-s1-54-setup.sql` | 1 SUBMITTED request with layout and accessibility, assigned to `USR-004` | TC-S1-54 (US-06 AC-6). Not yet loaded; linked when `events-coordinator-view` is converted (group 3). |
 
 Specs load the `tc-s1-*` scripts per test, in the Arrange step: `await given('tc-s1-01-setup')`. A test can always be traced to exactly the script its test case names. Test-case pre-conditions are in `docs/testing/sprint1-test-cases.md`.
 
@@ -33,23 +33,23 @@ Specs load the `tc-s1-*` scripts per test, in the Arrange step: `await given('tc
 
 | ID | Email | Name | Role |
 |---|---|---|---|
-| `u-organiser` | organiser@example.com | Olivia Organiser | EVENT_ORGANISER |
-| `u-coordinator-a` | coord.a@example.com | Cody Coordinator | EVENT_COORDINATOR |
-| `u-coordinator-b` | coord.b@example.com | Casey Coordinator | EVENT_COORDINATOR |
-| `u-venue-staff` | venue.staff@example.com | Vera Venue | VENUE_STAFF |
-| `u-tech-support` | tech.support@example.com | Toby Tech | TECHNICAL_SUPPORT_STAFF |
-| `u-attendee` | attendee@example.com | Ann Attendee | ATTENDEE |
+| `USR-006` | organiser@example.com | Olivia Organiser | EVENT_ORGANISER |
+| `USR-004` | coord.a@example.com | Cody Coordinator | EVENT_COORDINATOR |
+| `USR-005` | coord.b@example.com | Casey Coordinator | EVENT_COORDINATOR |
+| `USR-010` | venue.staff@example.com | Vera Venue | VENUE_STAFF |
+| `USR-009` | tech.support@example.com | Toby Tech | TECHNICAL_SUPPORT_STAFF |
+| `USR-001` | attendee@example.com | Ann Attendee | ATTENDEE |
 
 ### `base-venues.sql`
 
-All four are managed by `u-venue-staff`.
+All four are managed by `USR-010`.
 
 | ID | Name | Location | Capacity | Status | Layouts | Accessibility |
 |---|---|---|---:|---|---|---|
-| `v-main-hall` | Main Hall | Block A, Level 1 | 300 | PUBLISHED | THEATRE, BANQUET | STEP_FREE_ACCESS, HEARING_LOOP |
-| `v-seminar-room` | Seminar Room | Block B, Level 3 | 40 | PUBLISHED | CLASSROOM, BOARDROOM, U_SHAPE | STEP_FREE_ACCESS |
-| `v-rooftop` | Rooftop Terrace | Block C, Roof | 120 | PUBLISHED | EVENT_HALL | none |
-| `v-draft-annex` | Annex (draft) | none | none | DRAFT | none | none |
+| `VEN-002` | Main Hall | Block A, Level 1 | 300 | PUBLISHED | THEATRE, BANQUET | STEP_FREE_ACCESS, HEARING_LOOP |
+| `VEN-038` | Seminar Room | Block B, Level 3 | 40 | PUBLISHED | CLASSROOM, BOARDROOM, U_SHAPE | STEP_FREE_ACCESS |
+| `VEN-004` | Rooftop Terrace | Block C, Roof | 120 | PUBLISHED | EVENT_HALL | none |
+| `VEN-001` | Annex (draft) | none | none | DRAFT | none | none |
 
 All rows use the timestamp `2026-09-01 09:00:00`.
 
@@ -57,32 +57,32 @@ All rows use the timestamp `2026-09-01 09:00:00`.
 
 | ID | Status | Organiser | Coordinator | Key values |
 |---|---|---|---|---|
-| `e-submitted` | SUBMITTED | `u-organiser` | `u-coordinator-a` | "Freshman Orientation 2030"; purpose "Welcome new students"; description "Full-day programme with talks and booths"; 2030-10-01 09:00–17:00 UTC; attendance 320 |
+| `EVT-146` | SUBMITTED | `USR-006` | `USR-004` | "Freshman Orientation 2030"; purpose "Welcome new students"; description "Full-day programme with talks and booths"; 2030-10-01 09:00–17:00 UTC; attendance 320 |
 
 ### `tc-s1-02-setup.sql`
 
-Every row is raised by `u-organiser`. All are assigned to `u-coordinator-a` except `e-unassigned`. Each uses the same values as `e-submitted`, except the two "-2" rows ("Careers Fair 2030", 2030-11-05, attendance 200). Tests look these rows up by ID. A spec that reads a whole list (for example `GET /events/mine` and `body[0]`) uses `tc-s1-01-setup.sql` instead.
+Every row is raised by `USR-006`. All are assigned to `USR-004` except `EVT-150`. Each uses the same values as `EVT-146`, except the two "-2" rows ("Careers Fair 2030", 2030-11-05, attendance 200). Tests look these rows up by ID. A spec that reads a whole list (for example `GET /events/mine` and `body[0]`) uses `tc-s1-01-setup.sql` instead.
 
 | ID | Status | Extra |
 |---|---|---|
-| `e-submitted` | SUBMITTED | — |
-| `e-submitted-2` | SUBMITTED | a second, independent request |
-| `e-draft` | DRAFT | — |
-| `e-under-review` | UNDER_REVIEW | — |
-| `e-under-review-2` | UNDER_REVIEW | a second, independent request |
-| `e-approved` | APPROVED | — |
-| `e-rejected` | REJECTED | no reason recorded |
-| `e-returned` | RETURNED | clarificationRequest "Please confirm the attendance figure" |
-| `e-cancelled` | CANCELLED | — |
-| `e-with-question` | SUBMITTED | clarificationRequest "An earlier question" |
-| `e-stale` | SUBMITTED | clarificationRequest "An earlier question", decisionReason "An earlier rejection" |
-| `e-unassigned` | SUBMITTED | no coordinator, so it sits in the review pool |
+| `EVT-146` | SUBMITTED | — |
+| `EVT-147` | SUBMITTED | a second, independent request |
+| `EVT-004` | DRAFT | — |
+| `EVT-151` | UNDER_REVIEW | — |
+| `EVT-152` | UNDER_REVIEW | a second, independent request |
+| `EVT-001` | APPROVED | — |
+| `EVT-009` | REJECTED | no reason recorded |
+| `EVT-012` | RETURNED | clarificationRequest "Please confirm the attendance figure" |
+| `EVT-003` | CANCELLED | — |
+| `EVT-154` | SUBMITTED | clarificationRequest "An earlier question" |
+| `EVT-133` | SUBMITTED | clarificationRequest "An earlier question", decisionReason "An earlier rejection" |
+| `EVT-150` | SUBMITTED | no coordinator, so it sits in the review pool |
 
 ### `tc-s1-22-setup.sql`
 
 | ID | Email | Name | Role |
 |---|---|---|---|
-| `u-organiser-2` | other@example.com | Otto Organiser | EVENT_ORGANISER |
+| `USR-007` | other@example.com | Otto Organiser | EVENT_ORGANISER |
 
 The password is the same as for the base users.
 
@@ -92,22 +92,22 @@ Every row uses purpose "Purpose", description "Description", category "Conferenc
 
 | Script | ID | Owner | Status | Name | Extra |
 |---|---|---|---|---|---|
-| `tc-s1-39` | `e-status-<status>` (12 rows) | u-organiser | each EventStatus | "Request <STATUS>" | Add a row if a status is added (e.g. Change 6) |
-| `tc-s1-41` | `e-rejected-latest` (newest) | u-organiser | REJECTED | Seeded request | reason "Clashes with the examination period" |
-| | `e-rejected-direct` | u-organiser | REJECTED | Seeded request | reason "Venue capacity insufficient" |
-| `tc-s1-42` | `e-draft-plain` | u-organiser | DRAFT | Plain draft | — |
-| | `e-draft-returned` | u-organiser | DRAFT | Returned for clarification | question "Which venue did you have in mind?" |
-| | `e-draft-asked` (newest) | u-organiser | DRAFT | Seeded request | question "Please confirm the expected attendance figure" |
-| `tc-s1-45` | `e-approved-only` | u-organiser | APPROVED | Seeded request | — |
-| `tc-s1-46` | `e-mine` | u-organiser | DRAFT | Mine | — |
-| | `e-theirs` | u-organiser-2 | DRAFT | Theirs | — |
-| | `e-theirs-rejected` | u-organiser-2 | REJECTED | Theirs | reason "CONFIDENTIAL internal note" |
+| `tc-s1-39` | `EVT-134` to `EVT-145` (statuses in alphabetical order), plus `EVT-155` (AWAITING_SAFETY_CHECK) and `EVT-156` (SAFETY_REJECTED): 14 rows | USR-006 | each EventStatus | "Request <STATUS>" | Add a row if a status is added (e.g. Change 6) |
+| `tc-s1-41` | `EVT-011` (newest) | USR-006 | REJECTED | Seeded request | reason "Clashes with the examination period" |
+| | `EVT-010` | USR-006 | REJECTED | Seeded request | reason "Venue capacity insufficient" |
+| `tc-s1-42` | `EVT-006` | USR-006 | DRAFT | Plain draft | — |
+| | `EVT-007` | USR-006 | DRAFT | Returned for clarification | question "Which venue did you have in mind?" |
+| | `EVT-005` (newest) | USR-006 | DRAFT | Seeded request | question "Please confirm the expected attendance figure" |
+| `tc-s1-45` | `EVT-002` | USR-006 | APPROVED | Seeded request | — |
+| `tc-s1-46` | `EVT-008` | USR-006 | DRAFT | Mine | — |
+| | `EVT-148` | USR-007 | DRAFT | Theirs | — |
+| | `EVT-149` | USR-007 | REJECTED | Theirs | reason "CONFIDENTIAL internal note" |
 
 ### `tc-s1-54-setup.sql`
 
 | ID | Status | Organiser | Coordinator | Key values |
 |---|---|---|---|---|
-| `e-with-preferences` | SUBMITTED | `u-organiser` | `u-coordinator-a` | Layout THEATRE, notes "Centre aisle, front row reserved". Accessibility STEP_FREE_ACCESS and HEARING_LOOP, notes "Ramp access to the stage". Equipment "Six wireless microphones, two projectors". Registration enabled. Attendance 320. |
+| `EVT-153` | SUBMITTED | `USR-006` | `USR-004` | Layout THEATRE, notes "Centre aisle, front row reserved". Accessibility STEP_FREE_ACCESS and HEARING_LOOP, notes "Ramp access to the stage". Equipment "Six wireless microphones, two projectors". Registration enabled. Attendance 320. |
 
 ## Loading a script by hand
 
@@ -135,6 +135,7 @@ END $reset$;
 - Name it `tc-s1-XX-setup.sql`, after the test case that needs it.
 - Load it after `base-users` (and `base-venues` if it needs the catalogue), and reuse the base IDs rather than inventing new users.
 - Use fixed IDs, dates and values. Don't use `now()`, random values or `gen_random_uuid()`.
+- IDs must be readable IDs with the table's prefix from `ID_PREFIX` in `src/prisma/readable-id.ts` (`USR-012`, `EVT-155`). A CHECK constraint refuses anything else. Pick numbers no other script uses for that table. `loadSql` moves each ID counter past the highest fixture ID afterwards, so rows the app creates during the test never collide with them.
 - Quote table and column names exactly as Prisma creates them (`"EventRequest"`, `"organiserId"`), and cast enums (`'SUBMITTED'::"EventStatus"`).
 - `updatedAt` has no database default, so set it explicitly.
 - Write plain SQL only. `loadSql` splits on top-level semicolons, ignoring any inside strings, comments or `$$` bodies. psql meta-commands such as `\i` are not supported.
@@ -161,7 +162,7 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-01-setup.sql` | a second Venue Staff member with one published venue | 01, 02, 05, 08, 40, 41, 48, 60 |
 | `tc-s2-02-setup.sql` | one booking of each status on Main Hall, one booking on another staff member's venue, and one blocked period on Seminar Room | 02 |
 | `tc-s2-04-setup.sql` | two confirmed bookings on Main Hall, two and a half weeks apart, so each calendar window can be shown to include or exclude them | 04 |
-| `tc-s2-05-setup.sql` | one confirmed booking on each of two of u-venue-staff's venues, and one on another staff member's venue, all on the same day | 05 |
+| `tc-s2-05-setup.sql` | one confirmed booking on each of two of USR-010's venues, and one on another staff member's venue, all on the same day | 05 |
 | `tc-s2-06-setup.sql` | one confirmed booking on Main Hall, with attendance and an organiser, so its slot's details can be checked | 06 |
 | `tc-s2-07-setup.sql` | one pending booking request on Main Hall, to be approved, reversed or rejected through the API during the test | 07 |
 | `tc-s2-09-setup.sql` | on Main Hall on 2 October, one confirmed booking and one pending request at different times, plus an approved event with no booking yet. The test then blocks out the whole day | 09 |
@@ -181,7 +182,7 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-29-setup.sql` | an event that fails capacity by one and needs an accessibility feature the venue lacks | 29 |
 | `tc-s2-31-setup.sql` | an event the venue clearly doesn't suit, so the suitability check flags it before a booking request is submitted | 31 |
 | `tc-s2-33-setup.sql` | events the requesting Coordinator must NOT be able to check: another Coordinator's, an unassigned one, and inactive ones | 33 |
-| `tc-s2-34-setup.sql` | an APPROVED event assigned to u-coordinator-a, with layout, accessibility and equipment requirements recorded, ready to have Main Hall requested for it | 34, 35, 36, 37, 38, 39, 40 |
+| `tc-s2-34-setup.sql` | an APPROVED event assigned to USR-004, with layout, accessibility and equipment requirements recorded, ready to have Main Hall requested for it | 34, 35, 36, 37, 38, 39, 40 |
 | `tc-s2-36-setup.sql` | a CONFIRMED booking on Main Hall overlapping the 09:00-12:00 slot | 36 |
 | `tc-s2-37-setup.sql` | a CONFIRMED booking on Main Hall starting exactly when the 09:00-12:00 slot ends | 37 |
 | `tc-s2-38-setup.sql` | a PENDING request on Main Hall overlapping the 09:00-12:00 slot | 38 |
@@ -200,16 +201,16 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-58-setup.sql` | a blocked-out period on Main Hall overlapping the tc-s2-48 request | 58 |
 | `tc-s2-61-setup.sql` | a confirmed booking on Main Hall overlapping the tc-s2-48 request | 61, 64 |
 | `tc-s2-64-setup.sql` | back-to-back confirmed bookings and two identical pending ones, which the no-overlap constraint must allow | 64 |
-| `tc-s2-68-setup.sql` | an event in planning, assigned to u-coordinator-a, with nothing booked or changed yet | 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 89, 90, 91, 92, 93, 94, 95, 96 |
-| `tc-s2-70-setup.sql` | two events assigned to u-coordinator-a that are not in planning (one under review, one approved) | 70, 92 |
+| `tc-s2-68-setup.sql` | an event in planning, assigned to USR-004, with nothing booked or changed yet | 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 89, 90, 91, 92, 93, 94, 95, 96 |
+| `tc-s2-70-setup.sql` | two events assigned to USR-004 that are not in planning (one under review, one approved) | 70, 92 |
 | `tc-s2-71-setup.sql` | an approved Main Hall booking for the tc-s2-68 event | 71, 72, 73, 74 |
 | `tc-s2-72-setup.sql` | a projector in the catalogue and an approved reservation of it for the tc-s2-68 event | 72 |
 | `tc-s2-73-setup.sql` | a Main Hall booking for the tc-s2-68 event, still only requested | 73 |
 | `tc-s2-74-setup.sql` | a projector and a requested reservation for the tc-s2-68 event, plus an unrelated event in planning | 74, 94 |
 | `tc-s2-76-setup.sql` | three recorded changes to the tc-s2-68 event, stored out of date order | 76 |
 | `tc-s2-77-setup.sql` | a request returned to its Organiser for changes | 77 |
-| `tc-s2-83-setup.sql` | an event in planning, assigned to u-coordinator-a, ready to be handed to another Coordinator | 83, 84, 85, 86, 87, 88 |
-| `tc-s2-84-setup.sql` | a completed event, still assigned to u-coordinator-a | 84 |
+| `tc-s2-83-setup.sql` | an event in planning, assigned to USR-004, ready to be handed to another Coordinator | 83, 84, 85, 86, 87, 88 |
+| `tc-s2-84-setup.sql` | a completed event, still assigned to USR-004 | 84 |
 | `tc-s2-94-setup.sql` | three more events in planning with nothing recorded, for Technical Support's list | 94 |
 | `tc-s2-95-setup.sql` | an event in planning that is open for registration, so an Attendee can view it | 95 |
 | `tc-s2-97-setup.sql` | a small equipment catalogue: three items, one under maintenance, one with no description or location | 97, 98, 99, 100, 101 |
@@ -228,19 +229,19 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-136-setup.sql` | a confirmed event open for registration now (capacity 100) | 136, 137, 138, 139, 140, 141, 142, 143 |
 | `tc-s2-137-setup.sql` | events where registering is not allowed: registration off, still planning, draft, not yet open, already closed | 137, 141 |
 | `tc-s2-142-setup.sql` | two more Attendees, a full event (2 of 2) and one with a single place left | 142, 145, 146, 147, 148, 149, 151, 152, 153, 154, 155, 156, 157 |
-| `tc-s2-145-setup.sql` | u-attendee's registrations: one active (venue confirmed), one withdrawn (no venue) | 145, 146, 148 |
-| `tc-s2-151-setup.sql` | u-attendee's registrations before and after their withdrawal cutoff, and one already withdrawn | 151, 152, 153, 154, 155, 156, 157 |
+| `tc-s2-145-setup.sql` | USR-001's registrations: one active (venue confirmed), one withdrawn (no venue) | 145, 146, 148 |
+| `tc-s2-151-setup.sql` | USR-001's registrations before and after their withdrawal cutoff, and one already withdrawn | 151, 152, 153, 154, 155, 156, 157 |
 | `tc-s2-159-setup.sql` | an equipment catalogue and a submitted event with catalogue and free-text equipment | 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 172, 173, 174, 175, 176, 177, 178, 179, 180 |
-| `tc-s2-169-setup.sql` | u-organiser's events in every status a change request is or isn't allowed for | 169 |
-| `tc-s2-170-setup.sql` | a second Organiser (u-organiser-b) and their own submitted event | 170 |
-| `tc-s2-172-setup.sql` | pending change requests on u-coordinator-a's and u-coordinator-b's events, one already decided, and a Main Hall booking | 172, 173, 174, 175, 176, 177, 178, 179, 180 |
+| `tc-s2-169-setup.sql` | USR-006's events in every status a change request is or isn't allowed for | 169 |
+| `tc-s2-170-setup.sql` | a second Organiser (USR-008) and their own submitted event | 170 |
+| `tc-s2-172-setup.sql` | pending change requests on USR-004's and USR-005's events, one already decided, and a Main Hall booking | 172, 173, 174, 175, 176, 177, 178, 179, 180 |
 | `tc-s2-178-setup.sql` | a pending request to change an event's equipment list | 178 |
 
 Extra users added by Sprint 2 scripts (same password as the base users):
 
 | ID | Email | Name | Role |
 |---|---|---|---|
-| `u-venue-staff-b` | venue.staff.b@example.com | Victor Venue | VENUE_STAFF (`tc-s2-01-setup.sql`) |
-| `u-organiser-b` | other.organiser@example.com | Oscar Organiser | EVENT_ORGANISER (`tc-s2-52-setup.sql`, and again in `tc-s2-170-setup.sql`; never load both) |
-| `u-attendee-b` | attendee.b@example.com | Bea Attendee | ATTENDEE (`tc-s2-142-setup.sql`) |
-| `u-attendee-c` | attendee.c@example.com | Cal Attendee | ATTENDEE (`tc-s2-142-setup.sql`) |
+| `USR-011` | venue.staff.b@example.com | Victor Venue | VENUE_STAFF (`tc-s2-01-setup.sql`) |
+| `USR-008` | other.organiser@example.com | Oscar Organiser | EVENT_ORGANISER (`tc-s2-52-setup.sql`, and again in `tc-s2-170-setup.sql`; never load both) |
+| `USR-002` | attendee.b@example.com | Bea Attendee | ATTENDEE (`tc-s2-142-setup.sql`) |
+| `USR-003` | attendee.c@example.com | Cal Attendee | ATTENDEE (`tc-s2-142-setup.sql`) |

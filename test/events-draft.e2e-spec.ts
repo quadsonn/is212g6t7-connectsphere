@@ -23,13 +23,13 @@ describe('US-04 save event request as draft (e2e)', () => {
 
   /** Fixed rows from base-users.sql. */
   const USERS = {
-    organiser: { id: 'u-organiser', email: 'organiser@example.com' },
-    coordinator: { id: 'u-coordinator-a', email: 'coord.a@example.com' },
+    organiser: { id: 'USR-006', email: 'organiser@example.com' },
+    coordinator: { id: 'USR-004', email: 'coord.a@example.com' },
   } as const;
 
   /** Fixed rows from tc-s1-22-setup.sql: loaded only by the tests that need them. */
   const EXTRA_USERS = {
-    otherOrganiser: { id: 'u-organiser-2', email: 'other@example.com' },
+    otherOrganiser: { id: 'USR-007', email: 'other@example.com' },
   } as const;
   const ids = Object.fromEntries(
     Object.entries({ ...USERS, ...EXTRA_USERS }).map(([key, user]) => [key, user.id]),

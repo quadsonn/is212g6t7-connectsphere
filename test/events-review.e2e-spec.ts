@@ -23,10 +23,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
 
   /** Fixed rows from base-users.sql. */
   const USERS = {
-    organiser: { id: 'u-organiser', email: 'organiser@example.com' },
-    coordinatorA: { id: 'u-coordinator-a', email: 'coord.a@example.com' },
-    coordinatorB: { id: 'u-coordinator-b', email: 'coord.b@example.com' },
-    attendee: { id: 'u-attendee', email: 'attendee@example.com' },
+    organiser: { id: 'USR-006', email: 'organiser@example.com' },
+    coordinatorA: { id: 'USR-004', email: 'coord.a@example.com' },
+    coordinatorB: { id: 'USR-005', email: 'coord.b@example.com' },
+    attendee: { id: 'USR-001', email: 'attendee@example.com' },
   } as const;
   const ids = Object.fromEntries(
     Object.entries(USERS).map(([key, user]) => [key, user.id]),
@@ -38,18 +38,18 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
 
   /** Fixed rows from the tc-s1 setup scripts (see test/fixtures/sql/README.md). */
   const EVENT = {
-    submitted: { id: 'e-submitted' },
-    submitted2: { id: 'e-submitted-2' },
-    draft: { id: 'e-draft' },
-    underReview: { id: 'e-under-review' },
-    underReview2: { id: 'e-under-review-2' },
-    approved: { id: 'e-approved' },
-    rejected: { id: 'e-rejected' },
-    returned: { id: 'e-returned' },
-    cancelled: { id: 'e-cancelled' },
-    withQuestion: { id: 'e-with-question' },
-    stale: { id: 'e-stale' },
-    unassigned: { id: 'e-unassigned' },
+    submitted: { id: 'EVT-146' },
+    submitted2: { id: 'EVT-147' },
+    draft: { id: 'EVT-004' },
+    underReview: { id: 'EVT-151' },
+    underReview2: { id: 'EVT-152' },
+    approved: { id: 'EVT-001' },
+    rejected: { id: 'EVT-009' },
+    returned: { id: 'EVT-012' },
+    cancelled: { id: 'EVT-003' },
+    withQuestion: { id: 'EVT-154' },
+    stale: { id: 'EVT-133' },
+    unassigned: { id: 'EVT-150' },
   } as const;
 
   /** Loads a test case's setup script(s) on top of base-users. */
@@ -371,15 +371,12 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.SUBMITTED);
     });
 
-    it('approves once that request has been assigned (US-10 then US-07)', async () => {
+    it('approves once that request has been assigned', async () => {
       await given('tc-s1-02-setup');
       const event = EVENT.unassigned;
-
-      await http()
-        .patch(`/events/${event.id}/coordinator`)
-        .set('Authorization', as('coordinatorB'))
-        .send({ coordinatorId: ids.coordinatorB })
-        .expect(200);
+      // Assignment is the Coordinator Lead's queue now (/assignments), not a
+      // self-assign; as on main, the request starts out assigned.
+      await prisma.eventRequest.update({ where: { id: event.id }, data: { coordinatorId: ids.coordinatorB } });
 
       await http()
         .post(`/events/${event.id}/approve`)

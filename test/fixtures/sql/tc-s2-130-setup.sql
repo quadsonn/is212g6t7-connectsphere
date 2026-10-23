@@ -5,9 +5,9 @@
 -- one and leaves the rejected one alone. Load AFTER base-users.sql and
 -- tc-s2-122-setup.sql.
 --
---   r-s2-130-pending   REQUESTED 1 x q-s2-res-mic
---   r-s2-130-rejected  REJECTED  1 x q-s2-res-pa
+--   RSV-011   REQUESTED 1 x EQP-009
+--   RSV-012  REJECTED  1 x EQP-010
 
 INSERT INTO "EquipmentReservation" ("id", "eventId", "equipmentId", "quantity", "start", "end", "status", "releasedAt", "createdAt", "updatedAt") VALUES
-  ('r-s2-130-pending', 'e-s2-capstone', 'q-s2-res-mic', 1, '2030-10-01 09:00:00', '2030-10-01 17:00:00', 'REQUESTED'::"ReservationStatus", NULL, '2026-09-03 09:00:00', '2026-09-03 09:00:00'),
-  ('r-s2-130-rejected', 'e-s2-capstone', 'q-s2-res-pa', 1, '2030-10-01 09:00:00', '2030-10-01 17:00:00', 'REJECTED'::"ReservationStatus", NULL, '2026-09-03 09:00:00', '2026-09-03 09:00:00');
+  ('RSV-011', 'EVT-060', 'EQP-009', 1, '2030-10-01 09:00:00', '2030-10-01 17:00:00', 'REQUESTED'::"ReservationStatus", NULL, '2026-09-03 09:00:00', '2026-09-03 09:00:00'),
+  ('RSV-012', 'EVT-060', 'EQP-010', 1, '2030-10-01 09:00:00', '2030-10-01 17:00:00', 'REJECTED'::"ReservationStatus", NULL, '2026-09-03 09:00:00', '2026-09-03 09:00:00');

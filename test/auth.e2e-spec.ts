@@ -20,7 +20,7 @@ describe('US-01 secure login (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
-  /** u-organiser from base-users.sql. */
+  /** USR-006 from base-users.sql. */
   const EMAIL = 'organiser@example.com';
   const PASSWORD = 'correct-horse-battery-staple';
 

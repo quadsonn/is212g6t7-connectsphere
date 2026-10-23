@@ -140,7 +140,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Story/AC ref | Story 16 AC-4 |
 | Test Scenario | A booked slot shows its event details, and opening it shows the full booking |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-06-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
-| Test Steps | 1. Open the calendar for 1-8 Oct.<br>2. Open the "Gala" slot (`GET /bookings/b-s2-06-gala`). |
+| Test Steps | 1. Open the calendar for 1-8 Oct.<br>2. Open the "Gala" slot (`GET /bookings/BKG-010`). |
 | Test Data | Confirmed booking "Gala", Main Hall, 2 Oct 2030 09:00-12:00 UTC, 80 expected, organised by Olivia Organiser |
 | Expected Result | The slot shows event "Gala", organiser Olivia Organiser, 09:00-12:00, 80 expected. Opening it returns the same booking with its event and venue. |
 | Created By | Marilyn Ong |
@@ -671,7 +671,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Story/AC ref | Story 19 AC-5 |
 | Test Scenario | Suitability flags are advisory: the check changes nothing, and the request can still be submitted |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-28-setup.sql + tc-s2-31-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Check Hall's suitability for an event of 500 needing a hearing loop.<br>2. Submit the booking request anyway (`POST /bookings`). |
+| Test Steps | 1. Check Hall's suitability for an event of 80 needing a hearing loop.<br>2. Submit the booking request anyway (`POST /bookings`). |
 | Test Data | Hall holds 100, no hearing loop |
 | Expected Result | The check returns NOT_SUITABLE and creates or changes nothing. The booking request is still accepted (201) as pending. |
 | Created By | Marilyn Ong |
@@ -679,7 +679,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | **Test execution record** | |
 | Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
 | Status | Pass |
-| Remarks | None. |
+| Remarks | Updated 2026-10-23: the event's attendance was lowered from 500 to 80. Capacity is now a hard block (an over-capacity request is refused with CAPACITY_EXCEEDED), so the advisory flag is the missing hearing loop. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
 | Automated by | `test/venues-suitability.e2e-spec.ts::US-19: changes nothing — no booking, reservation, notification or event edit`<br>`test/venues-suitability.e2e-spec.ts::US-19 AC-5: a booking request still submits after suitability reports flags` |
@@ -1672,7 +1672,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql + tc-s2-76-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
 | Test Steps | 1. Open the event's history. |
 | Test Data | Three recorded changes dated 2, 3 and 1 Oct 2026, stored in that order |
-| Expected Result | Listed 1, 2, 3 Oct (c-s2-76-first, -second, -third). |
+| Expected Result | Listed 1, 2, 3 Oct (CHG-001, -second, -third). |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
@@ -3159,7 +3159,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Test Scenario | I can only view my own registrations; another Attendee's is denied |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-142-setup.sql + tc-s2-145-setup.sql on testDB (reset before test). Logged in as attendee@example.com (Ann Attendee). |
 | Test Steps | 1. Open My registrations.<br>2. Open Bea's registration by its id.<br>3. Open my own registration; open an unknown id. |
-| Test Data | tc-s2-142 (Bea's registration g-s2-full-b); tc-s2-145 |
+| Test Data | tc-s2-142 (Bea's registration REG-003); tc-s2-145 |
 | Expected Result | My list holds only my two registrations. Bea's is denied (403) "you can only view your own registrations". My own opens; the unknown id is not found (404). |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |

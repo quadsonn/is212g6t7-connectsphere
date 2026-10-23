@@ -22,7 +22,7 @@ describe('Story 16 venue availability calendar (integration)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
 
-  /** Fixed users: base-users.sql, plus u-venue-staff-b from tc-s2-01-setup.sql. */
+  /** Fixed users: base-users.sql, plus USR-011 from tc-s2-01-setup.sql. */
   const USERS = {
     staff: 'venue.staff@example.com',
     staffB: 'venue.staff.b@example.com',
@@ -30,11 +30,11 @@ describe('Story 16 venue availability calendar (integration)', () => {
   } as const;
   const tokens: Record<string, string> = {};
 
-  /** Fixed venues: base-venues.sql, plus v-other-hall from tc-s2-01-setup.sql. */
+  /** Fixed venues: base-venues.sql, plus VEN-003 from tc-s2-01-setup.sql. */
   const VENUE = {
-    hall: 'v-main-hall',
-    room: 'v-seminar-room',
-    other: 'v-other-hall',
+    hall: 'VEN-002',
+    room: 'VEN-038',
+    other: 'VEN-003',
   } as const;
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
@@ -103,7 +103,7 @@ describe('Story 16 venue availability calendar (integration)', () => {
     });
 
     // TC-S2-02 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-02-setup · fails if a status were mislabelled, a rejected request shown, or another staff member's booking leaked in
-    it('marks pending as tentative, approved as confirmed and blocks as blocked', async () => {
+    it('marks pending as pending, approved as confirmed and blocks as blocked', async () => {
       await given('tc-s2-01-setup', 'tc-s2-02-setup');
 
       const res = await calendar().expect(200);
@@ -114,7 +114,8 @@ describe('Story 16 venue availability calendar (integration)', () => {
           e.eventName ?? e.reason,
         ]),
       ).toEqual([
-        ['TENTATIVE', 'Pending talk'],
+        // US-54: TENTATIVE now means a live hold; a pending request is PENDING.
+        ['PENDING', 'Pending talk'],
         ['CONFIRMED', 'Confirmed gala'],
         ['BLOCKED', 'Holiday'],
       ]);
@@ -196,7 +197,7 @@ describe('Story 16 venue availability calendar (integration)', () => {
       const [entry] = (await calendar().expect(200)).body.entries;
 
       expect(entry).toMatchObject({
-        id: 'b-s2-06-gala',
+        id: 'BKG-010',
         eventName: 'Gala',
         organiserName: 'Olivia Organiser',
         start: at(2, 9),
@@ -214,7 +215,7 @@ describe('Story 16 venue availability calendar (integration)', () => {
       const res = await http().get(`/bookings/${entry.id}`).set('Authorization', as('staff')).expect(200);
 
       expect(res.body).toMatchObject({
-        id: 'b-s2-06-gala',
+        id: 'BKG-010',
         expectedAttendance: 80,
         event: { name: 'Gala', organiser: { name: 'Olivia Organiser' } },
         venue: { id: VENUE.hall },
@@ -226,9 +227,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
     // TC-S2-07 · setup: base-users + base-venues + tc-s2-07-setup · fails if an approval did not show as confirmed on the next read, or the response could be cached
     it('shows a booking as confirmed on the next read after it is approved', async () => {
       await given('tc-s2-07-setup');
-      expect((await calendar().expect(200)).body.entries[0].kind).toBe('TENTATIVE');
+      expect((await calendar().expect(200)).body.entries[0].kind).toBe('PENDING');
 
-      await http().post('/bookings/b-s2-07-talk/approve').set('Authorization', as('staff')).send({}).expect(200);
+      await http().post('/bookings/BKG-011/approve').set('Authorization', as('staff')).send({}).expect(200);
 
       const res = await calendar().expect(200);
       expect(res.body.entries[0].kind).toBe('CONFIRMED');
@@ -239,11 +240,11 @@ describe('Story 16 venue availability calendar (integration)', () => {
     it('drops a booking from the calendar on the next read after it is cancelled', async () => {
       // A reversal to rejected is how a confirmed booking is withdrawn (Story 22 AC-6).
       await given('tc-s2-07-setup');
-      await http().post('/bookings/b-s2-07-talk/approve').set('Authorization', as('staff')).send({}).expect(200);
+      await http().post('/bookings/BKG-011/approve').set('Authorization', as('staff')).send({}).expect(200);
       expect((await calendar().expect(200)).body.entries).toHaveLength(1);
 
       await http()
-        .post('/bookings/b-s2-07-talk/reverse')
+        .post('/bookings/BKG-011/reverse')
         .set('Authorization', as('staff'))
         .send({ reason: 'Event called off' })
         .expect(200);
@@ -256,7 +257,7 @@ describe('Story 16 venue availability calendar (integration)', () => {
       await given('tc-s2-07-setup');
 
       await http()
-        .post('/bookings/b-s2-07-talk/reject')
+        .post('/bookings/BKG-011/reject')
         .set('Authorization', as('staff'))
         .send({ reason: 'Venue unavailable' })
         .expect(200);
@@ -305,7 +306,7 @@ describe('Story 16 venue availability calendar (integration)', () => {
       const res = await block({ venueId: VENUE.hall, start: at(2, 0), end: at(3, 0), reason: 'Leak' }).expect(201);
 
       expect(res.body.overlappingBookings).toEqual(
-        expect.arrayContaining([expect.objectContaining({ bookingId: 'b-s2-09-gala' })]),
+        expect.arrayContaining([expect.objectContaining({ bookingId: 'BKG-012' })]),
       );
     });
 
@@ -315,7 +316,7 @@ describe('Story 16 venue availability calendar (integration)', () => {
       await block({ venueId: VENUE.hall, start: at(2, 0), end: at(3, 0), reason: 'Maintenance' }).expect(201);
 
       const approve = await http()
-        .post('/bookings/b-s2-09-pending/approve')
+        .post('/bookings/BKG-013/approve')
         .set('Authorization', as('staff'))
         .send({})
         .expect(409);
@@ -324,7 +325,7 @@ describe('Story 16 venue availability calendar (integration)', () => {
       await http()
         .post('/bookings')
         .set('Authorization', as('coordinator'))
-        .send({ eventId: 'e-s2-09-new', venueId: VENUE.hall, start: at(2, 16), end: at(2, 18), expectedAttendance: 50 })
+        .send({ eventId: 'EVT-025', venueId: VENUE.hall, start: at(2, 16), end: at(2, 18), expectedAttendance: 50 })
         .expect(409);
     });
   });

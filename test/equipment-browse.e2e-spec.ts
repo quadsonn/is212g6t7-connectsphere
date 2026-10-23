@@ -42,7 +42,7 @@ describe('Story 28 view the equipment catalogue (integration)', () => {
   const tokens: Record<string, string> = {};
 
   /** Fixed items from tc-s2-97-setup.sql. */
-  const ITEM = { mic: 'q-s2-mic', projector: 'q-s2-projector-4k', table: 'q-s2-table' } as const;
+  const ITEM = { mic: 'EQP-004', projector: 'EQP-007', table: 'EQP-012' } as const;
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());

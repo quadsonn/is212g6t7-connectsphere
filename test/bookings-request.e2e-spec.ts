@@ -23,7 +23,7 @@ describe('Story 20 submit a venue booking request (integration)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
 
-  /** Fixed users: base-users.sql, plus u-venue-staff-b from tc-s2-01-setup.sql. */
+  /** Fixed users: base-users.sql, plus USR-011 from tc-s2-01-setup.sql. */
   const USERS = {
     coordinator: 'coord.a@example.com',
     otherCoordinator: 'coord.b@example.com',
@@ -34,8 +34,8 @@ describe('Story 20 submit a venue booking request (integration)', () => {
   const tokens: Record<string, string> = {};
 
   /** Fixed rows from base-venues.sql and tc-s2-34/36/38/40-setup.sql. */
-  const VENUE = 'v-main-hall';
-  const EVENT = { orientation: 'e-s2-orientation', notApproved: 'e-s2-not-approved' } as const;
+  const VENUE = 'VEN-002';
+  const EVENT = { orientation: 'EVT-102', notApproved: 'EVT-095' } as const;
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
@@ -175,7 +175,7 @@ describe('Story 20 submit a venue booking request (integration)', () => {
       const res = await book(validRequest).expect(409);
 
       expect(res.body.conflicts).toEqual([
-        expect.objectContaining({ bookingId: 'b-s2-36-confirmed', eventName: 'Hackathon' }),
+        expect.objectContaining({ bookingId: 'BKG-028', eventName: 'Hackathon' }),
       ]);
       expect(await prisma.venueBooking.count({ where: { eventId: EVENT.orientation } })).toBe(0);
     });
@@ -198,7 +198,7 @@ describe('Story 20 submit a venue booking request (integration)', () => {
       expect(res.body.warnings).toEqual([
         expect.objectContaining({
           code: 'OVERLAPS_PENDING_REQUEST',
-          conflicts: [expect.objectContaining({ bookingId: 'b-s2-38-pending' })],
+          conflicts: [expect.objectContaining({ bookingId: 'BKG-030' })],
         }),
       ]);
     });
@@ -259,7 +259,7 @@ describe('Story 20 submit a venue booking request (integration)', () => {
       expect(requester.body).toMatchObject({
         id: created.body.id,
         equipmentNeeds: '2 wireless mics',
-        event: { organiser: { id: 'u-organiser' } },
+        event: { organiser: { id: 'USR-006' } },
       });
 
       await get('staff').expect(200);

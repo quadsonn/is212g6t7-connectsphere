@@ -25,7 +25,7 @@ import { resetDb } from './helpers/reset-db';
  * Pre-condition for every test: reset the testDB, then run
  * test/fixtures/sql/base-users.sql, base-venues.sql and tc-s2-142-setup.sql
  * (two more Attendees, with registrations of their own); most tests then load
- * tc-s2-145-setup.sql, u-attendee's own registrations
+ * tc-s2-145-setup.sql, USR-001's own registrations
  * (docs/testing/sprint2-test-cases.md).
  */
 describe('Story 34 view my registration status (integration)', () => {
@@ -34,7 +34,7 @@ describe('Story 34 view my registration status (integration)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
 
-  /** Fixed users: base-users.sql, plus u-attendee-b from tc-s2-142-setup.sql. */
+  /** Fixed users: base-users.sql, plus USR-002 from tc-s2-142-setup.sql. */
   const USERS = {
     attendee: 'attendee@example.com',
     attendeeB: 'attendee.b@example.com',
@@ -46,7 +46,7 @@ describe('Story 34 view my registration status (integration)', () => {
   const tokens: Record<string, string> = {};
 
   /** Fixed rows from tc-s2-145-setup.sql and tc-s2-142-setup.sql. */
-  const REG = { concert: 'g-s2-concert', workshop: 'g-s2-workshop', bea: 'g-s2-full-b' } as const;
+  const REG = { concert: 'REG-001', workshop: 'REG-008', bea: 'REG-003' } as const;
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
@@ -93,8 +93,9 @@ describe('Story 34 view my registration status (integration)', () => {
 
   describe('AC-1: each registration with event name, date/time, venue and status', () => {
     // TC-S2-145 · US-34 AC-1 · setup: base-users + base-venues + tc-s2-142-setup + tc-s2-145-setup · fails if a registration was missing, or lacked its event name, times, venue or status
-    // Code: findMine() returns every registration of the caller, soonest event
-    // first, each with event { name, start, end, venue } and its status.
+    // Code: findMine() returns every registration of the caller, active ones
+    // first and withdrawn ones below them, soonest event first within each
+    // group, each with event { name, start, end, venue } and its status.
     it('lists both registrations with their details and status', async () => {
       await given('tc-s2-145-setup');
 
@@ -102,6 +103,16 @@ describe('Story 34 view my registration status (integration)', () => {
 
       expect(res.body.message).toBeNull();
       expect(res.body.registrations).toEqual([
+        expect.objectContaining({
+          id: REG.concert,
+          status: 'REGISTERED',
+          event: expect.objectContaining({
+            name: 'Autumn Concert',
+            start: '2030-10-01T18:00:00.000Z',
+            end: '2030-10-01T21:00:00.000Z',
+            venue: { id: 'VEN-002', name: 'Main Hall', location: 'Block A, Level 1' },
+          }),
+        }),
         expect.objectContaining({
           id: REG.workshop,
           status: 'WITHDRAWN',
@@ -111,16 +122,6 @@ describe('Story 34 view my registration status (integration)', () => {
             start: '2030-09-15T09:00:00.000Z',
             end: '2030-09-15T12:00:00.000Z',
             venue: null,
-          }),
-        }),
-        expect.objectContaining({
-          id: REG.concert,
-          status: 'REGISTERED',
-          event: expect.objectContaining({
-            name: 'Autumn Concert',
-            start: '2030-10-01T18:00:00.000Z',
-            end: '2030-10-01T21:00:00.000Z',
-            venue: { id: 'v-main-hall', name: 'Main Hall', location: 'Block A, Level 1' },
           }),
         }),
       ]);
@@ -135,7 +136,7 @@ describe('Story 34 view my registration status (integration)', () => {
     it('shows a renamed, retimed event as it is now', async () => {
       await given('tc-s2-145-setup');
       await prisma.eventRequest.update({
-        where: { id: 'e-s2-concert' },
+        where: { id: 'EVT-062' },
         data: {
           name: 'Autumn Concert (moved)',
           proposedStart: new Date('2030-10-02T18:00:00.000Z'),
@@ -158,9 +159,8 @@ describe('Story 34 view my registration status (integration)', () => {
       await given('tc-s2-145-setup');
       await prisma.venueBooking.create({
         data: {
-          id: 'b-s2-workshop',
-          eventId: 'e-s2-workshop',
-          venueId: 'v-seminar-room',
+          eventId: 'EVT-132',
+          venueId: 'VEN-038',
           start: new Date('2030-09-15T09:00:00.000Z'),
           end: new Date('2030-09-15T12:00:00.000Z'),
           status: 'APPROVED',
@@ -169,7 +169,7 @@ describe('Story 34 view my registration status (integration)', () => {
 
       const res = await one(REG.workshop).expect(200);
 
-      expect(res.body.event.venue).toEqual({ id: 'v-seminar-room', name: 'Seminar Room', location: 'Block B, Level 3' });
+      expect(res.body.event.venue).toEqual({ id: 'VEN-038', name: 'Seminar Room', location: 'Block B, Level 3' });
     });
   });
 

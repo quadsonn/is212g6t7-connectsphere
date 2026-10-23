@@ -42,8 +42,8 @@ describe('Story 22 approve/reject a booking request with reason (integration)', 
   const tokens: Record<string, string> = {};
 
   /** Fixed rows from tc-s2-48-setup.sql and tc-s2-55-setup.sql. */
-  const BOOKING = { showcase: 'b-s2-48-showcase', first: 'b-s2-55-first', second: 'b-s2-55-second' } as const;
-  const EVENT = 'e-s2-48-showcase';
+  const BOOKING = { showcase: 'BKG-031', first: 'BKG-032', second: 'BKG-033' } as const;
+  const EVENT = 'EVT-030';
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
@@ -167,7 +167,7 @@ describe('Story 22 approve/reject a booking request with reason (integration)', 
           outcome: BookingStatus.REJECTED,
           reason: 'Too small',
           createdAt: expect.any(String),
-          decidedBy: expect.objectContaining({ id: 'u-venue-staff', name: 'Vera Venue', role: Role.VENUE_STAFF }),
+          decidedBy: expect.objectContaining({ id: 'USR-010', name: 'Vera Venue', role: Role.VENUE_STAFF }),
         }),
       ]);
       expect(Number.isNaN(Date.parse(res.body.decisions[0].createdAt))).toBe(false);
@@ -193,7 +193,7 @@ describe('Story 22 approve/reject a booking request with reason (integration)', 
       }
 
       const notified = await prisma.notification.findMany({ where: { type: NotificationType.VENUE_BOOKING_DECIDED } });
-      expect(notified.map((n) => n.recipientId).sort()).toEqual(['u-coordinator-a', 'u-organiser']);
+      expect(notified.map((n) => n.recipientId).sort()).toEqual(['USR-004', 'USR-006']);
     });
 
     // TC-S2-52 · US-22 AC-5 · setup: base-users + base-venues + tc-s2-48-setup + tc-s2-52-setup · fails if an unrelated Organiser could see the decision

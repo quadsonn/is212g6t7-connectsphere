@@ -48,7 +48,7 @@ describe('Story 29 check equipment availability for a date and time (integration
   const tokens: Record<string, string> = {};
 
   /** Fixed items from tc-s2-103-setup.sql. */
-  const ITEM = { mic: 'q-s2-mic', pa: 'q-s2-pa', projector: 'q-s2-projector-4k', reel: 'q-s2-reel' } as const;
+  const ITEM = { mic: 'EQP-004', pa: 'EQP-005', projector: 'EQP-007', reel: 'EQP-008' } as const;
 
   /** The event's window: 1 Oct 2030, 09:00-17:00 UTC. */
   const START = '2030-10-01T09:00:00.000Z';

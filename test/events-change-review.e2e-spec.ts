@@ -56,10 +56,10 @@ describe('Story 37 review change requests (integration)', () => {
 
   /** Fixed rows from tc-s2-172/177-setup.sql. */
   const CR = {
-    attendance: 'cr-s2-attendance', // e-s2-cr ("Tech Talk"): 120 -> 350, Main Hall holds 300
-    dates: 'cr-s2-dates', // e-s2-cr-dates ("Open House"): 1 Oct -> 2 Oct 2030
-    theirs: 'cr-s2-theirs', // on Casey's event
-    kit: 'cr-s2-kit', // e-s2-cr-kit: new equipment list
+    attendance: 'CRQ-001', // EVT-063 ("Tech Talk"): 120 -> 350, Main Hall holds 300
+    dates: 'CRQ-002', // EVT-067 ("Open House"): 1 Oct -> 2 Oct 2030
+    theirs: 'CRQ-005', // on Casey's event
+    kit: 'CRQ-004', // EVT-069: new equipment list
   } as const;
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
@@ -118,8 +118,8 @@ describe('Story 37 review change requests (integration)', () => {
       expect(res.body.map((r: { id: string }) => r.id)).toEqual([CR.dates, CR.attendance]);
       expect(res.body[0]).toMatchObject({
         reason: 'Clashes with exams',
-        requestedBy: { id: 'u-organiser', name: 'Olivia Organiser' },
-        event: { id: 'e-s2-cr-dates', name: 'Open House' },
+        requestedBy: { id: 'USR-006', name: 'Olivia Organiser' },
+        event: { id: 'EVT-067', name: 'Open House' },
       });
     });
 
@@ -144,10 +144,10 @@ describe('Story 37 review change requests (integration)', () => {
         reason: 'More sign-ups than expected',
         proposedAttendance: 350,
         proposedStart: null,
-        requestedBy: { id: 'u-organiser', name: 'Olivia Organiser' },
+        requestedBy: { id: 'USR-006', name: 'Olivia Organiser' },
       });
       expect(res.body.event).toMatchObject({
-        id: 'e-s2-cr',
+        id: 'EVT-063',
         name: 'Tech Talk',
         expectedAttendance: 120,
         proposedStart: '2030-10-01T09:00:00.000Z',
@@ -160,11 +160,11 @@ describe('Story 37 review change requests (integration)', () => {
     });
 
     // TC-S2-173 · US-37 AC-2 · setup: base-users + base-venues + tc-s2-159-setup + tc-s2-172-setup · fails if a date change didn't show the new window it would give the event
-    // Code: assessReschedule() returns impact.newWindow when the request moves the event's dates.
+    // Code: the arrangement check (US-48) returns check.newWindow when the request moves the event's dates.
     it('shows the new window a date change would give the event', async () => {
       const res = await review(CR.dates).expect(200);
 
-      expect(res.body.impact.newWindow).toEqual({ start: '2030-10-02T09:00:00.000Z', end: '2030-10-02T17:00:00.000Z' });
+      expect(res.body.check.newWindow).toEqual({ start: '2030-10-02T09:00:00.000Z', end: '2030-10-02T17:00:00.000Z' });
     });
   });
 
@@ -177,7 +177,7 @@ describe('Story 37 review change requests (integration)', () => {
       expect(res.body.warnings).toEqual([
         expect.objectContaining({
           type: 'CAPACITY_EXCEEDED',
-          bookingId: 'b-s2-cr',
+          bookingId: 'BKG-057',
           venueName: 'Main Hall',
           capacity: 300,
           proposedAttendance: 350,
@@ -215,10 +215,10 @@ describe('Story 37 review change requests (integration)', () => {
 
       expect(res.body).toMatchObject({
         status: 'REJECTED',
-        decidedById: 'u-coordinator-a',
+        decidedById: 'USR-004',
         decisionReason: 'Main Hall cannot hold 350',
       });
-      expect((await event('e-s2-cr')).expectedAttendance).toBe(120);
+      expect((await event('EVT-063')).expectedAttendance).toBe(120);
     });
   });
 
@@ -228,7 +228,7 @@ describe('Story 37 review change requests (integration)', () => {
     it('shows the rejection and reason on the Organiser\'s event', async () => {
       await decide(CR.attendance, 'reject', { reason: 'Main Hall cannot hold 350' }).expect(200);
 
-      const res = await http().get('/events/e-s2-cr').set('Authorization', as('organiser')).expect(200);
+      const res = await http().get('/events/EVT-063').set('Authorization', as('organiser')).expect(200);
 
       expect(res.body.pendingChangeRequest).toBeNull();
       expect(res.body.latestChangeDecision).toMatchObject({
@@ -246,11 +246,11 @@ describe('Story 37 review change requests (integration)', () => {
     it('applies a new attendance and records it in the history', async () => {
       const res = await decide(CR.attendance, 'approve').expect(200);
 
-      expect(res.body.request).toMatchObject({ status: 'APPROVED', decidedById: 'u-coordinator-a' });
-      expect((await event('e-s2-cr')).expectedAttendance).toBe(350);
+      expect(res.body.request).toMatchObject({ status: 'APPROVED', decidedById: 'USR-004' });
+      expect((await event('EVT-063')).expectedAttendance).toBe(350);
       expect(res.body.change).toMatchObject({
         changes: [{ field: 'expectedAttendance', previous: 120, next: 350 }],
-        changedBy: { id: 'u-coordinator-a' },
+        changedBy: { id: 'USR-004' },
         requiresReview: true,
         affectedArrangements: ['VENUE_BOOKING'],
       });
@@ -262,7 +262,7 @@ describe('Story 37 review change requests (integration)', () => {
     it('applies new dates', async () => {
       await decide(CR.dates, 'approve').expect(200);
 
-      expect(await event('e-s2-cr-dates')).toMatchObject({
+      expect(await event('EVT-067')).toMatchObject({
         proposedStart: new Date('2030-10-02T09:00:00.000Z'),
         proposedEnd: new Date('2030-10-02T17:00:00.000Z'),
       });
@@ -276,7 +276,7 @@ describe('Story 37 review change requests (integration)', () => {
 
       await decide(CR.kit, 'approve').expect(200);
 
-      const lines = await prisma.equipmentRequirement.findMany({ where: { eventId: 'e-s2-cr-kit' } });
+      const lines = await prisma.equipmentRequirement.findMany({ where: { eventId: 'EVT-069' } });
       expect(lines.map((l) => [l.equipmentType, l.quantity, l.notes]).sort()).toEqual(
         [
           ['Banner stand', 1, null],
@@ -296,7 +296,7 @@ describe('Story 37 review change requests (integration)', () => {
       const res = await decide(CR.attendance, 'approve').expect(409);
 
       expect(res.body.message).toBe('this change request has already been decided');
-      expect((await event('e-s2-cr')).expectedAttendance).toBe(120);
+      expect((await event('EVT-063')).expectedAttendance).toBe(120);
     });
 
     // TC-S2-179 · US-37 AC-3, AC-4 · setup: base-users + base-venues + tc-s2-159-setup + tc-s2-172-setup · fails if an approval and a rejection sent at once both took effect
@@ -309,7 +309,7 @@ describe('Story 37 review change requests (integration)', () => {
 
       expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
       const status = await statusOf(CR.attendance);
-      expect((await event('e-s2-cr')).expectedAttendance).toBe(status === ChangeRequestStatus.APPROVED ? 350 : 120);
+      expect((await event('EVT-063')).expectedAttendance).toBe(status === ChangeRequestStatus.APPROVED ? 350 : 120);
     });
   });
 

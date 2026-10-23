@@ -45,7 +45,7 @@ describe('Story 36 request an event change (integration)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
 
-  /** Fixed users: base-users.sql, plus u-organiser-b from tc-s2-170-setup.sql. */
+  /** Fixed users: base-users.sql, plus USR-008 from tc-s2-170-setup.sql. */
   const USERS = {
     organiser: 'organiser@example.com',
     oscar: 'other.organiser@example.com',
@@ -55,8 +55,15 @@ describe('Story 36 request an event change (integration)', () => {
   const tokens: Record<string, string> = {};
 
   /** Fixed rows from tc-s2-159/169/170-setup.sql. */
-  const EVENT = 'e-s2-cr';
-  const ITEM = { projector: 'q-s2-cr-projector', mic: 'q-s2-cr-mic', screen: 'q-s2-cr-screen' } as const;
+  const EVENT = 'EVT-063';
+  const ITEM = { projector: 'EQP-002', mic: 'EQP-001', screen: 'EQP-003' } as const;
+  /** tc-s2-169-setup.sql: one of USR-006's events per status a change can't be requested for. */
+  const UNCHANGEABLE_EVENT: Record<string, string> = {
+    DRAFT: 'EVT-068',
+    CANCELLED: 'EVT-064',
+    COMPLETED: 'EVT-065',
+    REJECTED: 'EVT-071',
+  };
   const NO_DIFFERENCE = 'at least one field must differ from the event’s current value';
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
@@ -169,7 +176,7 @@ describe('Story 36 request an event change (integration)', () => {
       ['nothing proposed', {}],
       ['the same attendance', { proposedAttendance: 120 }],
       ['the same dates', { proposedStart: '2030-10-01T09:00:00.000Z', proposedEnd: '2030-10-01T17:00:00.000Z' }],
-      ['the same equipment', { equipment: [{ equipmentId: 'q-s2-cr-projector', quantity: 2 }] }],
+      ['the same equipment', { equipment: [{ equipmentId: 'EQP-002', quantity: 2 }] }],
     ])('refuses %s (400)', async (_case, body) => {
       const res = await requestChange(body).expect(400);
 
@@ -289,7 +296,7 @@ describe('Story 36 request an event change (integration)', () => {
 
       expect(res.body).toMatchObject({
         eventId: EVENT,
-        requestedById: 'u-organiser',
+        requestedById: 'USR-006',
         status: ChangeRequestStatus.PENDING,
         reason: 'Venue needs it',
         proposedAttendance: 150,
@@ -347,7 +354,7 @@ describe('Story 36 request an event change (integration)', () => {
     it('accepts a request for a confirmed event', async () => {
       await given('tc-s2-169-setup');
 
-      await requestChange({ proposedAttendance: 150 }, 'organiser', 'e-s2-cr-confirmed').expect(201);
+      await requestChange({ proposedAttendance: 150 }, 'organiser', 'EVT-066').expect(201);
     });
 
     // TC-S2-169 · US-36 AC-10 · setup: base-users + tc-s2-159-setup + tc-s2-169-setup · fails if a change could be requested for a draft, cancelled, completed or rejected event
@@ -355,7 +362,7 @@ describe('Story 36 request an event change (integration)', () => {
     it.each(['DRAFT', 'CANCELLED', 'COMPLETED', 'REJECTED'])('refuses a %s event (409)', async (status) => {
       await given('tc-s2-169-setup');
 
-      const res = await requestChange({ proposedAttendance: 150 }, 'organiser', `e-s2-cr-${status.toLowerCase()}`).expect(409);
+      const res = await requestChange({ proposedAttendance: 150 }, 'organiser', UNCHANGEABLE_EVENT[status]).expect(409);
 
       expect(res.body.message).toBe(`event is ${status}; change requests are only available for submitted or confirmed events`);
     });
@@ -376,7 +383,7 @@ describe('Story 36 request an event change (integration)', () => {
     it('accepts the Organiser\'s own event', async () => {
       await given('tc-s2-170-setup');
 
-      await requestChange({ proposedAttendance: 150 }, 'oscar', 'e-s2-cr-oscar').expect(201);
+      await requestChange({ proposedAttendance: 150 }, 'oscar', 'EVT-070').expect(201);
     });
 
     // TC-S2-170 · US-36 AC-11 · setup: base-users + tc-s2-159-setup · fails if another role could request a change

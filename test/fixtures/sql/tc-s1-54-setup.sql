@@ -1,12 +1,12 @@
 -- tc-s1-54-setup.sql: a SUBMITTED request with layout and accessibility
--- preferences, assigned to u-coordinator-a.
+-- preferences, assigned to USR-004.
 --
 -- Pre-condition for TC-S1-54 (US-06 AC-6, updated for Week 7 Change 5: the
 -- ASSIGNED Coordinator sees the values the Organiser entered). Load AFTER
 -- base-users.sql. To be loaded by the US-12 integration tests when
 -- events-coordinator-view.e2e-spec.ts is converted (group 3).
 --
---   e-with-preferences  SUBMITTED, raised by u-organiser, assigned to u-coordinator-a.
+--   EVT-153  SUBMITTED, raised by USR-006, assigned to USR-004.
 --                       Values match the US-12 tests' expectations (equipment needs,
 --                       registration enabled) so group 3 can load it unchanged.
 
@@ -16,7 +16,7 @@ INSERT INTO "EventRequest" (
   "preferredLayout", "layoutNotes", "accessibilityRequirements", "accessibilityNotes",
   "equipmentNeeds", "registrationEnabled", "status", "createdAt", "updatedAt"
 ) VALUES (
-  'e-with-preferences', 'u-organiser', 'u-coordinator-a',
+  'EVT-153', 'USR-006', 'USR-004',
   'Freshman Orientation 2030', 'Welcome new students and introduce campus services',
   'Full-day programme with talks, booths and a closing social', 'Student engagement',
   '2030-10-01 09:00:00', '2030-10-01 17:00:00', 320,

@@ -4,22 +4,22 @@
 -- Pre-condition for TC-S2-26 (Story 18 AC-7). Load AFTER base-users.sql.
 -- All values are fixed: generated from the row number, never from the clock.
 --
---   v-s2-perf-000 .. v-s2-perf-299   "Venue 000".."Venue 299", capacity 20..510,
---                                    facilities and accessibility vary by row number
---   b-s2-26-<n>-a / -r               per venue: one APPROVED booking, and one
---                                    REQUESTED booking three hours later
+--   VEN-101 .. VEN-400   "Venue 000".."Venue 299", capacity 20..510,
+--                        facilities and accessibility vary by row number
+--   BKG-301 .. BKG-900   per venue: one APPROVED booking, and one
+--                        REQUESTED booking three hours later
 
 INSERT INTO "EventRequest" ("id", "organiserId", "coordinatorId", "name", "purpose", "description", "category",
   "proposedStart", "proposedEnd", "expectedAttendance", "status", "createdAt", "updatedAt") VALUES
-  ('e-s2-26', 'u-organiser', 'u-coordinator-a', 'Some event', 'Purpose', 'Description', 'Talk',
+  ('EVT-029', 'USR-006', 'USR-004', 'Some event', 'Purpose', 'Description', 'Talk',
      '2027-03-10 01:00:00', '2027-03-10 09:00:00', 50, 'APPROVED'::"EventStatus", '2026-09-02 09:00:00', '2026-09-02 09:00:00');
 
 INSERT INTO "Venue" ("id", "name", "location", "capacity", "managedById", "facilities", "accessibilityFeatures", "status", "createdAt", "updatedAt")
-SELECT 'v-s2-perf-' || lpad(i::text, 3, '0'),
+SELECT 'VEN-' || (101 + i),
        'Venue ' || lpad(i::text, 3, '0'),
        'Campus',
        20 + (i % 50) * 10,
-       'u-venue-staff',
+       'USR-010',
        CASE i % 3 WHEN 0 THEN ARRAY['PROJECTOR', 'STAGE', 'WIFI']::"Facility"[]
                   WHEN 1 THEN ARRAY['SCREEN', 'MICROPHONE']::"Facility"[]
                   ELSE ARRAY['SOUND_SYSTEM']::"Facility"[] END,
@@ -30,9 +30,9 @@ SELECT 'v-s2-perf-' || lpad(i::text, 3, '0'),
 FROM generate_series(0, 299) AS i;
 
 INSERT INTO "VenueBooking" ("id", "eventId", "venueId", "start", "end", "status", "createdAt", "updatedAt")
-SELECT 'b-s2-26-' || lpad(i::text, 3, '0') || CASE k WHEN 0 THEN '-a' ELSE '-r' END,
-       'e-s2-26',
-       'v-s2-perf-' || lpad(i::text, 3, '0'),
+SELECT 'BKG-' || (301 + i * 2 + k),
+       'EVT-029',
+       'VEN-' || (101 + i),
        TIMESTAMP '2027-03-10 01:00:00' + make_interval(hours => (i % 5) - 2 + k * 3),
        TIMESTAMP '2027-03-10 09:00:00' + make_interval(hours => (i % 5) - 2 + k * 3),
        CASE k WHEN 0 THEN 'APPROVED'::"BookingStatus" ELSE 'REQUESTED'::"BookingStatus" END,

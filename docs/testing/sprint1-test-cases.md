@@ -37,9 +37,9 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-01 |
 | Story/AC ref | US-07 AC-3 |
 | Test Scenario | Coordinator approves a submitted request that is ready to proceed (happy path) |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). Request `e-submitted` is SUBMITTED and assigned to Cody. |
-| Test Steps | 1. Cody clicks "Approve" on request `e-submitted` (`POST /events/e-submitted/approve`).<br>2. Read the request back.<br>3. Log in as organiser@example.com and open "My requests". |
-| Test Data | Request `e-submitted` ("Freshman Orientation 2030") |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). Request `EVT-146` is SUBMITTED and assigned to Cody. |
+| Test Steps | 1. Cody clicks "Approve" on request `EVT-146` (`POST /events/EVT-146/approve`).<br>2. Read the request back.<br>3. Log in as organiser@example.com and open "My requests". |
+| Test Data | Request `EVT-146` ("Freshman Orientation 2030") |
 | Expected Result | The request status updates to "Approved". The Organiser sees it as Approved. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
@@ -58,7 +58,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-02 |
 | Story/AC ref | US-07 AC-1 |
 | Test Scenario | Coordinator views a request and sees its current status, for each status the AC lists |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-02-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. Requests `e-draft`, `e-submitted`, `e-under-review`, `e-approved`, `e-returned` and `e-rejected` are all assigned to Cody. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-02-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. Requests `EVT-004`, `EVT-146`, `EVT-151`, `EVT-001`, `EVT-012` and `EVT-009` are all assigned to Cody. |
 | Test Steps | 1. Cody opens each request in turn (`GET /events/assigned/<id>`).<br>2. Note the status shown. For the returned request, also note the outstanding question. |
 | Test Data | DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, RETURNED ("Please confirm the attendance figure"), REJECTED |
 | Expected Result | Each request displays its current status: draft, submitted, under review, approved, returned, rejected. |
@@ -80,7 +80,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-07 AC-2 |
 | Test Scenario | Coordinator opens a submitted request and sees all its details |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Cody opens request `e-submitted` (`GET /events/assigned/e-submitted`). |
+| Test Steps | 1. Cody opens request `EVT-146` (`GET /events/assigned/EVT-146`). |
 | Test Data | Name "Freshman Orientation 2030"; purpose "Welcome new students"; description "Full-day programme with talks and booths"; 2030-10-01 09:00–17:00 UTC |
 | Expected Result | All details are displayed: name, purpose, description, and proposed date and time, exactly as entered. |
 | Created By | Raye Yap |
@@ -101,13 +101,13 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-07 AC-3 (negative) |
 | Test Scenario | Approve is refused for a request that is not ready to proceed (a draft, or a cancelled request) |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-02-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Cody clicks "Approve" on `e-draft`.<br>2. Cody clicks "Approve" on `e-cancelled`.<br>3. Read `e-draft` back. |
-| Test Data | `e-draft` (DRAFT), `e-cancelled` (CANCELLED) |
+| Test Steps | 1. Cody clicks "Approve" on `EVT-004`.<br>2. Cody clicks "Approve" on `EVT-003`.<br>3. Read `EVT-004` back. |
+| Test Data | `EVT-004` (DRAFT), `EVT-003` (CANCELLED) |
 | Expected Result | Approval is refused for both, and the draft stays a draft. Only a submitted request can be approved. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Both returned HTTP 409. `e-draft` is still DRAFT. |
+| Actual Result | Both returned HTTP 409. `EVT-004` is still DRAFT. |
 | Status | Pass |
 | Remarks | Conflict case: an illegal status transition. Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
 | Executed By | Raye Yap (automated) |
@@ -122,8 +122,8 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-07 AC-3 (boundary) |
 | Test Scenario | Clicking "Approve" twice on the same request |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Cody clicks "Approve" on `e-submitted`.<br>2. Cody clicks "Approve" on it again.<br>3. Read the request back. |
-| Test Data | Request `e-submitted` |
+| Test Steps | 1. Cody clicks "Approve" on `EVT-146`.<br>2. Cody clicks "Approve" on it again.<br>3. Read the request back. |
+| Test Data | Request `EVT-146` |
 | Expected Result | The request is Approved. The second click neither errors nor changes the status. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
@@ -142,9 +142,9 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-06 |
 | Story/AC ref | US-07 AC-3, with US-02 AC-3/AC-6 (permission) |
 | Test Scenario | Only the Coordinator assigned to the request can approve it |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). `e-submitted` is assigned to Cody (coord.a@example.com). Logged in in turn as coord.b@example.com (Casey Coordinator), organiser@example.com and attendee@example.com. |
-| Test Steps | 1. Casey (not assigned) calls Approve on `e-submitted` directly.<br>2. The Organiser calls Approve.<br>3. The Attendee calls Approve.<br>4. Read the request back after each attempt. |
-| Test Data | Request `e-submitted` |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). `EVT-146` is assigned to Cody (coord.a@example.com). Logged in in turn as coord.b@example.com (Casey Coordinator), organiser@example.com and attendee@example.com. |
+| Test Steps | 1. Casey (not assigned) calls Approve on `EVT-146` directly.<br>2. The Organiser calls Approve.<br>3. The Attendee calls Approve.<br>4. Read the request back after each attempt. |
+| Test Data | Request `EVT-146` |
 | Expected Result | Every attempt is denied, and the request stays Submitted. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
@@ -163,9 +163,9 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-07 |
 | Story/AC ref | US-07 AC-3 with US-08 AC-3 (conflict) |
 | Test Scenario | Approve and Reject are submitted for the same request at the same moment |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test, and again before each of the 20 iterations). Logged in as coord.a@example.com. Request `e-submitted` is SUBMITTED and assigned to Cody. |
-| Test Steps | 1. Reset the testDB and load the pre-condition scripts.<br>2. Send "Approve" and "Reject" (reason "Clashes with the examination period") for `e-submitted` at the same moment (`Promise.all`).<br>3. Read the stored status.<br>4. Repeat steps 1–3 for 20 iterations. |
-| Test Data | Request `e-submitted`; reject reason "Clashes with the examination period"; 20 iterations |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test, and again before each of the 20 iterations). Logged in as coord.a@example.com. Request `EVT-146` is SUBMITTED and assigned to Cody. |
+| Test Steps | 1. Reset the testDB and load the pre-condition scripts.<br>2. Send "Approve" and "Reject" (reason "Clashes with the examination period") for `EVT-146` at the same moment (`Promise.all`).<br>3. Read the stored status.<br>4. Repeat steps 1–3 for 20 iterations. |
+| Test Data | Request `EVT-146`; reject reason "Clashes with the examination period"; 20 iterations |
 | Expected Result | Exactly one decision succeeds and the other is refused with 409 Conflict. The final status, and the stored reason, match the decision that succeeded. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
@@ -192,8 +192,8 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-08 |
 | Story/AC ref | US-08 AC-1, AC-3 |
 | Test Scenario | Reject and Return are separate actions with different outcomes (happy path) |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-02-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. `e-submitted` and `e-submitted-2` are SUBMITTED and assigned to Cody. |
-| Test Steps | 1. Cody chooses "Reject" on `e-submitted` with a reason.<br>2. Cody chooses "Return" on `e-submitted-2` with a reason.<br>3. Compare the two outcomes. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-02-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. `EVT-146` and `EVT-147` are SUBMITTED and assigned to Cody. |
+| Test Steps | 1. Cody chooses "Reject" on `EVT-146` with a reason.<br>2. Cody chooses "Return" on `EVT-147` with a reason.<br>3. Compare the two outcomes. |
 | Test Data | Reject reason "Clashes with the examination period"; return reason "Please confirm the attendance figure" |
 | Expected Result | The rejected request becomes "Rejected" and the returned one "Returned". The two actions are distinct. |
 | Created By | Raye Yap |
@@ -214,7 +214,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-08 AC-2 (negative) |
 | Test Scenario | Confirming Reject or Return without entering a reason |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Cody confirms "Reject" on `e-submitted` with no reason field.<br>2. Cody confirms "Return" on `e-submitted` with no reason field.<br>3. Read the request back. |
+| Test Steps | 1. Cody confirms "Reject" on `EVT-146` with no reason field.<br>2. Cody confirms "Return" on `EVT-146` with no reason field.<br>3. Read the request back. |
 | Test Data | Request body `{}` |
 | Expected Result | Confirmation is prevented until a reason is entered. The request stays Submitted and no reason is saved. |
 | Created By | Raye Yap |
@@ -277,7 +277,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-08 AC-4 |
 | Test Scenario | The decision and its reason are saved and retained with the request |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com, then as organiser@example.com. |
-| Test Steps | 1. Cody rejects `e-submitted` with a reason.<br>2. The Organiser opens "My requests", then opens the request twice.<br>3. Repeat with "Return" and a different reason, then open the request as the Organiser. |
+| Test Steps | 1. Cody rejects `EVT-146` with a reason.<br>2. The Organiser opens "My requests", then opens the request twice.<br>3. Repeat with "Return" and a different reason, then open the request as the Organiser. |
 | Test Data | Reject reasons "Clashes with the examination period" and "Venue capacity insufficient"; return reason "Please confirm the attendance figure" |
 | Expected Result | The decision (Rejected or Returned) and its reason are saved with the request, and stay visible on every later view. |
 | Created By | Raye Yap |
@@ -298,7 +298,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-08 AC-1 (conflict) |
 | Test Scenario | A rejected request cannot then be returned or amended |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com and organiser@example.com. |
-| Test Steps | 1. Cody rejects `e-submitted`.<br>2. Cody then tries "Return" on it.<br>3. Separately, after a rejection, the Organiser tries to edit the request. |
+| Test Steps | 1. Cody rejects `EVT-146`.<br>2. Cody then tries "Return" on it.<br>3. Separately, after a rejection, the Organiser tries to edit the request. |
 | Test Data | Reject reason "No"; return reason "Changed my mind"; edit purpose "Trying to edit" |
 | Expected Result | The Return is refused and the request stays Rejected. The Organiser cannot amend a rejected request. Each option is a separate, final action. |
 | Created By | Raye Yap |
@@ -318,8 +318,8 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-14 |
 | Story/AC ref | US-08 AC-1, with US-02 AC-3/AC-6 (permission) |
 | Test Scenario | Only the assigned Coordinator can reject or return the request |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). `e-submitted` is assigned to Cody. Logged in in turn as coord.b@example.com, organiser@example.com and attendee@example.com. |
-| Test Steps | 1. Casey (not assigned) tries "Reject", then "Return", on `e-submitted`.<br>2. The Organiser and the Attendee each try "Reject". |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). `EVT-146` is assigned to Cody. Logged in in turn as coord.b@example.com, organiser@example.com and attendee@example.com. |
+| Test Steps | 1. Casey (not assigned) tries "Reject", then "Return", on `EVT-146`.<br>2. The Organiser and the Attendee each try "Reject". |
 | Test Data | Reasons "Not mine to decide" and "Trying it on" |
 | Expected Result | Every attempt is denied, and the request is unchanged. |
 | Created By | Raye Yap |
@@ -348,7 +348,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-09 AC-1 (UI) |
 | Test Scenario | The clarification form offers a text field for the question |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in to the web app as coord.a@example.com. |
-| Test Steps | 1. Open request `e-submitted`.<br>2. Choose "Request clarification" as the decision. |
+| Test Steps | 1. Open request `EVT-146`.<br>2. Choose "Request clarification" as the decision. |
 | Test Data | — |
 | Expected Result | A text field is shown for entering the clarification question. |
 | Created By | Raye Yap |
@@ -369,13 +369,13 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-09 AC-1, AC-2 |
 | Test Scenario | Coordinator submits a free-text question, which is saved against its request (happy path) |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Cody submits a clarification question on `e-submitted`.<br>2. Look up the clarification messages for `e-submitted`. |
+| Test Steps | 1. Cody submits a clarification question on `EVT-146`.<br>2. Look up the clarification messages for `EVT-146`. |
 | Test Data | "Can you confirm the expected attendance?" and "Which venue did you have in mind?" |
-| Expected Result | The question is accepted and saved, tied to request `e-submitted`, with Cody as its author. |
+| Expected Result | The question is accepted and saved, tied to request `EVT-146`, with Cody as its author. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | HTTP 201 with the question as the outstanding clarification. Exactly one message is stored for `e-submitted`, with the same text and Cody as author. |
+| Actual Result | HTTP 201 with the question as the outstanding clarification. Exactly one message is stored for `EVT-146`, with the same text and Cody as author. |
 | Status | Pass |
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
@@ -411,7 +411,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-09 AC-1 (boundary) |
 | Test Scenario | The clarification question contains only spaces |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Cody submits a question of three spaces on `e-submitted`.<br>2. Read the request back. |
+| Test Steps | 1. Cody submits a question of three spaces on `EVT-146`.<br>2. Read the request back. |
 | Test Data | question `"   "` |
 | Expected Result | The submission is refused, because no question has been entered. The request stays Submitted. |
 | Created By | Raye Yap |
@@ -432,7 +432,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-09 AC-3 |
 | Test Scenario | After a question is asked, both parties see the status "Awaiting Clarification" |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com and organiser@example.com. |
-| Test Steps | 1. Cody asks a question on `e-submitted`.<br>2. Read the stored status.<br>3. The Organiser opens the request.<br>4. Cody opens the request. |
+| Test Steps | 1. Cody asks a question on `EVT-146`.<br>2. Read the stored status.<br>3. The Organiser opens the request.<br>4. Cody opens the request. |
 | Test Data | Question "Can you confirm the attendance?" |
 | Expected Result | The request status updates to "Awaiting Clarification", visible to both the Coordinator and the Organiser. The Organiser can also see what is being asked. |
 | Created By | Raye Yap |
@@ -453,7 +453,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-09 AC-4 |
 | Test Scenario | When the Organiser responds, the Coordinator is notified |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com and organiser@example.com. |
-| Test Steps | 1. Cody asks a question on `e-submitted`.<br>2. The Organiser submits a response.<br>3. Check Cody's notifications. |
+| Test Steps | 1. Cody asks a question on `EVT-146`.<br>2. The Organiser submits a response.<br>3. Check Cody's notifications. |
 | Test Data | Response "We expect 320 attendees" |
 | Expected Result | The Coordinator is notified that the Organiser has responded on this request. |
 | Created By | Raye Yap |
@@ -494,8 +494,8 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-22 |
 | Story/AC ref | US-09 AC-2/AC-4, with US-02 AC-5/AC-6 (permission) |
 | Test Scenario | Only the assigned Coordinator can ask, and only the owning Organiser can answer |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql + tc-s1-22-setup.sql on testDB (reset before test). `e-submitted` is owned by organiser@example.com and assigned to Cody. Logged in as coord.b@example.com (not assigned) and other@example.com (a different Organiser). |
-| Test Steps | 1. Casey tries to ask a question on `e-submitted`.<br>2. Cody asks a question.<br>3. Otto (other@example.com) tries to answer it. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql + tc-s1-22-setup.sql on testDB (reset before test). `EVT-146` is owned by organiser@example.com and assigned to Cody. Logged in as coord.b@example.com (not assigned) and other@example.com (a different Organiser). |
+| Test Steps | 1. Casey tries to ask a question on `EVT-146`.<br>2. Cody asks a question.<br>3. Otto (other@example.com) tries to answer it. |
 | Test Data | Question "Q?"; Otto's response "Not mine" |
 | Expected Result | Both attempts are denied. Neither Casey nor Otto can take part in this request's clarification thread. |
 | Created By | Raye Yap |
@@ -515,8 +515,8 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-63 |
 | Story/AC ref | US-09 AC-4 (conflict) |
 | Test Scenario | The Organiser's response to one clarification question is sent twice at the same moment |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test, and again before each of the 20 iterations). `e-submitted` is owned by organiser@example.com and assigned to coord.a@example.com. Cody asks one question through the API, so the request is AWAITING_CLARIFICATION. Logged in as organiser@example.com. |
-| Test Steps | 1. Reset the testDB and load the pre-condition scripts.<br>2. Cody asks "Which room layout do you need?".<br>3. Olivia sends two responses for `e-submitted` at the same moment (`Promise.all`).<br>4. Read the stored status, the number of stored answers and the number of notifications to Cody.<br>5. Repeat steps 1–4 for 20 iterations. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test, and again before each of the 20 iterations). `EVT-146` is owned by organiser@example.com and assigned to coord.a@example.com. Cody asks one question through the API, so the request is AWAITING_CLARIFICATION. Logged in as organiser@example.com. |
+| Test Steps | 1. Reset the testDB and load the pre-condition scripts.<br>2. Cody asks "Which room layout do you need?".<br>3. Olivia sends two responses for `EVT-146` at the same moment (`Promise.all`).<br>4. Read the stored status, the number of stored answers and the number of notifications to Cody.<br>5. Repeat steps 1–4 for 20 iterations. |
 | Test Data | Question "Which room layout do you need?"; responses "Theatre style" and "Boardroom style"; 20 iterations |
 | Expected Result | Exactly one response is accepted and the other is refused with 409 Conflict. The request is UNDER_REVIEW, the thread holds one answer, and the Coordinator is notified once. |
 | Created By | Raye Yap |
@@ -552,7 +552,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | HTTP 201 with status SUBMITTED and a new id. The stored record is SUBMITTED, with organiserId u-organiser. |
+| Actual Result | HTTP 201 with status SUBMITTED and a new id. The stored record is SUBMITTED, with organiserId USR-006. |
 | Status | Pass |
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
@@ -694,12 +694,12 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Scenario | A submitted request belongs only to its Organiser |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql on testDB (reset before test). Logged in as organiser@example.com and other@example.com (Otto Organiser). |
 | Test Steps | 1. Olivia submits a request with organiserId set to Otto's id and status APPROVED in the body.<br>2. Olivia submits a normal request, and Otto lists his events.<br>3. Otto opens Olivia's request by id. |
-| Test Data | organiserId u-organiser-2, status "APPROVED" in the payload |
+| Test Data | organiserId USR-007, status "APPROVED" in the payload |
 | Expected Result | The client can't choose the owner or the status: the request belongs to Olivia and is Submitted. Another Organiser can't see or open it. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | The forged fields were ignored: organiserId u-organiser, status SUBMITTED. Otto's list was empty, and opening the request gave HTTP 404. |
+| Actual Result | The forged fields were ignored: organiserId USR-006, status SUBMITTED. Otto's list was empty, and opening the request gave HTTP 404. |
 | Status | Pass |
 | Remarks | Denied = 404 by design (agreed decision): the request's existence is not revealed. |
 | Executed By | Raye Yap (automated) |
@@ -784,9 +784,9 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-34 |
 | Story/AC ref | US-04 AC-3 (UI) |
 | Test Scenario | The draft is visually distinguishable from submitted requests |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-02-setup.sql on testDB (reset before test). The Organiser has, among others, `e-draft` (DRAFT) and `e-submitted` (SUBMITTED). Logged in to the web app as organiser@example.com. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-02-setup.sql on testDB (reset before test). The Organiser has, among others, `EVT-004` (DRAFT) and `EVT-146` (SUBMITTED). Logged in to the web app as organiser@example.com. |
 | Test Steps | 1. Olivia opens "My requests". |
-| Test Data | `e-draft` and `e-submitted` |
+| Test Data | `EVT-004` and `EVT-146` |
 | Expected Result | The draft is clearly marked "Draft" and looks different from requests already submitted for review. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
@@ -940,13 +940,13 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-05 AC-2 |
 | Test Scenario | A rejected request shows the Coordinator's reason |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-41-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia lists her requests.<br>2. Olivia opens `e-rejected-direct`. |
-| Test Data | `e-rejected-latest` "Clashes with the examination period"; `e-rejected-direct` "Venue capacity insufficient" |
+| Test Steps | 1. Olivia lists her requests.<br>2. Olivia opens `EVT-010`. |
+| Test Data | `EVT-011` "Clashes with the examination period"; `EVT-010` "Venue capacity insufficient" |
 | Expected Result | The rejected request shows its status and the reason the Coordinator gave, in the list and when opened. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | The first list entry was REJECTED with "Clashes with the examination period". Opening `e-rejected-direct` showed "Venue capacity insufficient". |
+| Actual Result | The first list entry was REJECTED with "Clashes with the examination period". Opening `EVT-010` showed "Venue capacity insufficient". |
 | Status | Pass |
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
@@ -962,7 +962,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Scenario | When the Coordinator has asked for clarification, the Organiser sees that, and what is asked |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-42-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
 | Test Steps | 1. Olivia lists her requests. |
-| Test Data | `e-draft-asked` "Please confirm the expected attendance figure"; `e-draft-returned` "Which venue did you have in mind?"; `e-draft-plain` no question |
+| Test Data | `EVT-005` "Please confirm the expected attendance figure"; `EVT-007` "Which venue did you have in mind?"; `EVT-006` no question |
 | Expected Result | Requests awaiting clarification show that clarification is needed and the question asked. A plain draft shows no clarification. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
@@ -983,7 +983,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Scenario | No clarification is shown when none was asked |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
 | Test Steps | 1. Olivia lists her requests. |
-| Test Data | `e-submitted` with no question |
+| Test Data | `EVT-146` with no question |
 | Expected Result | The request shows no clarification flag and no question. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
@@ -1024,8 +1024,8 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-05 AC-4 (boundary) |
 | Test Scenario | A repeated read after a change does not serve a stale, cached status |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-45-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia lists her requests (`e-approved-only` is APPROVED).<br>2. The request moves to PLANNING.<br>3. Olivia lists her requests again. |
-| Test Data | `e-approved-only` APPROVED → PLANNING |
+| Test Steps | 1. Olivia lists her requests (`EVT-002` is APPROVED).<br>2. The request moves to PLANNING.<br>3. Olivia lists her requests again. |
+| Test Data | `EVT-002` APPROVED → PLANNING |
 | Expected Result | The second read shows the new status, not the earlier one. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
@@ -1045,13 +1045,13 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Story/AC ref | US-05 AC-5 (permission) |
 | Test Scenario | Requests belonging to another Organiser never appear, and can't be opened |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-46-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia lists her requests.<br>2. Olivia opens Otto's request `e-theirs` by id.<br>3. Olivia lists again and opens Otto's rejected request `e-theirs-rejected`. |
-| Test Data | `e-mine` (Olivia); `e-theirs` and `e-theirs-rejected` "CONFIDENTIAL internal note" (Otto) |
+| Test Steps | 1. Olivia lists her requests.<br>2. Olivia opens Otto's request `EVT-148` by id.<br>3. Olivia lists again and opens Otto's rejected request `EVT-149`. |
+| Test Data | `EVT-008` (Olivia); `EVT-148` and `EVT-149` "CONFIDENTIAL internal note" (Otto) |
 | Expected Result | Only Olivia's own request appears. Otto's requests and their reasons are never shown. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | The list had exactly 1 entry, "Mine". Opening `e-theirs` gave HTTP 404 with no name in the body. "CONFIDENTIAL" appeared in neither the list nor the 404 body. |
+| Actual Result | The list had exactly 1 entry, "Mine". Opening `EVT-148` gave HTTP 404 with no name in the body. "CONFIDENTIAL" appeared in neither the list nor the 404 body. |
 | Status | Pass |
 | Remarks | Denied = 404 by design (agreed decision): the request's existence is not revealed. |
 | Executed By | Raye Yap (automated) |
@@ -1220,7 +1220,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Test Case ID | TC-S1-54 |
 | Story/AC ref | US-06 AC-6, updated for Week 7 Change 5 |
 | Test Scenario | The assigned Coordinator opens the submitted request and sees the layout and accessibility values |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-54-setup.sql on testDB (reset before test). Request `e-with-preferences` is SUBMITTED, assigned to coord.a@example.com, with layout THEATRE and accessibility STEP_FREE_ACCESS and HEARING_LOOP. Logged in as coord.a@example.com. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-54-setup.sql on testDB (reset before test). Request `EVT-153` is SUBMITTED, assigned to coord.a@example.com, with layout THEATRE and accessibility STEP_FREE_ACCESS and HEARING_LOOP. Logged in as coord.a@example.com. |
 | Test Steps | 1. Cody opens the request assigned to him. |
 | Test Data | THEATRE; STEP_FREE_ACCESS, HEARING_LOOP; notes "Ramp access to the stage" |
 | Expected Result | The layout and accessibility values the Organiser entered are visible to the reviewing Coordinator. |
@@ -1255,7 +1255,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | HTTP 200 with a three-part JWT. Its `sub` was `u-organiser` and its `role` was `EVENT_ORGANISER`. `GET /auth/me` with the token returned 200. |
+| Actual Result | HTTP 200 with a three-part JWT. Its `sub` was `USR-006` and its `role` was `EVENT_ORGANISER`. `GET /auth/me` with the token returned 200. |
 | Status | Pass |
 | Remarks | — |
 | Executed By | Raye Yap (automated) |

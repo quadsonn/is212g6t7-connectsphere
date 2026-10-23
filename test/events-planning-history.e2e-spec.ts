@@ -53,11 +53,11 @@ describe('Story 24 planning edits / Story 25 change history (integration)', () =
 
   /** Fixed events from tc-s2-68/70/74/77-setup.sql. */
   const EVENT = {
-    planning: 'e-s2-planning',
-    underReview: 'e-s2-under-review',
-    approved: 'e-s2-approved',
-    unrelated: 'e-s2-unrelated',
-    returned: 'e-s2-returned',
+    planning: 'EVT-105',
+    underReview: 'EVT-128',
+    approved: 'EVT-056',
+    unrelated: 'EVT-129',
+    returned: 'EVT-122',
   } as const;
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
@@ -334,7 +334,7 @@ describe('Story 24 planning edits / Story 25 change history (integration)', () =
 
       const res = await history().expect(200);
 
-      expect(res.body.entries.map((e: { id: string }) => e.id)).toEqual(['c-s2-76-first', 'c-s2-76-second', 'c-s2-76-third']);
+      expect(res.body.entries.map((e: { id: string }) => e.id)).toEqual(['CHG-001', 'CHG-002', 'CHG-003']);
     });
 
     // TC-S2-77 · US-25 AC-1 · setup: base-users + base-venues + tc-s2-68-setup + tc-s2-77-setup · fails if the Organiser's amendments to a returned request were left out of the history
@@ -350,7 +350,7 @@ describe('Story 24 planning edits / Story 25 change history (integration)', () =
 
       const res = await history('coordinator', EVENT.returned).expect(200);
       expect(res.body.entries).toHaveLength(1);
-      expect(res.body.entries[0].changedBy.id).toBe('u-organiser');
+      expect(res.body.entries[0].changedBy.id).toBe('USR-006');
     });
 
     // TC-S2-78 · US-25 · setup: base-users + base-venues + tc-s2-68-setup · fails if a Coordinator could read the history of an event they can't see
@@ -380,7 +380,7 @@ describe('Story 24 planning edits / Story 25 change history (integration)', () =
         { field: 'expectedAttendance', previous: 320, next: 350 },
       ]);
       expect(entry.changedBy).toEqual({
-        id: 'u-coordinator-a',
+        id: 'USR-004',
         name: 'Cody Coordinator',
         email: 'coord.a@example.com',
         role: Role.EVENT_COORDINATOR,

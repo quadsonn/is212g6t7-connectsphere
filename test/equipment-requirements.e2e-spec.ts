@@ -51,13 +51,13 @@ describe('Story 30 view equipment and technical requirements for an event (integ
 
   /** Fixed events from tc-s2-114/117-setup.sql. */
   const EVENT = {
-    organiserOnly: 'e-s2-req-organiser',
-    rowsOnly: 'e-s2-req-rows',
-    notesOnly: 'e-s2-req-notes',
-    allThree: 'e-s2-req-all',
-    none: 'e-s2-req-none',
-    draft: 'e-s2-req-draft',
-    blank: 'e-s2-req-blank',
+    organiserOnly: 'EVT-120',
+    rowsOnly: 'EVT-121',
+    notesOnly: 'EVT-119',
+    allThree: 'EVT-115',
+    none: 'EVT-118',
+    draft: 'EVT-117',
+    blank: 'EVT-116',
   } as const;
 
   const START = '2030-10-01T09:00:00.000Z';
@@ -139,8 +139,8 @@ describe('Story 30 view equipment and technical requirements for an event (integ
 
       expect(res.body).toMatchObject({ organiserEquipmentNeeds: null, technicalSupportNeeds: null, hasRequirements: true });
       expect(res.body.coordinatorRequirements).toEqual([
-        { id: 'rq-s2-rows-projector', equipmentType: 'Laser projector', quantity: 2, notes: null },
-        { id: 'rq-s2-rows-mic', equipmentType: 'Wireless microphone', quantity: 6, notes: 'Lapel' },
+        { id: 'REQ-008', equipmentType: 'Laser projector', quantity: 2, notes: null },
+        { id: 'REQ-007', equipmentType: 'Wireless microphone', quantity: 6, notes: 'Lapel' },
       ]);
     });
 

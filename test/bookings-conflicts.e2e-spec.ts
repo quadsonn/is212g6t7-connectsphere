@@ -39,7 +39,7 @@ describe('Story 23 overlapping booking detection (integration)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
 
-  /** Fixed users: base-users.sql, plus u-venue-staff-b from tc-s2-01-setup.sql. */
+  /** Fixed users: base-users.sql, plus USR-011 from tc-s2-01-setup.sql. */
   const USERS = {
     staff: 'venue.staff@example.com',
     staffB: 'venue.staff.b@example.com',
@@ -49,11 +49,11 @@ describe('Story 23 overlapping booking detection (integration)', () => {
 
   /** Fixed rows from tc-s2-48/55/57/61-setup.sql. */
   const BOOKING = {
-    showcase: 'b-s2-48-showcase',
-    first: 'b-s2-55-first',
-    second: 'b-s2-55-second',
-    target: 'b-s2-57-target',
-    confirmed: 'b-s2-61-confirmed',
+    showcase: 'BKG-031',
+    first: 'BKG-032',
+    second: 'BKG-033',
+    target: 'BKG-046',
+    confirmed: 'BKG-048',
   } as const;
 
   const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
@@ -108,16 +108,17 @@ describe('Story 23 overlapping booking detection (integration)', () => {
     // TC-S2-56 · US-23 AC-1 · setup: base-users + base-venues + tc-s2-56-setup · fails if touching bookings counted as a clash, or any real overlap was missed
     // Code: the overlap rule is start < other.end AND end > other.start, so a
     // booking ending exactly when this one starts (or starting when it ends) is not a conflict.
+    // The last column is each shape's pending target booking in tc-s2-56-setup.sql.
     it.each([
-      ['ends exactly when it starts', false, 'ends-at-start'],
-      ['starts exactly when it ends', false, 'starts-at-end'],
-      ['overlaps by one minute', true, 'one-minute'],
-      ['is fully inside it', true, 'inside'],
-      ['fully covers it', true, 'covers'],
-    ])('a confirmed booking that %s: conflict = %s', async (_shape, expected, key) => {
+      ['ends exactly when it starts', false, 'BKG-040'],
+      ['starts exactly when it ends', false, 'BKG-043'],
+      ['overlaps by one minute', true, 'BKG-042'],
+      ['is fully inside it', true, 'BKG-041'],
+      ['fully covers it', true, 'BKG-039'],
+    ])('a confirmed booking that %s: conflict = %s', async (_shape, expected, bookingId) => {
       await given('tc-s2-56-setup');
 
-      const res = await conflicts(`b-s2-56-target-${key}`).expect(200);
+      const res = await conflicts(bookingId).expect(200);
 
       expect(res.body.hasHardConflict).toBe(expected);
       expect(res.body.hardConflicts).toHaveLength(expected ? 1 : 0);
@@ -128,12 +129,12 @@ describe('Story 23 overlapping booking detection (integration)', () => {
     it('names the event and time range of each conflict', async () => {
       await given('tc-s2-56-setup');
 
-      const res = await conflicts('b-s2-56-target-inside').expect(200);
+      const res = await conflicts('BKG-041').expect(200);
 
       expect(res.body.hardConflicts).toEqual([
         // US-54 (Sprint 3): each conflict now carries its status, since a hard
         // conflict may be an APPROVED booking or a live HELD hold.
-        { bookingId: 'b-s2-56-inside', eventName: 'Gala', start: at('10:00'), end: at('11:00'), status: BookingStatus.APPROVED },
+        { bookingId: 'BKG-036', eventName: 'Gala', start: at('10:00'), end: at('11:00'), status: BookingStatus.APPROVED },
       ]);
     });
   });
@@ -150,7 +151,7 @@ describe('Story 23 overlapping booking detection (integration)', () => {
       expect(names(res.body.hardConflicts)).toEqual(['Confirmed']);
       expect(names(res.body.softConflicts)).toEqual(['Pending']);
       expect(JSON.stringify(res.body)).not.toContain(BOOKING.target);
-      expect(JSON.stringify(res.body)).not.toContain('b-s2-57-turned-down');
+      expect(JSON.stringify(res.body)).not.toContain('BKG-047');
     });
 
     // TC-S2-57 · US-23 AC-3 · setup: base-users + base-venues + tc-s2-55-setup · fails if a pending overlap alone were treated as a hard block

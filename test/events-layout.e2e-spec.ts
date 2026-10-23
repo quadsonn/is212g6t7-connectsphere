@@ -23,9 +23,9 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
 
   /** Fixed rows from base-users.sql. */
   const USERS = {
-    organiser: { id: 'u-organiser', email: 'organiser@example.com' },
-    coordinator: { id: 'u-coordinator-a', email: 'coord.a@example.com' },
-    attendee: { id: 'u-attendee', email: 'attendee@example.com' },
+    organiser: { id: 'USR-006', email: 'organiser@example.com' },
+    coordinator: { id: 'USR-004', email: 'coord.a@example.com' },
+    attendee: { id: 'USR-001', email: 'attendee@example.com' },
   } as const;
 
   const EXTRA_USERS = {} as const;

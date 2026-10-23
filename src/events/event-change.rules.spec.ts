@@ -2,8 +2,8 @@ import { ConfirmedArrangement } from '@prisma/client';
 
 import { affectedArrangements, diffEventFields } from './event-change.rules';
 
-/** US-25 AC-2 / US-26 AC-2 — what counts as a change, and which need review. */
-describe('event change rules (US-25, US-26)', () => {
+/** US-24 AC-2 / US-25 AC-2 — what counts as a change, and which need review. */
+describe('event change rules (US-24, US-25)', () => {
   describe('diffEventFields', () => {
     const before = {
       name: 'Orientation',

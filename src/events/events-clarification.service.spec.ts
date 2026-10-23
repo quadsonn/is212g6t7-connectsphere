@@ -15,6 +15,7 @@ describe('EventsService clarification (US-09)', () => {
   let prisma: {
     eventRequest: { update: jest.Mock; findUniqueOrThrow: jest.Mock; findMany: jest.Mock };
     clarificationMessage: { create: jest.Mock };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let access: {
@@ -64,6 +65,8 @@ describe('EventsService clarification (US-09)', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       clarificationMessage: { create: jest.fn().mockResolvedValue({}) },
+      // claimForDecision: the request still holds the status it was read with.
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'event-1' }]),
       $transaction: jest.fn((cb) => cb(prisma)),
     };
     access = {

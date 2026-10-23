@@ -68,10 +68,18 @@ describe('AccessControlService (US-02)', () => {
     });
 
     it('finds an event they own', async () => {
-      prisma.eventRequest.findFirst.mockResolvedValue(anEvent());
+      const own = anEvent();
+      prisma.eventRequest.findFirst.mockResolvedValue(own);
+
       await expect(
         service.assertEventAccess(userWith(Role.EVENT_ORGANISER, 'organiser-1'), 'event-1'),
-      ).resolves.toBeDefined();
+      ).resolves.toBe(own);
+      // AC-5: the lookup itself is scoped to this organiser, not filtered afterwards.
+      expect(prisma.eventRequest.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { AND: [{ id: 'event-1' }, { organiserId: 'organiser-1' }] },
+        }),
+      );
     });
 
     it('denies an event owned by someone else', async () => {
@@ -222,7 +230,7 @@ describe('AccessControlService (US-02)', () => {
     });
   });
 
-  describe('US-25 AC-3: RELATED scope', () => {
+  describe('US-24 AC-3: RELATED scope', () => {
     it('limits Venue Staff to events with a venue booking', () => {
       expect(service.scopedEventFilter(userWith(Role.VENUE_STAFF))).toEqual({
         venueBookings: { some: {} },
@@ -233,7 +241,7 @@ describe('AccessControlService (US-02)', () => {
       expect(service.scopedEventFilter(userWith(Role.TECHNICAL_SUPPORT_STAFF))).toEqual({
         OR: [
           { equipmentReservations: { some: {} } },
-          // US-28 AC-3: recorded requirements, before anything is reserved.
+          // US-27 AC-3: recorded requirements, before anything is reserved.
           { equipmentRequirements: { some: {} } },
           { technicalSupportNeeds: { not: null } },
         ],

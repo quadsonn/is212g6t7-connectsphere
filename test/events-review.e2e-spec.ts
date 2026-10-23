@@ -1,49 +1,70 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventStatus, PrismaClient, Role } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { EventStatus, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
-/** US-07 e2e — one describe per acceptance criterion. */
+/**
+ * US-07 e2e — one describe per acceptance criterion.
+ *
+ * Pre-condition for every test: reset the testDB, then run
+ * test/fixtures/sql/base-users.sql; each test then loads the tc-s1 script its
+ * test case names (see docs/testing/sprint1-test-cases.md).
+ */
 describe('US-07 coordinator reviews and approves (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
   const PASSWORD = 'correct-horse-battery-staple';
+
+  /** Fixed rows from base-users.sql. */
+  const USERS = {
+    organiser: { id: 'USR-006', email: 'organiser@example.com' },
+    coordinatorA: { id: 'USR-004', email: 'coord.a@example.com' },
+    coordinatorB: { id: 'USR-005', email: 'coord.b@example.com' },
+    attendee: { id: 'USR-001', email: 'attendee@example.com' },
+  } as const;
+  const ids = Object.fromEntries(
+    Object.entries(USERS).map(([key, user]) => [key, user.id]),
+  ) as Record<string, string>;
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
+  /** Fixed rows from the tc-s1 setup scripts (see test/fixtures/sql/README.md). */
+  const EVENT = {
+    submitted: { id: 'EVT-146' },
+    submitted2: { id: 'EVT-147' },
+    draft: { id: 'EVT-004' },
+    underReview: { id: 'EVT-151' },
+    underReview2: { id: 'EVT-152' },
+    approved: { id: 'EVT-001' },
+    rejected: { id: 'EVT-009' },
+    returned: { id: 'EVT-012' },
+    cancelled: { id: 'EVT-003' },
+    withQuestion: { id: 'EVT-154' },
+    stale: { id: 'EVT-133' },
+    unassigned: { id: 'EVT-150' },
+  } as const;
+
+  /** Loads a test case's setup script(s) on top of base-users. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
-  const seedEvent = async (overrides: Record<string, unknown> = {}) =>
-    prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinatorA,
-        name: 'Freshman Orientation 2030',
-        purpose: 'Welcome new students',
-        description: 'Full-day programme with talks and booths',
-        category: 'Student engagement',
-        proposedStart: new Date('2030-10-01T09:00:00Z'),
-        proposedEnd: new Date('2030-10-01T17:00:00Z'),
-        expectedAttendance: 320,
-        status: EventStatus.SUBMITTED,
-        ...overrides,
-      },
-    });
+  /** The catalogue row for each status the AC-1 table shows. */
+  const EVENT_BY_STATUS: Record<string, { id: string }> = {
+    [EventStatus.DRAFT]: EVENT.draft,
+    [EventStatus.SUBMITTED]: EVENT.submitted,
+    [EventStatus.UNDER_REVIEW]: EVENT.underReview,
+    [EventStatus.APPROVED]: EVENT.approved,
+    [EventStatus.REJECTED]: EVENT.rejected,
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -51,10 +72,25 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    // Same global setup as main.ts (pipes, UnauthorizedFilter, CORS).
+    configureApp(app);
+    // Bound to 127.0.0.1 explicitly: with init() alone, or a dual-stack [::]
+    // listener, the OS can hand out a port another local process already holds
+    // on 127.0.0.1, and Supertest then talks to that process (hangs, or
+    // "Parse Error: Expected HTTP/").
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Log each base user in once, through the real endpoint. JWTs are
+    // stateless and the users are re-created with the same IDs after every
+    // reset, so these tokens stay valid for every test in the file.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    for (const [key, { email }] of Object.entries(USERS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
@@ -63,17 +99,12 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinatorA', 'coord.a@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('coordinatorB', 'coord.b@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('attendee', 'attendee@example.com', Role.ATTENDEE);
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
   });
 
   describe('AC-1: current status is displayed', () => {
+    // TC-S1-02 · setup: base-users + tc-s1-02-setup · fails if the Coordinator view reported a different status from the one stored
     it.each([
       EventStatus.DRAFT,
       EventStatus.SUBMITTED,
@@ -81,7 +112,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       EventStatus.APPROVED,
       EventStatus.REJECTED,
     ])('shows %s', async (status) => {
-      const event = await seedEvent({ status });
+      await given('tc-s1-02-setup');
+      const event = EVENT_BY_STATUS[status];
 
       const res = await http()
         .get(`/events/assigned/${event.id}`)
@@ -91,12 +123,11 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(res.body.status).toBe(status);
     });
 
+    // TC-S1-02 · setup: base-users + tc-s1-02-setup · fails if a returned request lost its status or its outstanding question
     it('shows a returned request with its outstanding question', async () => {
       // US-08 made RETURNED a status in its own right.
-      const event = await seedEvent({
-        status: EventStatus.RETURNED,
-        clarificationRequest: 'Please confirm the attendance figure',
-      });
+      await given('tc-s1-02-setup');
+      const event = EVENT.returned;
 
       const res = await http()
         .get(`/events/assigned/${event.id}`)
@@ -109,7 +140,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
 
     it('does not mark an ordinary draft as returned', async () => {
-      const event = await seedEvent({ status: EventStatus.DRAFT });
+      await given('tc-s1-02-setup');
+      const event = EVENT.draft;
 
       const res = await http()
         .get(`/events/assigned/${event.id}`)
@@ -121,8 +153,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   describe('AC-2: all details are displayed', () => {
+    // TC-S1-03 · setup: base-users + tc-s1-01-setup · fails if a detail field was dropped or altered in the Coordinator view
     it('returns name, purpose, description and proposed date & time', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       const res = await http()
         .get(`/events/assigned/${event.id}`)
@@ -144,8 +178,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   describe('AC-3: approving updates the status', () => {
+    // TC-S1-01 · setup: base-users + tc-s1-01-setup · fails if Approve did not persist APPROVED
     it('moves a submitted request to APPROVED', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       const res = await http()
         .post(`/events/${event.id}/approve`)
@@ -161,7 +197,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
 
     it('approves from UNDER_REVIEW', async () => {
-      const event = await seedEvent({ status: EventStatus.UNDER_REVIEW });
+      await given('tc-s1-02-setup');
+      const event = EVENT.underReview;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -174,8 +211,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.APPROVED);
     });
 
+    // TC-S1-01 · setup: base-users + tc-s1-01-setup · fails if the Organiser's list did not reflect the approval
     it('is visible to the Organiser afterwards', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -190,8 +229,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(mine.body[0].status).toBe(EventStatus.APPROVED);
     });
 
+    // TC-S1-04 · setup: base-users + tc-s1-02-setup · fails if a DRAFT could be approved (illegal transition)
     it('refuses to approve a DRAFT', async () => {
-      const event = await seedEvent({ status: EventStatus.DRAFT });
+      await given('tc-s1-02-setup');
+      const event = EVENT.draft;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -204,8 +245,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.DRAFT);
     });
 
+    // TC-S1-04 · setup: base-users + tc-s1-02-setup · fails if a CANCELLED request could be approved
     it('refuses to approve a CANCELLED request', async () => {
-      const event = await seedEvent({ status: EventStatus.CANCELLED });
+      await given('tc-s1-02-setup');
+      const event = EVENT.cancelled;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -213,8 +256,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
         .expect(409);
     });
 
+    // TC-S1-05 · setup: base-users + tc-s1-01-setup · fails if a repeated Approve errored or changed the status
     it('is idempotent — approving twice leaves it APPROVED', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -232,11 +277,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
 
     it('clears a stale clarification and rejection reason', async () => {
-      const event = await seedEvent({
-        status: EventStatus.SUBMITTED,
-        clarificationRequest: 'An earlier question',
-        decisionReason: 'An earlier rejection',
-      });
+      await given('tc-s1-02-setup');
+      const event = EVENT.stale;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -251,9 +293,57 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
   });
 
+  describe('conflict: simultaneous decisions on one request', () => {
+    // TC-S1-07 · setup: base-users + tc-s1-01-setup (fresh before each of 20 iterations) · fails if approve and reject can both succeed, or the final status contradicts the decision that won
+    // Fixed in 61401ec; regression test for audit gap #2
+    it('lets exactly one of a simultaneous approve and reject succeed, and stores that outcome', async () => {
+      const ITERATIONS = 20;
+      const violations: string[] = [];
+
+      for (let i = 1; i <= ITERATIONS; i++) {
+        await resetDb(prisma);
+        await loadSql(prisma, 'base-users');
+        await given('tc-s1-01-setup');
+        const event = EVENT.submitted;
+
+        const [approve, reject] = await Promise.all([
+          http().post(`/events/${event.id}/approve`).set('Authorization', as('coordinatorA')),
+          http()
+            .post(`/events/${event.id}/reject`)
+            .set('Authorization', as('coordinatorA'))
+            .send({ reason: 'Clashes with the examination period' }),
+        ]);
+        const stored = await prisma.eventRequest.findUniqueOrThrow({ where: { id: event.id } });
+
+        const winners = [approve, reject].filter((r) => r.status === 200).length;
+        const loserRefused = [approve, reject].some((r) => r.status === 409);
+        const expected =
+          approve.status === 200 ? EventStatus.APPROVED : EventStatus.REJECTED;
+        // Only the winner's reason is kept: none after an approval.
+        const expectedReason =
+          approve.status === 200 ? null : 'Clashes with the examination period';
+
+        if (
+          winners !== 1 ||
+          !loserRefused ||
+          stored.status !== expected ||
+          stored.decisionReason !== expectedReason
+        ) {
+          violations.push(
+            `iteration ${i}: approve ${approve.status}, reject ${reject.status}, stored ${stored.status} / ${stored.decisionReason}`,
+          );
+        }
+      }
+
+      expect(violations).toEqual([]);
+    });
+  });
+
   describe('assignment ownership and role', () => {
+    // TC-S1-06 · setup: base-users + tc-s1-01-setup · fails if a Coordinator could approve an event assigned to someone else
     it('refuses a Coordinator assigned to a different event', async () => {
-      const event = await seedEvent({ coordinatorId: ids.coordinatorA });
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -266,8 +356,9 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.SUBMITTED);
     });
 
-    it('refuses to approve a request still in the Lead’s unassigned queue', async () => {
-      const event = await seedEvent({ coordinatorId: null });
+    it('refuses to approve an unassigned request from the pool', async () => {
+      await given('tc-s1-02-setup');
+      const event = EVENT.unassigned;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -281,7 +372,11 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
 
     it('approves once that request has been assigned', async () => {
-      const event = await seedEvent({ coordinatorId: ids.coordinatorB });
+      await given('tc-s1-02-setup');
+      const event = EVENT.unassigned;
+      // Assignment is the Coordinator Lead's queue now (/assignments), not a
+      // self-assign; as on main, the request starts out assigned.
+      await prisma.eventRequest.update({ where: { id: event.id }, data: { coordinatorId: ids.coordinatorB } });
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -294,8 +389,10 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.APPROVED);
     });
 
+    // TC-S1-06 · setup: base-users + tc-s1-01-setup · fails if an Organiser or Attendee could approve
     it.each(['organiser', 'attendee'])('refuses %s at the role gate', async (who) => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -309,7 +406,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     });
 
     it('refuses an unauthenticated caller', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http().post(`/events/${event.id}/approve`).expect(401);
     });

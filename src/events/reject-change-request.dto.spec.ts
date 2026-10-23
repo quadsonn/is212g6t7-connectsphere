@@ -4,8 +4,8 @@ import { validate } from 'class-validator';
 
 import { RejectChangeRequestDto } from './dto/reject-change-request.dto';
 
-/** US-38 AC-3 — rejecting a change request requires a reason. */
-describe('RejectChangeRequestDto (US-38)', () => {
+/** US-37 AC-3 — rejecting a change request requires a reason. */
+describe('RejectChangeRequestDto (US-37)', () => {
   const messages = async (payload: Record<string, unknown>) => {
     const errors = await validate(plainToInstance(RejectChangeRequestDto, payload));
     return errors.flatMap((error) => Object.values(error.constraints ?? {}));

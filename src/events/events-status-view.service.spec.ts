@@ -55,7 +55,7 @@ describe('EventsService status view (US-05)', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
-      // US-37: the Organiser's single-event view looks for a pending change request.
+      // US-36: the Organiser's single-event view looks for a pending change request.
       eventChangeRequest: { findFirst: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn((cb) => cb(prisma)),
     };
@@ -76,12 +76,46 @@ describe('EventsService status view (US-05)', () => {
   });
 
   describe('AC-1: every status is reported', () => {
-    it.each(Object.values(EventStatus))('reports %s', async (status) => {
-      prisma.eventRequest.findMany.mockResolvedValue([row({ status })]);
+    // One row per distinct status-view outcome: no decision, a rejection with
+    // its reason, a return with its reason, and a terminal status. That every
+    // status reaches the Organiser is proven against the DB by
+    // test/events-status-view.e2e-spec.ts "reports every status in the lifecycle".
+    it.each([
+      {
+        status: EventStatus.SUBMITTED,
+        fields: {},
+        expected: { isTerminal: false, decision: null, clarificationRequested: false },
+      },
+      {
+        status: EventStatus.REJECTED,
+        fields: { decisionReason: 'Clashes with exam week' },
+        expected: {
+          isTerminal: false,
+          decision: { outcome: EventStatus.REJECTED, reason: 'Clashes with exam week' },
+          clarificationRequested: false,
+        },
+      },
+      {
+        status: EventStatus.RETURNED,
+        fields: { clarificationRequest: 'Please shorten the programme' },
+        expected: {
+          isTerminal: false,
+          decision: { outcome: EventStatus.RETURNED, reason: 'Please shorten the programme' },
+          clarificationRequested: true,
+        },
+      },
+      {
+        status: EventStatus.CANCELLED,
+        fields: {},
+        expected: { isTerminal: true, decision: null, clarificationRequested: false },
+      },
+    ])('reports $status with its status view', async ({ status, fields, expected }) => {
+      prisma.eventRequest.findMany.mockResolvedValue([row({ status, ...fields })]);
 
       const [view] = await service.findMyRequests(organiser);
 
       expect(view.status).toBe(status);
+      expect(view.statusView).toEqual({ status, ...expected });
     });
 
     it('returns the status for each request in the list', async () => {

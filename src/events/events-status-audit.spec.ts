@@ -71,9 +71,9 @@ describe('status write audit (US-11)', () => {
     expect(offenders).toEqual([ALLOWED_VENUE_FILE]);
   });
 
-  it('writes EquipmentReservation.status in exactly one file (US-32/US-33)', () => {
-    // A commitment is created APPROVED (US-32) and leaves that status only by
-    // release on cancellation (US-33) — both in the reservations service.
+  it('writes EquipmentReservation.status in exactly one file (US-31/US-32)', () => {
+    // A commitment is created APPROVED (US-31) and leaves that status only by
+    // release on cancellation (US-32) — both in the reservations service.
     const offenders = files.flatMap((file) => {
       const matches =
         readFileSync(file, 'utf8').match(statusWriteOn('equipmentReservation')) ?? [];

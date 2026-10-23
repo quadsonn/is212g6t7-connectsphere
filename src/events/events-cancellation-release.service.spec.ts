@@ -9,11 +9,11 @@ import { EventsService } from './events.service';
 import { BookingsService } from '../bookings/bookings.service';
 
 /**
- * US-33 AC-1 — EventsService.setStatus() releases equipment when an event
+ * US-32 AC-1 — EventsService.setStatus() releases equipment when an event
  * becomes CANCELLED, atomically with the status change. No cancel endpoint is
  * built here (#43); this is the reaction any cancellation path will trigger.
  */
-describe('EventsService.setStatus → equipment release (US-33)', () => {
+describe('EventsService.setStatus → equipment release (US-32)', () => {
   let tx: { eventRequest: { update: jest.Mock } };
   let prisma: { $transaction: jest.Mock; eventRequest: { update: jest.Mock } };
   let reservations: { releaseForCancelledEvent: jest.Mock };
@@ -44,7 +44,7 @@ describe('EventsService.setStatus → equipment release (US-33)', () => {
     );
   });
 
-  describe('US-33 AC-1: status changing to cancelled releases the event’s reservations', () => {
+  describe('US-32 AC-1: status changing to cancelled releases the event’s reservations', () => {
     it('writes CANCELLED and releases, both inside one transaction', async () => {
       const result = await service.setStatus(event, EventStatus.CANCELLED);
 
@@ -91,7 +91,7 @@ describe('EventsService.setStatus → equipment release (US-33)', () => {
     );
   });
 
-  describe('US-33 AC-4: an already-cancelled event is not released again', () => {
+  describe('US-32 AC-4: an already-cancelled event is not released again', () => {
     it('treats CANCELLED → CANCELLED as a no-op, releasing nothing', async () => {
       const cancelled = { ...event, status: EventStatus.CANCELLED };
 

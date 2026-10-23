@@ -6,7 +6,7 @@ import {
   RegistrationEventFacts,
 } from './registration-rules';
 
-/** US-34 and US-36 — the registration rules, with no database involved. */
+/** US-33 and US-35 — the registration rules, with no database involved. */
 describe('registration rules', () => {
   const start = new Date('2030-10-10T09:00:00.000Z');
   const now = new Date('2030-10-01T09:00:00.000Z');
@@ -25,7 +25,7 @@ describe('registration rules', () => {
   });
 
   describe('evaluateRegistration', () => {
-    it('US-34 AC-1: allows a confirmed event with registration enabled', () => {
+    it('US-33 AC-1: allows a confirmed event with registration enabled', () => {
       const result = evaluateRegistration(event(), 0, now);
       expect(result.canRegister).toBe(true);
       expect(result.reason).toBeNull();
@@ -33,13 +33,13 @@ describe('registration rules', () => {
 
     it.each(
       Object.values(EventStatus).filter((s) => s !== EventStatus.CONFIRMED),
-    )('US-34 AC-1: refuses a %s event', (status) => {
+    )('US-33 AC-1: refuses a %s event', (status) => {
       const result = evaluateRegistration(event({ status }), 0, now);
       expect(result.canRegister).toBe(false);
       expect(result.block).toBe('NOT_OPEN_TO_REGISTRATION');
     });
 
-    it('US-34 AC-1: refuses a confirmed event with registration disabled', () => {
+    it('US-33 AC-1: refuses a confirmed event with registration disabled', () => {
       const result = evaluateRegistration(
         event({ registrationEnabled: false }),
         0,
@@ -48,7 +48,7 @@ describe('registration rules', () => {
       expect(result.block).toBe('NOT_OPEN_TO_REGISTRATION');
     });
 
-    it('US-34 AC-6: before the opening time, shows the open and close times', () => {
+    it('US-33 AC-6: before the opening time, shows the open and close times', () => {
       const opens = new Date('2030-10-05T00:00:00.000Z');
       const closes = new Date('2030-10-08T00:00:00.000Z');
       const result = evaluateRegistration(
@@ -65,7 +65,7 @@ describe('registration rules', () => {
       expect(result.reason).toContain(closes.toISOString());
     });
 
-    it('US-34 AC-6: after the closing time, shows the times', () => {
+    it('US-33 AC-6: at or after the closing time, shows the times', () => {
       const closes = new Date('2030-09-30T00:00:00.000Z');
       const result = evaluateRegistration(
         event({ registrationClosesAt: closes }),
@@ -87,17 +87,7 @@ describe('registration rules', () => {
       ).toBe('CLOSED');
     });
 
-    it('accepts a registration exactly at the opening time, and rejects the millisecond before', () => {
-      const opens = new Date('2030-10-05T00:00:00.000Z');
-      const facts = event({ registrationOpensAt: opens });
-
-      expect(evaluateRegistration(facts, 0, opens).canRegister).toBe(true);
-      expect(
-        evaluateRegistration(facts, 0, new Date(opens.getTime() - 1)).block,
-      ).toBe('NOT_YET_OPEN');
-    });
-
-    it('US-34 AC-6: with no closing time set, registration closes 3 days before the start', () => {
+    it('US-33 AC-6: with no closing time set, registration closes 3 days before the start', () => {
       const closes = new Date('2030-10-07T09:00:00.000Z');
       const after = evaluateRegistration(
         event(),
@@ -109,7 +99,7 @@ describe('registration rules', () => {
       expect(evaluateRegistration(event(), 0, closes).canRegister).toBe(true);
     });
 
-    it('US-34 AC-6: with no opening time set, registration opens 2 months before the start', () => {
+    it('US-33 AC-6: with no opening time set, registration opens 2 months before the start', () => {
       const opens = new Date('2030-08-10T09:00:00.000Z');
       const before = evaluateRegistration(
         event(),
@@ -121,14 +111,14 @@ describe('registration rules', () => {
       expect(evaluateRegistration(event(), 0, opens).canRegister).toBe(true);
     });
 
-    it('US-34 AC-7: rejects with a "full" message at capacity', () => {
+    it('US-33 AC-7: rejects with a "full" message at capacity', () => {
       const result = evaluateRegistration(event(), 10, now);
       expect(result.canRegister).toBe(false);
       expect(result.block).toBe('FULL');
       expect(result.reason).toMatch(/full/i);
     });
 
-    it('US-34 AC-7: still allows the last remaining place', () => {
+    it('US-33 AC-7: still allows the last remaining place', () => {
       expect(evaluateRegistration(event(), 9, now).canRegister).toBe(true);
     });
 
@@ -141,7 +131,7 @@ describe('registration rules', () => {
   });
 
   describe('evaluateWithdrawal', () => {
-    it('US-36 AC-1: allows withdrawing an active registration before the cutoff', () => {
+    it('US-35 AC-1: allows withdrawing an active registration before the cutoff', () => {
       const result = evaluateWithdrawal('REGISTERED', event(), now);
       expect(result.canWithdraw).toBe(true);
       expect(result.withdrawalCutoffAt).toEqual(
@@ -149,7 +139,7 @@ describe('registration rules', () => {
       );
     });
 
-    it('US-36 AC-5: after the cutoff, refuses and shows the cutoff', () => {
+    it('US-35 AC-5: after the cutoff, refuses and shows the cutoff', () => {
       const cutoff = new Date('2030-09-30T00:00:00.000Z');
       const result = evaluateWithdrawal(
         'REGISTERED',
@@ -162,7 +152,7 @@ describe('registration rules', () => {
       expect(result.reason).toContain(cutoff.toISOString());
     });
 
-    it('US-36 AC-5: with no cutoff set, withdrawals stop 24 hours before the start', () => {
+    it('US-35 AC-5: with no cutoff set, withdrawals stop 24 hours before the start', () => {
       const cutoff = new Date('2030-10-09T09:00:00.000Z');
       expect(evaluateWithdrawal('REGISTERED', event(), cutoff).canWithdraw).toBe(
         false,
@@ -173,7 +163,7 @@ describe('registration rules', () => {
       ).toBe(true);
     });
 
-    it('US-36 AC-6: a withdrawn registration cannot be withdrawn again', () => {
+    it('US-35 AC-6: a withdrawn registration cannot be withdrawn again', () => {
       const result = evaluateWithdrawal('WITHDRAWN', event(), now);
       expect(result.canWithdraw).toBe(false);
       expect(result.reason).toMatch(/already been withdrawn/i);

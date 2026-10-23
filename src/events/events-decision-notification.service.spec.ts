@@ -23,6 +23,7 @@ describe('EventsService decision notifications (Organiser)', () => {
   let prisma: {
     eventRequest: { update: jest.Mock; findUniqueOrThrow: jest.Mock };
     clarificationMessage: { create: jest.Mock };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let access: Record<string, jest.Mock>;
@@ -52,6 +53,8 @@ describe('EventsService decision notifications (Organiser)', () => {
         findUniqueOrThrow: jest.fn().mockImplementation(() => Promise.resolve({ ...stored })),
       },
       clarificationMessage: { create: jest.fn().mockResolvedValue({}) },
+      // claimForDecision() (audit gaps #2/#3) locks the request first; one row = still unchanged.
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'event-1' }]),
       $transaction: jest.fn((cb) => cb(prisma)),
     };
     access = {

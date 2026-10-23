@@ -13,8 +13,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EventsService, NO_CHANGES_MESSAGE } from './events.service';
 import { BookingsService } from '../bookings/bookings.service';
 
-/** US-25 / US-26 — planning edits and change history. */
-describe('EventsService planning edits and history (US-25, US-26)', () => {
+/** US-24 / US-25 — planning edits and change history. */
+describe('EventsService planning edits and history (US-24, US-25)', () => {
   let prisma: {
     eventRequest: { update: jest.Mock; findUniqueOrThrow: jest.Mock };
     eventChange: { create: jest.Mock; findMany: jest.Mock };
@@ -88,7 +88,7 @@ describe('EventsService planning edits and history (US-25, US-26)', () => {
     );
   });
 
-  describe('US-25 AC-1: edits are saved during planning', () => {
+  describe('US-24 AC-1: edits are saved during planning', () => {
     it('writes only the fields that changed', async () => {
       const result = await service.updateDuringPlanning(coordinator, 'event-1', {
         name: 'Orientation',
@@ -152,7 +152,7 @@ describe('EventsService planning edits and history (US-25, US-26)', () => {
     });
   });
 
-  describe('US-25 AC-2: changes to confirmed arrangements are flagged', () => {
+  describe('US-24 AC-2: changes to confirmed arrangements are flagged', () => {
     it('flags an attendance change when a venue booking is approved', async () => {
       prisma.venueBooking.count.mockResolvedValue(1);
 
@@ -190,7 +190,7 @@ describe('EventsService planning edits and history (US-25, US-26)', () => {
     });
   });
 
-  describe('US-26: history', () => {
+  describe('US-25: history', () => {
     it('records who made the change', async () => {
       await service.updateDuringPlanning(coordinator, 'event-1', { expectedAttendance: 500 });
 

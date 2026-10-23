@@ -119,12 +119,22 @@ describe('Story 22 approve/reject a booking request with reason (integration)', 
     });
 
     // TC-S2-49 · US-22 AC-2 · setup: base-users + base-venues + tc-s2-48-setup · fails if a reason of only spaces counted as a reason
-    // Code gap: RejectBookingDto has no @Trim(), so '   ' passes @IsNotEmpty()
-    // and the service saves it trimmed to ''. it.failing: this test is
-    // expected to fail until the DTO trims first (as the Sprint 1 DTOs do);
-    // once fixed, Jest reports it and it becomes a plain it().
-    it.failing('refuses a reason made only of spaces', async () => {
-      await act(BOOKING.showcase, 'reject', { reason: '   ' }).expect(400);
+    // Code: RejectBookingDto trims the reason (@Trim()) before @IsNotEmpty()
+    // checks it, so '   ' is refused like an empty reason.
+    it('US-22 AC-2: whitespace-only reject reason refused', async () => {
+      const res = await act(BOOKING.showcase, 'reject', { reason: '   ' }).expect(400);
+
+      expect(res.body.message).toContain('a reason is required to reject this booking request');
+      expect(await statusOf(BOOKING.showcase)).toBe(BookingStatus.REQUESTED);
+      expect(await prisma.bookingDecision.count({ where: { bookingId: BOOKING.showcase } })).toBe(0);
+    });
+
+    // TC-S2-49 · US-22 AC-2 · setup: base-users + base-venues + tc-s2-48-setup · fails if a reason with surrounding spaces were refused, or saved with the spaces
+    // Code: @Trim() keeps the words and drops only the surrounding spaces.
+    it('US-22 AC-2: a normal reason is still saved, trimmed', async () => {
+      const res = await act(BOOKING.showcase, 'reject', { reason: '  Under maintenance  ' }).expect(200);
+
+      expect(res.body).toMatchObject({ status: BookingStatus.REJECTED, decisionReason: 'Under maintenance' });
     });
 
     // TC-S2-49 · US-22 AC-2 · setup: base-users + base-venues + tc-s2-48-setup · fails if a rejection with a reason was refused, or the reason not saved
@@ -232,6 +242,31 @@ describe('Story 22 approve/reject a booking request with reason (integration)', 
 
       await act(BOOKING.showcase, 'reverse', {}).expect(400);
       expect(await statusOf(BOOKING.showcase)).toBe(BookingStatus.APPROVED);
+    });
+
+    // TC-S2-49 · US-22 AC-2 · setup: base-users + base-venues + tc-s2-48-setup · fails if a reversal reason of only spaces counted as a reason
+    // Code: ReverseBookingDto trims the reason (@Trim()) before @IsNotEmpty() checks it.
+    it('US-22 AC-2: whitespace-only reverse reason refused', async () => {
+      await act(BOOKING.showcase, 'approve').expect(200);
+
+      const res = await act(BOOKING.showcase, 'reverse', { reason: '   ' }).expect(400);
+
+      expect(res.body.message).toContain('a reason is required to reverse this decision');
+      expect(await statusOf(BOOKING.showcase)).toBe(BookingStatus.APPROVED);
+    });
+
+    // TC-S2-49 · US-22 AC-2 · setup: base-users + base-venues + tc-s2-48-setup · fails if a reversal with a real reason were refused, or the reason not saved
+    // Code: reverse() records the reversal with the trimmed reason.
+    it('US-22 AC-2: a normal reverse reason is still saved', async () => {
+      await act(BOOKING.showcase, 'approve').expect(200);
+
+      const res = await act(BOOKING.showcase, 'reverse', { reason: '  Double-booked by mistake  ' }).expect(200);
+
+      expect(res.body.status).toBe(BookingStatus.REJECTED);
+      expect(res.body.decisions.at(-1)).toMatchObject({
+        kind: BookingDecisionKind.REVERSAL,
+        reason: 'Double-booked by mistake',
+      });
     });
 
     // TC-S2-53 · US-22 AC-6 · setup: base-users + base-venues + tc-s2-48-setup · fails if a request nobody had decided yet could be "reversed"

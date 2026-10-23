@@ -8,6 +8,8 @@ import {
   MaxLength,
 } from 'class-validator';
 
+import { Trim } from '../../common/validators/trim.transform';
+
 /**
  * US-41 AC-1 — the alternative venues attached to a rejection, by id. Each is
  * checked server-side (AC-4: it must be free for the requested time).
@@ -40,8 +42,12 @@ export class ApproveBookingDto {
 /**
  * US-23 AC-2 — a rejection cannot be submitted without a reason.
  * US-41 AC-1 — and may carry alternative venues.
+ *
+ * #22 AC-2: trimmed first, so a reason of only spaces is refused, not saved
+ * as an empty reason.
  */
 export class RejectBookingDto extends AlternativeVenuesField {
+  @Trim()
   @IsString()
   @IsNotEmpty({ message: 'a reason is required to reject this booking request' })
   @MaxLength(2000)
@@ -54,8 +60,11 @@ export class RejectBookingDto extends AlternativeVenuesField {
  *
  * US-41: a reversal *to* rejected is a rejection, so it may carry
  * alternatives too; a reversal to approved may not (BookingsService.reverse).
+ *
+ * #22 AC-2: trimmed first, like the rejection reason.
  */
 export class ReverseBookingDto extends AlternativeVenuesField {
+  @Trim()
   @IsString()
   @IsNotEmpty({ message: 'a reason is required to reverse this decision' })
   @MaxLength(2000)

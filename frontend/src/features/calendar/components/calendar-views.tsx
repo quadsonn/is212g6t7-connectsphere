@@ -1,6 +1,8 @@
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Input } from '@/components/ui/input';
+import { Tooltip } from '@/components/ui/tooltip';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { cn, formatDateRange } from '@/lib/utils';
 import type { CalendarEntry, CalendarView } from '@/types/api';
@@ -12,6 +14,7 @@ import {
   NEEDS_REVIEW_CLASS,
   NEEDS_REVIEW_LABEL,
   NO_FILTERS,
+  compactTimeRange,
   daysIn,
   entriesOn,
   facetCounts,
@@ -20,7 +23,7 @@ import {
   sortBookedFirst,
   timeLabel,
   venueColour,
-  venueLetter,
+  venueMatchesSearch,
 } from '../calendar-utils';
 
 type Venue = CalendarView['venues'][number];
@@ -44,21 +47,67 @@ function entrySummary(entry: CalendarEntry, venueName?: string | null): string {
     .join(' · ');
 }
 
-/** One clickable entry (AC-4). A real button, so it works by keyboard and tap. */
+/**
+ * One clickable entry (AC-4). A real button, so it works by keyboard and tap.
+ * `compact` is the week grid's two-line pill: a short time range that is never
+ * cut off, then the name; its details come from a Tooltip rather than `title`.
+ */
 export function EntryChip({
   entry,
   onSelect,
   venueName,
   className,
   style,
+  compact = false,
+  ...rest
 }: {
   entry: CalendarEntry;
   onSelect: Select;
   venueName?: string | null;
   className?: string;
   style?: React.CSSProperties;
-}) {
+  compact?: boolean;
+} & Pick<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  'onMouseEnter' | 'onMouseLeave' | 'onFocus' | 'onBlur' | 'aria-describedby'
+>) {
   const kind = ENTRY_STYLES[entry.kind];
+  const srLabel = (
+    <span className="sr-only">
+      {kind.label}
+      {holdExpiryLabel(entry) ? `, ${holdExpiryLabel(entry)}` : ''}
+      {entry.needsReview ? `, ${NEEDS_REVIEW_LABEL}` : ''}:{' '}
+    </span>
+  );
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={() => onSelect(entry)}
+        style={{ ...kind.style, ...style }}
+        className={cn(
+          'block w-full overflow-hidden rounded-md px-1.5 py-1 text-left text-xs',
+          'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600',
+          kind.className,
+          entry.needsReview && NEEDS_REVIEW_CLASS,
+          className,
+        )}
+        {...rest}
+      >
+        {srLabel}
+        <span className="block whitespace-nowrap font-medium tabular-nums">
+          {compactTimeRange(entry.start, entry.end)}
+        </span>
+        <span className="flex items-center gap-1">
+          {entry.needsReview ? (
+            <AlertTriangle className="size-3 shrink-0 text-red-600" aria-hidden="true" />
+          ) : null}
+          <span className="truncate">{entryTitle(entry)}</span>
+        </span>
+      </button>
+    );
+  }
 
   return (
     <button
@@ -73,12 +122,9 @@ export function EntryChip({
         entry.needsReview && NEEDS_REVIEW_CLASS,
         className,
       )}
+      {...rest}
     >
-      <span className="sr-only">
-        {kind.label}
-        {holdExpiryLabel(entry) ? `, ${holdExpiryLabel(entry)}` : ''}
-        {entry.needsReview ? `, ${NEEDS_REVIEW_LABEL}` : ''}:{' '}
-      </span>
+      {srLabel}
       {entry.needsReview ? (
         <AlertTriangle className="mr-1 inline size-3 text-red-600" aria-hidden="true" />
       ) : null}
@@ -336,6 +382,9 @@ export function DayTimeline({
 // Week
 // ---------------------------------------------------------------------------
 
+/** The current day's column, tinted top to bottom. */
+const TODAY_CLASS = 'bg-brand-50/70 text-brand-700';
+
 /** Week view: venues down the side (booked first), days across the top. */
 export function WeekGrid({
   days,
@@ -356,17 +405,20 @@ export function WeekGrid({
     return <p className="px-4 py-10 text-center text-sm text-ink-500">No venues match these filters.</p>;
   }
 
+  const now = new Date();
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[52rem] table-fixed border-collapse text-sm">
+      <table className="w-full min-w-[56rem] table-fixed border-collapse text-sm">
         <thead>
           <tr className="border-b border-ink-200 text-xs text-ink-500">
-            <th scope="col" className="w-40 px-3 py-2 text-left font-medium">Venue</th>
+            <th scope="col" className="w-44 px-3 py-2 text-left font-medium">Venue</th>
             {days.map((d) => (
               <th
                 key={d.toISOString()}
                 scope="col"
-                className={cn('px-2 py-2 text-left font-medium', sameDay(d, new Date()) && 'text-brand-700')}
+                aria-current={sameDay(d, now) ? 'date' : undefined}
+                className={cn('px-2 py-2 text-left font-medium', sameDay(d, now) && TODAY_CLASS)}
               >
                 {d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' })}
               </th>
@@ -376,16 +428,36 @@ export function WeekGrid({
         <tbody>
           {ordered.map((venue) => (
             <tr key={venue.id} className="border-b border-ink-100 align-top">
-              <th scope="row" className="truncate px-3 py-2 text-left font-medium text-ink-900">
-                {venue.name}
+              <th scope="row" className="px-3 py-2 text-left font-medium text-ink-900">
+                {/* Wraps to two lines; the full name is a tooltip only when cut off. */}
+                <Tooltip content={venue.name} onlyWhenTruncated className="text-sm">
+                  <span className="line-clamp-2 break-words">{venue.name}</span>
+                </Tooltip>
               </th>
               {days.map((d) => {
                 const cell = entriesOn(entries, d).filter((e) => e.venueId === venue.id);
                 return (
-                  <td key={d.toISOString()} className="space-y-1 border-l border-ink-100 p-1.5">
-                    {cell.length === 0
-                      ? showAvailable ? <Available /> : null
-                      : cell.map((e) => <EntryChip key={e.id} entry={e} onSelect={onSelect} />)}
+                  <td
+                    key={d.toISOString()}
+                    className={cn('relative h-12 border-l border-ink-100 p-1.5', sameDay(d, now) && TODAY_CLASS)}
+                  >
+                    {cell.length === 0 ? (
+                      // Free time is an empty, faintly filled cell — no pill, no text.
+                      // Filtered out, it stays blank so the two never look alike.
+                      showAvailable ? (
+                        <div data-testid="available-cell" className={cn('absolute inset-1.5 rounded-md', AVAILABLE_CLASS)}>
+                          <span className="sr-only">Available</span>
+                        </div>
+                      ) : null
+                    ) : (
+                      <div className="space-y-1">
+                        {cell.map((e) => (
+                          <Tooltip key={e.id} content={<EntryCard entry={e} venueName={venue.name} />} className="w-64">
+                            <EntryChip entry={e} onSelect={onSelect} compact />
+                          </Tooltip>
+                        ))}
+                      </div>
+                    )}
                   </td>
                 );
               })}
@@ -403,28 +475,28 @@ function FacetGroup<T extends string>({
   selected,
   counts,
   onToggle,
-  columns = 1,
 }: {
   legend: string;
   options: { value: T; label: string }[];
   selected: Set<T>;
-  counts: Record<string, number>;
+  /** An option missing here shows no count (Available). */
+  counts: Partial<Record<string, number>>;
   onToggle: (value: T) => void;
-  columns?: number;
 }) {
   return (
-    <fieldset>
+    // min-w-0: a fieldset is min-content wide by default, which let long venue names overflow.
+    <fieldset className="min-w-0">
       <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">{legend}</legend>
-      <div className={cn('grid gap-0.5', columns > 1 && 'grid-cols-3 lg:grid-cols-2')}>
+      <div className="grid gap-0.5">
         {options.map((o) => {
           const id = `facet-${legend}-${o.value}`.replace(/\s+/g, '-');
-          const count = counts[o.value] ?? 0;
+          const count = counts[o.value];
           return (
             <label
               key={o.value}
               htmlFor={id}
               className={cn(
-                'flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-ink-50',
+                'flex cursor-pointer items-start gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-ink-50',
                 count === 0 && !selected.has(o.value) && 'text-ink-400',
               )}
             >
@@ -433,10 +505,10 @@ function FacetGroup<T extends string>({
                 type="checkbox"
                 checked={selected.has(o.value)}
                 onChange={() => onToggle(o.value)}
-                className="size-4 rounded border-ink-300 text-brand-600 focus:outline-2 focus:outline-offset-2 focus:outline-brand-600"
+                className="mt-0.5 size-4 shrink-0 rounded border-ink-300 text-brand-600 focus:outline-2 focus:outline-offset-2 focus:outline-brand-600"
               />
-              <span className="flex-1 truncate">{o.label}</span>
-              <span className="text-xs text-ink-400">{count}</span>
+              <span className="min-w-0 flex-1 break-words">{o.label}</span>
+              {count !== undefined ? <span className="text-xs text-ink-400">{count}</span> : null}
             </label>
           );
         })}
@@ -448,20 +520,24 @@ function FacetGroup<T extends string>({
 /**
  * The calendar's filter panel, in the style of a shop's: tick any number of
  * options in each group, with a count beside each one. Nothing ticked in a
- * group means "any". The Venue group is AC-3's single-venue filter.
+ * group means "any". The Venue group is AC-3's single-venue filter, and the
+ * search box narrows both it and the calendar. Collapsible; the page owns the
+ * open state so the calendar can take the full width when it is closed.
  */
 export function FilterPanel({
   filters,
   counts,
-  letters,
   venues,
   onChange,
+  open,
+  onOpenChange,
 }: {
   filters: CalendarFilters;
   counts: ReturnType<typeof facetCounts>;
-  letters: string[];
   venues: Venue[];
   onChange: (next: CalendarFilters) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const toggle = <T,>(set: Set<T>, value: T): Set<T> => {
     const next = new Set(set);
@@ -469,16 +545,29 @@ export function FilterPanel({
     else next.add(value);
     return next;
   };
-  const active = filters.availability.size + filters.letters.size + filters.venues.size;
-  // Ticking letters narrows the venue list, as picking a brand narrows sizes.
+  const active = filters.availability.size + filters.venues.size + (filters.search.trim() ? 1 : 0);
+  // Searching narrows the venue list, as it narrows the calendar.
   const venueOptions = venues
-    .filter((v) => filters.letters.size === 0 || filters.letters.has(venueLetter(v)))
+    .filter((v) => venueMatchesSearch(v, filters.search))
     .map((v) => ({ value: v.id, label: v.name ?? 'Untitled venue' }));
+  const bodyId = 'calendar-filters-body';
 
   return (
-    <aside aria-label="Filters" className="space-y-5 border-b border-ink-200 p-4 lg:border-r lg:border-b-0">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-ink-900">Filters{active ? ` (${active})` : ''}</p>
+    <aside
+      aria-label="Filters"
+      className={cn('border-b border-ink-200 p-4', open && 'space-y-5 lg:border-r lg:border-b-0')}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => onOpenChange(!open)}
+          className="flex items-center gap-1.5 rounded-md text-sm font-semibold text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+        >
+          <ChevronDown className={cn('size-4 transition-transform', !open && '-rotate-90')} aria-hidden="true" />
+          Filters{active ? ` (${active})` : ''}
+        </button>
         {active ? (
           <button
             type="button"
@@ -489,7 +578,7 @@ export function FilterPanel({
           </button>
         ) : null}
       </div>
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-1">
+      <div id={bodyId} hidden={!open} className="grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-1">
         <FacetGroup
           legend="Availability"
           options={AVAILABILITY_FACETS}
@@ -497,15 +586,23 @@ export function FilterPanel({
           counts={counts.availability}
           onToggle={(v) => onChange({ ...filters, availability: toggle(filters.availability, v) })}
         />
-        <FacetGroup
-          legend="Venue starts with"
-          options={letters.map((l) => ({ value: l, label: l }))}
-          selected={filters.letters}
-          counts={counts.letters}
-          onToggle={(v) => onChange({ ...filters, letters: toggle(filters.letters, v) })}
-          columns={2}
-        />
-        <div className="max-h-64 overflow-y-auto pr-1">
+        <div className="min-w-0">
+          <label
+            htmlFor="calendar-venue-search"
+            className="mb-2 block text-xs font-semibold uppercase tracking-wide text-ink-500"
+          >
+            Search venues
+          </label>
+          <Input
+            id="calendar-venue-search"
+            type="search"
+            placeholder="Venue name"
+            value={filters.search}
+            onChange={(event) => onChange({ ...filters, search: event.target.value })}
+            className="h-9"
+          />
+        </div>
+        <div className="max-h-64 min-w-0 overflow-x-hidden overflow-y-auto pr-1">
           <FacetGroup
             legend="Venue"
             options={venueOptions}
@@ -513,6 +610,7 @@ export function FilterPanel({
             counts={counts.venues}
             onToggle={(v) => onChange({ ...filters, venues: toggle(filters.venues, v) })}
           />
+          {venueOptions.length === 0 ? <p className="px-1.5 text-xs text-ink-400">No venues match</p> : null}
         </div>
       </div>
     </aside>
@@ -538,7 +636,6 @@ function MonthEntry({
   alignRight: boolean;
   onSelect: Select;
 }) {
-  const kind = ENTRY_STYLES[entry.kind];
   return (
     <div className="group relative">
       <EntryChip entry={entry} onSelect={onSelect} venueName={venueName} className="cursor-pointer" />
@@ -550,26 +647,46 @@ function MonthEntry({
           alignRight ? 'right-0' : 'left-0',
         )}
       >
-        <div className="mb-1.5 flex items-center gap-1.5">
-          <span className={cn('inline-block size-2.5 rounded-sm', kind.className)} style={kind.style} />
-          <span className="font-medium text-ink-500">{kind.label}</span>
-        </div>
-        <p className="text-sm font-semibold text-ink-900">{entryTitle(entry)}</p>
-        <dl className="mt-1.5 space-y-0.5 text-ink-700">
-          <div><dt className="inline text-ink-500">Venue: </dt><dd className="inline">{venueName ?? '—'}</dd></div>
-          <div><dt className="inline text-ink-500">Time: </dt><dd className="inline">{formatDateRange(entry.start, entry.end)}</dd></div>
-          {entry.kind === 'BLOCKED' ? (
-            <div><dt className="inline text-ink-500">Blocked by: </dt><dd className="inline">{entry.createdByName ?? '—'}</dd></div>
-          ) : (
-            <>
-              <div><dt className="inline text-ink-500">Organiser: </dt><dd className="inline">{entry.organiserName ?? '—'}</dd></div>
-              <div><dt className="inline text-ink-500">Attendance: </dt><dd className="inline">{attendanceBandLabel(entry.expectedAttendance)}</dd></div>
-            </>
-          )}
-        </dl>
-        <p className="mt-2 text-[11px] text-ink-400">Click for full details</p>
+        <EntryCard entry={entry} venueName={venueName} />
       </div>
     </div>
+  );
+}
+
+/** The hover card for an entry: status, name, full time and who is involved. */
+function EntryCard({ entry, venueName }: { entry: CalendarEntry; venueName: string | null }) {
+  const kind = ENTRY_STYLES[entry.kind];
+  const expiry = holdExpiryLabel(entry);
+  return (
+    <>
+      <div className="mb-1.5 flex items-center gap-1.5">
+        <span className={cn('inline-block size-2.5 rounded-sm', kind.className)} style={kind.style} />
+        <span className="font-medium text-ink-500">
+          {kind.label}
+          {expiry ? ` · ${expiry}` : ''}
+        </span>
+      </div>
+      {entry.needsReview ? (
+        <p className="mb-1.5 flex items-center gap-1 font-medium text-red-700">
+          <AlertTriangle className="size-3" aria-hidden="true" />
+          {NEEDS_REVIEW_LABEL}
+        </p>
+      ) : null}
+      <p className="text-sm font-semibold text-ink-900">{entryTitle(entry)}</p>
+      <dl className="mt-1.5 space-y-0.5 text-ink-700">
+        <div><dt className="inline text-ink-500">Venue: </dt><dd className="inline">{venueName ?? '—'}</dd></div>
+        <div><dt className="inline text-ink-500">Time: </dt><dd className="inline">{formatDateRange(entry.start, entry.end)}</dd></div>
+        {entry.kind === 'BLOCKED' ? (
+          <div><dt className="inline text-ink-500">Blocked by: </dt><dd className="inline">{entry.createdByName ?? '—'}</dd></div>
+        ) : (
+          <>
+            <div><dt className="inline text-ink-500">Organiser: </dt><dd className="inline">{entry.organiserName ?? '—'}</dd></div>
+            <div><dt className="inline text-ink-500">Attendance: </dt><dd className="inline">{attendanceBandLabel(entry.expectedAttendance)}</dd></div>
+          </>
+        )}
+      </dl>
+      <p className="mt-2 text-[11px] text-ink-400">Click for full details</p>
+    </>
   );
 }
 
@@ -612,7 +729,7 @@ export function MonthGrid({
               className={cn(
                 'min-h-28 space-y-1 border-b border-r border-ink-100 p-1.5',
                 dayEntries.length === 0 && !outside && AVAILABLE_CLASS,
-                outside && 'bg-ink-50 text-ink-400',
+                outside && 'bg-ink-100/70 text-ink-400',
               )}
             >
               <p className={cn('text-xs font-medium', sameDay(d, new Date()) && 'text-brand-700')}>
@@ -643,7 +760,7 @@ export function CalendarLegend() {
   return (
     <ul className="flex flex-wrap gap-3 text-xs text-ink-700">
       <li className="flex items-center gap-1.5">
-        <span className={cn('inline-block size-3 rounded-sm border border-emerald-300', AVAILABLE_CLASS)} />
+        <span className={cn('inline-block size-3 rounded-sm border border-ink-200', AVAILABLE_CLASS)} />
         Available
       </li>
       {(['PENDING', 'TENTATIVE', 'CONFIRMED', 'BLOCKED'] as const).map((kind) => (
@@ -655,6 +772,12 @@ export function CalendarLegend() {
           {ENTRY_STYLES[kind].label}
         </li>
       ))}
+      {/* US-51: drawn on top of a booking's own style, so it is a separate key. */}
+      <li className="flex items-center gap-1.5">
+        <span className={cn('inline-block size-3 rounded-sm bg-white', NEEDS_REVIEW_CLASS)} />
+        <AlertTriangle className="size-3 text-red-600" aria-hidden="true" />
+        Conflict
+      </li>
     </ul>
   );
 }

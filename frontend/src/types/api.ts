@@ -205,7 +205,13 @@ export interface ConfirmationReadiness {
 
 /** PATCH /events/:id/technical-requirements. Omit a key to leave it as is. */
 export interface TechnicalRequirementsPayload {
-  equipment?: { equipmentType: string; quantity: number; notes?: string | null }[];
+  equipment?: {
+    /** #27: the catalogue item picked, or absent for an "Other" free-text line. */
+    equipmentId?: string;
+    equipmentType: string;
+    quantity: number;
+    notes?: string | null;
+  }[];
   technicalSupportNeeds?: string | null;
 }
 
@@ -263,6 +269,8 @@ export interface FieldChange {
     | 'coordinator'
     | 'equipmentRequirements'
     | 'technicalSupportNeeds'
+    // US-61: the assigned Technical Support member, by name.
+    | 'technicalSupport'
     // US-48 AC-7: what an approved change request rebooked.
     | 'venueBookings'
     | 'equipmentReservations'
@@ -311,6 +319,24 @@ export interface OrganiserRequestView extends EventRequest {
   pendingChangeRequest?: ChangeRequest | null;
   /** US-38 AC-5: the latest decided request, so a rejection's reason shows. */
   latestChangeDecision?: ChangeRequest | null;
+  /**
+   * Upcoming equipment the event requested or reserved that is no longer
+   * available (the item was taken out of service). An indicator only — it says
+   * attention is needed, with no action attached; empty when all is well.
+   */
+  unavailableEquipment?: UnavailableEquipment[];
+}
+
+/** One requested/reserved item whose equipment is now unavailable. */
+export interface UnavailableEquipment {
+  reservationId: string;
+  equipmentId: string;
+  equipmentType: string;
+  equipmentStatus: EquipmentStatus;
+  reservationStatus: ReservationStatus;
+  quantity: number;
+  start: string;
+  end: string;
 }
 
 /** CLOSED (US-43): withdrawn without a decision because the event was cancelled. */
@@ -564,6 +590,8 @@ export interface PublicEventView {
   status: EventStatus;
   registrationEnabled: boolean;
   coordinator: ContactSummary | null;
+  /** US-10 — the confirmed venue, or null until a booking is approved. */
+  venue: { id: string; name: string | null; location: string | null } | null;
 }
 
 /** Venue catalogue. Endpoint not built yet — served by a mock service. */
@@ -1523,4 +1551,46 @@ export interface InboxNotification {
 export interface NotificationsPageQuery {
   limit?: number;
   cursor?: string;
+}
+
+/** US-61 — another event a Technical Support member is already assigned to. */
+export interface StaffAssignmentConflict {
+  eventId: string;
+  name: string | null;
+  start: string;
+  end: string;
+}
+
+/** US-61 — one Technical Support member on the assignment screen. */
+export interface TechnicalSupportStaffOption extends ContactSummary {
+  /** AC-2/AC-4: free for the event's date and time. */
+  available: boolean;
+  /** AC-2: the overlapping events that make them unavailable. */
+  conflicts: StaffAssignmentConflict[];
+}
+
+/** US-61 — GET /events/:id/technical-support. */
+export interface TechnicalSupportAssignmentView {
+  eventId: string;
+  requiresTechnicalSupport: boolean;
+  assignable: boolean;
+  assignee: ContactSummary | null;
+  staff: TechnicalSupportStaffOption[];
+  /** AC-4: nobody can be assigned; `message` says so. */
+  noneAvailable: boolean;
+  message: string | null;
+}
+
+/** US-61 AC-3 — a venue on one of the member's assigned events. */
+export interface AssignmentVenue {
+  bookingId: string;
+  venueName: string | null;
+  status: BookingStatus;
+  start: string;
+  end: string;
+}
+
+/** US-61 AC-3 — GET /technical-support/assignments: one assigned event. */
+export interface TechnicalSupportAssignment extends EventRequirements {
+  venues: AssignmentVenue[];
 }

@@ -264,6 +264,36 @@ enum NotificationType {
   // Sent to registered Attendees when an event's date, time or venue changes;
   // lists each changed field with its old and new value.
   EVENT_SCHEDULE_CHANGED
+  // US-60: an item was marked Damaged or Under Maintenance; sent to every
+  // other Technical Support member. Links to the item (relatedEquipmentId).
+  EQUIPMENT_STATUS_CHANGED
+  // US-66 AC-3: equipment or technical requirements were recorded or changed
+  // for an event — to the whole Technical Support pool while nobody is
+  // assigned (US-61), then to the assignee only.
+  EQUIPMENT_REQUEST_SUBMITTED
+  // US-66 AC-1: the assigned Technical Support member's event was cancelled
+  // or rejected and its live reservations released.
+  EQUIPMENT_EVENT_CANCELLED
+  // US-66 AC-2: an approved change request rebooked the assigned member's
+  // reservations for a new time.
+  EQUIPMENT_RESERVATIONS_REBOOKED
+  // Registration-window notices. OPENED → attendees not yet registered, when
+  // an event first becomes visible to them; CLOSED → registered attendees,
+  // when the registration window closes; NEAR_CAPACITY → registered
+  // attendees, the first time only 10 or fewer seats remain against the
+  // event's venue capacity.
+  REGISTRATION_OPENED
+  REGISTRATION_CLOSED
+  REGISTRATION_NEAR_CAPACITY
+  // Sent to the event's Coordinator (or the Leads if unassigned): equipment the
+  // event depends on was taken out of service (UNAVAILABLE), or a committed
+  // reservation was released because the event was cancelled or rejected
+  // (RELEASED).
+  EQUIPMENT_UNAVAILABLE
+  EQUIPMENT_RELEASED
+  // Sent to all Coordinator Leads when a new (or resubmitted) event request is
+  // submitted, so incoming work finds them without polling the queue.
+  EVENT_SUBMITTED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;
@@ -302,6 +332,8 @@ model User {
 
   organisedEvents            EventRequest[]          @relation("EventOrganiser")
   coordinatedEvents          EventRequest[]          @relation("EventCoordinator")
+  // US-61: events this Technical Support member is assigned to support.
+  technicalSupportEvents     EventRequest[]          @relation("EventTechnicalSupport")
   registrations              Registration[]
   notifications              Notification[]
   clarificationMessages      ClarificationMessage[]
@@ -336,6 +368,13 @@ model EventRequest {
   // Null until a Coordinator is assigned during review (§1).
   coordinatorId String?
   coordinator   User?   @relation("EventCoordinator", fields: [coordinatorId], references: [id], onDelete: Restrict)
+
+  // US-61: the Technical Support member responsible for on-site support, set
+  // by the assigned Coordinator. One per event, like coordinatorId; null
+  // until assigned. SetNull, not Restrict: an assignment is not ownership, so
+  // losing the account just leaves the event unassigned.
+  technicalSupportId String?
+  technicalSupport   User?   @relation("EventTechnicalSupport", fields: [technicalSupportId], references: [id], onDelete: SetNull)
 
   // US-04: nullable so a partial draft can be saved. Completeness is enforced
   // at the DRAFT -> SUBMITTED transition, not by the column definitions —
@@ -407,6 +446,15 @@ model EventRequest {
   registrationClosesAt DateTime?
   withdrawalCutoffAt   DateTime?
 
+  // Registration-window notices (US — notify attendees when registration
+  // opens, closes or nears capacity). Each stamp marks that its one-time
+  // notice has been sent, so the sweep that detects these moments fires each
+  // exactly once per event and never retroactively re-announces. Null means
+  // not yet sent. See registration-notifications.ts.
+  registrationOpenedNotifiedAt      DateTime?
+  registrationClosedNotifiedAt      DateTime?
+  registrationNearCapacityNotifiedAt DateTime?
+
   // US-05 AC-2: why a Coordinator rejected the request. Written by the review
   // story; US-05 only reads it.
   decisionReason String?
@@ -438,6 +486,8 @@ model EventRequest {
   @@index([coordinatorId])
   @@index([status])
   @@index([coordinatorId, submittedAt])
+  // US-61: a member's assignments, for the overlap check and their list.
+  @@index([technicalSupportId])
 }
 
 model Venue {
@@ -659,6 +709,8 @@ model Equipment {
   requirements       EquipmentRequirement[]
   changeRequestLines EventChangeRequestEquipment[]
   statusChanges      EquipmentStatusChange[]
+  // US-60: status-change notices about this item.
+  notifications      Notification[]
 
   @@index([type])
 }
@@ -784,6 +836,11 @@ model Notification {
   relatedBookingId String?
   relatedBooking   VenueBooking? @relation(fields: [relatedBookingId], references: [id], onDelete: SetNull)
 
+  // US-60: the equipment item a status-change notice is about, so the inbox
+  // links to it. Null for every other kind; SetNull keeps the notice.
+  relatedEquipmentId String?
+  relatedEquipment   Equipment? @relation(fields: [relatedEquipmentId], references: [id], onDelete: SetNull)
+
   read      Boolean   @default(false)
   // Notifications page: when the recipient marked it read; null while unread.
   // Kept alongside `read` (set together) so existing readers are unaffected.
@@ -795,6 +852,7 @@ model Notification {
   @@index([recipientId, createdAt])
   @@index([relatedEventId])
   @@index([relatedBookingId])
+  @@index([relatedEquipmentId])
 }
 
 // AC-4: logout must actually terminate the session. A signed JWT stays valid

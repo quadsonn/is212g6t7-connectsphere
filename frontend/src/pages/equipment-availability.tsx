@@ -17,6 +17,7 @@ import { apiErrorMessage } from '@/lib/api-client';
 import {
   combineDateTime,
   isoToLocalParts,
+  localStringToInstant,
   slotsIncluding,
   START_TIME_SLOTS,
   TIME_SLOTS,
@@ -118,10 +119,10 @@ export function EquipmentAvailability() {
       return;
     }
 
-    // The inputs are local wall-clock time; the API expects ISO.
+    // The inputs are Singapore wall-clock time; the API expects a UTC instant.
     check.mutate({
-      start: new Date(start).toISOString(),
-      end: new Date(end).toISOString(),
+      start: localStringToInstant(start),
+      end: localStringToInstant(end),
       items: filled.map((row) => ({
         equipmentId: row.equipmentId,
         quantity: Number(row.quantity),

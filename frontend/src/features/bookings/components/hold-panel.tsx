@@ -8,7 +8,7 @@ import { Field } from '@/components/ui/form';
 import { ErrorState } from '@/components/ui/states';
 import { apiErrorMessage } from '@/lib/api-client';
 import { todayInVenueTime } from '@/lib/calendar';
-import { FULL_DAY_TIME_SLOTS } from '@/lib/date-time';
+import { FULL_DAY_TIME_SLOTS, localStringToInstant } from '@/lib/date-time';
 import { formatDateTime } from '@/lib/utils';
 import type { VenueBooking } from '@/types/api';
 import { useHolds } from '../hooks/use-bookings';
@@ -31,7 +31,12 @@ export function HoldPanel({ booking, now = new Date() }: { booking: VenueBooking
   const expiry = booking.holdExpiresAt ? formatDateTime(booking.holdExpiresAt) : '—';
   const pending = convert.isPending || extend.isPending || release.isPending;
   const error = convert.error ?? extend.error ?? release.error;
-  const problems = holdProblems({ start: booking.start, end: booking.end, expiresAt, eventStart: null }, now);
+  // expiresAt is a Singapore wall-clock from the picker; booking.start/end are
+  // instants — compare as instants so the check matches the server's.
+  const problems = holdProblems(
+    { start: booking.start, end: booking.end, expiresAt: localStringToInstant(expiresAt), eventStart: null },
+    now,
+  );
 
   return (
     <Card className="border-sky-200">
@@ -81,7 +86,7 @@ export function HoldPanel({ booking, now = new Date() }: { booking: VenueBooking
                 disabled={pending || !expiresAt || problems.length > 0}
                 onClick={() =>
                   extend.mutate(
-                    { id: booking.id, expiresAt: new Date(expiresAt).toISOString() },
+                    { id: booking.id, expiresAt: localStringToInstant(expiresAt) },
                     {
                       onSuccess: () => {
                         setExtending(false);

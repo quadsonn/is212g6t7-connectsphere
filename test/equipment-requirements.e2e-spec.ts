@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { PrismaClient } from '@prisma/client';
+import { EventStatus, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
@@ -184,6 +184,64 @@ describe('Story 30 view equipment and technical requirements for an event (integ
       await requirements(EVENT.draft).expect(404);
       await details(EVENT.draft).expect(404);
     });
+  });
+
+  describe('AC-4: events that will not go ahead are left off the list by default', () => {
+    // Moves one listed event to a finished status. Test setup only: the app
+    // reaches these statuses through its transition methods.
+    const finish = (eventId: string, status: EventStatus) =>
+      prisma.eventRequest.update({ where: { id: eventId }, data: { status } });
+
+    const listed = async (includeFinished?: boolean) =>
+      (
+        await get(`/equipment/requirements${includeFinished ? '?includeFinished=true' : ''}`).expect(200)
+      ).body.map((e: { eventId: string; status: string }) => [e.eventId, e.status]);
+
+    // TC-S2-115 · US-30 AC-4 · setup: base-users + tc-s2-114-setup · fails if a rejected, cancelled or completed event still looked like work to do
+    // Code: findEventsWithRequirements() drops FINISHED_EVENT_STATUSES unless includeFinished is set.
+    it.each([EventStatus.REJECTED, EventStatus.CANCELLED, EventStatus.COMPLETED])(
+      'US-30 AC-4: a %s event is hidden by default',
+      async (status) => {
+        await finish(EVENT.allThree, status);
+
+        expect((await listedIds()).sort()).toEqual([EVENT.notesOnly, EVENT.organiserOnly, EVENT.rowsOnly].sort());
+      },
+    );
+
+    // TC-S2-115 · US-30 AC-4 · setup: base-users + tc-s2-114-setup · fails if a finished event couldn't be found at all, or showed without its status
+    // Code: includeFinished=true keeps every listed event, each with its status.
+    it.each([EventStatus.REJECTED, EventStatus.CANCELLED, EventStatus.COMPLETED])(
+      'US-30 AC-4: a %s event is shown with its status when finished events are asked for',
+      async (status) => {
+        await finish(EVENT.allThree, status);
+
+        expect(await listed(true)).toContainEqual([EVENT.allThree, status]);
+        expect(await listed(true)).toHaveLength(4);
+      },
+    );
+
+    // TC-S2-115 · US-30 AC-4 · setup: base-users + tc-s2-114-setup · fails if an event that can still go ahead were hidden, with or without finished events
+    // Code: only FINISHED_EVENT_STATUSES are dropped; SAFETY_REJECTED can return to planning, so it stays.
+    it('US-30 AC-4: active events are always shown', async () => {
+      await finish(EVENT.rowsOnly, EventStatus.SAFETY_REJECTED);
+      await finish(EVENT.notesOnly, EventStatus.CONFIRMED);
+      const active = [EVENT.allThree, EVENT.notesOnly, EVENT.organiserOnly, EVENT.rowsOnly].sort();
+
+      expect((await listedIds()).sort()).toEqual(active);
+      expect((await listed(true)).map(([id]: [string]) => id).sort()).toEqual(active);
+    });
+
+    // TC-S2-115 · US-30 AC-4 · setup: base-users + tc-s2-114-setup · fails if hiding a finished event from the list also stopped it being opened
+    // Code: findForEvent() and findDetailsForEvent() still use TECHNICAL_SUPPORT_VISIBLE_STATUSES.
+    it.each([EventStatus.REJECTED, EventStatus.CANCELLED, EventStatus.COMPLETED])(
+      'US-30 AC-4: a %s event still opens directly',
+      async (status) => {
+        await finish(EVENT.allThree, status);
+
+        expect((await requirements(EVENT.allThree).expect(200)).body).toMatchObject({ eventId: EVENT.allThree, status });
+        await details(EVENT.allThree).expect(200);
+      },
+    );
   });
 
   describe('AC-2: what was requested is shown, not just that a request exists', () => {

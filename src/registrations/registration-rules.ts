@@ -157,6 +157,7 @@ export function evaluateWithdrawal(
   registrationStatus: 'REGISTERED' | 'WITHDRAWN',
   event: Pick<
     RegistrationEventFacts,
+    | 'status'
     | 'proposedStart'
     | 'registrationOpensAt'
     | 'registrationClosesAt'
@@ -171,6 +172,16 @@ export function evaluateWithdrawal(
     return {
       canWithdraw: false,
       reason: 'This registration has already been withdrawn.',
+      withdrawalCutoffAt,
+    };
+  }
+
+  // US-34: a cancelled event's registration stays listed, but nothing can be
+  // done with it — the event is not happening, so there is no place to give up.
+  if (event.status === EventStatus.CANCELLED) {
+    return {
+      canWithdraw: false,
+      reason: 'This event has been cancelled.',
       withdrawalCutoffAt,
     };
   }

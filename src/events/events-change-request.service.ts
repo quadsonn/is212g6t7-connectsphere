@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import { ChangeRequestStatus, Prisma } from '@prisma/client';
 
@@ -9,6 +10,7 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { Action } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventsRequestNotifier } from './events-request-notifier.service';
 import {
   evaluateChangeRequest,
   isChangeable,
@@ -37,6 +39,8 @@ export class EventsChangeRequestService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessControlService,
+    // US — tells the Coordinator (or the Leads) a change was requested.
+    @Optional() private readonly requestNotifier?: EventsRequestNotifier,
   ) {}
 
   async request(
@@ -92,7 +96,7 @@ export class EventsChangeRequestService {
     const has = (field: (typeof changed)[number]) => changed.includes(field);
 
     try {
-      return await this.prisma.eventChangeRequest.create({
+      const created = await this.prisma.eventChangeRequest.create({
         data: {
           eventId: event.id,
           requestedById: user.userId,
@@ -115,6 +119,14 @@ export class EventsChangeRequestService {
         },
         include: CHANGE_REQUEST_INCLUDE,
       });
+
+      // AC-2: notify the assigned Coordinator, or the Leads if unassigned.
+      await this.requestNotifier?.changeRequested({
+        id: event.id,
+        name: event.name,
+        coordinatorId: event.coordinatorId,
+      });
+      return created;
     } catch (error) {
       // Two submits racing past the check above: the partial unique index
       // allows only one PENDING request per event.

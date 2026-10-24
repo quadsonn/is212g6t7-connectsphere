@@ -17,6 +17,19 @@ const TITLES: Record<string, string> = {
   EQUIPMENT_RESERVATION_DECIDED: 'Equipment reserved',
   // Requirement change 6: the message starts with the outcome.
   SAFETY_CHECK_DECIDED: 'Safety check',
+  // US-60: the message names the item, its new status and who changed it.
+  EQUIPMENT_STATUS_CHANGED: 'Equipment status changed',
+  // US-66: equipment work for an event the reader is assigned to (or, for a
+  // request, the pool while nobody is assigned).
+  EQUIPMENT_REQUEST_SUBMITTED: 'Equipment request',
+  EQUIPMENT_EVENT_CANCELLED: 'Equipment released',
+  EQUIPMENT_RESERVATIONS_REBOOKED: 'Equipment rebooked',
+  // Equipment an event depends on went out of service, or was released.
+  EQUIPMENT_UNAVAILABLE: 'Equipment unavailable',
+  EQUIPMENT_RELEASED: 'Equipment released',
+  // Incoming work for Coordinators and Leads.
+  EVENT_SUBMITTED: 'New event request',
+  EVENT_CHANGE_REQUESTED: 'Change requested',
 };
 
 export function notificationTitle(type: string): string | null {

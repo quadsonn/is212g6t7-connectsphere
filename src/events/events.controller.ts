@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
@@ -28,6 +29,7 @@ import { ReturnRequestDto } from './dto/return-request.dto';
 import { DraftEventRequestDto } from './dto/draft-event-request.dto';
 import { UpdatePlanningDto } from './dto/update-planning.dto';
 import { TechnicalRequirementsDto } from './dto/technical-requirements.dto';
+import { AssignTechnicalSupportDto } from './dto/assign-technical-support.dto';
 import { CancelEventDto } from './dto/cancel-event.dto';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { RejectChangeRequestDto } from './dto/reject-change-request.dto';
@@ -36,6 +38,7 @@ import { EventsChangeReviewService } from './events-change-review.service';
 import { EventsChangeRequestService } from './events-change-request.service';
 import { EventConfirmationService } from './event-confirmation.service';
 import { EventsService } from './events.service';
+import { EventsTechnicalSupportService } from './events-technical-support.service';
 import { EventsUnfulfillableService } from './events-unfulfillable.service';
 
 /**
@@ -53,6 +56,7 @@ export class EventsController {
     private readonly unfulfillable: EventsUnfulfillableService,
     private readonly confirmation: EventConfirmationService,
     private readonly cancellation: EventsCancellationService,
+    private readonly technicalSupport: EventsTechnicalSupportService,
   ) {}
 
   /**
@@ -241,6 +245,44 @@ export class EventsController {
     return this.eventsService.setTechnicalRequirements(user, id, dto);
   }
 
+  /**
+   * US-61 AC-1/AC-2/AC-4 — the event's Technical Support assignee and every
+   * member with whether they are free for the event's date and time.
+   */
+  @Get(':id/technical-support')
+  @Roles(Role.EVENT_COORDINATOR)
+  getTechnicalSupport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.technicalSupport.getAssignment(user, id);
+  }
+
+  /**
+   * US-61 AC-1 — assign (or change) the event's Technical Support member.
+   * 409 naming the overlapping event (AC-2), or with the "no one available"
+   * message (AC-4).
+   */
+  @Put(':id/technical-support')
+  @Roles(Role.EVENT_COORDINATOR)
+  assignTechnicalSupport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: AssignTechnicalSupportDto,
+  ) {
+    return this.technicalSupport.assign(user, id, dto);
+  }
+
+  /** US-61 — remove the event's Technical Support assignment. */
+  @Delete(':id/technical-support')
+  @Roles(Role.EVENT_COORDINATOR)
+  unassignTechnicalSupport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.technicalSupport.unassign(user, id);
+  }
+
   /** US-42 AC-1/AC-2 — what is ready to confirm and what is outstanding. */
   @Get(':id/confirmation-readiness')
   @Roles(Role.EVENT_COORDINATOR)
@@ -404,13 +446,14 @@ export class EventsController {
 
   /**
    * US-37 — the equipment catalogue, as the change request form's picker.
+   * #27: also the Coordinator's picker for an event's required equipment.
    *
-   * MUST be declared before @Get(':id'). A dedicated Organiser route because
+   * MUST be declared before @Get(':id'). A dedicated route because
    * GET /equipment is Technical Support only; this returns just id, type,
    * description and location.
    */
   @Get('equipment-catalogue')
-  @Roles(Role.EVENT_ORGANISER)
+  @Roles(Role.EVENT_ORGANISER, Role.EVENT_COORDINATOR)
   listEquipmentCatalogue() {
     return this.changeRequests.listCatalogue();
   }

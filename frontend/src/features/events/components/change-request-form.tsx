@@ -12,8 +12,8 @@ import { todayInVenueTime } from '@/lib/calendar';
 import {
   START_TIME_SLOTS,
   TIME_SLOTS,
-  combineDateTime,
   isoToLocalParts,
+  partsToInstant,
   slotsIncluding,
 } from '@/lib/date-time';
 import type { ChangeRequestPayload, OrganiserRequestView } from '@/types/api';
@@ -85,13 +85,14 @@ export function ChangeRequestForm({
   const setRow = (key: number, patch: Partial<Row>) =>
     setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
 
-  const startIso = startDate && startTime ? new Date(combineDateTime(startDate, startTime)) : null;
-  const endIso = endDate && endTime ? new Date(combineDateTime(endDate, endTime)) : null;
-  const currentStart = event.proposedStart ? new Date(event.proposedStart) : null;
-  const currentEnd = event.proposedEnd ? new Date(event.proposedEnd) : null;
+  // The typed date/time is read as Singapore time, like every entry form.
+  const startIso = partsToInstant(startDate, startTime) || null;
+  const endIso = partsToInstant(endDate, endTime) || null;
+  const currentStart = event.proposedStart ? new Date(event.proposedStart).getTime() : null;
+  const currentEnd = event.proposedEnd ? new Date(event.proposedEnd).getTime() : null;
 
-  const startChanged = startIso !== null && startIso.getTime() !== currentStart?.getTime();
-  const endChanged = endIso !== null && endIso.getTime() !== currentEnd?.getTime();
+  const startChanged = startIso !== null && new Date(startIso).getTime() !== currentStart;
+  const endChanged = endIso !== null && new Date(endIso).getTime() !== currentEnd;
   const attendanceChanged =
     attendance.trim() !== '' && Number(attendance) !== event.expectedAttendance;
 
@@ -107,9 +108,9 @@ export function ChangeRequestForm({
     reason: [] as string[],
   };
 
-  if (startChanged && startIso && startIso <= now) errors.start.push('Start must be in the future.');
-  if (endChanged && endIso && endIso <= now) errors.end.push('End must be in the future.');
-  if (startIso && endIso && endIso <= startIso && (startChanged || endChanged)) {
+  if (startChanged && startIso && new Date(startIso) <= now) errors.start.push('Start must be in the future.');
+  if (endChanged && endIso && new Date(endIso) <= now) errors.end.push('End must be in the future.');
+  if (startIso && endIso && new Date(endIso) <= new Date(startIso) && (startChanged || endChanged)) {
     errors.end.push('End time must be after the start time.');
   }
   const seen = new Set<string>();
@@ -134,8 +135,8 @@ export function ChangeRequestForm({
     if (hasFieldErrors || !anyChange) return;
 
     const payload: ChangeRequestPayload = { reason: reason.trim() };
-    if (startChanged && startIso) payload.proposedStart = startIso.toISOString();
-    if (endChanged && endIso) payload.proposedEnd = endIso.toISOString();
+    if (startChanged && startIso) payload.proposedStart = startIso;
+    if (endChanged && endIso) payload.proposedEnd = endIso;
     if (attendanceChanged) payload.proposedAttendance = Number(attendance);
     if (equipmentChanged) {
       payload.equipment = filledRows.map((row) => ({

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { useEventHistory } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
-import { humanise } from '@/lib/utils';
+import { formatDateTime, humanise } from '@/lib/utils';
 import {
   ARRANGEMENT_LABELS,
   CHANGE_FIELD_LABELS,
@@ -47,7 +47,7 @@ export function ChangeHistory({ eventId }: { eventId: string }) {
               <li key={entry.id} className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-ink-500">
                   <time dateTime={entry.createdAt}>
-                    {new Date(entry.createdAt).toLocaleString()}
+                    {formatDateTime(entry.createdAt)}
                   </time>
                   <span aria-hidden="true">·</span>
                   <span>

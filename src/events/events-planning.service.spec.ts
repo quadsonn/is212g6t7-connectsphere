@@ -83,7 +83,7 @@ describe('EventsService planning edits and history (US-24, US-25)', () => {
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       { notify: jest.fn(), notifySafely: jest.fn() } as unknown as NotificationsService,
-      { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { releaseForCancelledEvent: jest.fn(), findUnavailableForEvent: jest.fn().mockResolvedValue([]) } as unknown as EquipmentReservationsService,
       { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
   });
@@ -268,7 +268,7 @@ describe('EventsService planning edits and history (US-24, US-25)', () => {
         prisma as unknown as PrismaService,
         access as unknown as AccessControlService,
         { notify: jest.fn(), notifySafely: jest.fn() } as unknown as NotificationsService,
-        { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+        { releaseForCancelledEvent: jest.fn(), findUnavailableForEvent: jest.fn().mockResolvedValue([]) } as unknown as EquipmentReservationsService,
         { releaseForCancelledEvent: jest.fn() } as unknown as BookingsService,
         undefined,
         notifier as never,

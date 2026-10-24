@@ -22,6 +22,7 @@ import { BrowseEquipmentDto } from './dto/browse-equipment.dto';
 import { ChangeEquipmentStatusDto } from './dto/change-equipment-status.dto';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { CommitReservationDto } from './dto/commit-reservation.dto';
+import { RequirementsListQueryDto } from './dto/requirements-list-query.dto';
 import { EquipmentRequirementsService } from './equipment-requirements.service';
 import { EquipmentReservationsService } from './equipment-reservations.service';
 import { EquipmentService } from './equipment.service';
@@ -61,12 +62,18 @@ export class EquipmentController {
     return this.equipmentService.findAllForUser(user, query);
   }
 
-  /** US-31 AC-4 — submitted events that have equipment requirements. */
+  /**
+   * US-31 AC-4 — submitted events that have equipment requirements.
+   * #30 AC-4: finished events only with ?includeFinished=true.
+   */
   @Get('requirements')
   @Roles(Role.TECHNICAL_SUPPORT_STAFF)
   @Header('Cache-Control', 'no-store')
-  findRequirements(@CurrentUser() user: AuthenticatedUser) {
-    return this.requirementsService.findEventsWithRequirements(user);
+  findRequirements(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: RequirementsListQueryDto,
+  ) {
+    return this.requirementsService.findEventsWithRequirements(user, query);
   }
 
   /** US-31 AC-1/AC-2/AC-3 — one submitted event's requirements. */

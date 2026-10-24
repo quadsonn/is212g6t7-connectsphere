@@ -194,6 +194,44 @@ describe('EquipmentRequirementsService (US-30)', () => {
       expect(views.map((v) => v.eventId)).toEqual(['event-1']);
     });
 
+    it.each([EventStatus.REJECTED, EventStatus.CANCELLED, EventStatus.COMPLETED])(
+      'US-30 AC-4: the list hides a %s event by default',
+      async (status) => {
+        prisma.eventRequest.findMany.mockResolvedValue([
+          { ...bare, equipmentNeeds: 'Six mics.' },
+          { ...bare, id: 'event-2', equipmentNeeds: 'Six mics.', status },
+        ]);
+
+        const views = await service.findEventsWithRequirements(tech);
+
+        expect(views.map((v) => v.eventId)).toEqual(['event-1']);
+      },
+    );
+
+    it('US-30 AC-4: the list shows finished events, with their status, when asked', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([
+        { ...bare, equipmentNeeds: 'Six mics.' },
+        { ...bare, id: 'event-2', equipmentNeeds: 'Six mics.', status: EventStatus.CANCELLED },
+      ]);
+
+      const views = await service.findEventsWithRequirements(tech, { includeFinished: true });
+
+      expect(views.map((v) => [v.eventId, v.status])).toEqual([
+        ['event-1', EventStatus.PLANNING],
+        ['event-2', EventStatus.CANCELLED],
+      ]);
+    });
+
+    it('US-30 AC-4: a Safety rejected event stays on the list, since it can return to planning', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([
+        { ...bare, equipmentNeeds: 'Six mics.', status: EventStatus.SAFETY_REJECTED },
+      ]);
+
+      const views = await service.findEventsWithRequirements(tech);
+
+      expect(views.map((v) => v.eventId)).toEqual(['event-1']);
+    });
+
     it('looks up a single event only among non-draft statuses', async () => {
       prisma.eventRequest.findFirst.mockResolvedValue({ ...bare, equipmentNeeds: 'x' });
 

@@ -198,14 +198,17 @@ describe('RegistrationsService', () => {
       expect(tx.registration.create).not.toHaveBeenCalled();
     });
 
-    it('AC-1: refuses an event that is not confirmed', async () => {
+    it('AC-1: an event before CONFIRMED is not reachable — 404, not a refusal', async () => {
+      // US-02 AC-7: a pre-CONFIRMED event is invisible to an Attendee, so it is
+      // not found rather than refused — nothing about it, not even that it
+      // exists, is disclosed.
       tx.eventRequest.findUnique.mockResolvedValue({
         ...eventFacts,
         status: EventStatus.PLANNING,
       });
 
       await expect(service.register(attendee, dto)).rejects.toThrow(
-        ConflictException,
+        NotFoundException,
       );
     });
 
@@ -298,14 +301,16 @@ describe('RegistrationsService', () => {
       expect(result.reason).toMatch(/full/i);
     });
 
-    it('does not offer registration on an unconfirmed event', async () => {
+    it('does not expose options for an unconfirmed event — 404', async () => {
+      // US-02 AC-7: an Attendee cannot reach a pre-CONFIRMED event, so even the
+      // options query is a 404 rather than a "you cannot register" answer.
       prisma.eventRequest.findUnique.mockResolvedValue({
         ...eventFacts,
         status: EventStatus.APPROVED,
       });
 
-      expect((await service.getOptions(attendee, 'event-1')).canRegister).toBe(
-        false,
+      await expect(service.getOptions(attendee, 'event-1')).rejects.toThrow(
+        NotFoundException,
       );
     });
   });

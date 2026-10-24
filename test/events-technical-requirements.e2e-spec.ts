@@ -162,12 +162,24 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     });
 
     // TC-S2-90 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a type made only of spaces counted as a type
-    // Code gap: EquipmentRequirementDto has no @Trim(), so '   ' passes
-    // @IsNotEmpty() and the service saves it trimmed to ''. it.failing: this
-    // test is expected to fail until the DTO trims first; once fixed, Jest
-    // reports it and it becomes a plain it().
-    it.failing('rejects a type made only of spaces (400)', async () => {
-      await record({ equipment: [{ equipmentType: '   ', quantity: 1 }] }).expect(400);
+    // Code: EquipmentRequirementDto trims equipmentType (@Trim()) before
+    // @IsNotEmpty() checks it, so '   ' is refused like an empty type.
+    it('US-27 AC-1: whitespace-only equipment type refused', async () => {
+      const res = await record({ equipment: [{ equipmentType: '   ', quantity: 1 }] }).expect(400);
+
+      expect(res.body.message).toEqual([expect.stringContaining('equipmentType is required')]);
+      expect(await rows()).toBe(0);
+    });
+
+    // TC-S2-90 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a type with surrounding spaces were refused, or saved with the spaces
+    // Code: @Trim() keeps the words and drops only the surrounding spaces.
+    it('US-27 AC-1: a normal equipment type is still saved, trimmed', async () => {
+      const res = await record({ equipment: [{ equipmentType: '  Laser projector  ', quantity: 2 }] }).expect(200);
+
+      expect(res.body.equipmentRequirements).toEqual([
+        expect.objectContaining({ equipmentType: 'Laser projector', quantity: 2 }),
+      ]);
+      expect(await rows()).toBe(1);
     });
 
     // TC-S2-90 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if the same type could be listed twice, leaving Technical Support unsure of the total
@@ -181,6 +193,51 @@ describe('Story 27 record equipment and technical requirements (integration)', (
       }).expect(400);
 
       expect(res.body.message).toEqual([expect.stringContaining('listed more than once')]);
+    });
+  });
+
+  describe('AC-1: equipment is picked from the catalogue', () => {
+    // US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if the Coordinator couldn't load the catalogue to pick from
+    // Code: GET /events/equipment-catalogue is @Roles(EVENT_ORGANISER, EVENT_COORDINATOR).
+    it('lets the Coordinator list the catalogue', async () => {
+      const projector = await prisma.equipment.create({
+        data: { type: 'Laser projector', location: 'AV store', totalQuantity: 4 },
+      });
+
+      const res = await http().get('/events/equipment-catalogue').set('Authorization', as('coordinator')).expect(200);
+
+      expect(res.body).toEqual([{ id: projector.id, type: 'Laser projector', description: null, location: 'AV store' }]);
+    });
+
+    // US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a role with no picker could read the catalogue through this route
+    // Code: RolesGuard answers 403 to anyone but Organisers and Coordinators.
+    it.each(['tech', 'attendee'] as const)('refuses %s (403)', async (who) => {
+      await http().get('/events/equipment-catalogue').set('Authorization', as(who)).expect(403);
+    });
+
+    // US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a picked item wasn't linked to the catalogue, or kept a name other than the catalogue's
+    // Code: setTechnicalRequirements() names a line with an equipmentId after its catalogue item.
+    it('saves a picked item linked to the catalogue, under its catalogue name', async () => {
+      const projector = await prisma.equipment.create({
+        data: { type: 'Laser projector', location: 'AV store', totalQuantity: 4 },
+      });
+
+      await record({
+        equipment: [
+          { equipmentId: projector.id, equipmentType: 'projector', quantity: 2 },
+          { equipmentType: 'Smoke machine', quantity: 1 },
+        ],
+      }).expect(200);
+
+      const saved = await prisma.equipmentRequirement.findMany({
+        where: { eventId: EVENT.planning },
+        orderBy: { equipmentType: 'asc' },
+        select: { equipmentId: true, equipmentType: true, quantity: true },
+      });
+      expect(saved).toEqual([
+        { equipmentId: projector.id, equipmentType: 'Laser projector', quantity: 2 },
+        { equipmentId: null, equipmentType: 'Smoke machine', quantity: 1 },
+      ]);
     });
   });
 
@@ -270,12 +327,13 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     });
 
     // TC-S2-95 · US-27 AC-3 · setup: base-users + tc-s2-68-setup + tc-s2-95-setup · fails if an Attendee could see the internal equipment or support requirements
-    // Code: Attendees get the public event view, which has no requirement fields.
+    // Code: an Attendee can only open attendee-visible events, so this planning
+    // event reads as 404 and nothing about its requirements comes back.
     it('never shows them to an Attendee', async () => {
       await given('tc-s2-95-setup');
       await record({ equipment: EQUIPMENT, technicalSupportNeeds: 'Hybrid' }, 'coordinator', EVENT.open).expect(200);
 
-      const res = await http().get(`/events/${EVENT.open}`).set('Authorization', as('attendee')).expect(200);
+      const res = await http().get(`/events/${EVENT.open}`).set('Authorization', as('attendee')).expect(404);
 
       expect(res.body.equipmentRequirements).toBeUndefined();
       expect(res.body.technicalSupportNeeds).toBeUndefined();

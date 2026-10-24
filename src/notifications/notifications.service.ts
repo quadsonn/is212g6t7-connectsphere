@@ -10,6 +10,8 @@ export interface NotifyInput {
   relatedEventId?: string | null;
   /** US-40: the booking request a venue activity notification is about. */
   relatedBookingId?: string | null;
+  /** US-60: the equipment item a status-change notice is about. */
+  relatedEquipmentId?: string | null;
 }
 
 /**
@@ -50,8 +52,34 @@ export class NotificationsService {
         message: input.message,
         relatedEventId: input.relatedEventId ?? null,
         relatedBookingId: input.relatedBookingId ?? null,
+        // Only when given, so every other notice is written exactly as before.
+        ...(input.relatedEquipmentId ? { relatedEquipmentId: input.relatedEquipmentId } : {}),
       },
     });
+  }
+
+  /**
+   * Records many notifications at once (one per recipient). Participates in the
+   * caller's transaction if given, so a batch of notices is all-or-nothing with
+   * the claim that authorised it. Returns how many rows were written.
+   */
+  async notifyMany(
+    inputs: NotifyInput[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    if (inputs.length === 0) return 0;
+    const client = tx ?? this.prisma;
+
+    const { count } = await client.notification.createMany({
+      data: inputs.map((input) => ({
+        recipientId: input.recipientId,
+        type: input.type,
+        message: input.message,
+        relatedEventId: input.relatedEventId ?? null,
+        relatedBookingId: input.relatedBookingId ?? null,
+      })),
+    });
+    return count;
   }
 
   /**

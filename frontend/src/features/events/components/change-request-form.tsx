@@ -1,13 +1,13 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
+import { AttendanceSelect } from '@/components/attendance-select';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Field, Select, Textarea } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useEquipmentCatalogueOptions, useRequestChange } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
-import { ATTENDANCE_BANDS, attendanceBandLabel } from '@/lib/attendance-bands';
 import { todayInVenueTime } from '@/lib/calendar';
 import {
   START_TIME_SLOTS,
@@ -202,23 +202,7 @@ export function ChangeRequestForm({
         htmlFor="cr-attendance"
         hint="Used to match this event with a suitably sized venue."
       >
-        <Select
-          id="cr-attendance"
-          value={attendance}
-          onChange={(e) => setAttendance(e.target.value)}
-        >
-          {/* A stored value that is not one of the ranges (older data) is kept
-              as an option, so the form never hides what the event has now. */}
-          {attendance !== '' && !ATTENDANCE_BANDS.some((band) => band.value === attendance) ? (
-            <option value={attendance}>{attendanceBandLabel(Number(attendance))}</option>
-          ) : null}
-          {attendance === '' ? <option value="">Select a range</option> : null}
-          {ATTENDANCE_BANDS.map((band) => (
-            <option key={band.value} value={band.value}>
-              {band.label}
-            </option>
-          ))}
-        </Select>
+        <AttendanceSelect id="cr-attendance" value={attendance} onChange={setAttendance} />
       </Field>
 
       <fieldset className="space-y-2">

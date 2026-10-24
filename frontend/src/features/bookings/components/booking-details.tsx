@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { formatDateRange, humanise } from '@/lib/utils';
 import { ACCESSIBILITY_FEATURE_LABELS, FACILITY_LABELS, type VenueBooking } from '@/types/api';
 import { BookingDecisionHistory } from './booking-decision-history';
@@ -39,7 +40,7 @@ export function BookingDetails({ booking }: { booking: VenueBooking }) {
           </Field>
           <Field label="Date and time">{formatDateRange(booking.start, booking.end)}</Field>
           <Field label="Expected attendance">
-            {booking.expectedAttendance ?? '—'}
+            {attendanceBandLabel(booking.expectedAttendance)}
             {booking.venue.capacity ? (
               <span className="text-ink-500"> (venue capacity {booking.venue.capacity})</span>
             ) : null}

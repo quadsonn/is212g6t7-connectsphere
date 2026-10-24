@@ -12,6 +12,7 @@ import { BookingStatusBadge } from '@/features/bookings/components/booking-statu
 import { NeedsReviewBadge } from '@/features/bookings/components/needs-review-badge';
 import { useBookingQueue } from '@/features/bookings/hooks/use-bookings';
 import { useVenues } from '@/features/venues/hooks/use-venues';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { cn, formatDate, formatDateRange } from '@/lib/utils';
 import type { BookingQueueEntry, BookingQueueQuery, BookingStatus } from '@/types/api';
@@ -71,7 +72,7 @@ function QueueRow({ entry }: { entry: BookingQueueEntry }) {
           {entry.venue.name} · {formatDateRange(entry.start, entry.end)}
         </p>
         <p className="text-xs text-ink-500">
-          {entry.expectedAttendance ?? '—'} expected · requested by{' '}
+          {attendanceBandLabel(entry.expectedAttendance)} expected · requested by{' '}
           {entry.requestedBy?.name ?? '—'} for organiser {entry.event.organiser.name} · submitted{' '}
           {formatDate(entry.createdAt)}
         </p>

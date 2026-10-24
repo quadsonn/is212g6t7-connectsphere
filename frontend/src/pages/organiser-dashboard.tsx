@@ -174,7 +174,7 @@ export function OrganiserDashboard() {
                   <p><strong className="font-medium text-ink-900">Purpose:</strong> {detail.data.purpose ?? 'Not provided'}</p>
                   <p><strong className="font-medium text-ink-900">Description:</strong> {detail.data.description ?? 'Not provided'}</p>
                   <p><strong className="font-medium text-ink-900">Proposed dates:</strong> {formatDateRange(detail.data.proposedStart, detail.data.proposedEnd)}</p>
-                  <p><strong className="font-medium text-ink-900">Expected attendance:</strong> {detail.data.expectedAttendance ?? 'Not provided'}</p>
+                  <p><strong className="font-medium text-ink-900">Expected attendance:</strong> {detail.data.expectedAttendance == null ? 'Not provided' : attendanceBandLabel(detail.data.expectedAttendance)}</p>
                 </div>
 
                 {detail.data.decisionReason ? (

@@ -80,11 +80,10 @@ describe('Capacity AC-1/AC-2: the Coordinator can only submit a request the venu
     expect(screen.getByRole('button', { name: 'Submit booking request' })).toBeDisabled();
   });
 
-  it('Capacity AC-1: allows submitting once attendance equals capacity', async () => {
+  it('Capacity AC-1: allows submitting once a range the venue can hold is picked', async () => {
     const user = await choose('lounge');
 
-    await user.clear(screen.getByLabelText(/Expected attendance/));
-    await user.type(screen.getByLabelText(/Expected attendance/), '90');
+    await user.selectOptions(screen.getByLabelText(/Expected attendance/), '10 – 49');
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Submit booking request' })).toBeEnabled();

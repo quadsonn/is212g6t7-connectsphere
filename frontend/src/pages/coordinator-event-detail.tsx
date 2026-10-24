@@ -28,6 +28,7 @@ import {
   useReviewEvent,
   useStartPlanning,
 } from '@/features/events/hooks/use-events';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { SafetyHistory } from '@/features/safety/components/safety-history';
 import { useResubmitSafety, useSafetyReviews } from '@/features/safety/hooks/use-safety';
@@ -171,7 +172,7 @@ export function CoordinatorEventDetail() {
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Purpose">{event.purpose ?? '—'}</Field>
-              <Field label="Expected attendance">{event.expectedAttendance ?? '—'}</Field>
+              <Field label="Expected attendance">{attendanceBandLabel(event.expectedAttendance)}</Field>
               <Field label="Proposed dates">
                 {formatDateRange(event.proposedStart, event.proposedEnd)}
               </Field>

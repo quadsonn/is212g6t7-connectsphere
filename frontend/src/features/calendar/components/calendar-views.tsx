@@ -1,6 +1,7 @@
 import { AlertTriangle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { cn, formatDateRange } from '@/lib/utils';
 import type { CalendarEntry, CalendarView } from '@/types/api';
 import {
@@ -562,7 +563,7 @@ function MonthEntry({
           ) : (
             <>
               <div><dt className="inline text-ink-500">Organiser: </dt><dd className="inline">{entry.organiserName ?? '—'}</dd></div>
-              <div><dt className="inline text-ink-500">Attendance: </dt><dd className="inline">{entry.expectedAttendance ?? '—'}</dd></div>
+              <div><dt className="inline text-ink-500">Attendance: </dt><dd className="inline">{attendanceBandLabel(entry.expectedAttendance)}</dd></div>
             </>
           )}
         </dl>

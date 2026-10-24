@@ -49,7 +49,7 @@ const wrap = (ui: React.ReactNode) =>
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(venuesApi.list).mockResolvedValue([
-    { id: 'room', name: 'Breakout Room', capacity: 40, status: 'PUBLISHED' },
+    { id: 'room', name: 'Breakout Room', capacity: 50, status: 'PUBLISHED' },
   ] as Venue[]);
 });
 
@@ -61,8 +61,7 @@ describe('US-53 AC-2: requirements set separately for each venue', () => {
 
     await screen.findByRole('option', { name: /Breakout Room/ });
     await user.selectOptions(screen.getByLabelText(/^Venue/), 'room');
-    await user.clear(screen.getByLabelText(/Expected attendance/));
-    await user.type(screen.getByLabelText(/Expected attendance/), '40');
+    await user.selectOptions(screen.getByLabelText(/Expected attendance/), '10 – 49');
     await user.click(screen.getByRole('button', { name: 'Set different requirements for this venue' }));
 
     // Starts from the event's requirements.
@@ -79,7 +78,7 @@ describe('US-53 AC-2: requirements set separately for each venue', () => {
       expect(api.create).toHaveBeenCalledWith(
         expect.objectContaining({
           venueId: 'room',
-          expectedAttendance: 40,
+          expectedAttendance: 49,
           preferredLayout: 'CLASSROOM',
           layoutNotes: null,
           accessibilityRequirements: [],
@@ -97,9 +96,8 @@ describe('US-53 AC-2: requirements set separately for each venue', () => {
 
     await screen.findByRole('option', { name: /Breakout Room/ });
     await user.selectOptions(screen.getByLabelText(/^Venue/), 'room');
-    // Within the room's 40 seats (the event's 200 would be over capacity).
-    await user.clear(screen.getByLabelText(/Expected attendance/));
-    await user.type(screen.getByLabelText(/Expected attendance/), '40');
+    // Within the room's 50 seats (the event's 200 would be over capacity).
+    await user.selectOptions(screen.getByLabelText(/Expected attendance/), '10 – 49');
     await user.click(screen.getByRole('button', { name: 'Submit booking request' }));
 
     await waitFor(() => expect(api.create).toHaveBeenCalled());

@@ -10,6 +10,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { SafetyHistory } from '@/features/safety/components/safety-history';
 import { useDecideSafety, useSafetyPacket } from '@/features/safety/hooks/use-safety';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { cn, formatDateRange, formatDateTime, humanise } from '@/lib/utils';
 import {
@@ -227,7 +228,7 @@ export function SafetyReview() {
             </CardHeader>
             <CardContent>
               <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Detail label="Expected attendance">{packet.event.expectedAttendance}</Detail>
+                <Detail label="Expected attendance">{attendanceBandLabel(packet.event.expectedAttendance)}</Detail>
                 <Detail label="Date and time">
                   {formatDateRange(packet.event.proposedStart, packet.event.proposedEnd)}
                 </Detail>

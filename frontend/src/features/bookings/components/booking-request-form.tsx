@@ -2,6 +2,7 @@ import axios from 'axios';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 
+import { AttendanceSelect } from '@/components/attendance-select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -272,13 +273,10 @@ export function BookingRequestForm({
         required
         errors={errors.byField.expectedAttendance}
       >
-        <Input
+        <AttendanceSelect
           id="booking-attendance"
-          type="number"
-          min={1}
-          step={1}
           value={attendance}
-          onChange={(e) => setAttendance(e.target.value)}
+          onChange={setAttendance}
           aria-invalid={shortfall ? true : undefined}
           aria-describedby={shortfall ? 'booking-capacity-error' : undefined}
         />

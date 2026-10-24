@@ -1,6 +1,7 @@
 import { AlertTriangle, Check, Info } from 'lucide-react';
 
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { cn, humanise } from '@/lib/utils';
 import {
@@ -50,7 +51,7 @@ export function VenueSuitabilityPanel({ venueId, eventId }: { venueId: string; e
             ? 'No capacity recorded for this venue'
             : data.capacity.expectedAttendance === null
               ? `${data.capacity.venueCapacity} seats · attendance not recorded`
-              : `${data.capacity.venueCapacity} seats · ${data.capacity.expectedAttendance} expected`}
+              : `${data.capacity.venueCapacity} seats · ${attendanceBandLabel(data.capacity.expectedAttendance)} expected`}
         </Row>
 
         {/* AC-2: a failure names each missing requirement. */}

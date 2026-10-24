@@ -11,6 +11,7 @@ import {
   useEventRequirementDetails,
   useEventRequirements,
 } from '@/features/equipment/hooks/use-equipment';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { formatDateRange, humanise } from '@/lib/utils';
 import { ACCESSIBILITY_FEATURE_LABELS } from '@/types/api';
@@ -67,7 +68,7 @@ export function EquipmentEventDetails() {
             <CardContent>
               <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Dates">{formatDateRange(event.proposedStart, event.proposedEnd)}</Field>
-                <Field label="Expected attendance">{event.expectedAttendance ?? '—'}</Field>
+                <Field label="Expected attendance">{attendanceBandLabel(event.expectedAttendance)}</Field>
                 <Field label="Preferred layout">
                   {event.preferredLayout ? humanise(event.preferredLayout) : 'No preference'}
                 </Field>

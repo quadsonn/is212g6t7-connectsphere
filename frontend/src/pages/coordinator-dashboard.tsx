@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useReplacementsNeeded } from '@/features/bookings/hooks/use-bookings';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { useEvents } from '@/features/events/hooks/use-events';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { COORDINATOR_QUEUE_STATUSES } from '@/lib/status';
 import { formatDateRange } from '@/lib/utils';
@@ -110,7 +111,7 @@ export function CoordinatorDashboard() {
                   </div>
                   <p className="mt-1 text-xs text-ink-500">
                     {formatDateRange(event.proposedStart, event.proposedEnd)} ·{' '}
-                    {event.expectedAttendance} expected
+                    {attendanceBandLabel(event.expectedAttendance)} expected
                   </p>
                 </div>
 

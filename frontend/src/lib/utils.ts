@@ -52,6 +52,11 @@ const clockFormatter = new Intl.DateTimeFormat('en-US', {
   hour12: true,
 });
 
+/** A short date, e.g. "22 Oct". */
+export function formatDayMonth(iso: string): string {
+  return dayMonthFormatter.format(new Date(iso));
+}
+
 /** A message's time, e.g. "22 Oct, 5:25 PM". */
 export function formatMessageTime(iso: string): string {
   const date = new Date(iso);
@@ -61,6 +66,7 @@ export function formatMessageTime(iso: string): string {
 export function formatDateRange(
   startIso: string | null,
   endIso: string | null,
+  { localMarker = true }: { localMarker?: boolean } = {},
 ): string {
   // A draft may not have dates yet (US-04).
   if (!startIso || !endIso) return 'Dates not set';
@@ -70,7 +76,7 @@ export function formatDateRange(
   const sameDay = start.toDateString() === end.toDateString();
 
   return sameDay
-    ? `${dateFormatter.format(start)}, ${timeFormatter.format(start)}–${timeFormatter.format(end)} ${LOCAL_TIME_MARKER}`
+    ? `${dateFormatter.format(start)}, ${timeFormatter.format(start)}–${timeFormatter.format(end)}${localMarker ? ` ${LOCAL_TIME_MARKER}` : ''}`
     : `${dateFormatter.format(start)} – ${dateFormatter.format(end)}`;
 }
 

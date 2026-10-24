@@ -27,15 +27,20 @@ import {
   AccessControlService,
   EventWithCoordinator,
   PublicEventView,
+  PUBLIC_VENUE_INCLUDE,
 } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
-import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
 import { TechnicalSupportNotifier } from '../equipment/technical-support-notifier';
+import {
+  EquipmentReservationsService,
+  UnavailableReservation,
+} from '../equipment/equipment-reservations.service';
 import { AttendeeChangeNotifier } from '../notifications/attendee-change-notifier.service';
 import { scheduleChangesFrom } from '../notifications/event-schedule-change';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EventsRequestNotifier } from './events-request-notifier.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AskClarificationDto } from './dto/ask-clarification.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
@@ -160,6 +165,12 @@ export type OrganiserRequestView = EventRequest & {
    * reason is visible to the Organiser.
    */
   latestChangeDecision?: PendingChangeRequest | null;
+  /**
+   * Upcoming equipment the event requested or reserved that is no longer
+   * available (the item was taken out of service). An indicator that something
+   * needs attention; empty when all is well. Set on single-event reads only.
+   */
+  unavailableEquipment?: UnavailableReservation[];
 };
 
 /** US-37 — a change request with its equipment resolved to catalogue names. */
@@ -254,6 +265,8 @@ export class EventsService {
     @Optional() private readonly attendeeChanges?: AttendeeChangeNotifier,
     // US-66 AC-3: tells Technical Support of a new or changed equipment request.
     @Optional() private readonly technicalSupport?: TechnicalSupportNotifier,
+    // Tells Coordinator Leads when a request is submitted or resubmitted.
+    @Optional() private readonly requestNotifier?: EventsRequestNotifier,
   ) {}
 
   /**
@@ -270,7 +283,7 @@ export class EventsService {
   ): Promise<EventRequest> {
     this.access.requireScope(user, Resource.EVENT, Action.CREATE);
 
-    return this.prisma.$transaction(async (tx) => {
+    const submitted = await this.prisma.$transaction(async (tx) => {
       const draft = await tx.eventRequest.create({
         data: {
           organiserId: user.userId,
@@ -295,6 +308,10 @@ export class EventsService {
 
       return this.setStatus(draft, EventStatus.SUBMITTED, tx);
     });
+
+    // AC-1: tell the Coordinator Leads, after the submission has committed.
+    await this.requestNotifier?.submitted(submitted);
+    return submitted;
   }
 
   /**
@@ -383,7 +400,10 @@ export class EventsService {
     this.assertIsEditable(event);
     await this.assertReadyForSubmission(event);
 
-    return this.setStatus(event, EventStatus.SUBMITTED);
+    const submitted = await this.setStatus(event, EventStatus.SUBMITTED);
+    // AC-1: a first submission or a resubmission both reach the Leads here.
+    await this.requestNotifier?.submitted(submitted);
+    return submitted;
   }
 
   /**
@@ -535,7 +555,10 @@ export class EventsService {
 
     // US-28: the requirements in the order they were listed.
     const inOrder = { ...event, equipmentRequirements: inEntryOrder(event.equipmentRequirements) };
-    return this.toOrganiserView(inOrder);
+    return {
+      ...this.toOrganiserView(inOrder),
+      unavailableEquipment: await this.equipmentReservations.findUnavailableForEvent(id),
+    };
   }
 
   /**
@@ -1398,6 +1421,7 @@ export class EventsService {
       ...this.toOrganiserView(inOrder),
       pendingChangeRequest: await this.findPendingChangeRequest(id),
       latestChangeDecision: await this.findLatestChangeDecision(id),
+      unavailableEquipment: await this.equipmentReservations.findUnavailableForEvent(id),
     };
   }
 
@@ -1443,7 +1467,12 @@ export class EventsService {
     const events = await this.prisma.eventRequest.findMany({
       where: this.access.scopedEventFilter(user),
       orderBy: { createdAt: 'desc' },
-      include: COORDINATOR_SELECT,
+      // Attendees also get the confirmed venue (US-10 "where"); other roles
+      // reach bookings through the bookings module, so their shape is unchanged.
+      include:
+        user.role === Role.ATTENDEE
+          ? { ...COORDINATOR_SELECT, ...PUBLIC_VENUE_INCLUDE }
+          : COORDINATOR_SELECT,
     });
 
     const visible =
@@ -1515,7 +1544,24 @@ export class EventsService {
       }),
     );
 
-    const withRequirements = { ...event, equipmentRequirements };
+    // US-10 — an Attendee opening one event also sees its confirmed venue.
+    // Loaded only for them: assertEventAccess resolves the coordinator, not
+    // bookings, and other roles do not receive the public projection here.
+    const venueBookings =
+      user.role === Role.ATTENDEE
+        ? await this.prisma.venueBooking.findMany({
+            where: { eventId: event.id, status: BookingStatus.APPROVED },
+            orderBy: { start: 'asc' },
+            take: 1,
+            select: { venue: { select: { id: true, name: true, location: true } } },
+          })
+        : undefined;
+
+    const withRequirements = {
+      ...event,
+      equipmentRequirements,
+      ...(venueBookings ? { venueBookings } : {}),
+    };
     const projected = this.access.projectEvent(user, withRequirements);
 
     // US-37: the Organiser sees their pending change request beside the

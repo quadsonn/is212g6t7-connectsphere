@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { EventRequest, EventStatus, Prisma, Role } from '@prisma/client';
+import { BookingStatus, EventRequest, EventStatus, Prisma, Role } from '@prisma/client';
 
 import { ATTENDEE_VISIBLE_STATUSES } from '../../events/event-status.machine';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -13,6 +13,28 @@ export interface CoordinatorSummary {
   name: string;
   email: string;
 }
+
+/** The venue an Attendee may see: identity and where it is, nothing internal. */
+export interface VenueSummary {
+  id: string;
+  name: string | null;
+  location: string | null;
+}
+
+/**
+ * The one venue the public view exposes: the earliest APPROVED booking's
+ * venue. Requested and rejected bookings are internal review traffic, so they
+ * never surface — an Attendee only ever sees a confirmed place. Callers that
+ * want `venue` in the projection must load this relation on the event.
+ */
+export const PUBLIC_VENUE_INCLUDE = {
+  venueBookings: {
+    where: { status: BookingStatus.APPROVED },
+    orderBy: { start: 'asc' },
+    take: 1,
+    select: { venue: { select: { id: true, name: true, location: true } } },
+  },
+} as const satisfies Prisma.EventRequestInclude;
 
 /**
  * The registration-facing view of an event (AC-7). Everything omitted here —
@@ -42,6 +64,13 @@ export interface PublicEventView {
   status: EventStatus;
   registrationEnabled: boolean;
   coordinator: CoordinatorSummary | null;
+  /**
+   * The confirmed venue (US-10 — "where"), or null until a booking is
+   * approved. Only the earliest approved booking's venue; see
+   * PUBLIC_VENUE_INCLUDE. The caller must have loaded `venueBookings`, else
+   * this is null.
+   */
+  venue: VenueSummary | null;
 }
 
 /**
@@ -178,10 +207,17 @@ export class AccessControlService {
    * The coordinator relation must already be resolved on `event` (as
    * assertEventAccess() and the COORDINATOR_SELECT-including list reads do) —
    * US-10 AC-3 requires it in the PUBLIC projection too, not just the full one.
+   *
+   * `venueBookings` (PUBLIC_VENUE_INCLUDE) is optional: load it for the public
+   * reads and `venue` is populated; omit it and `venue` is simply null. It is
+   * never part of the full-record return — full-record readers reach bookings
+   * through the bookings module, not this projection.
    */
   projectEvent(
     user: AuthenticatedUser,
-    event: EventWithCoordinator,
+    event: EventWithCoordinator & {
+      venueBookings?: { venue: VenueSummary | null }[];
+    },
   ): EventWithCoordinator | PublicEventView {
     const scope = permissionScope(user.role as Role, Resource.EVENT, Action.READ);
 
@@ -199,6 +235,7 @@ export class AccessControlService {
       status: event.status,
       registrationEnabled: event.registrationEnabled,
       coordinator: event.coordinator,
+      venue: event.venueBookings?.[0]?.venue ?? null,
     };
   }
 }

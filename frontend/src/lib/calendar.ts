@@ -6,12 +6,12 @@
  * browser's own timezone never shifts a day.
  */
 
-const VENUE_TIME_ZONE = 'Asia/Singapore';
+import { APP_TIME_ZONE } from './date-time';
 
 /** Today in Singapore, as "YYYY-MM-DD". en-CA formats dates in ISO order. */
 export function todayInVenueTime(now = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: VENUE_TIME_ZONE,
+    timeZone: APP_TIME_ZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

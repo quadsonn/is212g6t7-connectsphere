@@ -327,12 +327,13 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     });
 
     // TC-S2-95 · US-27 AC-3 · setup: base-users + tc-s2-68-setup + tc-s2-95-setup · fails if an Attendee could see the internal equipment or support requirements
-    // Code: Attendees get the public event view, which has no requirement fields.
+    // Code: an Attendee can only open attendee-visible events, so this planning
+    // event reads as 404 and nothing about its requirements comes back.
     it('never shows them to an Attendee', async () => {
       await given('tc-s2-95-setup');
       await record({ equipment: EQUIPMENT, technicalSupportNeeds: 'Hybrid' }, 'coordinator', EVENT.open).expect(200);
 
-      const res = await http().get(`/events/${EVENT.open}`).set('Authorization', as('attendee')).expect(200);
+      const res = await http().get(`/events/${EVENT.open}`).set('Authorization', as('attendee')).expect(404);
 
       expect(res.body.equipmentRequirements).toBeUndefined();
       expect(res.body.technicalSupportNeeds).toBeUndefined();

@@ -70,7 +70,7 @@ describe('EventsService status view (US-05)', () => {
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
-      { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { releaseForCancelledEvent: jest.fn(), findUnavailableForEvent: jest.fn().mockResolvedValue([]) } as unknown as EquipmentReservationsService,
       { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
   });

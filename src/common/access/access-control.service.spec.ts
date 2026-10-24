@@ -202,6 +202,29 @@ describe('AccessControlService (US-02)', () => {
       expect(projected.coordinator).toBeNull();
     });
 
+    it('US-10: surfaces the confirmed venue when an approved booking is loaded', () => {
+      const projected = service.projectEvent(
+        userWith(Role.ATTENDEE),
+        anEvent({
+          venueBookings: [
+            { venue: { id: 'VEN-001', name: 'Main Hall', location: 'Level 2' } },
+          ],
+        }),
+      ) as Record<string, unknown>;
+
+      expect(projected.venue).toEqual({ id: 'VEN-001', name: 'Main Hall', location: 'Level 2' });
+    });
+
+    it('US-10: reports a null venue when no booking has been approved', () => {
+      // No venueBookings loaded (none approved yet) — null, never undefined.
+      const projected = service.projectEvent(userWith(Role.ATTENDEE), anEvent()) as Record<
+        string,
+        unknown
+      >;
+
+      expect(projected.venue).toBeNull();
+    });
+
     it('leaves the full record intact for an Organiser', () => {
       const projected = service.projectEvent(
         userWith(Role.EVENT_ORGANISER, 'organiser-1'),

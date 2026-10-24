@@ -21,6 +21,7 @@ import { EQUIPMENT_COMMITTABLE_STATUSES } from '../events/event-status.machine';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CommitReservationDto } from './dto/commit-reservation.dto';
+import { EquipmentNotifier } from './equipment-notifier';
 import {
   computeItemAvailability,
   holdingReservationsWhere,
@@ -37,6 +38,25 @@ export const RELEASABLE_STATUSES: readonly ReservationStatus[] = [
   ReservationStatus.REQUESTED,
   ReservationStatus.APPROVED,
 ];
+
+/**
+ * An upcoming reservation whose equipment is no longer available — the item was
+ * marked under maintenance or out of service (US-45) after it was requested or
+ * reserved. An indicator only: it flags that something needs attention, and
+ * carries nothing that acts on it.
+ */
+export interface UnavailableReservation {
+  reservationId: string;
+  equipmentId: string;
+  equipmentType: string;
+  /** The item's current state: UNDER_MAINTENANCE or OUT_OF_SERVICE. */
+  equipmentStatus: EquipmentStatus;
+  /** Whether the event only requested it, or Technical Support reserved it. */
+  reservationStatus: ReservationStatus;
+  quantity: number;
+  start: Date;
+  end: Date;
+}
 
 /**
  * US-48 AC-7 — a reservation rebooked for an approved change request: the
@@ -121,6 +141,8 @@ export class EquipmentReservationsService {
     @Optional() private readonly arrangements?: ArrangementsRegistry,
     // US-66: tells the event's assigned Technical Support member.
     @Optional() private readonly technicalSupport?: TechnicalSupportNotifier,
+    // US — notifies the Coordinator when their equipment is released.
+    @Optional() private readonly equipmentNotifier?: EquipmentNotifier,
   ) {}
 
   /**
@@ -248,7 +270,7 @@ export class EquipmentReservationsService {
   ): Promise<number> {
     const event = await tx.eventRequest.findUnique({
       where: { id: eventId },
-      select: { status: true },
+      select: { status: true, name: true, coordinatorId: true },
     });
 
     // A guard on the contract, not a user-facing rule: releasing a live
@@ -267,6 +289,11 @@ export class EquipmentReservationsService {
           select: { quantity: true, equipment: { select: { type: true } } },
         })
       : [];
+    // AC-2: whether any COMMITTED (APPROVED) reservation is being given back —
+    // a merely requested one is not a release worth a notice.
+    const committed = await tx.equipmentReservation.count({
+      where: { eventId, status: ReservationStatus.APPROVED },
+    });
 
     const result = await tx.equipmentReservation.updateMany({
       where: { eventId, status: { in: [...RELEASABLE_STATUSES] } },
@@ -278,8 +305,60 @@ export class EquipmentReservationsService {
       eventId,
       releasing.map((r) => ({ quantity: r.quantity, equipmentType: r.equipment.type })),
     );
+    // US — AC-2: tell the Coordinator their reserved equipment was released.
+    if (committed > 0) {
+      await this.equipmentNotifier?.released(tx, {
+        id: eventId,
+        name: event.name,
+        coordinatorId: event.coordinatorId,
+        status: event.status,
+      });
+    }
 
     return result.count;
+  }
+
+  /**
+   * The event's upcoming reservations whose equipment is no longer available —
+   * requested or reserved items the Technical Support team has since marked
+   * under maintenance or out of service. Derived live from the item's current
+   * status, so it is always accurate and never a stale stored flag. Empty when
+   * nothing is amiss. Indicator only; it offers no way to resolve the clash.
+   */
+  async findUnavailableForEvent(
+    eventId: string,
+    now: Date = new Date(),
+  ): Promise<UnavailableReservation[]> {
+    const rows = await this.prisma.equipmentReservation.findMany({
+      where: {
+        eventId,
+        // "Requested or approved" — a released or rejected reservation holds
+        // nothing, and a reservation already over needs no attention.
+        status: { in: [...RELEASABLE_STATUSES] },
+        end: { gt: now },
+        equipment: { operationalStatus: { not: EquipmentStatus.OPERATIONAL } },
+      },
+      select: {
+        id: true,
+        quantity: true,
+        start: true,
+        end: true,
+        status: true,
+        equipment: { select: { id: true, type: true, operationalStatus: true } },
+      },
+      orderBy: [{ start: 'asc' }, { id: 'asc' }],
+    });
+
+    return rows.map((row) => ({
+      reservationId: row.id,
+      equipmentId: row.equipment.id,
+      equipmentType: row.equipment.type,
+      equipmentStatus: row.equipment.operationalStatus,
+      reservationStatus: row.status,
+      quantity: row.quantity,
+      start: row.start,
+      end: row.end,
+    }));
   }
 
   /**

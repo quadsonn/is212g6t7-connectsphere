@@ -28,6 +28,7 @@ import {
 } from '@/types/api';
 import { humanise } from '@/lib/utils';
 import { todayInVenueTime } from '@/lib/calendar';
+import { combineDateTime, isoToLocalParts, localStringToInstant } from '@/lib/date-time';
 
 /** Every field the server may return an error against (US-03 AC-3). */
 const FIELDS = [
@@ -90,28 +91,6 @@ const TIME_SLOTS = buildTimeSlots();
 const START_TIME_SLOTS = TIME_SLOTS.slice(0, -1);
 
 /**
- * Combines the separate date and time inputs into the "YYYY-MM-DDTHH:mm"
- * shape `iso()` expects. Date and time are kept as independent form fields
- * (rather than one merged string) so picking one doesn't get wiped out while
- * the other is still unset.
- */
-function combineDateTime(date: string, time: string): string {
-  return date && time ? `${date}T${time}` : '';
-}
-
-/** The inverse of combineDateTime — splits a stored ISO instant back into the
- * local date and time-of-day the two inputs show, for prefilling an edit. */
-function isoToLocalParts(iso: string | null): { date: string; time: string } {
-  if (!iso) return { date: '', time: '' };
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return {
-    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
-  };
-}
-
-/**
  * UI-only sentinel for "none of the listed layouts fit" — not a RoomLayout
  * value the backend recognises (US-06 AC-2: the actual description belongs in
  * layoutNotes). Selecting it clears preferredLayout from the payload rather
@@ -170,13 +149,12 @@ function mapExistingToForm(existing: OrganiserRequestView): FormState {
  *
  * Empty strings are omitted rather than sent: a draft may legitimately leave a
  * field unset (US-04 AC-1), and sending "" would be a value rather than an
- * absence. `datetime-local` gives local wall-clock time, so it is converted to
- * ISO before sending.
+ * absence. The inputs give a Singapore-time wall-clock, converted to a UTC
+ * instant before sending (localStringToInstant).
  */
 function toPayload(form: FormState): EventRequestPayload {
   const text = (value: string) => (value.trim() === '' ? undefined : value.trim());
-  const iso = (value: string) =>
-    value === '' ? undefined : new Date(value).toISOString();
+  const iso = (value: string) => (value === '' ? undefined : localStringToInstant(value) || undefined);
 
   return {
     name: text(form.name),

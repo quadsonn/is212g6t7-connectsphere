@@ -1,5 +1,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative as relativePath } from 'node:path';
+
+/** Posix-style relative path, so comparisons work the same on Windows. */
+const relative = (from: string, to: string) => relativePath(from, to).replace(/\\/g, '/');
 
 /**
  * US-11 — the guard rail.

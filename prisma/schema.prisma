@@ -277,6 +277,23 @@ enum NotificationType {
   // US-66 AC-2: an approved change request rebooked the assigned member's
   // reservations for a new time.
   EQUIPMENT_RESERVATIONS_REBOOKED
+  // Registration-window notices. OPENED → attendees not yet registered, when
+  // an event first becomes visible to them; CLOSED → registered attendees,
+  // when the registration window closes; NEAR_CAPACITY → registered
+  // attendees, the first time only 10 or fewer seats remain against the
+  // event's venue capacity.
+  REGISTRATION_OPENED
+  REGISTRATION_CLOSED
+  REGISTRATION_NEAR_CAPACITY
+  // Sent to the event's Coordinator (or the Leads if unassigned): equipment the
+  // event depends on was taken out of service (UNAVAILABLE), or a committed
+  // reservation was released because the event was cancelled or rejected
+  // (RELEASED).
+  EQUIPMENT_UNAVAILABLE
+  EQUIPMENT_RELEASED
+  // Sent to all Coordinator Leads when a new (or resubmitted) event request is
+  // submitted, so incoming work finds them without polling the queue.
+  EVENT_SUBMITTED
 }
 
 // US-37 (E8): where a change request stands. Only PENDING is written so far;
@@ -428,6 +445,15 @@ model EventRequest {
   registrationOpensAt  DateTime?
   registrationClosesAt DateTime?
   withdrawalCutoffAt   DateTime?
+
+  // Registration-window notices (US — notify attendees when registration
+  // opens, closes or nears capacity). Each stamp marks that its one-time
+  // notice has been sent, so the sweep that detects these moments fires each
+  // exactly once per event and never retroactively re-announces. Null means
+  // not yet sent. See registration-notifications.ts.
+  registrationOpenedNotifiedAt      DateTime?
+  registrationClosedNotifiedAt      DateTime?
+  registrationNearCapacityNotifiedAt DateTime?
 
   // US-05 AC-2: why a Coordinator rejected the request. Written by the review
   // story; US-05 only reads it.

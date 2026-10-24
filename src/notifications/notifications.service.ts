@@ -59,6 +59,30 @@ export class NotificationsService {
   }
 
   /**
+   * Records many notifications at once (one per recipient). Participates in the
+   * caller's transaction if given, so a batch of notices is all-or-nothing with
+   * the claim that authorised it. Returns how many rows were written.
+   */
+  async notifyMany(
+    inputs: NotifyInput[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    if (inputs.length === 0) return 0;
+    const client = tx ?? this.prisma;
+
+    const { count } = await client.notification.createMany({
+      data: inputs.map((input) => ({
+        recipientId: input.recipientId,
+        type: input.type,
+        message: input.message,
+        relatedEventId: input.relatedEventId ?? null,
+        relatedBookingId: input.relatedBookingId ?? null,
+      })),
+    });
+    return count;
+  }
+
+  /**
    * Fire-and-forget variant for use after a transaction has committed: a
    * notification that cannot be recorded must not undo the action the user
    * successfully performed.

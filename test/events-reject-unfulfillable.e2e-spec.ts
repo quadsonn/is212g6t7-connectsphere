@@ -355,8 +355,21 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
     it('notifies the Organiser, and only them', async () => {
       await reject({ reason: 'NO_VENUE_OR_EQUIPMENT', comment: 'Nothing fits 120 people.' }).expect(200);
 
+      // US-67 also tells the Coordinator their equipment was released; that is
+      // its own notice, not the rejection, so it is set aside here.
       const notices = await prisma.notification.findMany();
-      expect(notices).toEqual([
+      const others = notices.filter((n) => n.type !== NotificationType.EVENT_STATUS_CHANGED);
+      expect(others).toEqual(
+        others.map(() =>
+          expect.objectContaining({
+            recipientId: ids.coordinator,
+            type: NotificationType.EQUIPMENT_RELEASED,
+          }),
+        ),
+      );
+
+      const rejections = notices.filter((n) => n.type === NotificationType.EVENT_STATUS_CHANGED);
+      expect(rejections).toEqual([
         expect.objectContaining({
           recipientId: ids.organiser,
           type: NotificationType.EVENT_STATUS_CHANGED,

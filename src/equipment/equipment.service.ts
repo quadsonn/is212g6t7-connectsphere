@@ -5,8 +5,9 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ReservationStatus } from '@prisma/client';
 
+import { EquipmentNotifier } from './equipment-notifier';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
@@ -117,6 +118,7 @@ export class EquipmentService {
     private readonly access: AccessControlService,
     // US-60: tells the other Technical Support members once a change commits.
     @Optional() private readonly statusNotifier?: EquipmentStatusNotifier,
+    @Optional() private readonly equipmentNotifier?: EquipmentNotifier,
   ) {}
 
   /**
@@ -258,9 +260,9 @@ export class EquipmentService {
         throw new NotFoundException('equipment not found');
       }
 
-      const { operationalStatus: from } = await tx.equipment.findUniqueOrThrow({
+      const { operationalStatus: from, type } = await tx.equipment.findUniqueOrThrow({
         where: { id: equipmentId },
-        select: { operationalStatus: true },
+        select: { operationalStatus: true, type: true },
       });
 
       const error = statusChangeError(from, dto.status);
@@ -301,6 +303,24 @@ export class EquipmentService {
             select: UPCOMING_RESERVATION_SELECT,
           })
         : [];
+
+      // US — AC-1: tell the Coordinator of each affected event, once per event.
+      // "Committed" is APPROVED only; a merely requested reservation is left
+      // out. In the same transaction, so the notice exists iff the change did.
+      const committedEvents = affectedReservations
+        .filter((r) => r.status === ReservationStatus.APPROVED)
+        .map((r) => ({
+          id: r.event.id,
+          name: r.event.name,
+          coordinatorId: r.event.coordinator?.id ?? null,
+        }));
+      if (committedEvents.length > 0) {
+        await this.equipmentNotifier?.unavailable(
+          tx,
+          { type, status: dto.status, reason: dto.reason },
+          committedEvents,
+        );
+      }
 
       const equipment = await this.findDetail(tx, { id: equipmentId });
 

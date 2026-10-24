@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { NotificationType, Prisma } from '@prisma/client';
+import { EventStatus, NotificationType, Prisma } from '@prisma/client';
 
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
@@ -13,7 +13,9 @@ export const INBOX_DEFAULT_LIMIT = 20;
 export const INBOX_LIMIT = 100;
 
 const ITEM_INCLUDE = {
-  relatedEvent: { select: { id: true, name: true } },
+  // status drives the Attendee's link: their event page only serves events
+  // they may still open (see linkFor), so a cancelled event stays unlinked.
+  relatedEvent: { select: { id: true, name: true, status: true } },
   relatedBooking: { select: { id: true, venue: { select: { id: true, name: true } } } },
 } satisfies Prisma.NotificationInclude;
 
@@ -169,7 +171,7 @@ export class NotificationsInboxService {
       relatedEventId: string | null;
       relatedBookingId: string | null;
       relatedEquipmentId?: string | null;
-      relatedEvent: { id: string; name: string | null } | null;
+      relatedEvent: { id: string; name: string | null; status: EventStatus } | null;
       relatedBooking: { id: string; venue: { id: string; name: string | null } } | null;
     },
   ): InboxItem {
@@ -185,7 +187,13 @@ export class NotificationsInboxService {
       createdAt: row.createdAt,
       relatedEvent: row.relatedEvent,
       relatedBooking: row.relatedBooking,
-      link: linkFor(user.role, row.relatedEventId, row.relatedBookingId, row.relatedEquipmentId ?? null),
+      link: linkFor(
+        user.role,
+        row.relatedEventId,
+        row.relatedBookingId,
+        row.relatedEquipmentId ?? null,
+        row.relatedEvent?.status ?? null,
+      ),
     };
   }
 }

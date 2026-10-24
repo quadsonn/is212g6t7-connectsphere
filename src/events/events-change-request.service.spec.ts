@@ -477,7 +477,7 @@ describe('EventsService viewing an event with a pending change request (US-36)',
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       {} as NotificationsService,
-      {} as EquipmentReservationsService,
+      { findUnavailableForEvent: jest.fn().mockResolvedValue([]) } as unknown as EquipmentReservationsService,
       { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
     return { prisma, service, user };

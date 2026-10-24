@@ -206,18 +206,20 @@ export const SAFETY_CHECK_ELIGIBLE_STATUSES: readonly EventStatus[] = [
 ];
 
 /**
- * US-02 AC-7: statuses an Attendee may see at all. Everything earlier is
- * internal review traffic; rejected, returned and cancelled are not
- * registration-facing.
+ * US-02 AC-7: the statuses an Attendee may open at all. ONLY an event whose
+ * arrangements are settled — a CONFIRMED event — is an attendee's to see. An
+ * event still working its way through review and planning (everything before
+ * CONFIRMED) is internal and must not be reachable, not even by a direct link
+ * to its id; a COMPLETED event is over and drops out of view; and rejected,
+ * returned and cancelled events are not registration-facing.
+ *
+ * This is the single source for "which events an attendee may reach": the
+ * list filter and the single-record filter (access-control), the registration
+ * options guard (registrations), and the notification link gate all read it,
+ * so the list and the direct-link view can never diverge.
  */
 export const ATTENDEE_VISIBLE_STATUSES: readonly EventStatus[] = [
-  EventStatus.APPROVED,
-  EventStatus.PLANNING,
-  EventStatus.AWAITING_ARRANGEMENTS,
-  // US-42: still on its way to CONFIRMED, so it does not drop out of view.
-  EventStatus.AWAITING_SAFETY_CHECK,
   EventStatus.CONFIRMED,
-  EventStatus.COMPLETED,
 ];
 
 /**

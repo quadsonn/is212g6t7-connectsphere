@@ -139,21 +139,28 @@ describe('Story 33 register for an event (integration)', () => {
       expect(res.headers['cache-control']).toBe('no-store');
     });
 
-    // TC-S2-137 · US-33 AC-1 · setup: base-users + tc-s2-136-setup + tc-s2-137-setup · fails if the Register option showed, or registering worked, for an event not confirmed or with registration off
+    // TC-S2-137 · US-33 AC-1 · setup: base-users + tc-s2-136-setup + tc-s2-137-setup · fails if the Register option showed, or registering worked, for an event with registration off
     // Code: evaluateRegistration() blocks NOT_OPEN_TO_REGISTRATION unless CONFIRMED and registrationEnabled; register() re-checks and answers 409.
-    it.each([
-      ['with registration disabled', 'disabled'],
-      ['not yet confirmed (planning)', 'planning'],
-    ] as const)('withholds it for an event %s, and refuses to register (409)', async (_case, key) => {
+    it('withholds it for an event with registration disabled, and refuses to register (409)', async () => {
       await given('tc-s2-137-setup');
 
-      expect((await options(EVENT[key]).expect(200)).body).toMatchObject({
+      expect((await options(EVENT.disabled).expect(200)).body).toMatchObject({
         canRegister: false,
         block: 'NOT_OPEN_TO_REGISTRATION',
       });
-      const res = await register(EVENT[key]).expect(409);
+      const res = await register(EVENT.disabled).expect(409);
       expect(res.body.message).toBe('Registration is not available for this event.');
-      expect(await registrationsOn(EVENT[key])).toEqual([]);
+      expect(await registrationsOn(EVENT.disabled)).toEqual([]);
+    });
+
+    // TC-S2-137 · US-33 AC-1 · setup: base-users + tc-s2-136-setup + tc-s2-137-setup · fails if an Attendee could see or register for an event not yet confirmed
+    // Code: findVisibleEvent() only finds ATTENDEE_VISIBLE_STATUSES; a planning event reads as 404.
+    it('treats an event not yet confirmed (planning) as not found (404)', async () => {
+      await given('tc-s2-137-setup');
+
+      await options(EVENT.planning).expect(404);
+      await register(EVENT.planning).expect(404);
+      expect(await registrationsOn(EVENT.planning)).toEqual([]);
     });
 
     // TC-S2-137 · US-33 AC-1 · setup: base-users + tc-s2-136-setup + tc-s2-137-setup · fails if an Attendee could see or register for a draft event

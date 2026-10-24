@@ -139,7 +139,7 @@ describe('US-02 role-based and ownership access control (e2e)', () => {
     });
 
     it('denies an event action the role has no grant for', async () => {
-      // US-25 gave Venue Staff EVENT/READ at RELATED scope; they still hold
+      // US-24 gave Venue Staff EVENT/READ at RELATED scope; they still hold
       // nothing else on events.
       await http()
         .post('/events/drafts')
@@ -174,7 +174,7 @@ describe('US-02 role-based and ownership access control (e2e)', () => {
       expect(res.body.name).toBeUndefined();
     });
 
-    it('hides an event with no booking from Venue Staff (US-25 RELATED scope)', async () => {
+    it('hides an event with no booking from Venue Staff (US-24 RELATED scope)', async () => {
       const res = await http()
         .get(`/events/${ids.eventA}`)
         .set('Authorization', as('venueStaff'))

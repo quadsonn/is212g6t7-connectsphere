@@ -1,68 +1,62 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  BookingDecisionKind,
-  BookingStatus,
-  EventStatus,
-  NotificationType,
-  PrismaClient,
-  Role,
-  VenueStatus,
-} from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { BookingDecisionKind, BookingStatus, NotificationType, PrismaClient, Role } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
-/** US-23 e2e — Approve/Reject Booking Request with Reason. */
-describe('US-23 approve/reject a booking request with reason (e2e)', () => {
+/**
+ * US-22 (Story 22) — Venue Staff approve or reject a venue booking request,
+ * with a reason. Integration tests, one describe per acceptance criterion.
+ *
+ * The code under test: POST /bookings/:id/approve | reject | reverse
+ * (BookingsController) -> BookingsService.approve/reject/reverse, which all go
+ * through recordDecision(). That method locks the venue, re-reads the booking,
+ * checks the move is allowed (BOOKING_TRANSITIONS), re-runs the overlap check
+ * when approving, then writes the new status and a BookingDecision row
+ * (who, when, outcome, reason) in one transaction, and notifies the
+ * Coordinator and the Organiser.
+ *
+ * Pre-condition for every test: reset the testDB, then run
+ * test/fixtures/sql/base-users.sql, base-venues.sql and tc-s2-48-setup.sql
+ * (one pending request on Main Hall); some tests then load a further tc-s2
+ * script, as their test case names (docs/testing/sprint2-test-cases.md).
+ */
+describe('Story 22 approve/reject a booking request with reason (integration)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
   const PASSWORD = 'correct-horse-battery-staple';
-  const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
 
-  const as = (who: string) => `Bearer ${tokens[who]}`;
+  /** Fixed users: base-users.sql, plus tc-s2-01-setup.sql and tc-s2-52-setup.sql. */
+  const USERS = {
+    staff: 'venue.staff@example.com',
+    staffB: 'venue.staff.b@example.com',
+    coordinator: 'coord.a@example.com',
+    organiser: 'organiser@example.com',
+    organiserB: 'other.organiser@example.com',
+  } as const;
+  const tokens: Record<string, string> = {};
+
+  /** Fixed rows from tc-s2-48-setup.sql and tc-s2-55-setup.sql. */
+  const BOOKING = { showcase: 'BKG-031', first: 'BKG-032', second: 'BKG-033' } as const;
+  const EVENT = 'EVT-030';
+
+  const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
-  const act = (id: string, action: string, body: object = {}, who = 'staff') =>
+
+  /** Approve, reject or reverse a booking as the given user (Venue Staff by default). */
+  const act = (id: string, action: 'approve' | 'reject' | 'reverse', body: object = {}, who: keyof typeof USERS = 'staff') =>
     http().post(`/bookings/${id}/${action}`).set('Authorization', as(who)).send(body);
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-  };
+  const statusOf = async (id: string) => (await prisma.venueBooking.findUniqueOrThrow({ where: { id } })).status;
 
-  const seedBooking = async (startHour = 9, endHour = 12, name = 'Showcase') => {
-    const event = await prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinator,
-        name,
-        purpose: 'p',
-        description: 'd',
-        category: 'c',
-        proposedStart: new Date('2030-10-01T09:00:00Z'),
-        proposedEnd: new Date('2030-10-01T12:00:00Z'),
-        expectedAttendance: 80,
-        status: EventStatus.APPROVED,
-      },
-    });
-    return prisma.venueBooking.create({
-      data: {
-        eventId: event.id,
-        venueId: ids.venue,
-        start: new Date(`2030-10-01T${String(startHour).padStart(2, '0')}:00:00Z`),
-        end: new Date(`2030-10-01T${String(endHour).padStart(2, '0')}:00:00Z`),
-        expectedAttendance: 80,
-        requestedById: ids.coordinator,
-      },
-    });
+  /** Loads a test case's setup script(s) on top of the shared pre-condition. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
   beforeAll(async () => {
@@ -71,162 +65,169 @@ describe('US-23 approve/reject a booking request with reason (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    await resetDb(prisma);
+    await given('base-users', 'tc-s2-01-setup', 'tc-s2-52-setup');
+    for (const [key, email] of Object.entries(USERS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
+    // Leave the testDB empty, so files not yet converted to resetDb (which
+    // delete only the tables they know) never trip over rows this file made.
+    await resetDb(prisma);
     await prisma.$disconnect();
     await app.close();
   });
 
   beforeEach(async () => {
-    await prisma.notification.deleteMany();
-    await prisma.bookingDecision.deleteMany();
-    await prisma.venueBooking.deleteMany();
-    await prisma.venue.deleteMany();
-    await prisma.clarificationMessage.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('otherOrganiser', 'other.organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('staff', 'staff@example.com', Role.VENUE_STAFF);
-    await seedUser('otherStaff', 'other.staff@example.com', Role.VENUE_STAFF);
-
-    const venue = await prisma.venue.create({
-      data: {
-        name: 'Main Hall',
-        location: 'Campus',
-        capacity: 200,
-        facilities: [],
-        accessibilityFeatures: [],
-        status: VenueStatus.PUBLISHED,
-        managedById: ids.staff,
-      },
-    });
-    ids.venue = venue.id;
+    await resetDb(prisma);
+    await given('base-users', 'base-venues', 'tc-s2-48-setup');
   });
 
-  describe('AC-1: approve and reject act on a request the staff member manages', () => {
-    it('is refused for another staff member\'s venue (404) and for a Coordinator (403)', async () => {
-      const booking = await seedBooking();
+  // AC-1 (the actions are on the request detail view) and the "disabled/hidden"
+  // part of AC-7 are about the screen: manual test case TC-S2-81.
+  describe("access: only the venue's own Venue Staff can decide", () => {
+    // TC-S2-48 · US-22 access · setup: base-users + base-venues + tc-s2-48-setup + tc-s2-01-setup · fails if another staff member's request, or a Coordinator, could decide it
+    // Code: findDecidable() only finds bookings on venues the caller manages, so
+    // another Venue Staff member gets 404; the permission matrix gives
+    // Coordinators no decide action, so the guard answers 403.
+    it("is refused for another staff member's venue (404) and for a Coordinator (403)", async () => {
+      await given('tc-s2-01-setup');
 
-      expect((await act(booking.id, 'approve', {}, 'otherStaff')).status).toBe(404);
-      expect((await act(booking.id, 'approve', {}, 'coordinator')).status).toBe(403);
+      await act(BOOKING.showcase, 'approve', {}, 'staffB').expect(404);
+      await act(BOOKING.showcase, 'approve', {}, 'coordinator').expect(403);
+      expect(await statusOf(BOOKING.showcase)).toBe(BookingStatus.REQUESTED);
     });
   });
 
   describe('AC-2: rejecting requires a reason', () => {
+    // TC-S2-49 · US-22 AC-2 · setup: base-users + base-venues + tc-s2-48-setup · fails if a rejection without a reason went through
+    // Code: RejectBookingDto (@IsNotEmpty) refuses an empty reason with 400
+    // before BookingsService.reject() runs, so the status is never touched.
     it('refuses a rejection without a reason, and changes nothing', async () => {
-      const booking = await seedBooking();
+      const res = await act(BOOKING.showcase, 'reject', { reason: '' }).expect(400);
 
-      const res = await act(booking.id, 'reject', { reason: '' });
-
-      expect(res.status).toBe(400);
       expect(res.body.message).toContain('a reason is required to reject this booking request');
-      expect((await prisma.venueBooking.findUnique({ where: { id: booking.id } }))?.status).toBe(
-        BookingStatus.REQUESTED,
-      );
+      expect(await statusOf(BOOKING.showcase)).toBe(BookingStatus.REQUESTED);
     });
 
+    // TC-S2-49 · US-22 AC-2 · setup: base-users + base-venues + tc-s2-48-setup · fails if a reason of only spaces counted as a reason
+    // Code: RejectBookingDto trims the reason (@Trim()) before @IsNotEmpty()
+    // checks it, so '   ' is refused like an empty reason.
+    it('US-22 AC-2: whitespace-only reject reason refused', async () => {
+      const res = await act(BOOKING.showcase, 'reject', { reason: '   ' }).expect(400);
+
+      expect(res.body.message).toContain('a reason is required to reject this booking request');
+      expect(await statusOf(BOOKING.showcase)).toBe(BookingStatus.REQUESTED);
+      expect(await prisma.bookingDecision.count({ where: { bookingId: BOOKING.showcase } })).toBe(0);
+    });
+
+    // TC-S2-49 · US-22 AC-2 · setup: base-users + base-venues + tc-s2-48-setup · fails if a reason with surrounding spaces were refused, or saved with the spaces
+    // Code: @Trim() keeps the words and drops only the surrounding spaces.
+    it('US-22 AC-2: a normal reason is still saved, trimmed', async () => {
+      const res = await act(BOOKING.showcase, 'reject', { reason: '  Under maintenance  ' }).expect(200);
+
+      expect(res.body).toMatchObject({ status: BookingStatus.REJECTED, decisionReason: 'Under maintenance' });
+    });
+
+    // TC-S2-49 · US-22 AC-2 · setup: base-users + base-venues + tc-s2-48-setup · fails if a rejection with a reason was refused, or the reason not saved
+    // Code: reject() records REJECTED with the trimmed reason as decisionReason.
     it('rejects with a reason', async () => {
-      const booking = await seedBooking();
+      const res = await act(BOOKING.showcase, 'reject', { reason: 'Under maintenance' }).expect(200);
 
-      const res = await act(booking.id, 'reject', { reason: 'Under maintenance' });
-
-      expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ status: 'REJECTED', decisionReason: 'Under maintenance' });
+      expect(res.body).toMatchObject({ status: BookingStatus.REJECTED, decisionReason: 'Under maintenance' });
     });
   });
 
   describe('AC-3: approving allows an optional note', () => {
+    // TC-S2-50 · US-22 AC-3 · setup: base-users + base-venues + tc-s2-48-setup · fails if approving needed a note
+    // Code: ApproveBookingDto's note is @IsOptional, so an empty body is valid.
     it('approves with no body at all', async () => {
-      const booking = await seedBooking();
+      const res = await act(BOOKING.showcase, 'approve').expect(200);
 
-      const res = await act(booking.id, 'approve');
-
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe('APPROVED');
+      expect(res.body.status).toBe(BookingStatus.APPROVED);
     });
 
+    // TC-S2-50 · US-22 AC-3 · setup: base-users + base-venues + tc-s2-48-setup · fails if a note given on approval was dropped
+    // Code: approve() stores the note as the decision's reason and as decisionReason.
     it('approves with a note', async () => {
-      const booking = await seedBooking();
-
-      const res = await act(booking.id, 'approve', { note: 'Doors open 8am' });
+      const res = await act(BOOKING.showcase, 'approve', { note: 'Doors open 8am' }).expect(200);
 
       expect(res.body.decisionReason).toBe('Doors open 8am');
     });
   });
 
   describe('AC-4: the decision is timestamped and attributed', () => {
+    // TC-S2-51 · US-22 AC-4 · setup: base-users + base-venues + tc-s2-48-setup · fails if a decision had no time or no named decider
+    // Code: recordDecision() writes a BookingDecision row (decidedById, kind,
+    // outcome, reason, createdAt) in the same transaction as the status change.
     it('returns a decision history entry naming the staff member', async () => {
-      const booking = await seedBooking();
-
-      const res = await act(booking.id, 'reject', { reason: 'Too small' });
+      const res = await act(BOOKING.showcase, 'reject', { reason: 'Too small' }).expect(200);
 
       expect(res.body.decisions).toEqual([
         expect.objectContaining({
           kind: BookingDecisionKind.DECISION,
-          outcome: 'REJECTED',
+          outcome: BookingStatus.REJECTED,
           reason: 'Too small',
           createdAt: expect.any(String),
-          decidedBy: expect.objectContaining({ id: ids.staff, role: Role.VENUE_STAFF }),
+          decidedBy: expect.objectContaining({ id: 'USR-010', name: 'Vera Venue', role: Role.VENUE_STAFF }),
         }),
       ]);
+      expect(Number.isNaN(Date.parse(res.body.decisions[0].createdAt))).toBe(false);
     });
   });
 
   describe('AC-5: the Coordinator and Organiser can see the decision', () => {
+    // TC-S2-52 · US-22 AC-5 · setup: base-users + base-venues + tc-s2-48-setup · fails if the Coordinator or Organiser couldn't see the decision and reason, or weren't notified
+    // Code: GET /bookings/events/:eventId lists an event's requests to its
+    // Coordinator and Organiser; notifyDecision() sends both a
+    // VENUE_BOOKING_DECIDED notification.
     it('shows it to both on GET /bookings/events/:eventId, and notifies both', async () => {
-      const booking = await seedBooking();
-      await act(booking.id, 'reject', { reason: 'Under maintenance' });
+      await act(BOOKING.showcase, 'reject', { reason: 'Under maintenance' }).expect(200);
 
-      for (const who of ['coordinator', 'organiser']) {
-        const res = await http()
-          .get(`/bookings/events/${booking.eventId}`)
-          .set('Authorization', as(who));
+      for (const who of ['coordinator', 'organiser'] as const) {
+        const res = await http().get(`/bookings/events/${EVENT}`).set('Authorization', as(who)).expect(200);
 
-        expect(res.status).toBe(200);
         expect(res.body[0]).toMatchObject({
-          status: 'REJECTED',
+          status: BookingStatus.REJECTED,
           decisionReason: 'Under maintenance',
           decisions: [expect.objectContaining({ reason: 'Under maintenance' })],
         });
       }
 
-      const notified = await prisma.notification.findMany({
-        where: { type: NotificationType.VENUE_BOOKING_DECIDED },
-      });
-      expect(notified.map((n) => n.recipientId).sort()).toEqual(
-        [ids.coordinator, ids.organiser].sort(),
-      );
+      const notified = await prisma.notification.findMany({ where: { type: NotificationType.VENUE_BOOKING_DECIDED } });
+      expect(notified.map((n) => n.recipientId).sort()).toEqual(['USR-004', 'USR-006']);
     });
 
+    // TC-S2-52 · US-22 AC-5 · setup: base-users + base-venues + tc-s2-48-setup + tc-s2-52-setup · fails if an unrelated Organiser could see the decision
+    // Code: an Organiser's scope is OWN, so another Organiser's query matches no rows.
     it('hides it from an unrelated Organiser', async () => {
-      const booking = await seedBooking();
+      await given('tc-s2-52-setup');
+      await act(BOOKING.showcase, 'reject', { reason: 'Under maintenance' }).expect(200);
 
-      const res = await http()
-        .get(`/bookings/events/${booking.eventId}`)
-        .set('Authorization', as('otherOrganiser'));
+      const res = await http().get(`/bookings/events/${EVENT}`).set('Authorization', as('organiserB')).expect(200);
 
       expect(res.body).toEqual([]);
     });
   });
 
   describe('AC-6: a reversal is a new recorded action', () => {
+    // TC-S2-53 · US-22 AC-6 · setup: base-users + base-venues + tc-s2-48-setup · fails if reversing overwrote the original decision instead of adding to it
+    // Code: reverse() flips APPROVED <-> REJECTED and records a REVERSAL row;
+    // the earlier DECISION row is never updated.
     it('keeps the original decision and appends the reversal', async () => {
-      const booking = await seedBooking();
-      await act(booking.id, 'approve', { note: 'OK' });
+      await act(BOOKING.showcase, 'approve', { note: 'OK' }).expect(200);
 
-      const res = await act(booking.id, 'reverse', { reason: 'Venue flooded' });
+      const res = await act(BOOKING.showcase, 'reverse', { reason: 'Venue flooded' }).expect(200);
 
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe('REJECTED');
+      expect(res.body.status).toBe(BookingStatus.REJECTED);
       expect(res.body.decisions.map((d: { kind: string; outcome: string; reason: string }) => [d.kind, d.outcome, d.reason]))
         .toEqual([
           ['DECISION', 'APPROVED', 'OK'],
@@ -234,110 +235,97 @@ describe('US-23 approve/reject a booking request with reason (e2e)', () => {
         ]);
     });
 
+    // TC-S2-53 · US-22 AC-6 · setup: base-users + base-venues + tc-s2-48-setup · fails if a decision could be reversed without saying why
+    // Code: ReverseBookingDto (@IsNotEmpty) requires a reason.
     it('requires a reason to reverse', async () => {
-      const booking = await seedBooking();
-      await act(booking.id, 'approve');
+      await act(BOOKING.showcase, 'approve').expect(200);
 
-      expect((await act(booking.id, 'reverse', {})).status).toBe(400);
-    });
-  });
-
-  describe('Capacity: an over-capacity request can be rejected but not approved', () => {
-    // An existing request over the venue's 200 seats — saved before capacity
-    // was enforced on submission. Written directly, as such data would be.
-    const overCapacity = async () => {
-      const booking = await seedBooking();
-      return prisma.venueBooking.update({
-        where: { id: booking.id },
-        data: { expectedAttendance: 499 },
-      });
-    };
-
-    it('Backend rejects approval of an over-capacity request (409), even with the page bypassed, and records nothing', async () => {
-      const booking = await overCapacity();
-
-      const res = await act(booking.id, 'approve').expect(409);
-
-      expect(res.body).toMatchObject({
-        code: 'CAPACITY_EXCEEDED',
-        message: expect.stringMatching(
-          /^Cannot approve: .+ holds 200, but expected attendance is 499\.$/,
-        ),
-        capacity: 200,
-        expectedAttendance: 499,
-      });
-      const after = await prisma.venueBooking.findUniqueOrThrow({ where: { id: booking.id } });
-      expect(after.status).toBe(BookingStatus.REQUESTED);
-      expect(await prisma.bookingDecision.count({ where: { bookingId: booking.id } })).toBe(0);
+      await act(BOOKING.showcase, 'reverse', {}).expect(400);
+      expect(await statusOf(BOOKING.showcase)).toBe(BookingStatus.APPROVED);
     });
 
-    it('Backend rejects a reversal that would approve an over-capacity request', async () => {
-      const booking = await overCapacity();
-      await act(booking.id, 'reject', { reason: 'Too small' }).expect(200);
+    // TC-S2-49 · US-22 AC-2 · setup: base-users + base-venues + tc-s2-48-setup · fails if a reversal reason of only spaces counted as a reason
+    // Code: ReverseBookingDto trims the reason (@Trim()) before @IsNotEmpty() checks it.
+    it('US-22 AC-2: whitespace-only reverse reason refused', async () => {
+      await act(BOOKING.showcase, 'approve').expect(200);
 
-      const res = await act(booking.id, 'reverse', { reason: 'Reconsidered' }).expect(409);
+      const res = await act(BOOKING.showcase, 'reverse', { reason: '   ' }).expect(400);
 
-      expect(res.body.code).toBe('CAPACITY_EXCEEDED');
-      const after = await prisma.venueBooking.findUniqueOrThrow({ where: { id: booking.id } });
-      expect(after.status).toBe(BookingStatus.REJECTED);
+      expect(res.body.message).toContain('a reason is required to reverse this decision');
+      expect(await statusOf(BOOKING.showcase)).toBe(BookingStatus.APPROVED);
     });
 
-    it('Reject still works on an over-capacity request', async () => {
-      const booking = await overCapacity();
+    // TC-S2-49 · US-22 AC-2 · setup: base-users + base-venues + tc-s2-48-setup · fails if a reversal with a real reason were refused, or the reason not saved
+    // Code: reverse() records the reversal with the trimmed reason.
+    it('US-22 AC-2: a normal reverse reason is still saved', async () => {
+      await act(BOOKING.showcase, 'approve').expect(200);
 
-      const res = await act(booking.id, 'reject', {
-        reason: 'Over capacity: 499 attendees, venue holds 200',
-      }).expect(200);
+      const res = await act(BOOKING.showcase, 'reverse', { reason: '  Double-booked by mistake  ' }).expect(200);
 
       expect(res.body.status).toBe(BookingStatus.REJECTED);
+      expect(res.body.decisions.at(-1)).toMatchObject({
+        kind: BookingDecisionKind.REVERSAL,
+        reason: 'Double-booked by mistake',
+      });
     });
 
-    it.each([
-      ['equal to', 200],
-      ['below', 80],
-    ])('Approval still works when attendance is %s capacity', async (_label, attendance) => {
-      const booking = await seedBooking();
-      await prisma.venueBooking.update({
-        where: { id: booking.id },
-        data: { expectedAttendance: attendance },
-      });
+    // TC-S2-53 · US-22 AC-6 · setup: base-users + base-venues + tc-s2-48-setup · fails if a request nobody had decided yet could be "reversed"
+    // Code: BOOKING_TRANSITIONS has no REVERSAL from REQUESTED, so canDecide() fails and the service answers 409.
+    it('refuses to reverse a request that has not been decided (409)', async () => {
+      await act(BOOKING.showcase, 'reverse', { reason: 'Changed my mind' }).expect(409);
 
-      const res = await act(booking.id, 'approve').expect(200);
+      expect(await statusOf(BOOKING.showcase)).toBe(BookingStatus.REQUESTED);
+      expect(await prisma.bookingDecision.count()).toBe(0);
+    });
 
-      expect(res.body.status).toBe(BookingStatus.APPROVED);
+    // TC-S2-53 · US-22 AC-6 · setup: base-users + base-venues + tc-s2-55-setup · fails if reversing a rejection into an approval skipped the overlap check
+    // Code: a reversal to APPROVED goes through the same recordDecision() path,
+    // so the overlap check runs again and a now-taken slot is refused.
+    it('re-checks the slot when a rejection is reversed into an approval', async () => {
+      await given('tc-s2-55-setup');
+      await act(BOOKING.first, 'reject', { reason: 'Clash' }).expect(200);
+      await act(BOOKING.second, 'approve').expect(200);
+
+      await act(BOOKING.first, 'reverse', { reason: 'Approve after all' }).expect(409);
+
+      expect(await statusOf(BOOKING.first)).toBe(BookingStatus.REJECTED);
     });
   });
 
   describe('AC-7: the same request cannot be decided twice', () => {
+    // TC-S2-54 · US-22 AC-7 · setup: base-users + base-venues + tc-s2-48-setup · fails if a decided request could be approved or rejected again
+    // Code: a DECISION is only allowed from REQUESTED (BOOKING_TRANSITIONS), so a second one is 409 and writes no row.
     it('refuses a second approve or reject (409) and records nothing more', async () => {
-      const booking = await seedBooking();
-      await act(booking.id, 'approve');
+      await act(BOOKING.showcase, 'approve').expect(200);
 
-      expect((await act(booking.id, 'approve')).status).toBe(409);
-      expect((await act(booking.id, 'reject', { reason: 'changed my mind' })).status).toBe(409);
-      expect(await prisma.bookingDecision.count({ where: { bookingId: booking.id } })).toBe(1);
+      await act(BOOKING.showcase, 'approve').expect(409);
+      await act(BOOKING.showcase, 'reject', { reason: 'changed my mind' }).expect(409);
+      expect(await prisma.bookingDecision.count({ where: { bookingId: BOOKING.showcase } })).toBe(1);
     });
 
+    // TC-S2-54 · US-22 AC-7 · setup: base-users + base-venues + tc-s2-48-setup · fails if a double-click approved the same request twice
+    // Code: recordDecision() locks the venue and re-reads the status under the
+    // lock, so the second of two simultaneous approvals sees APPROVED and gets 409.
     it('lets only one of two simultaneous approvals through', async () => {
-      const booking = await seedBooking();
-
-      const results = await Promise.all([act(booking.id, 'approve'), act(booking.id, 'approve')]);
+      const results = await Promise.all([act(BOOKING.showcase, 'approve'), act(BOOKING.showcase, 'approve')]);
 
       expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
-      expect(await prisma.bookingDecision.count({ where: { bookingId: booking.id } })).toBe(1);
+      expect(await prisma.bookingDecision.count({ where: { bookingId: BOOKING.showcase } })).toBe(1);
     });
   });
 
-  describe('integration with US-21: an approved booking blocks the slot', () => {
+  describe('approval checks the slot is still free (with Story 20 and Story 23)', () => {
+    // TC-S2-55 · US-22 AC-3, US-23 AC-5 · setup: base-users + base-venues + tc-s2-55-setup · fails if two overlapping requests could both be approved
+    // Code: approving re-runs the overlap check under the venue lock; an
+    // APPROVED overlap is a hard conflict, answered 409 with the conflict named.
     it('refuses to approve a second, overlapping request', async () => {
-      const first = await seedBooking(9, 12, 'First');
-      const second = await seedBooking(10, 13, 'Second');
-      await act(first.id, 'approve');
+      await given('tc-s2-55-setup');
+      await act(BOOKING.first, 'approve').expect(200);
 
-      const res = await act(second.id, 'approve');
+      const res = await act(BOOKING.second, 'approve').expect(409);
 
-      expect(res.status).toBe(409);
-      expect(res.body.conflicts).toEqual([expect.objectContaining({ bookingId: first.id })]);
+      expect(res.body.conflicts).toEqual([expect.objectContaining({ bookingId: BOOKING.first })]);
+      expect(await statusOf(BOOKING.second)).toBe(BookingStatus.REQUESTED);
     });
   });
 });

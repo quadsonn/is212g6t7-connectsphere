@@ -8,11 +8,11 @@ import { AppModule } from '../src/app.module';
 import { listenOnLoopback } from './listen-on-loopback';
 
 /**
- * US-20 AC-3 e2e — the facilities an event needs, recorded by the Organiser
+ * US-19 AC-3 e2e — the facilities an event needs, recorded by the Organiser
  * from the same list venues describe themselves with, so suitability can
  * compare the two.
  */
-describe('US-20 AC-3 required facilities on an event request (e2e)', () => {
+describe('US-19 AC-3 required facilities on an event request (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 

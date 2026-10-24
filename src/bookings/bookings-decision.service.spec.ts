@@ -14,8 +14,8 @@ import { ApproveBookingDto, RejectBookingDto, ReverseBookingDto } from './dto/bo
 import { HoldNotifier } from './hold-notifier';
 import { VenueActivityNotifier } from './venue-activity-notifier';
 
-/** US-23 — Approve/Reject Booking Request with Reason. */
-describe('BookingsService decisions (US-23)', () => {
+/** US-22 — Approve/Reject Booking Request with Reason. */
+describe('BookingsService decisions (US-22)', () => {
   let prisma: {
     venueBooking: {
       findFirst: jest.Mock;

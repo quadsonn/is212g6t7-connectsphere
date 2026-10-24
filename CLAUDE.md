@@ -145,6 +145,7 @@ Later sprints add venue (`/venues`, `/bookings`), equipment (`/equipment`), regi
 
 - **Unit tests** on service business rules (status transitions, conflict detection, suitability checks).
 - **Integration/e2e tests** (Supertest) per user story, named so they trace back to the story/AC they verify.
+- **Story numbers:** [docs/BACKLOG.md](docs/BACKLOG.md) is the confirmed backlog. All story numbers in code, tests and docs (`US-NN`, `#NN`) must follow it.
 - **CI pipeline** runs the test suite on push (add when CI is taught; fold into a later sprint).
 - Goal: given any core user story, we can point to the test(s) that prove it works — this is our Week 13 evidence.
 

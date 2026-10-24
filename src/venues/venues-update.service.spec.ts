@@ -260,7 +260,12 @@ describe('VenuesService update (US-14)', () => {
 
       await expect(
         service.updateDraft(staff, 'venue-1', { name: null } as VenueDraftDto),
-      ).resolves.toBeDefined();
+      ).resolves.toMatchObject({ name: null, warnings: [] });
+      // The blank is persisted as null (not refused, as it would be once published).
+      expect(prisma.venue.update).toHaveBeenCalledWith({
+        where: { id: 'venue-1' },
+        data: { name: null },
+      });
     });
 
     it('still allows a genuine edit of a published venue', async () => {

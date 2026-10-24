@@ -20,7 +20,7 @@ import {
   RegistrationsService,
 } from './registrations.service';
 
-/** US-34, US-35 and US-36 — service rules, with Prisma mocked. */
+/** US-33, US-34 and US-35 — service rules, with Prisma mocked. */
 describe('RegistrationsService', () => {
   const attendee: AuthenticatedUser = {
     userId: 'att-1',
@@ -123,7 +123,7 @@ describe('RegistrationsService', () => {
     );
   });
 
-  describe('register (US-34)', () => {
+  describe('register (US-33)', () => {
     it('AC-3: saves a REGISTERED registration, returns it and notifies', async () => {
       const result = await service.register(attendee, dto);
 
@@ -198,14 +198,17 @@ describe('RegistrationsService', () => {
       expect(tx.registration.create).not.toHaveBeenCalled();
     });
 
-    it('AC-1: refuses an event that is not confirmed', async () => {
+    it('AC-1: an event before CONFIRMED is not reachable — 404, not a refusal', async () => {
+      // US-02 AC-7: a pre-CONFIRMED event is invisible to an Attendee, so it is
+      // not found rather than refused — nothing about it, not even that it
+      // exists, is disclosed.
       tx.eventRequest.findUnique.mockResolvedValue({
         ...eventFacts,
         status: EventStatus.PLANNING,
       });
 
       await expect(service.register(attendee, dto)).rejects.toThrow(
-        ConflictException,
+        NotFoundException,
       );
     });
 
@@ -258,7 +261,7 @@ describe('RegistrationsService', () => {
     });
   });
 
-  describe('getOptions (US-34 AC-1/AC-5/AC-6/AC-7)', () => {
+  describe('getOptions (US-33 AC-1/AC-5/AC-6/AC-7)', () => {
     it('offers registration for an open, confirmed event with room', async () => {
       const result = await service.getOptions(attendee, 'event-1');
 
@@ -298,19 +301,21 @@ describe('RegistrationsService', () => {
       expect(result.reason).toMatch(/full/i);
     });
 
-    it('does not offer registration on an unconfirmed event', async () => {
+    it('does not expose options for an unconfirmed event — 404', async () => {
+      // US-02 AC-7: an Attendee cannot reach a pre-CONFIRMED event, so even the
+      // options query is a 404 rather than a "you cannot register" answer.
       prisma.eventRequest.findUnique.mockResolvedValue({
         ...eventFacts,
         status: EventStatus.APPROVED,
       });
 
-      expect((await service.getOptions(attendee, 'event-1')).canRegister).toBe(
-        false,
+      await expect(service.getOptions(attendee, 'event-1')).rejects.toThrow(
+        NotFoundException,
       );
     });
   });
 
-  describe('findMine (US-35)', () => {
+  describe('findMine (US-34)', () => {
     it('AC-1: lists event name, date/time, venue and status', async () => {
       prisma.registration.findMany.mockResolvedValue([row()]);
 
@@ -386,7 +391,7 @@ describe('RegistrationsService', () => {
     });
   });
 
-  describe('findOne (US-35 AC-4)', () => {
+  describe('findOne (US-34 AC-4)', () => {
     it('returns the caller\'s own registration', async () => {
       tx.registration.findUnique.mockResolvedValue(row());
       prisma.registration.findUnique.mockResolvedValue(row());
@@ -413,7 +418,7 @@ describe('RegistrationsService', () => {
     });
   });
 
-  describe('withdraw (US-36)', () => {
+  describe('withdraw (US-35)', () => {
     beforeEach(() => {
       tx.registration.findUnique.mockResolvedValue(row());
       tx.registration.update.mockResolvedValue(

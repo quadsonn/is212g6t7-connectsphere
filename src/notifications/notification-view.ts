@@ -1,4 +1,6 @@
-import { Role } from '@prisma/client';
+import { EventStatus, Role } from '@prisma/client';
+
+import { ATTENDEE_VISIBLE_STATUSES } from '../events/event-status.machine';
 
 /**
  * Notifications page — how a stored notification is presented. Pure, so it is
@@ -16,8 +18,15 @@ import { Role } from '@prisma/client';
  * sending stories store. The event pages reach both: the Coordinator's lists
  * its bookings and the Organiser's shows its change request.
  *
- * Roles with no event page of their own (Attendee, Coordinator Lead) get no
- * link, rather than one that would 404 or bounce them home.
+ * The Attendee goes to their own event page (/events/:id), the same one they
+ * reach from Browse events and My registrations — but only when the event is
+ * still one they may open. That page serves ATTENDEE_VISIBLE_STATUSES only, so
+ * a notification about an event they can no longer view (a cancellation, say)
+ * stays unlinked rather than leading to a 404. When the status is not supplied
+ * the link is given anyway and the page handles an unreadable event itself.
+ *
+ * A Coordinator Lead goes to their incoming-work queue (where a just-submitted
+ * request waits).
  *
  * US-64: a Safety Officer goes to the event's safety review. The packet opens
  * only while the event is in the Safety queue; afterwards the page shows its
@@ -25,14 +34,22 @@ import { Role } from '@prisma/client';
  *
  * US-40 AC-3: a venue activity notification names its booking request, and
  * Venue Staff go straight to that request in their queue.
+ *
+ * US-60: an equipment status-change notice names its item, and Technical
+ * Support go straight to that item in the catalogue.
  */
 export function linkFor(
   role: string,
   relatedEventId: string | null,
   relatedBookingId: string | null = null,
+  relatedEquipmentId: string | null = null,
+  relatedEventStatus: EventStatus | null = null,
 ): string | null {
   if (role === Role.VENUE_STAFF && relatedBookingId) {
     return `/venues/bookings/${relatedBookingId}`;
+  }
+  if (role === Role.TECHNICAL_SUPPORT_STAFF && relatedEquipmentId) {
+    return `/equipment/inventory/${relatedEquipmentId}`;
   }
   if (!relatedEventId) return null;
 
@@ -47,6 +64,16 @@ export function linkFor(
       return `/equipment/requirements/${relatedEventId}`;
     case Role.SAFETY_OFFICER:
       return `/safety/checks/${relatedEventId}`;
+    case Role.EVENT_COORDINATOR_LEAD:
+      // The Lead's incoming-work queue. It lists unassigned requests, so the
+      // link is live while a just-submitted request is waiting; once the
+      // request is assigned it is no longer there (it moves to a Coordinator).
+      return `/lead/unassigned/${relatedEventId}`;
+    case Role.ATTENDEE:
+      return relatedEventStatus === null ||
+        ATTENDEE_VISIBLE_STATUSES.includes(relatedEventStatus)
+        ? `/events/${relatedEventId}`
+        : null;
     default:
       return null;
   }

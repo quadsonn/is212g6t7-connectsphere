@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useUpdatePlanning } from '@/features/events/hooks/use-events';
 import { apiErrorMessage, fieldErrors } from '@/lib/api-client';
 import { todayInVenueTime } from '@/lib/calendar';
-import { START_TIME_SLOTS, TIME_SLOTS } from '@/lib/date-time';
+import { localStringToInstant, START_TIME_SLOTS, TIME_SLOTS } from '@/lib/date-time';
 import { humanise } from '@/lib/utils';
 import {
   ACCESSIBILITY_FEATURES,
@@ -92,9 +92,9 @@ function dirtyPayload(initial: FormState, current: FormState): PlanningUpdatePay
   if (changed('description')) payload.description = current.description.trim();
   if (changed('programme')) payload.programme = optionalText(current.programme);
   if (changed('proposedStart') && current.proposedStart)
-    payload.proposedStart = new Date(current.proposedStart).toISOString();
+    payload.proposedStart = localStringToInstant(current.proposedStart);
   if (changed('proposedEnd') && current.proposedEnd)
-    payload.proposedEnd = new Date(current.proposedEnd).toISOString();
+    payload.proposedEnd = localStringToInstant(current.proposedEnd);
   if (changed('expectedAttendance'))
     payload.expectedAttendance = Number(current.expectedAttendance);
   if (changed('preferredLayout')) payload.preferredLayout = current.preferredLayout || null;

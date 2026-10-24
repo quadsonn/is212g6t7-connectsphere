@@ -68,6 +68,8 @@ export type HistoryField =
   // planning edit, so they sit outside TRACKED_FIELDS.
   | 'equipmentRequirements'
   | 'technicalSupportNeeds'
+  // US-61: the assigned Technical Support member, by name, like 'coordinator'.
+  | 'technicalSupport'
   // US-48 AC-7: what an approved change request moved — each line says where
   // a venue booking or equipment reservation was, and where it is now.
   | 'venueBookings'
@@ -108,7 +110,7 @@ export const ARRANGEMENT_SENSITIVE_FIELDS: Readonly<
     'expectedAttendance',
     'preferredLayout',
     'accessibilityRequirements',
-    // US-20 AC-3: the venue was checked against these too.
+    // US-19 AC-3: the venue was checked against these too.
     'requiredFacilities',
   ],
   [ConfirmedArrangement.EQUIPMENT_RESERVATION]: [

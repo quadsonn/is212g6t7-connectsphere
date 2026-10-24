@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { EventStatus, Role } from '@prisma/client';
 
 import { linkFor, splitReason } from './notification-view';
 
@@ -12,16 +12,25 @@ describe('Notifications page: presenting a notification', () => {
       [Role.TECHNICAL_SUPPORT_STAFF, '/equipment/requirements/e1'],
       // US-64: the event's safety review.
       [Role.SAFETY_OFFICER, '/safety/checks/e1'],
+      // A Coordinator Lead goes to their incoming-work queue.
+      [Role.EVENT_COORDINATOR_LEAD, '/lead/unassigned/e1'],
     ])('%s → %s', (role, link) => {
       expect(linkFor(role, 'e1')).toBe(link);
     });
 
-    it.each([Role.ATTENDEE, Role.EVENT_COORDINATOR_LEAD])(
-      'gives %s no link — it has no event page to go to',
-      (role) => {
-        expect(linkFor(role, 'e1')).toBeNull();
-      },
-    );
+    it('sends an Attendee to their own event page', () => {
+      expect(linkFor(Role.ATTENDEE, 'e1', null, null, EventStatus.CONFIRMED)).toBe('/events/e1');
+    });
+
+    it('links an Attendee even when the status is unknown — the page decides', () => {
+      expect(linkFor(Role.ATTENDEE, 'e1')).toBe('/events/e1');
+    });
+
+    it('gives an Attendee no link for an event they can no longer open', () => {
+      // A cancellation notification: CANCELLED is not attendee-visible, so the
+      // link would 404. Better no link than a dead one.
+      expect(linkFor(Role.ATTENDEE, 'e1', null, null, EventStatus.CANCELLED)).toBeNull();
+    });
 
     it('US-40 AC-3: Venue Staff go to the booking request itself when there is one', () => {
       expect(linkFor(Role.VENUE_STAFF, 'e1', 'b1')).toBe('/venues/bookings/b1');

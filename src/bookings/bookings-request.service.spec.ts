@@ -19,8 +19,8 @@ import { CreateBookingRequestDto } from './dto/create-booking-request.dto';
 import { HoldNotifier } from './hold-notifier';
 import { VenueActivityNotifier } from './venue-activity-notifier';
 
-/** US-21 — submit a request to book a venue with timing and requirements. */
-describe('BookingsService createRequest (US-21)', () => {
+/** US-20 — submit a request to book a venue with timing and requirements. */
+describe('BookingsService createRequest (US-20)', () => {
   let prisma: {
     eventRequest: { findFirst: jest.Mock };
     venue: { findFirst: jest.Mock; findUnique: jest.Mock };

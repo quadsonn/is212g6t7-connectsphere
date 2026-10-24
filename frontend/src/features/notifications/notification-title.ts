@@ -48,6 +48,22 @@ const TITLES: Record<string, string> = {
   // US-43, and changes to an event Attendees are registered for.
   EVENT_CANCELLED: 'Event cancelled',
   EVENT_SCHEDULE_CHANGED: 'Event details changed',
+  // US-60: the message names the item, its new status and who changed it.
+  EQUIPMENT_STATUS_CHANGED: 'Equipment status changed',
+  // US-66: equipment work for an event the reader is assigned to (or, for a
+  // request, the pool while nobody is assigned).
+  EQUIPMENT_REQUEST_SUBMITTED: 'Equipment request',
+  EQUIPMENT_EVENT_CANCELLED: 'Equipment released',
+  EQUIPMENT_RESERVATIONS_REBOOKED: 'Equipment rebooked',
+  // Equipment an event depends on went out of service, or was released.
+  EQUIPMENT_UNAVAILABLE: 'Equipment unavailable',
+  EQUIPMENT_RELEASED: 'Equipment released',
+  // Incoming work for Coordinators and Leads.
+  EVENT_SUBMITTED: 'New event request',
+  // Registration-window notices for Attendees.
+  REGISTRATION_OPENED: 'Registration open',
+  REGISTRATION_CLOSED: 'Registration closed',
+  REGISTRATION_NEAR_CAPACITY: 'Few places left',
 };
 
 /**

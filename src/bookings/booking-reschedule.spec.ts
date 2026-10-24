@@ -1,7 +1,7 @@
 import { rescheduleWindow, windowMoved } from './booking-reschedule';
 
-/** US-38 — where a booking lands when its event moves. */
-describe('booking reschedule rules (US-38)', () => {
+/** US-37 — where a booking lands when its event moves. */
+describe('booking reschedule rules (US-37)', () => {
   const at = (day: number, hour: number) =>
     new Date(Date.UTC(2030, 9, day, hour, 0, 0));
 

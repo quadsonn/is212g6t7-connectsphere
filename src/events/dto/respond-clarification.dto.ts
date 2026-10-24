@@ -1,12 +1,13 @@
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import { IsNotEmpty, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
 
+import { Trim } from '../../common/validators/trim.transform';
 import { DraftEventRequestDto } from './draft-event-request.dto';
 
 /** US-09 AC-4 — the Organiser's answer. */
 export class RespondClarificationDto {
   /** US-58 AC6: trimmed first, so a whitespace-only answer counts as empty. */
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Trim()
   @IsString()
   @IsNotEmpty({ message: 'a response is required' })
   @MaxLength(4000)

@@ -21,8 +21,8 @@ import { EventsChangeReviewService } from './events-change-review.service';
 import { EventsService } from './events.service';
 import { VenueActivityNotifier } from '../bookings/venue-activity-notifier';
 
-/** US-38 — a Coordinator reviews a change request and approves or rejects it. */
-describe('EventsChangeReviewService (US-38)', () => {
+/** US-37 — a Coordinator reviews a change request and approves or rejects it. */
+describe('EventsChangeReviewService (US-37)', () => {
   const DAY = 24 * 60 * 60 * 1000;
   const inDays = (days: number, hour = 9) => {
     const date = new Date(Date.now() + days * DAY);

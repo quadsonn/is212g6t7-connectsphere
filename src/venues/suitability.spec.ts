@@ -8,8 +8,8 @@ import {
   assessSuitability,
 } from './suitability';
 
-/** US-20 — the suitability rules, one venue against one event. */
-describe('US-20 venue suitability', () => {
+/** US-19 — the suitability rules, one venue against one event. */
+describe('US-19 venue suitability', () => {
   const venue = (overrides: Partial<SuitabilityVenue> = {}): SuitabilityVenue => ({
     capacity: 100,
     accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS, AccessibilityFeature.HEARING_LOOP],
@@ -27,7 +27,7 @@ describe('US-20 venue suitability', () => {
   });
 
   describe('AC-1: capacity', () => {
-    it('US-20: passes when attendance equals capacity', () => {
+    it('US-19: passes when attendance equals capacity', () => {
       const result = assessSuitability(venue(), event({ expectedAttendance: 100 }));
 
       expect(result.capacity).toEqual({
@@ -37,21 +37,21 @@ describe('US-20 venue suitability', () => {
       });
     });
 
-    it('US-20: fails when attendance is one over capacity', () => {
+    it('US-19: fails when attendance is one over capacity', () => {
       const result = assessSuitability(venue(), event({ expectedAttendance: 101 }));
 
       expect(result.capacity.status).toBe(CheckStatus.UNMET);
       expect(result.overall).toBe(OverallSuitability.NOT_SUITABLE);
     });
 
-    it('US-20: treats a venue with no capacity as not suitable, not a pass', () => {
+    it('US-19: treats a venue with no capacity as not suitable, not a pass', () => {
       const result = assessSuitability(venue({ capacity: null }), event());
 
       expect(result.capacity.status).toBe(CheckStatus.UNMET);
       expect(result.overallSuitable).toBe(false);
     });
 
-    it('US-20: reports missing attendance as not recorded, making the result incomplete', () => {
+    it('US-19: reports missing attendance as not recorded, making the result incomplete', () => {
       const result = assessSuitability(venue(), event({ expectedAttendance: null }));
 
       expect(result.capacity.status).toBe(CheckStatus.NOT_RECORDED);
@@ -61,7 +61,7 @@ describe('US-20 venue suitability', () => {
   });
 
   describe('AC-2: accessibility, one flag per requirement', () => {
-    it('US-20: flags each requirement individually, naming the missing one', () => {
+    it('US-19: flags each requirement individually, naming the missing one', () => {
       const result = assessSuitability(
         venue(),
         event({
@@ -83,7 +83,7 @@ describe('US-20 venue suitability', () => {
       });
     });
 
-    it('US-20: returns one entry per unmet requirement, not an aggregate', () => {
+    it('US-19: returns one entry per unmet requirement, not an aggregate', () => {
       const result = assessSuitability(
         venue({ accessibilityFeatures: [] }),
         event({
@@ -97,7 +97,7 @@ describe('US-20 venue suitability', () => {
       expect(result.accessibility.items.filter((item) => !item.met)).toHaveLength(2);
     });
 
-    it('US-20: an event with no accessibility needs is not-required, and passes', () => {
+    it('US-19: an event with no accessibility needs is not-required, and passes', () => {
       const result = assessSuitability(venue(), event({ accessibilityRequirements: [] }));
 
       expect(result.accessibility).toEqual({ status: CheckStatus.NOT_REQUIRED, items: [] });
@@ -106,13 +106,13 @@ describe('US-20 venue suitability', () => {
   });
 
   describe('layout (beyond the listed ACs)', () => {
-    it('US-20: flags a preferred layout the venue does not support', () => {
+    it('US-19: flags a preferred layout the venue does not support', () => {
       const result = assessSuitability(venue(), event({ preferredLayout: RoomLayout.BANQUET }));
 
       expect(result.layout).toEqual({ status: CheckStatus.UNMET, requirement: RoomLayout.BANQUET });
     });
 
-    it('US-20: no preferred layout is not-required', () => {
+    it('US-19: no preferred layout is not-required', () => {
       const result = assessSuitability(venue(), event({ preferredLayout: null }));
 
       expect(result.layout.status).toBe(CheckStatus.NOT_REQUIRED);
@@ -236,7 +236,7 @@ describe('US-20 venue suitability', () => {
   });
 
   describe('AC-4: overall indicator', () => {
-    it('US-20: is suitable only when every check passes', () => {
+    it('US-19: is suitable only when every check passes', () => {
       const result = assessSuitability(venue(), event());
 
       expect(result.overall).toBe(OverallSuitability.SUITABLE);
@@ -248,14 +248,14 @@ describe('US-20 venue suitability', () => {
       ['accessibility', { accessibilityRequirements: [AccessibilityFeature.NURSING_ROOM] }],
       ['layout', { preferredLayout: RoomLayout.BOARDROOM }],
       ['facilities', { requiredFacilities: [Facility.STAGE] }],
-    ])('US-20: is not suitable when only %s fails', (_label, overrides) => {
+    ])('US-19: is not suitable when only %s fails', (_label, overrides) => {
       const result = assessSuitability(venue(), event(overrides));
 
       expect(result.overall).toBe(OverallSuitability.NOT_SUITABLE);
       expect(result.overallSuitable).toBe(false);
     });
 
-    it('US-20: an unmet check outranks missing data', () => {
+    it('US-19: an unmet check outranks missing data', () => {
       const result = assessSuitability(
         venue(),
         event({ expectedAttendance: null, preferredLayout: RoomLayout.BANQUET }),

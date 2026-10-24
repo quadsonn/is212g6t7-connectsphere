@@ -1,5 +1,5 @@
 import { BOOKING_STATUS_STYLES } from '@/lib/status';
-import { humanise } from '@/lib/utils';
+import { formatDateTime, humanise } from '@/lib/utils';
 import type { BookingDecision } from '@/types/api';
 
 /**
@@ -41,7 +41,7 @@ export function BookingDecisionHistory({ decisions }: { decisions: BookingDecisi
           ) : null}
           <p className="mt-1 text-xs text-ink-500">
             {d.decidedBy ? `${d.decidedBy.name} (${humanise(d.decidedBy.role)})` : 'System'} ·{' '}
-            {new Date(d.createdAt).toLocaleString()}
+            {formatDateTime(d.createdAt)}
           </p>
         </li>
       ))}

@@ -279,7 +279,7 @@ export function EventRequestFields({
             />
           </Field>
 
-          {/* US-20 AC-3: the same list venues use, so suitability can compare them. */}
+          {/* US-19 AC-3: the same list venues use, so suitability can compare them. */}
           <Field
             label="Required facilities"
             htmlFor="requiredFacilities"

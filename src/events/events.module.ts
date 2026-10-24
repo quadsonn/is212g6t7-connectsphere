@@ -6,12 +6,14 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { EventsAssignmentController } from './events-assignment.controller';
 import { EventsAssignmentService } from './events-assignment.service';
 import { EventsChangeRequestService } from './events-change-request.service';
+import { EventsRequestNotifier } from './events-request-notifier.service';
 import { EventsChangeReviewService } from './events-change-review.service';
 import { EventConfirmationService } from './event-confirmation.service';
 import { EventsCancellationService } from './events-cancellation.service';
 import { EventsController } from './events.controller';
 import { ChangeArrangementCheckService } from './change-arrangement-check.service';
 import { EventsService } from './events.service';
+import { EventsTechnicalSupportService } from './events-technical-support.service';
 import { EventsUnfulfillableService } from './events-unfulfillable.service';
 
 /**
@@ -35,6 +37,9 @@ import { EventsUnfulfillableService } from './events-unfulfillable.service';
     // US-42: confirming the arrangements.
     EventConfirmationService,
     EventsCancellationService,
+    // US-61: assign a Technical Support member to an event.
+    EventsTechnicalSupportService,
+    EventsRequestNotifier,
   ],
   exports: [EventsService],
 })

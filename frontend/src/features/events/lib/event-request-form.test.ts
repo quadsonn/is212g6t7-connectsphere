@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { OrganiserRequestView } from '@/types/api';
 import { EMPTY_EVENT_REQUEST_FORM, mapExistingToForm, toPayload } from './event-request-form';
 
-describe('US-20 AC-3: required facilities on the event request form', () => {
+describe('US-19 AC-3: required facilities on the event request form', () => {
   it('Given facilities are picked, Then the payload sends them', () => {
     const payload = toPayload({ ...EMPTY_EVENT_REQUEST_FORM, requiredFacilities: ['PROJECTOR', 'STAGE'] });
 

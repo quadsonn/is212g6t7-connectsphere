@@ -16,6 +16,8 @@ import { EventStatusBadge } from '@/features/events/components/event-status-badg
 import { PlanningEditForm } from '@/features/events/components/planning-edit-form';
 import { RejectUnfulfillable } from '@/features/events/components/reject-unfulfillable';
 import { TechnicalRequirementsCard } from '@/features/events/components/technical-requirements';
+import { TechnicalSupportCard } from '@/features/events/components/technical-support-card';
+import { EquipmentUnavailableNotice } from '@/features/events/components/equipment-unavailable-notice';
 import { ARRANGEMENT_LABELS } from '@/features/events/lib/change-format';
 import { BookingRequestForm } from '@/features/bookings/components/booking-request-form';
 import { EventBookingsList } from '@/features/bookings/components/event-bookings-list';
@@ -390,7 +392,7 @@ export function CoordinatorEventDetail() {
             </CardContent>
           </Card>
 
-          {/* US-20 AC-3: what the venue must have; suitability checks venues against it. */}
+          {/* US-19 AC-3: what the venue must have; suitability checks venues against it. */}
           <Card>
             <CardHeader>
               <CardTitle>Required facilities</CardTitle>
@@ -409,8 +411,15 @@ export function CoordinatorEventDetail() {
               )}
             </CardContent>
           </Card>
+          <EquipmentUnavailableNotice items={event.unavailableEquipment} />
 
           <TechnicalRequirementsCard event={event} editable={inPlanning && isAssignedToMe} />
+
+          {/* US-61: only the event's own Coordinator assigns, and only once
+              technical support needs are recorded (AC-1). */}
+          {isAssignedToMe && event.technicalSupportNeeds?.trim() ? (
+            <TechnicalSupportCard eventId={event.id} editable />
+          ) : null}
 
           <Card>
             <CardHeader>

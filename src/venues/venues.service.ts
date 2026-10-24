@@ -86,7 +86,7 @@ export class VenuesService {
     private readonly storage: SupabaseStorageService,
     private readonly events: EventsService,
     private readonly reviews: BookingReviewService,
-    // US-20 AC-3: free units of the equipment an event asks for.
+    // US-19 AC-3: free units of the equipment an event asks for.
     private readonly equipment: EquipmentService,
   ) {}
 

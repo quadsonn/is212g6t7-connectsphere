@@ -22,6 +22,7 @@ describe('EventsService review (US-07)', () => {
       findMany: jest.Mock;
       findUniqueOrThrow: jest.Mock;
     };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let access: {
@@ -64,6 +65,8 @@ describe('EventsService review (US-07)', () => {
         findMany: jest.fn().mockResolvedValue([]),
         findUniqueOrThrow: jest.fn().mockResolvedValue(event()),
       },
+      // claimForDecision: the request still holds the status it was read with.
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'event-1' }]),
       $transaction: jest.fn((cb) => cb(prisma)),
     };
     access = {
@@ -78,18 +81,56 @@ describe('EventsService review (US-07)', () => {
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
-      { releaseForCancelledEvent: jest.fn() } as unknown as EquipmentReservationsService,
+      { releaseForCancelledEvent: jest.fn(), findUnavailableForEvent: jest.fn().mockResolvedValue([]) } as unknown as EquipmentReservationsService,
       { releaseForCancelledEvent: jest.fn().mockResolvedValue([]) } as unknown as BookingsService,
     );
   });
 
   describe('AC-1: current status is reported', () => {
-    it.each(Object.values(EventStatus))('reports %s', async (status) => {
-      prisma.eventRequest.findUniqueOrThrow.mockResolvedValue(event({ status }));
+    // One row per distinct status-view outcome: no decision, a rejection with
+    // its reason, a return with its reason, and a terminal status. The statuses
+    // AC-1 names (draft, submitted, under review, approved, returned, rejected)
+    // are proven against the DB by test/events-review.e2e-spec.ts ("shows %s"
+    // and "shows a returned request with its outstanding question").
+    it.each([
+      {
+        status: EventStatus.SUBMITTED,
+        fields: {},
+        expected: { isTerminal: false, decision: null, clarificationRequested: false },
+      },
+      {
+        status: EventStatus.REJECTED,
+        fields: { decisionReason: 'Venue capacity too small' },
+        expected: {
+          isTerminal: false,
+          decision: { outcome: EventStatus.REJECTED, reason: 'Venue capacity too small' },
+          clarificationRequested: false,
+        },
+      },
+      {
+        status: EventStatus.RETURNED,
+        fields: { clarificationRequest: 'Please confirm the attendance figure' },
+        expected: {
+          isTerminal: false,
+          decision: {
+            outcome: EventStatus.RETURNED,
+            reason: 'Please confirm the attendance figure',
+          },
+          clarificationRequested: true,
+        },
+      },
+      {
+        status: EventStatus.CANCELLED,
+        fields: {},
+        expected: { isTerminal: true, decision: null, clarificationRequested: false },
+      },
+    ])('reports $status with its status view', async ({ status, fields, expected }) => {
+      prisma.eventRequest.findUniqueOrThrow.mockResolvedValue(event({ status, ...fields }));
 
       const result = await service.findAssignedRequest(coordinator, 'event-1');
 
       expect(result.status).toBe(status);
+      expect(result.statusView).toEqual({ status, ...expected });
     });
 
     it('reports a returned request with its outstanding question', async () => {

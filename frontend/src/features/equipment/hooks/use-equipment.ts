@@ -12,6 +12,7 @@ import type {
   EventRequirements,
   ItemAvailability,
   ReleasedReservation,
+  TechnicalSupportAssignment,
   UpcomingReservation,
 } from '@/types/api';
 import { equipmentApi } from '../api/equipment.api';
@@ -25,6 +26,7 @@ export const equipmentKeys = {
   eventRequirements: (eventId: string) => ['equipment', 'requirements', eventId] as const,
   eventDetails: (eventId: string) => ['equipment', 'requirements', eventId, 'details'] as const,
   released: ['equipment', 'released'] as const,
+  assignments: ['equipment', 'assignments'] as const,
 };
 
 /** US-29 — the catalogue, optionally searched and sorted server-side. */
@@ -93,10 +95,11 @@ export function useCheckAvailability() {
 }
 
 /** US-31 — events with equipment requirements. */
-export function useEventRequirementsList() {
+export function useEventRequirementsList(includeFinished = false) {
   return useQuery<EventRequirements[]>({
-    queryKey: equipmentKeys.requirements,
-    queryFn: equipmentApi.listRequirements,
+    // Under the shared key, so invalidating the requirements refreshes both lists.
+    queryKey: [...equipmentKeys.requirements, { includeFinished }],
+    queryFn: () => equipmentApi.listRequirements(includeFinished),
     staleTime: 0,
   });
 }
@@ -135,6 +138,15 @@ export function useReleasedReservations() {
   return useQuery<ReleasedReservation[]>({
     queryKey: equipmentKeys.released,
     queryFn: equipmentApi.listReleased,
+    staleTime: 0,
+  });
+}
+
+/** US-61 AC-3 — the events the caller is assigned to support. */
+export function useMyTechnicalSupportAssignments() {
+  return useQuery<TechnicalSupportAssignment[]>({
+    queryKey: equipmentKeys.assignments,
+    queryFn: equipmentApi.listMyAssignments,
     staleTime: 0,
   });
 }

@@ -34,10 +34,11 @@ const DEFAULT_SORT: Record<View, SortKey> = {
   decided: 'submitted-desc',
 };
 
-/** "2030-10-01" -> start or end of that local day, as ISO. */
+/** "2030-10-01" -> start or end of that Singapore day, as a UTC instant. */
 function dayBoundary(date: string, end: boolean): string | undefined {
   if (!date) return undefined;
-  return new Date(`${date}T${end ? '23:59:59.999' : '00:00:00'}`).toISOString();
+  // +08:00: the queue filters by the venue's (Singapore) calendar day.
+  return new Date(`${date}T${end ? '23:59:59.999' : '00:00:00'}+08:00`).toISOString();
 }
 
 /** AC-5: how close the event is, in words. */

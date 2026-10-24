@@ -13,7 +13,13 @@ import { ErrorState } from '@/components/ui/states';
 import { useVenues } from '@/features/venues/hooks/use-venues';
 import { apiErrorMessage, fieldErrors } from '@/lib/api-client';
 import { todayInVenueTime } from '@/lib/calendar';
-import { START_TIME_SLOTS, TIME_SLOTS, slotsIncluding } from '@/lib/date-time';
+import {
+  START_TIME_SLOTS,
+  TIME_SLOTS,
+  isoToLocalParts,
+  partsToInstant,
+  slotsIncluding,
+} from '@/lib/date-time';
 import { formatDateRange, humanise } from '@/lib/utils';
 import {
   ACCESSIBILITY_FEATURE_LABELS,
@@ -32,26 +38,19 @@ import { ConflictList } from './conflict-list';
 
 const FIELDS = ['venueId', 'start', 'end', 'expectedAttendance'] as const;
 
-/** ISO -> "yyyy-mm-dd" in local time, for a date input. */
+/** ISO -> "yyyy-mm-dd" at the venue (Singapore), for a date input. */
 function toDateInput(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return isoToLocalParts(iso).date;
 }
 
-/** ISO -> "HH:mm" in local time, for a time input. */
+/** ISO -> "HH:mm" at the venue (Singapore), for a time input. */
 function toTimeInput(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return isoToLocalParts(iso).time;
 }
 
-/** Local date + time -> ISO, or '' when either half is missing. */
+/** Singapore date + time -> ISO, or '' when either half is missing. */
 function toIso(date: string, time: string): string {
-  if (!date || !time) return '';
-  const value = new Date(`${date}T${time}`);
-  return Number.isNaN(value.getTime()) ? '' : value.toISOString();
+  return partsToInstant(date, time);
 }
 
 /**

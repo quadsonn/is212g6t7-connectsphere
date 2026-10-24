@@ -34,7 +34,7 @@ const detailOf = async (label: string) => (await screen.findByText(label)).nextE
 
 beforeEach(() => vi.resetAllMocks());
 
-describe('US-20 AC-3: facilities and equipment on the suitability panel', () => {
+describe('US-19 AC-3: facilities and equipment on the suitability panel', () => {
   it('Given every required facility is met, Then the Facilities row lists them', async () => {
     api.suitability.mockResolvedValue(
       result({

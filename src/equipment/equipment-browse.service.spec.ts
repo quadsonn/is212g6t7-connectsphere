@@ -8,8 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EquipmentSortField, SortOrder } from './dto/browse-equipment.dto';
 import { EquipmentService } from './equipment.service';
 
-/** US-29 — viewing the equipment catalogue. */
-describe('EquipmentService browse (US-29)', () => {
+/** US-28 — viewing the equipment catalogue. */
+describe('EquipmentService browse (US-28)', () => {
   let prisma: { equipment: { findMany: jest.Mock; findFirst: jest.Mock } };
   let access: { requireScope: jest.Mock };
   let service: EquipmentService;
@@ -37,7 +37,7 @@ describe('EquipmentService browse (US-29)', () => {
     );
   });
 
-  describe('US-29 AC-1: the list carries the at-a-glance fields', () => {
+  describe('US-28 AC-1: the list carries the at-a-glance fields', () => {
     it('reads straight from the database, scoped by the permission matrix', async () => {
       await service.findAllForUser(tech);
 
@@ -78,7 +78,7 @@ describe('EquipmentService browse (US-29)', () => {
     });
   });
 
-  describe('US-29 AC-3: finding one item without scrolling', () => {
+  describe('US-28 AC-3: finding one item without scrolling', () => {
     it('filters by a case-insensitive type substring', async () => {
       await service.findAllForUser(tech, { search: 'mic' });
 
@@ -119,7 +119,7 @@ describe('EquipmentService browse (US-29)', () => {
     });
   });
 
-  describe('US-29 AC-4: no stale data', () => {
+  describe('US-28 AC-4: no stale data', () => {
     it('queries the database on every call', async () => {
       await service.findAllForUser(tech);
       await service.findAllForUser(tech);
@@ -129,7 +129,7 @@ describe('EquipmentService browse (US-29)', () => {
     });
   });
 
-  describe('US-29 AC-2: one item’s full detail', () => {
+  describe('US-28 AC-2: one item’s full detail', () => {
     it('returns the item when it exists and the caller may read it', async () => {
       const item = { id: 'eq-1', type: 'Projector (4K)', statusChanges: [] };
       prisma.equipment.findFirst.mockResolvedValue(item);

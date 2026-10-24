@@ -9,8 +9,8 @@ import {
   sameEquipment,
 } from './change-request.rules';
 
-/** US-37 — what makes a change request valid, and what it actually changes. */
-describe('change request rules (US-37)', () => {
+/** US-36 — what makes a change request valid, and what it actually changes. */
+describe('change request rules (US-36)', () => {
   const now = new Date('2026-10-05T09:00:00Z');
   const start = new Date('2026-11-01T09:00:00Z');
   const end = new Date('2026-11-01T17:00:00Z');

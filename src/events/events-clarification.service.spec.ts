@@ -77,7 +77,8 @@ describe('EventsService clarification (US-09)', () => {
           }),
         ),
       },
-      // US-58: the response locks the request row.
+      // The row lock: US-58's response, and claimForDecision for the
+      // review actions (the request still holds the status it was read with).
       $queryRaw: jest.fn().mockResolvedValue([{ id: 'event-1' }]),
       $transaction: jest.fn((cb) => cb(prisma)),
     };

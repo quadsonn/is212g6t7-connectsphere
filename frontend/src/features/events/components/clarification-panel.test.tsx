@@ -234,7 +234,7 @@ describe('US-58 clarification panel', () => {
       );
     });
 
-    it('US-20 AC-3: Given the Organiser picks a required facility, When sent, Then it goes as a change', async () => {
+    it('US-19 AC-3: Given the Organiser picks a required facility, When sent, Then it goes as a change', async () => {
       api.respondToClarification.mockResolvedValue(event({ status: 'UNDER_REVIEW' }));
       renderPanel(event({ requiredFacilities: [] }));
 

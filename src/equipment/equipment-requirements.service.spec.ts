@@ -14,8 +14,8 @@ import {
   toRequirementsView,
 } from './equipment-requirements.service';
 
-/** US-31 — viewing an event's equipment and technical requirements. */
-describe('EquipmentRequirementsService (US-31)', () => {
+/** US-30 — viewing an event's equipment and technical requirements. */
+describe('EquipmentRequirementsService (US-30)', () => {
   const tech: AuthenticatedUser = {
     userId: 'tech-1',
     role: Role.TECHNICAL_SUPPORT_STAFF,
@@ -62,7 +62,7 @@ describe('EquipmentRequirementsService (US-31)', () => {
     );
   });
 
-  describe('US-31 AC-1/AC-2: recorded requirements are shown, including what was requested', () => {
+  describe('US-30 AC-1/AC-2: recorded requirements are shown, including what was requested', () => {
     it('Organiser text only — returned in full', () => {
       expect(toRequirementsView({ ...bare, equipmentNeeds: 'Six mics, two projectors.' })).toEqual({
         eventId: 'event-1',
@@ -135,7 +135,7 @@ describe('EquipmentRequirementsService (US-31)', () => {
     });
   });
 
-  describe('US-31 AC-3: none of the three recorded is clearly indicated', () => {
+  describe('US-30 AC-3: none of the three recorded is clearly indicated', () => {
     it.each([
       ['all null', null, null],
       ['all empty', '', ''],
@@ -160,7 +160,7 @@ describe('EquipmentRequirementsService (US-31)', () => {
     });
   });
 
-  describe('US-31 AC-4: only submitted events with a requirement source; drafts hidden', () => {
+  describe('US-30 AC-4: only submitted events with a requirement source; drafts hidden', () => {
     it('the visibility rule excludes drafts and needs at least one of the three sources', () => {
       const where = REQUIREMENTS_VISIBLE_WHERE as { status: { in: EventStatus[] }; OR: unknown[] };
 
@@ -187,6 +187,44 @@ describe('EquipmentRequirementsService (US-31)', () => {
       prisma.eventRequest.findMany.mockResolvedValue([
         { ...bare, equipmentNeeds: 'Six mics.' },
         { ...bare, id: 'event-2', equipmentNeeds: '   ' },
+      ]);
+
+      const views = await service.findEventsWithRequirements(tech);
+
+      expect(views.map((v) => v.eventId)).toEqual(['event-1']);
+    });
+
+    it.each([EventStatus.REJECTED, EventStatus.CANCELLED, EventStatus.COMPLETED])(
+      'US-30 AC-4: the list hides a %s event by default',
+      async (status) => {
+        prisma.eventRequest.findMany.mockResolvedValue([
+          { ...bare, equipmentNeeds: 'Six mics.' },
+          { ...bare, id: 'event-2', equipmentNeeds: 'Six mics.', status },
+        ]);
+
+        const views = await service.findEventsWithRequirements(tech);
+
+        expect(views.map((v) => v.eventId)).toEqual(['event-1']);
+      },
+    );
+
+    it('US-30 AC-4: the list shows finished events, with their status, when asked', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([
+        { ...bare, equipmentNeeds: 'Six mics.' },
+        { ...bare, id: 'event-2', equipmentNeeds: 'Six mics.', status: EventStatus.CANCELLED },
+      ]);
+
+      const views = await service.findEventsWithRequirements(tech, { includeFinished: true });
+
+      expect(views.map((v) => [v.eventId, v.status])).toEqual([
+        ['event-1', EventStatus.PLANNING],
+        ['event-2', EventStatus.CANCELLED],
+      ]);
+    });
+
+    it('US-30 AC-4: a Safety rejected event stays on the list, since it can return to planning', async () => {
+      prisma.eventRequest.findMany.mockResolvedValue([
+        { ...bare, equipmentNeeds: 'Six mics.', status: EventStatus.SAFETY_REJECTED },
       ]);
 
       const views = await service.findEventsWithRequirements(tech);
@@ -229,7 +267,7 @@ describe('EquipmentRequirementsService (US-31)', () => {
     });
   });
 
-  describe('US-31 AC-4: "View more details" opens any submitted event; drafts hidden', () => {
+  describe('US-30 AC-4: "View more details" opens any submitted event; drafts hidden', () => {
     const detailsRow = {
       id: 'event-1',
       name: 'Capstone Showcase',

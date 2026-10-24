@@ -53,6 +53,8 @@ describe('Story 34 view my registration status (integration)', () => {
   const mine = (who: keyof typeof USERS = 'attendee') => http().get('/registrations/me').set('Authorization', as(who));
   const one = (id: string, who: keyof typeof USERS = 'attendee') =>
     http().get(`/registrations/${id}`).set('Authorization', as(who));
+  const withdraw = (id: string) =>
+    http().post(`/registrations/${id}/withdraw`).set('Authorization', as('attendee')).send({ confirm: true });
 
   /** Loads a test case's setup script(s) on top of the shared pre-condition. */
   const given = async (...scripts: string[]) => {
@@ -126,6 +128,64 @@ describe('Story 34 view my registration status (integration)', () => {
         }),
       ]);
       expect(res.headers['cache-control']).toBe('no-store');
+    });
+  });
+
+  describe('US-34: a registration whose event is cancelled stays listed, with nothing left to do', () => {
+    // The state a cancellation leaves behind (US-43/US-44): the event is
+    // CANCELLED and its approved booking RELEASED. The registration itself is
+    // untouched, so it is still REGISTERED.
+    const cancelConcert = async () => {
+      await prisma.eventRequest.update({ where: { id: 'EVT-062' }, data: { status: 'CANCELLED' } });
+      await prisma.venueBooking.update({ where: { id: 'BKG-056' }, data: { status: 'RELEASED' } });
+    };
+
+    it('US-34: the cancelled registration is still listed, marked cancelled, with withdrawal off', async () => {
+      await given('tc-s2-145-setup');
+      await cancelConcert();
+
+      const res = await mine().expect(200);
+
+      expect(res.body.registrations).toContainEqual(
+        expect.objectContaining({
+          id: REG.concert,
+          status: 'REGISTERED',
+          event: expect.objectContaining({ name: 'Autumn Concert', status: 'CANCELLED', venue: null }),
+          withdrawal: expect.objectContaining({
+            canWithdraw: false,
+            reason: 'This event has been cancelled.',
+          }),
+        }),
+      );
+    });
+
+    it('US-34: the server refuses to withdraw a registration on a cancelled event (409), changing nothing', async () => {
+      await given('tc-s2-145-setup');
+      await cancelConcert();
+
+      const res = await withdraw(REG.concert).expect(409);
+
+      expect(res.body.message).toBe('This event has been cancelled.');
+      const row = await prisma.registration.findUniqueOrThrow({ where: { id: REG.concert } });
+      expect(row).toMatchObject({ status: 'REGISTERED', withdrawnAt: null });
+      expect(
+        await prisma.notification.count({ where: { recipientId: 'USR-001', type: 'REGISTRATION_WITHDRAWN' } }),
+      ).toBe(0);
+    });
+
+    it('US-34: a confirmed event still works normally: venue shown, and withdrawal allowed', async () => {
+      await given('tc-s2-145-setup');
+
+      const listed = (await mine().expect(200)).body.registrations.find(
+        (r: { id: string }) => r.id === REG.concert,
+      );
+      expect(listed).toMatchObject({
+        event: { status: 'CONFIRMED', venue: { id: 'VEN-002', name: 'Main Hall' } },
+        withdrawal: { canWithdraw: true, reason: null },
+      });
+
+      const res = await withdraw(REG.concert).expect(200);
+      expect(res.body.status).toBe('WITHDRAWN');
     });
   });
 

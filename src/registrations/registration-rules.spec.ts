@@ -168,5 +168,19 @@ describe('registration rules', () => {
       expect(result.canWithdraw).toBe(false);
       expect(result.reason).toMatch(/already been withdrawn/i);
     });
+
+    it('US-34: a registration on a cancelled event cannot be withdrawn, even before the cutoff', () => {
+      const result = evaluateWithdrawal(
+        'REGISTERED',
+        event({ status: EventStatus.CANCELLED }),
+        now,
+      );
+      expect(result.canWithdraw).toBe(false);
+      expect(result.reason).toBe('This event has been cancelled.');
+    });
+
+    it('US-34: a confirmed event still allows withdrawing before the cutoff', () => {
+      expect(evaluateWithdrawal('REGISTERED', event(), now).canWithdraw).toBe(true);
+    });
   });
 });

@@ -32,7 +32,11 @@ export function AttendeeRegistrations() {
 
   const all = data?.registrations ?? [];
   const withdrawnCount = all.filter((r) => r.status !== 'REGISTERED').length;
-  const activeCount = all.length - withdrawnCount;
+  // US-34: a registration on a cancelled event is not a place the attendee
+  // holds, so it is left out of the registered count.
+  const activeCount = all.filter(
+    (r) => r.status === 'REGISTERED' && r.event.status !== 'CANCELLED',
+  ).length;
   const registrations = showWithdrawn ? all : all.filter((r) => r.status === 'REGISTERED');
 
   return (
@@ -103,6 +107,10 @@ export function AttendeeRegistrations() {
               // linked — the row still shows the registration, just not a
               // dead-end link into it.
               const openable = event.status === 'CONFIRMED';
+              // US-34: a cancelled event's registration stays listed, marked
+              // as cancelled, with nothing on it to act on — no withdraw, no
+              // link. The server refuses a withdrawal too.
+              const cancelled = event.status === 'CANCELLED';
 
               return (
                 <li
@@ -143,17 +151,26 @@ export function AttendeeRegistrations() {
                         >
                           {active ? 'Registered' : 'Withdrawn'}
                         </Badge>
+                        {cancelled ? (
+                          <Badge className="bg-red-50 text-red-800 ring-red-200">
+                            Event cancelled
+                          </Badge>
+                        ) : null}
                       </div>
                       <p className="mt-1 text-xs text-ink-500">
                         {formatDateRange(event.start, event.end)}
                       </p>
-                      <p className="mt-1 text-xs text-ink-500">
-                        {event.venue
-                          ? `${event.venue.name ?? 'Venue'}${
-                              event.venue.location ? `, ${event.venue.location}` : ''
-                            }`
-                          : 'Venue to be confirmed'}
-                      </p>
+                      {/* A cancelled event's booking is released, so it has no
+                          venue to show; the badge above says why. */}
+                      {cancelled ? null : (
+                        <p className="mt-1 text-xs text-ink-500">
+                          {event.venue
+                            ? `${event.venue.name ?? 'Venue'}${
+                                event.venue.location ? `, ${event.venue.location}` : ''
+                              }`
+                            : 'Venue to be confirmed'}
+                        </p>
+                      )}
                       <p className="mt-1 text-xs text-ink-500">
                         {active
                           ? `Registered ${formatDate(registration.registeredAt)}`
@@ -169,7 +186,7 @@ export function AttendeeRegistrations() {
                     </div>
 
                     {/* Above the stretched link, so Withdraw stays clickable. */}
-                    {active && !confirming ? (
+                    {active && !cancelled && !confirming ? (
                       <div className="relative z-10 shrink-0 text-right">
                         <Button
                           size="sm"
@@ -195,7 +212,7 @@ export function AttendeeRegistrations() {
                     ) : null}
                   </div>
 
-                  {confirming ? (
+                  {confirming && !cancelled ? (
                     <div className="relative z-10 mt-3 space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
                       <p className="text-sm text-red-900">
                         Withdraw from <strong>{event.name ?? 'this event'}</strong>? Your place

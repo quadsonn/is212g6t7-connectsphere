@@ -1,6 +1,8 @@
 import {
   ACCESSIBILITY_FEATURE_LABELS,
   type AccessibilityFeature,
+  type Facility,
+  FACILITY_LABELS,
   type ConfirmedArrangement,
   type FieldChange,
 } from '@/types/api';
@@ -20,6 +22,7 @@ export const CHANGE_FIELD_LABELS: Record<FieldChange['field'], string> = {
   layoutNotes: 'Layout notes',
   accessibilityRequirements: 'Accessibility requirements',
   accessibilityNotes: 'Accessibility notes',
+  requiredFacilities: 'Required facilities',
   equipmentNeeds: 'Equipment needs',
   registrationEnabled: 'Registration',
   coordinator: 'Coordinator',
@@ -67,6 +70,12 @@ export function formatChangeValue(
       return list.length === 0
         ? 'None'
         : list.map((feature) => ACCESSIBILITY_FEATURE_LABELS[feature] ?? humanise(feature)).join(', ');
+    }
+    case 'requiredFacilities': {
+      const list = value as Facility[];
+      return list.length === 0
+        ? 'None'
+        : list.map((facility) => FACILITY_LABELS[facility] ?? humanise(facility)).join(', ');
     }
     case 'equipmentRequirements':
     case 'venueBookings':

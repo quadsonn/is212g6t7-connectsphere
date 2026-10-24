@@ -234,6 +234,24 @@ describe('US-58 clarification panel', () => {
       );
     });
 
+    it('US-20 AC-3: Given the Organiser picks a required facility, When sent, Then it goes as a change', async () => {
+      api.respondToClarification.mockResolvedValue(event({ status: 'UNDER_REVIEW' }));
+      renderPanel(event({ requiredFacilities: [] }));
+
+      await userEvent.click(screen.getByRole('checkbox', { name: /Also change event details/ }));
+      const facilities = screen.getByRole('group', { name: 'Required facilities' });
+      await userEvent.click(within(facilities).getByRole('button', { name: 'Projector' }));
+      await userEvent.type(screen.getByLabelText(/Your response/), 'We need a projector.');
+      await userEvent.click(screen.getByRole('button', { name: 'Send response' }));
+
+      await waitFor(() =>
+        expect(api.respondToClarification).toHaveBeenCalledWith('EVT-001', {
+          response: 'We need a projector.',
+          changes: { requiredFacilities: ['PROJECTOR'] },
+        }),
+      );
+    });
+
     it('Given the details section is opened but nothing is changed, Then no changes are sent', async () => {
       api.respondToClarification.mockResolvedValue(event({ status: 'UNDER_REVIEW' }));
       renderPanel();

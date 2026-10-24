@@ -39,6 +39,7 @@ import {
 import type { PlanningUpdateResult } from '@/types/api';
 import { formatDateRange, formatDateTime, humanise } from '@/lib/utils';
 import type { EventStatus } from '@/types/api';
+import { FACILITY_LABELS } from '@/types/api';
 
 /** Mirrors BOOKABLE_EVENT_STATUSES in the backend's booking.types.ts (US-21). */
 const BOOKABLE_EVENT_STATUSES: EventStatus[] = ['APPROVED', 'PLANNING', 'AWAITING_ARRANGEMENTS'];
@@ -385,6 +386,26 @@ export function CoordinatorEventDetail() {
                 <p className="text-sm text-ink-500">None recorded.</p>
               )}
               <Field label="Notes">{event.accessibilityNotes ?? '—'}</Field>
+            </CardContent>
+          </Card>
+
+          {/* US-20 AC-3: what the venue must have; suitability checks venues against it. */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Required facilities</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {event.requiredFacilities?.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {event.requiredFacilities.map((facility) => (
+                    <Badge key={facility} className="bg-ink-100 text-ink-700 ring-ink-300">
+                      {FACILITY_LABELS[facility]}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-ink-500">None recorded.</p>
+              )}
             </CardContent>
           </Card>
 

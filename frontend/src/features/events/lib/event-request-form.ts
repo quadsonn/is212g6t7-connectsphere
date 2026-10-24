@@ -1,6 +1,7 @@
 import {
   type AccessibilityFeature,
   type EventRequestPayload,
+  type Facility,
   type OrganiserRequestView,
   type RoomLayout,
 } from '@/types/api';
@@ -24,6 +25,7 @@ export const EVENT_REQUEST_FIELDS = [
   'layoutNotes',
   'accessibilityRequirements',
   'accessibilityNotes',
+  'requiredFacilities',
   'equipmentNeeds',
 ] as const;
 
@@ -41,6 +43,7 @@ export interface EventRequestFormState {
   layoutNotes: string;
   accessibilityRequirements: string;
   accessibilityNotes: string;
+  requiredFacilities: Facility[];
   equipmentNeeds: string;
   registrationEnabled: boolean;
 }
@@ -118,6 +121,7 @@ export const EMPTY_EVENT_REQUEST_FORM: EventRequestFormState = {
   layoutNotes: '',
   accessibilityRequirements: '',
   accessibilityNotes: '',
+  requiredFacilities: [],
   equipmentNeeds: '',
   registrationEnabled: false,
 };
@@ -142,6 +146,7 @@ export function mapExistingToForm(existing: OrganiserRequestView): EventRequestF
     layoutNotes: existing.layoutNotes ?? '',
     accessibilityRequirements: existing.accessibilityRequirements[0] ?? '',
     accessibilityNotes: existing.accessibilityNotes ?? '',
+    requiredFacilities: existing.requiredFacilities ?? [],
     equipmentNeeds: existing.equipmentNeeds ?? '',
     registrationEnabled: existing.registrationEnabled,
   };
@@ -182,6 +187,8 @@ export function toPayload(form: EventRequestFormState): EventRequestPayload {
         ? undefined
         : [form.accessibilityRequirements as AccessibilityFeature],
     accessibilityNotes: text(form.accessibilityNotes),
+    // Always sent, like registrationEnabled: an empty list is a value (none).
+    requiredFacilities: form.requiredFacilities,
     equipmentNeeds: text(form.equipmentNeeds),
     registrationEnabled: form.registrationEnabled,
   };

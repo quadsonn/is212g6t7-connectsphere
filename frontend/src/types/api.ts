@@ -158,6 +158,8 @@ export interface EventRequest {
   layoutNotes: string | null;
   accessibilityRequirements: AccessibilityFeature[];
   accessibilityNotes: string | null;
+  /** US-20 AC-3: from the venues' Facility list; empty means none recorded. */
+  requiredFacilities: Facility[];
   equipmentNeeds: string | null;
   /** US-28 AC-2: technical support the Coordinator has asked for. */
   technicalSupportNeeds: string | null;
@@ -239,6 +241,7 @@ export interface EventRequestPayload {
   layoutNotes?: string;
   accessibilityRequirements?: AccessibilityFeature[];
   accessibilityNotes?: string;
+  requiredFacilities?: Facility[];
   equipmentNeeds?: string;
   registrationEnabled?: boolean;
 }
@@ -269,6 +272,8 @@ export interface FieldChange {
   /** 'coordinator' records a reassignment (US-27 AC-4), by name. */
   field:
     | keyof PlanningUpdatePayload
+    // US-20 AC-3: set by the Organiser, not in the planning edit.
+    | 'requiredFacilities'
     | 'coordinator'
     | 'equipmentRequirements'
     | 'technicalSupportNeeds'
@@ -691,8 +696,10 @@ export type SuitabilityCheckStatus = 'MET' | 'UNMET' | 'NOT_REQUIRED' | 'NOT_REC
 
 /**
  * GET /venues/:id/suitability?eventId= — advisory flags for one venue against
- * one event. `facilities` and `equipment` are null until those checks exist;
- * `notChecked` says why, so the UI never implies they passed.
+ * one event. US-20 AC-3: `facilities` compares the event's required
+ * facilities with the venue's; `equipment` counts free units of each line
+ * over the event's dates and is not part of `overall` (it is the same at
+ * every venue). `notChecked` names equipment lines that could not be counted.
  */
 export interface VenueSuitability {
   overall: 'SUITABLE' | 'NOT_SUITABLE' | 'INCOMPLETE';
@@ -707,8 +714,20 @@ export interface VenueSuitability {
     items: { requirement: AccessibilityFeature; met: boolean }[];
   };
   layout: { status: SuitabilityCheckStatus; requirement: RoomLayout | null };
-  facilities: { requirement: Facility; met: boolean }[] | null;
-  equipment: { item: string; available: boolean }[] | null;
+  facilities: {
+    status: SuitabilityCheckStatus;
+    items: { requirement: Facility; met: boolean }[];
+  };
+  equipment: {
+    status: SuitabilityCheckStatus;
+    /** availableQuantity and available are null for a line not in the catalogue. */
+    items: {
+      item: string;
+      requestedQuantity: number;
+      availableQuantity: number | null;
+      available: boolean | null;
+    }[];
+  };
   notChecked: { check: 'facilities' | 'equipment'; reason: string }[];
 }
 

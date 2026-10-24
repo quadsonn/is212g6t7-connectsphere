@@ -23,6 +23,7 @@ export const TRACKED_FIELDS = [
   'layoutNotes',
   'accessibilityRequirements',
   'accessibilityNotes',
+  'requiredFacilities',
   'equipmentNeeds',
   'registrationEnabled',
 ] as const satisfies readonly (keyof EventRequest)[];
@@ -47,6 +48,7 @@ export const TRACKED_FIELD_LABELS: Readonly<Record<TrackedField, string>> = {
   layoutNotes: 'layout notes',
   accessibilityRequirements: 'accessibility requirements',
   accessibilityNotes: 'accessibility notes',
+  requiredFacilities: 'required facilities',
   equipmentNeeds: 'equipment needs',
   registrationEnabled: 'registration',
 };
@@ -106,6 +108,8 @@ export const ARRANGEMENT_SENSITIVE_FIELDS: Readonly<
     'expectedAttendance',
     'preferredLayout',
     'accessibilityRequirements',
+    // US-20 AC-3: the venue was checked against these too.
+    'requiredFacilities',
   ],
   [ConfirmedArrangement.EQUIPMENT_RESERVATION]: [
     'proposedStart',

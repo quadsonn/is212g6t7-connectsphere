@@ -374,6 +374,11 @@ model EventRequest {
   accessibilityRequirements AccessibilityFeature[] @default([])
   accessibilityNotes        String?
 
+  // US-20 AC-3: the facilities the event needs, from the venues' own Facility
+  // list (US-18), so suitability compares like with like. Empty means none
+  // recorded, which the check treats as nothing required.
+  requiredFacilities Facility[] @default([])
+
   // AMBIGUOUS: free text captured at request time. This is what the Organiser
   // *asks for*; the structured commitment lives in EquipmentReservation.
   // Kept unstructured until the equipment story (E6) needs to query it.

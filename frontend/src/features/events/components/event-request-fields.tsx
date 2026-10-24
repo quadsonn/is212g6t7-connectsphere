@@ -1,4 +1,4 @@
-import { CheckboxRow, Field, Select, Textarea } from '@/components/ui/form';
+import { CheckboxRow, ChipGroup, Field, Select, Textarea } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,13 @@ import {
 import { ATTENDANCE_BANDS } from '@/lib/attendance-bands';
 import { todayInVenueTime } from '@/lib/calendar';
 import { humanise } from '@/lib/utils';
-import { ACCESSIBILITY_FEATURES, ACCESSIBILITY_FEATURE_LABELS, ROOM_LAYOUTS } from '@/types/api';
+import {
+  ACCESSIBILITY_FEATURES,
+  ACCESSIBILITY_FEATURE_LABELS,
+  FACILITIES,
+  FACILITY_LABELS,
+  ROOM_LAYOUTS,
+} from '@/types/api';
 
 /** The three cards of request fields: about, schedule and attendance, layout and accessibility. */
 export function EventRequestFields({
@@ -271,6 +277,24 @@ export function EventRequestFields({
               value={form.accessibilityNotes}
               onChange={(e) => set('accessibilityNotes', e.target.value)}
             />
+          </Field>
+
+          {/* US-20 AC-3: the same list venues use, so suitability can compare them. */}
+          <Field
+            label="Required facilities"
+            htmlFor="requiredFacilities"
+            errors={errors.requiredFacilities}
+            hint="What the venue itself must have. Portable equipment goes in equipment needs."
+          >
+            <div id="requiredFacilities">
+              <ChipGroup
+                label="Required facilities"
+                options={FACILITIES}
+                labels={FACILITY_LABELS}
+                values={form.requiredFacilities}
+                onChange={(next) => set('requiredFacilities', next)}
+              />
+            </div>
           </Field>
 
           <Field label="Equipment needs" htmlFor="equipmentNeeds" errors={errors.equipmentNeeds}>

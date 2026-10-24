@@ -2,8 +2,11 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   AccessibilityFeature,
+  EquipmentStatus,
   EventStatus,
+  Facility,
   PrismaClient,
+  ReservationStatus,
   Role,
   RoomLayout,
   VenueStatus,
@@ -43,6 +46,7 @@ describe('US-20 venue suitability flags (e2e)', () => {
       expectedAttendance: number;
       accessibilityRequirements: AccessibilityFeature[];
       preferredLayout: RoomLayout | null;
+      requiredFacilities: Facility[];
     }> = {},
   ) => {
     const event = await prisma.eventRequest.create({
@@ -96,6 +100,7 @@ describe('US-20 venue suitability flags (e2e)', () => {
     await prisma.revokedToken.deleteMany();
     await prisma.clarificationMessage.deleteMany();
     await prisma.eventRequest.deleteMany();
+    await prisma.equipment.deleteMany();
     await prisma.user.deleteMany();
 
     await seedUser('staff', 'staff@example.com', Role.VENUE_STAFF);
@@ -111,6 +116,7 @@ describe('US-20 venue suitability flags (e2e)', () => {
         status: VenueStatus.PUBLISHED,
         accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
         supportedLayouts: [RoomLayout.THEATRE],
+        facilities: [Facility.PROJECTOR, Facility.MICROPHONE],
         managedById: ids.staff,
       },
     });
@@ -160,18 +166,167 @@ describe('US-20 venue suitability flags (e2e)', () => {
     });
   });
 
-  describe('AC-3: facilities and equipment are reported as not checked, never faked', () => {
-    it('US-20: returns null for both with the reason', async () => {
+  describe('AC-3: facilities cover the technical requirements', () => {
+    it('Given the venue has every required facility, Then facilities are met', async () => {
+      await seedEvent('fits', { requiredFacilities: [Facility.PROJECTOR, Facility.MICROPHONE] });
+
+      const res = await suitability(ids.venue, ids.fits).expect(200);
+
+      expect(res.body.overall).toBe('SUITABLE');
+      expect(res.body.facilities).toEqual({
+        status: 'MET',
+        items: [
+          { requirement: 'PROJECTOR', met: true },
+          { requirement: 'MICROPHONE', met: true },
+        ],
+      });
+    });
+
+    it('Given a required facility the venue lacks, Then it is flagged and the venue may not be suitable', async () => {
+      await seedEvent('stage', { requiredFacilities: [Facility.PROJECTOR, Facility.STAGE] });
+
+      const res = await suitability(ids.venue, ids.stage).expect(200);
+
+      expect(res.body.overall).toBe('NOT_SUITABLE');
+      expect(res.body.facilities.status).toBe('UNMET');
+      expect(res.body.facilities.items).toContainEqual({ requirement: 'STAGE', met: false });
+    });
+
+    it('Given no required facilities, Then nothing is required and nothing is reported unchecked', async () => {
       await seedEvent('fits');
 
       const res = await suitability(ids.venue, ids.fits).expect(200);
 
-      expect(res.body.facilities).toBeNull();
-      expect(res.body.equipment).toBeNull();
-      expect(res.body.notChecked.map((c: { check: string }) => c.check)).toEqual([
-        'facilities',
-        'equipment',
+      expect(res.body.facilities).toEqual({ status: 'NOT_REQUIRED', items: [] });
+      expect(res.body.equipment).toEqual({ status: 'NOT_REQUIRED', items: [] });
+      expect(res.body.notChecked).toEqual([]);
+    });
+  });
+
+  describe('AC-3: the equipment asked for is available over the event dates', () => {
+    const seedEquipment = async (
+      key: string,
+      totalQuantity: number,
+      operationalStatus: EquipmentStatus = EquipmentStatus.OPERATIONAL,
+    ) => {
+      const item = await prisma.equipment.create({
+        data: { type: `${key} type`, totalQuantity, operationalStatus },
+      });
+      ids[key] = item.id;
+    };
+
+    const requires = (eventKey: string, equipmentType: string, quantity: number, equipmentKey?: string) =>
+      prisma.equipmentRequirement.create({
+        data: {
+          eventId: ids[eventKey],
+          equipmentType,
+          quantity,
+          equipmentId: equipmentKey ? ids[equipmentKey] : null,
+        },
+      });
+
+    const reserve = (
+      eventKey: string,
+      equipmentKey: string,
+      quantity: number,
+      status: ReservationStatus = ReservationStatus.APPROVED,
+    ) =>
+      prisma.equipmentReservation.create({
+        data: {
+          eventId: ids[eventKey],
+          equipmentId: ids[equipmentKey],
+          quantity,
+          // Overlaps the seeded event's 01:00–09:00 UTC.
+          start: new Date('2027-03-10T05:00:00Z'),
+          end: new Date('2027-03-10T12:00:00Z'),
+          status,
+        },
+      });
+
+    it('Given enough free units, Then equipment is met, with the free count', async () => {
+      await seedEvent('fits');
+      await seedEquipment('mic', 6);
+      await requires('fits', 'Wireless mic', 4, 'mic');
+
+      const res = await suitability(ids.venue, ids.fits).expect(200);
+
+      expect(res.body.equipment).toEqual({
+        status: 'MET',
+        items: [{ item: 'Wireless mic', requestedQuantity: 4, availableQuantity: 6, available: true }],
+      });
+    });
+
+    it("Given another event's approved reservation leaves too few units, Then equipment is unmet", async () => {
+      await seedEvent('fits');
+      await seedEvent('other');
+      await seedEquipment('mic', 6);
+      await requires('fits', 'Wireless mic', 4, 'mic');
+      await reserve('other', 'mic', 3);
+
+      const res = await suitability(ids.venue, ids.fits).expect(200);
+
+      expect(res.body.equipment.status).toBe('UNMET');
+      expect(res.body.equipment.items[0]).toMatchObject({ availableQuantity: 3, available: false });
+      // Equipment is the same at every venue, so the venue verdict stands.
+      expect(res.body.overall).toBe('SUITABLE');
+    });
+
+    it("Given the event's own approved reservation, Then its units are not counted against it", async () => {
+      await seedEvent('fits');
+      await seedEquipment('mic', 6);
+      await requires('fits', 'Wireless mic', 4, 'mic');
+      await reserve('fits', 'mic', 4);
+
+      const res = await suitability(ids.venue, ids.fits).expect(200);
+
+      expect(res.body.equipment.items[0]).toMatchObject({ availableQuantity: 6, available: true });
+    });
+
+    it('Given a pending reservation elsewhere, Then it holds no units', async () => {
+      await seedEvent('fits');
+      await seedEvent('other');
+      await seedEquipment('mic', 6);
+      await requires('fits', 'Wireless mic', 4, 'mic');
+      await reserve('other', 'mic', 6, ReservationStatus.REQUESTED);
+
+      const res = await suitability(ids.venue, ids.fits).expect(200);
+
+      expect(res.body.equipment.items[0].available).toBe(true);
+    });
+
+    it('Given an item under maintenance, Then none of its units are available', async () => {
+      await seedEvent('fits');
+      await seedEquipment('mic', 6, EquipmentStatus.UNDER_MAINTENANCE);
+      await requires('fits', 'Wireless mic', 1, 'mic');
+
+      const res = await suitability(ids.venue, ids.fits).expect(200);
+
+      expect(res.body.equipment.items[0]).toMatchObject({ availableQuantity: 0, available: false });
+    });
+
+    it('Given a free-text line, Then it is listed as not checked, never as a pass', async () => {
+      await seedEvent('fits');
+      await requires('fits', 'Fog machine', 1);
+
+      const res = await suitability(ids.venue, ids.fits).expect(200);
+
+      expect(res.body.equipment).toEqual({
+        status: 'NOT_RECORDED',
+        items: [{ item: 'Fog machine', requestedQuantity: 1, availableQuantity: null, available: null }],
+      });
+      expect(res.body.notChecked).toEqual([
+        { check: 'equipment', reason: expect.stringMatching(/not linked to the catalogue/) },
       ]);
+    });
+
+    it('reserves nothing while checking', async () => {
+      await seedEvent('fits');
+      await seedEquipment('mic', 6);
+      await requires('fits', 'Wireless mic', 4, 'mic');
+
+      await suitability(ids.venue, ids.fits).expect(200);
+
+      expect(await prisma.equipmentReservation.count()).toBe(0);
     });
   });
 

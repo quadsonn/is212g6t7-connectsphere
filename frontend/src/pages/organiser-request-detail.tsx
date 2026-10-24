@@ -23,7 +23,7 @@ import {
   EDITABLE_EVENT_STATUSES,
 } from '@/lib/status';
 import { formatDate, formatDateTime, humanise } from '@/lib/utils';
-import { ACCESSIBILITY_FEATURE_LABELS } from '@/types/api';
+import { ACCESSIBILITY_FEATURE_LABELS, FACILITY_LABELS } from '@/types/api';
 
 /** A labelled value in the detail grid — dash when the field is still empty (a draft, US-04). */
 function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
@@ -296,6 +296,16 @@ export function OrganiserRequestDetail() {
               </div>
               <div className="sm:col-span-2">
                 <DetailField label="Accessibility notes" value={event.accessibilityNotes} />
+              </div>
+              <div className="sm:col-span-2">
+                <DetailField
+                  label="Required facilities"
+                  value={
+                    event.requiredFacilities?.length
+                      ? event.requiredFacilities.map((f) => FACILITY_LABELS[f]).join(', ')
+                      : null
+                  }
+                />
               </div>
               <div className="sm:col-span-2">
                 <DetailField label="Equipment needs" value={event.equipmentNeeds} />

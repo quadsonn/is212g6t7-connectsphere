@@ -237,6 +237,7 @@ type DraftFields = Partial<
     | 'layoutNotes'
     | 'accessibilityRequirements'
     | 'accessibilityNotes'
+    | 'requiredFacilities'
     | 'equipmentNeeds'
     | 'registrationEnabled'
   >
@@ -286,6 +287,7 @@ export class EventsService {
           layoutNotes: dto.layoutNotes ?? null,
           accessibilityRequirements: dto.accessibilityRequirements ?? [],
           accessibilityNotes: dto.accessibilityNotes ?? null,
+          requiredFacilities: dto.requiredFacilities ?? [],
           equipmentNeeds: dto.equipmentNeeds ?? null,
           registrationEnabled: dto.registrationEnabled ?? false,
           // status intentionally omitted — DRAFT is the schema default, and
@@ -459,6 +461,7 @@ export class EventsService {
       'layoutNotes',
       'accessibilityRequirements',
       'accessibilityNotes',
+      'requiredFacilities',
       'equipmentNeeds',
       'registrationEnabled',
     ] as const) {
@@ -514,6 +517,10 @@ export class EventsService {
         expectedAttendance: true,
         accessibilityRequirements: true,
         preferredLayout: true,
+        // US-20 AC-3.
+        requiredFacilities: true,
+        proposedStart: true,
+        proposedEnd: true,
       },
     });
 
@@ -951,9 +958,10 @@ export class EventsService {
       await this.confirmedArrangements(event.id),
     );
 
-    // Only the fields that actually changed are written.
+    // Only the fields that actually changed are written. A change can only
+    // name a field the DTO has (requiredFacilities is the Organiser's, US-20).
     const data = Object.fromEntries(
-      changes.map(({ field }) => [field, dto[field]]),
+      changes.map(({ field }) => [field, dto[field as keyof UpdatePlanningDto]]),
     ) as Prisma.EventRequestUpdateInput;
 
     const change = await this.prisma.$transaction(async (tx) => {

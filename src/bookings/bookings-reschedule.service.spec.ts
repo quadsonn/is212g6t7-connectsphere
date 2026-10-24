@@ -1,4 +1,4 @@
-import { BookingDecisionKind, BookingStatus } from '@prisma/client';
+import { BookingDecisionKind, BookingStatus, Prisma } from '@prisma/client';
 
 import { AccessControlService } from '../common/access/access-control.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -43,6 +43,9 @@ describe('BookingsService.rebookForEventChange (US-48 AC-7)', () => {
     accessibilityRequirements: ['STEP_FREE_ACCESS'],
     accessibilityNotes: null,
     equipmentNeeds: 'PA',
+    requiredFacilities: ['STAGE'],
+    equipmentRequirements: [{ equipmentType: 'Projector', quantity: 2, notes: null }],
+    technicalSupportNeeds: 'Sound technician',
     venue: { name: 'Main Hall' },
     decisions: [decision],
     ...overrides,
@@ -146,8 +149,20 @@ describe('BookingsService.rebookForEventChange (US-48 AC-7)', () => {
         accessibilityRequirements: ['STEP_FREE_ACCESS'],
         accessibilityNotes: null,
         equipmentNeeds: 'PA',
+        // Story 20 AC-2: what Venue Staff approved, carried over unchanged.
+        requiredFacilities: ['STAGE'],
+        equipmentRequirements: [{ equipmentType: 'Projector', quantity: 2, notes: null }],
+        technicalSupportNeeds: 'Sound technician',
       },
     });
+  });
+
+  it('Story 20 AC-2: a booking made before the copy existed stays "not recorded" when rebooked', async () => {
+    setLiveRows([row({ equipmentRequirements: null })]);
+
+    await run();
+
+    expect(tx.venueBooking.create.mock.calls[0][0].data.equipmentRequirements).toBe(Prisma.DbNull);
   });
 
   it('US-48 AC-7: keeps the original attendance when the request does not change it', async () => {

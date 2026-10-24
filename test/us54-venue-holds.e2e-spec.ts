@@ -175,6 +175,25 @@ describe('US-54 tentative venue holds (e2e)', () => {
       });
     });
 
+    it('Story 20 AC-2: a hold carries the technical requirements, as a request does', async () => {
+      const event = await seedEvent();
+      await prisma.eventRequest.update({
+        where: { id: event.id },
+        data: { technicalSupportNeeds: 'Lighting technician', requiredFacilities: ['STAGE'] },
+      });
+      await prisma.equipmentRequirement.create({
+        data: { eventId: event.id, equipmentType: 'Spotlight', quantity: 2 },
+      });
+
+      const res = await placeHold(holdBody(event.id)).expect(201);
+
+      expect(res.body).toMatchObject({
+        technicalSupportNeeds: 'Lighting technician',
+        requiredFacilities: ['STAGE'],
+        equipmentRequirements: [{ equipmentType: 'Spotlight', quantity: 2, notes: null }],
+      });
+    });
+
     it('US-54: lists the bookable events to hold for, with only the fields the picker needs', async () => {
       const gala = await seedEvent('Gala');
       await seedEvent('Draft', { status: EventStatus.DRAFT });

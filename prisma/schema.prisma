@@ -564,6 +564,16 @@ model VenueBooking {
   accessibilityNotes        String?
   equipmentNeeds            String?
 
+  // Story 20 AC-2: the event's technical requirements, copied the same way.
+  // The required facilities (US-20 AC-3), the equipment lines (US-28) as
+  // [{ equipmentType, quantity, notes }], and the technical support needed.
+  // equipmentRequirements is null only on requests made before this copy
+  // existed, which show "not recorded" rather than an empty list; nothing is
+  // backfilled, since today's event data may not be what was submitted.
+  requiredFacilities    Facility[] @default([])
+  equipmentRequirements Json?
+  technicalSupportNeeds String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

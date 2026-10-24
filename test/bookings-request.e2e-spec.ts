@@ -4,6 +4,7 @@ import {
   AccessibilityFeature,
   BookingStatus,
   EventStatus,
+  Facility,
   PrismaClient,
   Role,
   RoomLayout,
@@ -89,6 +90,7 @@ describe('US-21 submit a venue booking request (e2e)', () => {
     await prisma.clarificationMessage.deleteMany();
     await prisma.revokedToken.deleteMany();
     await prisma.eventRequest.deleteMany();
+    await prisma.equipment.deleteMany();
     await prisma.user.deleteMany();
 
     await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
@@ -149,6 +151,106 @@ describe('US-21 submit a venue booking request (e2e)', () => {
         venue: { id: ids.venue, name: 'Sandbox Auditorium' },
         event: { id: event.id, name: 'Orientation' },
         warnings: [],
+      });
+    });
+
+    describe('Story 20 AC-2: the technical requirements travel with the request', () => {
+      const seedTechnicalEvent = async () => {
+        const event = await seedEvent({
+          requiredFacilities: [Facility.PROJECTOR, Facility.STAGE],
+          technicalSupportNeeds: 'A technician on site for sound checks',
+        });
+        const projector = await prisma.equipment.create({
+          data: { type: 'Projector', totalQuantity: 4 },
+        });
+        // Created in order, so the copy keeps the order they were entered in.
+        await prisma.equipmentRequirement.create({
+          data: { eventId: event.id, equipmentId: projector.id, equipmentType: 'Projector', quantity: 2, notes: 'HDMI' },
+        });
+        await prisma.equipmentRequirement.create({
+          data: { eventId: event.id, equipmentType: 'Fog machine', quantity: 1 },
+        });
+        return event;
+      };
+
+      it('Given equipment lines, technical support and facilities, When submitted, Then all are attached', async () => {
+        const event = await seedTechnicalEvent();
+
+        const res = await book({ eventId: event.id, venueId: ids.venue, ...slot(9, 12), expectedAttendance: 120 });
+
+        expect(res.status).toBe(201);
+        expect(res.body).toMatchObject({
+          requiredFacilities: ['PROJECTOR', 'STAGE'],
+          technicalSupportNeeds: 'A technician on site for sound checks',
+          equipmentRequirements: [
+            { equipmentType: 'Projector', quantity: 2, notes: 'HDMI' },
+            { equipmentType: 'Fog machine', quantity: 1, notes: null },
+          ],
+          // The free-text notes are still attached alongside.
+          equipmentNeeds: '2 wireless mics',
+        });
+      });
+
+      it('Given the venue manager opens the request, Then they see them without opening the event', async () => {
+        const event = await seedTechnicalEvent();
+        const created = await book({ eventId: event.id, venueId: ids.venue, ...slot(9, 12), expectedAttendance: 120 });
+
+        const res = await http()
+          .get(`/bookings/${created.body.id}`)
+          .set('Authorization', as('staff'))
+          .expect(200);
+
+        expect(res.body.equipmentRequirements).toHaveLength(2);
+        expect(res.body.technicalSupportNeeds).toBe('A technician on site for sound checks');
+        expect(res.body.requiredFacilities).toEqual(['PROJECTOR', 'STAGE']);
+      });
+
+      it('Given the event changes after submission, Then the request keeps what was submitted', async () => {
+        const event = await seedTechnicalEvent();
+        const created = await book({ eventId: event.id, venueId: ids.venue, ...slot(9, 12), expectedAttendance: 120 });
+
+        await prisma.equipmentRequirement.deleteMany({ where: { eventId: event.id } });
+        await prisma.eventRequest.update({
+          where: { id: event.id },
+          data: { technicalSupportNeeds: null, requiredFacilities: [] },
+        });
+
+        const res = await http()
+          .get(`/bookings/${created.body.id}`)
+          .set('Authorization', as('staff'))
+          .expect(200);
+        expect(res.body.equipmentRequirements).toHaveLength(2);
+        expect(res.body.technicalSupportNeeds).toBe('A technician on site for sound checks');
+        expect(res.body.requiredFacilities).toEqual(['PROJECTOR', 'STAGE']);
+      });
+
+      it('Given none recorded, Then the request carries an empty list, not "not recorded"', async () => {
+        const event = await seedEvent();
+
+        const res = await book({ eventId: event.id, venueId: ids.venue, ...slot(9, 12), expectedAttendance: 120 });
+
+        expect(res.body).toMatchObject({
+          equipmentRequirements: [],
+          technicalSupportNeeds: null,
+          requiredFacilities: [],
+        });
+      });
+
+      it('Given a request made before this was attached, Then its list reads as not recorded (null)', async () => {
+        const event = await seedEvent();
+        const old = await prisma.venueBooking.create({
+          data: {
+            eventId: event.id,
+            venueId: ids.venue,
+            requestedById: ids.coordinator,
+            start: new Date(slot(9, 12).start),
+            end: new Date(slot(9, 12).end),
+          },
+        });
+
+        const res = await http().get(`/bookings/${old.id}`).set('Authorization', as('staff')).expect(200);
+
+        expect(res.body.equipmentRequirements).toBeNull();
       });
     });
   });

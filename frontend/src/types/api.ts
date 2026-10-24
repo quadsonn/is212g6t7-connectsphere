@@ -1075,6 +1075,14 @@ export interface VenueBooking {
   accessibilityRequirements: AccessibilityFeature[];
   accessibilityNotes: string | null;
   equipmentNeeds: string | null;
+  /**
+   * Story 20 AC-2: the event's technical requirements, copied the same way.
+   * equipmentRequirements is null only on requests made before this copy
+   * existed; then none of the three was recorded on the request.
+   */
+  requiredFacilities: Facility[];
+  equipmentRequirements: { equipmentType: string; quantity: number; notes: string | null }[] | null;
+  technicalSupportNeeds: string | null;
   createdAt: string;
   updatedAt: string;
   venue: { id: string; name: string | null; location: string | null; capacity: number | null };

@@ -58,6 +58,25 @@ describe('US-17 view a venue availability calendar (e2e)', () => {
       },
     });
 
+  const BLOCK_REASON = 'Confidential renovation';
+
+  /** A Venue Staff block, Singapore local time. */
+  const seedBlock = (start: string, end: string) =>
+    prisma.venueBlock.create({
+      data: {
+        venueId: ids.venue,
+        start: new Date(`${start}+08:00`),
+        end: new Date(`${end}+08:00`),
+        reason: BLOCK_REASON,
+        createdById: ids.staff,
+      },
+    });
+
+  const slots = (who: string, venueId: string, query = '') =>
+    http()
+      .get(`/venues/${venueId}/availability/slots${query}`)
+      .set('Authorization', as(who));
+
   const availability = (who: string, venueId: string, query = '') =>
     http()
       .get(`/venues/${venueId}/availability${query}`)
@@ -140,6 +159,96 @@ describe('US-17 view a venue availability calendar (e2e)', () => {
       const res = await availability('coordinator', ids.venue).expect(200);
 
       expect(res.headers['cache-control']).toBe('no-store');
+    });
+  });
+
+  describe('AC-1: the calendar shows blocked-off periods', () => {
+    it('Given a block on a day, Then that day is blocked', async () => {
+      await seedBlock('2027-03-15T09:00:00', '2027-03-15T13:00:00');
+
+      const res = await availability('coordinator', ids.venue, '?month=2027-03').expect(200);
+
+      expect(statusOn(res.body, '2027-03-15')).toBe('blocked');
+      expect(statusOn(res.body, '2027-03-16')).toBe('free');
+    });
+
+    it('Given a block across several days, Then every day it touches is blocked', async () => {
+      await seedBlock('2027-03-20T00:00:00', '2027-03-23T00:00:00');
+
+      const res = await availability('coordinator', ids.venue, '?month=2027-03').expect(200);
+
+      expect(['20', '21', '22'].map((d) => statusOn(res.body, `2027-03-${d}`))).toEqual([
+        'blocked',
+        'blocked',
+        'blocked',
+      ]);
+      expect(statusOn(res.body, '2027-03-23')).toBe('free');
+    });
+
+    it('Given a block and an approved booking on the same day, Then the day is blocked', async () => {
+      await seedBooking('2027-03-15T14:00:00', '2027-03-15T17:00:00', BookingStatus.APPROVED);
+      await seedBlock('2027-03-15T09:00:00', '2027-03-15T12:00:00');
+
+      const res = await availability('coordinator', ids.venue, '?month=2027-03').expect(200);
+
+      expect(statusOn(res.body, '2027-03-15')).toBe('blocked');
+    });
+
+    it("ignores another venue's blocks", async () => {
+      await prisma.venueBlock.create({
+        data: {
+          venueId: ids.draft,
+          start: new Date('2027-03-15T09:00:00+08:00'),
+          end: new Date('2027-03-15T13:00:00+08:00'),
+          reason: BLOCK_REASON,
+          createdById: ids.staff,
+        },
+      });
+
+      const res = await availability('coordinator', ids.venue, '?month=2027-03').expect(200);
+
+      expect(statusOn(res.body, '2027-03-15')).toBe('free');
+    });
+
+    it('never reveals why the period is blocked or who blocked it', async () => {
+      const block = await seedBlock('2027-03-15T09:00:00', '2027-03-15T13:00:00');
+
+      const days = await availability('coordinator', ids.venue, '?month=2027-03').expect(200);
+      const times = await slots('coordinator', ids.venue, '?from=2027-03-15&to=2027-03-15').expect(200);
+
+      for (const raw of [JSON.stringify(days.body), JSON.stringify(times.body)]) {
+        for (const secret of [BLOCK_REASON, block.id, ids.staff]) {
+          expect(raw).not.toContain(secret);
+        }
+      }
+    });
+
+    it('Given a block, Then the day\'s times list it as a blocked period', async () => {
+      await seedBlock('2027-03-15T09:00:00', '2027-03-15T13:00:00');
+
+      const res = await slots('coordinator', ids.venue, '?from=2027-03-15&to=2027-03-15').expect(200);
+
+      expect(res.body).toEqual([
+        {
+          status: 'blocked',
+          segments: [
+            {
+              kind: 'BLOCKED',
+              start: new Date('2027-03-15T09:00:00+08:00').toISOString(),
+              end: new Date('2027-03-15T13:00:00+08:00').toISOString(),
+            },
+          ],
+        },
+      ]);
+    });
+
+    it('lists bookings and blocks together, earliest first', async () => {
+      await seedBooking('2027-03-15T14:00:00', '2027-03-15T17:00:00', BookingStatus.APPROVED);
+      await seedBlock('2027-03-15T09:00:00', '2027-03-15T12:00:00');
+
+      const res = await slots('coordinator', ids.venue, '?from=2027-03-15&to=2027-03-15').expect(200);
+
+      expect(res.body.map((entry: { status: string }) => entry.status)).toEqual(['blocked', 'booked']);
     });
   });
 

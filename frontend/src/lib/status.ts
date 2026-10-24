@@ -150,13 +150,15 @@ export const CANCELLABLE_EVENT_STATUSES: EventStatus[] = CHANGEABLE_EVENT_STATUS
 
 /**
  * US-17 — availability calendar days. Each also carries an icon and label in
- * the calendar itself, so the three states survive greyscale.
+ * the calendar itself, so the four states survive greyscale.
  */
 export const DAY_STATUS_STYLES: Record<DayStatus, StatusStyle> = {
   free: { label: 'Free', className: 'bg-ink-50 text-ink-800' },
   tentative: { label: 'Tentatively held', className: 'bg-amber-100 text-amber-900' },
   // Struck through as well as shaded, so "booked" survives greyscale.
   booked: { label: 'Booked', className: 'bg-ink-200 text-ink-500 line-through' },
+  // US-17 AC-1: closed by Venue Staff. Marked with a lock icon as well.
+  blocked: { label: 'Blocked', className: 'bg-rose-100 text-rose-900' },
 };
 
 /**

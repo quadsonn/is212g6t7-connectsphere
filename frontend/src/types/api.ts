@@ -639,7 +639,8 @@ export interface VenueUpdateWarning {
 }
 
 /** US-17 — one day of a venue's availability calendar. */
-export type DayStatus = 'free' | 'tentative' | 'booked';
+/** US-17 AC-1: 'blocked' is a period Venue Staff closed; never why or by whom. */
+export type DayStatus = 'free' | 'tentative' | 'booked' | 'blocked';
 
 /**
  * GET /venues/:id/availability returns an array of these and nothing else —
@@ -656,7 +657,8 @@ export interface DayAvailability {
  * before it, the event time, or the turnaround time after it.
  */
 export interface OccupancySegment {
-  kind: 'SETUP' | 'EVENT' | 'TURNAROUND';
+  /** US-17 AC-1: BLOCKED is a whole blocked-off period. */
+  kind: 'SETUP' | 'EVENT' | 'TURNAROUND' | 'BLOCKED';
   start: string;
   end: string;
 }

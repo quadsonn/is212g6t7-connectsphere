@@ -1392,6 +1392,19 @@ export class BookingsService implements VenueBookingLookup {
   }
 
   /**
+   * US-17 AC-1 — the venue's blocked-off periods (US-16) reaching into
+   * [from, to). Times only: the reason and who set the block stay with Venue
+   * Staff, so they are not even selected.
+   */
+  async findBlockWindowsForVenue(venueId: string, from: Date, to: Date): Promise<TimeWindow[]> {
+    return this.prisma.venueBlock.findMany({
+      where: { venueId, start: { lt: to }, end: { gt: from } },
+      select: { start: true, end: true },
+      orderBy: { start: 'asc' },
+    });
+  }
+
+  /**
    * US-50 AC-4 — a venue's setup and turnaround time, zero when not
    * configured (or the venue is not found: its booking checks then behave as
    * they always did). Public so other booking checks (US-16 blocks, US-52)

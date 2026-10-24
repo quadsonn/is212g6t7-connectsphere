@@ -302,11 +302,15 @@ export class VenuesService {
 
     const range = resolveRange(query, now);
     const { from, to } = rangeBounds(range);
-    const slots = await this.bookings.findBookingSlotsForVenue(id, from, to);
+    // AC-1: bookings and blocked-off periods, both.
+    const [slots, blocks] = await Promise.all([
+      this.bookings.findBookingSlotsForVenue(id, from, to),
+      this.bookings.findBlockWindowsForVenue(id, from, to),
+    ]);
 
     return plainToInstance(
       DayAvailabilityDto,
-      aggregateAvailability(range, slots),
+      aggregateAvailability(range, slots, blocks),
       { excludeExtraneousValues: true },
     );
   }
@@ -317,6 +321,10 @@ export class VenuesService {
    * calendar to draw separately. Same grant, venue rule and range rules as
    * getAvailability (US-17), and as anonymous: no event, organiser or booking
    * id crosses this boundary (VenueOccupancyDto).
+   *
+   * US-17 AC-1: a blocked-off period is listed too, as one BLOCKED segment,
+   * so a Coordinator can see which hours of a part-blocked day are still
+   * free. Its reason and author are not included. Entries are earliest first.
    */
   async getOccupancy(
     user: AuthenticatedUser,
@@ -335,14 +343,25 @@ export class VenuesService {
     }
 
     const { from, to } = rangeBounds(resolveRange(query, now));
-    const slots = await this.bookings.findBookingSlotsForVenue(id, from, to);
+    const [slots, blocks] = await Promise.all([
+      this.bookings.findBookingSlotsForVenue(id, from, to),
+      this.bookings.findBlockWindowsForVenue(id, from, to),
+    ]);
 
-    return plainToInstance(
-      VenueOccupancyDto,
-      slots.map((slot) => ({
+    const entries = [
+      ...slots.map((slot) => ({
         status: slot.status === BookingStatus.APPROVED ? DayStatus.BOOKED : DayStatus.TENTATIVE,
         segments: occupancySegments(slot, slot.buffers ?? NO_BUFFERS),
       })),
+      ...blocks.map((block) => ({
+        status: DayStatus.BLOCKED,
+        segments: [{ kind: 'BLOCKED' as const, start: block.start, end: block.end }],
+      })),
+    ].sort((a, b) => a.segments[0].start.getTime() - b.segments[0].start.getTime());
+
+    return plainToInstance(
+      VenueOccupancyDto,
+      entries,
       { excludeExtraneousValues: true },
     );
   }

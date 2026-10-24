@@ -1,6 +1,6 @@
 import { BookingStatus } from '@prisma/client';
 
-import { VenueBuffers } from './venue-occupancy';
+import { TimeWindow, VenueBuffers } from './venue-occupancy';
 
 /**
  * A booking that a venue change might invalidate.
@@ -67,4 +67,10 @@ export abstract class VenueBookingLookup {
     from: Date,
     to: Date,
   ): Promise<VenueBookingSlot[]>;
+
+  /**
+   * US-17 AC-1 — blocked-off periods (US-16) on this venue reaching into
+   * [from, to), as times only: never the reason or who set them.
+   */
+  abstract findBlockWindowsForVenue(venueId: string, from: Date, to: Date): Promise<TimeWindow[]>;
 }

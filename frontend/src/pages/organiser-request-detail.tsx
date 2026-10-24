@@ -76,7 +76,11 @@ export function OrganiserRequestDetail() {
   // US-38 AC-5: the outcome of the last request, until a new one is pending.
   const latestDecision = pendingChange ? null : (event.latestChangeDecision ?? null);
   // US-37: one pending request at a time, and only while the event is live.
-  const canRequestChange = CHANGEABLE_EVENT_STATUSES.includes(event.status) && !pendingChange;
+  // US-58: while a question waits, details change through the response instead.
+  const canRequestChange =
+    CHANGEABLE_EVENT_STATUSES.includes(event.status) &&
+    event.status !== 'AWAITING_CLARIFICATION' &&
+    !pendingChange;
 
   // US-43 AC-1: offered from submission until the event starts. The server
   // re-checks, including the clock, so a stale page cannot cancel a started event.
@@ -99,7 +103,12 @@ export function OrganiserRequestDetail() {
               </Button>
             ) : null}
             {canCancel && !cancelling ? (
-              <Button type="button" variant="secondary" onClick={() => setCancelling(true)}>
+              <Button
+                type="button"
+                variant="secondary"
+                className="text-red-700 ring-red-300 hover:bg-red-50"
+                onClick={() => setCancelling(true)}
+              >
                 <Ban className="size-4" aria-hidden="true" />
                 Cancel event
               </Button>
@@ -158,13 +167,6 @@ export function OrganiserRequestDetail() {
                 : ''}
               . A Safety Officer will review the event next.
             </p>
-          </div>
-        ) : null}
-
-        {event.clarificationRequested && event.clarificationRequest ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            <p className="font-medium">The coordinator asked for clarification</p>
-            <p className="mt-1">{event.clarificationRequest}</p>
           </div>
         ) : null}
 

@@ -35,6 +35,20 @@ export function formatDateTime(iso: string): string {
   return `${dateFormatter.format(date)}, ${timeFormatter.format(date)}`;
 }
 
+const dayMonthFormatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+
+const clockFormatter = new Intl.DateTimeFormat('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+});
+
+/** A message's time, e.g. "22 Oct, 5:25 PM". */
+export function formatMessageTime(iso: string): string {
+  const date = new Date(iso);
+  return `${dayMonthFormatter.format(date)}, ${clockFormatter.format(date)}`;
+}
+
 export function formatDateRange(
   startIso: string | null,
   endIso: string | null,

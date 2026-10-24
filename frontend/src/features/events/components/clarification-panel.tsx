@@ -39,12 +39,15 @@ function changedFields(
   return changes as EventRequestPayload;
 }
 
+const RESPONSE_MAX = 4000;
+
 /**
  * US-09 / US-58 — the Organiser's side of a clarification: the history, and
  * while a question is waiting, the reply form.
  *
  * AC2: write and send a response. AC3: optionally update the request's
- * details with it, using the same fields as the edit page. AC5: sending it
+ * details with it, behind the "Also change event details" toggle, using the
+ * same fields as the edit page. AC5: sending it
  * returns the request to the Coordinator (`onResponded` lets the page react).
  * AC6: a blank response cannot be sent; the server refuses one too.
  */
@@ -68,6 +71,17 @@ export function ClarificationPanel({
   const awaiting = event.status === 'AWAITING_CLARIFICATION';
   const blank = response.trim() === '';
   const responseErrors = touched && blank ? ['Please write a response before sending.'] : [];
+  // Once the AC6 message shows, it says the same thing as the hint.
+  const showHint = blank && responseErrors.length === 0;
+
+  function toggleEditing(on: boolean) {
+    setEditing(on);
+    // Turning it off drops the edits, so nothing hidden is sent.
+    if (!on) {
+      setForm(initial);
+      setErrors({});
+    }
+  }
 
   const set: SetEventRequestField = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -116,7 +130,11 @@ export function ClarificationPanel({
 
   return (
     <div className="space-y-4">
-      <ClarificationThread messages={event.clarifications ?? []} />
+      <ClarificationThread
+        messages={event.clarifications ?? []}
+        viewerId={event.organiserId}
+        pendingLabel={awaiting ? 'Waiting for your reply' : undefined}
+      />
 
       {awaiting ? (
         <form onSubmit={send} noValidate className="space-y-4">
@@ -129,9 +147,10 @@ export function ClarificationPanel({
             <Textarea
               id="clarification-response"
               rows={3}
-              maxLength={4000}
+              maxLength={RESPONSE_MAX}
               value={response}
               aria-invalid={responseErrors.length > 0 ? true : undefined}
+              aria-describedby="clarification-response-meta"
               onChange={(e) => {
                 setResponse(e.target.value);
                 setTouched(true);
@@ -139,42 +158,43 @@ export function ClarificationPanel({
               onBlur={() => setTouched(true)}
               placeholder="Answer the coordinator's question"
             />
+            <div
+              id="clarification-response-meta"
+              className="flex justify-between gap-3 text-xs text-ink-500"
+            >
+              <span>{showHint ? 'Write a response to send' : null}</span>
+              <span aria-label={`${response.length} of ${RESPONSE_MAX} characters`}>
+                {response.length}/{RESPONSE_MAX}
+              </span>
+            </div>
           </Field>
 
-          {editing ? (
-            <div className="space-y-4">
-              <p className="text-sm text-ink-600">
-                Change any details the coordinator asked about. Only what you change is updated.
-              </p>
-              <EventRequestFields form={form} set={set} errors={errors} />
-            </div>
-          ) : (
-            <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>
-              Update request details
-            </Button>
-          )}
+          <div className="space-y-3 rounded-lg border border-ink-200 p-3">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 rounded border-ink-300"
+                checked={editing}
+                onChange={(e) => toggleEditing(e.target.checked)}
+                aria-describedby="clarification-edit-help"
+              />
+              <span>
+                <span className="font-medium text-ink-800">Also change event details</span>
+                <span className="text-ink-500"> (optional)</span>
+              </span>
+            </label>
+            <p id="clarification-edit-help" className="pl-6 text-xs text-ink-500">
+              Any details you change here are sent with your response and shown to the
+              coordinator in the history. Details you leave alone stay as they are.
+            </p>
+            {editing ? <EventRequestFields form={form} set={set} errors={errors} /> : null}
+          </div>
 
           {problem ? <ErrorState message={problem} /> : null}
 
-          <div className="flex gap-3">
-            <Button type="submit" disabled={respond.isPending || blank}>
-              {respond.isPending ? 'Sending…' : 'Send response'}
-            </Button>
-            {editing ? (
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={respond.isPending}
-                onClick={() => {
-                  setEditing(false);
-                  setForm(initial);
-                  setErrors({});
-                }}
-              >
-                Keep details as they are
-              </Button>
-            ) : null}
-          </div>
+          <Button type="submit" disabled={respond.isPending || blank}>
+            {respond.isPending ? 'Sending…' : 'Send response'}
+          </Button>
         </form>
       ) : null}
     </div>

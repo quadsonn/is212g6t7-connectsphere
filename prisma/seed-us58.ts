@@ -5,8 +5,8 @@
  * (Marcus), each waiting on an answer from the Organiser:
  *
  *   1 First question     AWAITING_CLARIFICATION, one question
- *                        → answer it on the request page; optionally "Update
- *                          request details" (e.g. attendance, layout notes)
+ *                        → answer it on the request page; optionally "Also change
+ *                          event details" (e.g. attendance, layout notes)
  *   2 Second round       AWAITING_CLARIFICATION; an earlier answer already
  *                        changed the expected attendance (shown old -> new in
  *                        the history), and a follow-up question is waiting
@@ -142,7 +142,7 @@ ${second.name}
     organiser: ${FRONTEND}/organiser/${second.id}
     coordinator: ${FRONTEND}/coordinator/events/${second.id}
 
-Answer as organiser@ (optionally with "Update request details"), then check coordinator@'s view and bell.`);
+Answer as organiser@ (optionally with "Also change event details"), then check coordinator@'s view and bell.`);
 }
 
 main()

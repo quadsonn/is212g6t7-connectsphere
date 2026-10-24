@@ -435,7 +435,13 @@ export function CoordinatorEventDetail() {
             </CardHeader>
             <CardContent>
               {/* US-58 AC4: each response with the details it updated. */}
-              <ClarificationThread messages={event.clarifications} />
+              <ClarificationThread
+                messages={event.clarifications}
+                viewerId={session?.userId}
+                pendingLabel={
+                  event.status === 'AWAITING_CLARIFICATION' ? "Waiting for the organiser's reply" : undefined
+                }
+              />
             </CardContent>
           </Card>
 

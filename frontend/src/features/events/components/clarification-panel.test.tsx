@@ -83,6 +83,37 @@ describe('US-58 clarification panel', () => {
       expect(within(entries[0]).getByText(/Marcus/)).toBeInTheDocument();
     });
 
+    it("Given the Organiser's own message, Then it is labelled You, and the Coordinator's by name", () => {
+      renderPanel(event({ organiserId: organiser.id }));
+
+      const entries = within(screen.getByRole('list', { name: 'Clarification history' })).getAllByRole('listitem');
+      expect(within(entries[1]).getByText('You')).toBeInTheDocument();
+      expect(within(entries[1]).queryByText('Olive')).not.toBeInTheDocument();
+      expect(within(entries[2]).getByText('Marcus')).toBeInTheDocument();
+    });
+
+    it('Given a question is waiting, Then the latest one is tagged "Waiting for your reply"', () => {
+      renderPanel();
+
+      const entries = within(screen.getByRole('list', { name: 'Clarification history' })).getAllByRole('listitem');
+      expect(within(entries[2]).getByText('Waiting for your reply')).toBeInTheDocument();
+      expect(entries[2]).toHaveAttribute('aria-current', 'true');
+      expect(screen.getAllByText('Waiting for your reply')).toHaveLength(1);
+    });
+
+    it('Given the request is no longer waiting, Then no question is tagged', () => {
+      renderPanel(event({ status: 'UNDER_REVIEW', clarificationRequest: null }));
+
+      expect(screen.queryByText('Waiting for your reply')).not.toBeInTheDocument();
+    });
+
+    it('Then a timestamp reads like "1 Sept, 9:00 AM"', () => {
+      renderPanel();
+
+      const entries = within(screen.getByRole('list', { name: 'Clarification history' })).getAllByRole('listitem');
+      expect(within(entries[0]).getByText(/^\d{1,2} \w{3,4}, \d{1,2}:\d{2} (AM|PM)$/)).toBeInTheDocument();
+    });
+
     it('Given a response that updated details, Then it lists each field old -> new', () => {
       renderPanel();
 
@@ -114,6 +145,22 @@ describe('US-58 clarification panel', () => {
       expect(submit).toBeDisabled();
       await userEvent.type(screen.getByLabelText(/Your response/), '   ');
       expect(submit).toBeDisabled();
+    });
+
+    it('AC6: Given the response is empty, Then a hint says to write one and the counter reads 0/4000', () => {
+      renderPanel();
+
+      expect(screen.getByText('Write a response to send')).toBeInTheDocument();
+      expect(screen.getByText('0/4000')).toBeInTheDocument();
+    });
+
+    it('Given the Organiser types, Then the hint goes and the counter counts the characters', async () => {
+      renderPanel();
+
+      await userEvent.type(screen.getByLabelText(/Your response/), 'Two exits.');
+
+      expect(screen.queryByText('Write a response to send')).not.toBeInTheDocument();
+      expect(screen.getByText('10/4000')).toBeInTheDocument();
     });
 
     it('AC6: Given the Organiser has not typed yet, Then no message is shown', () => {
@@ -174,7 +221,7 @@ describe('US-58 clarification panel', () => {
       api.respondToClarification.mockResolvedValue(event({ status: 'UNDER_REVIEW' }));
       renderPanel();
 
-      await userEvent.click(screen.getByRole('button', { name: 'Update request details' }));
+      await userEvent.click(screen.getByRole('checkbox', { name: /Also change event details/ }));
       await userEvent.type(screen.getByLabelText('Layout notes'), 'Second exit at the rear');
       await userEvent.type(screen.getByLabelText(/Your response/), 'Added a second exit.');
       await userEvent.click(screen.getByRole('button', { name: 'Send response' }));
@@ -191,13 +238,58 @@ describe('US-58 clarification panel', () => {
       api.respondToClarification.mockResolvedValue(event({ status: 'UNDER_REVIEW' }));
       renderPanel();
 
-      await userEvent.click(screen.getByRole('button', { name: 'Update request details' }));
+      await userEvent.click(screen.getByRole('checkbox', { name: /Also change event details/ }));
       await userEvent.type(screen.getByLabelText(/Your response/), 'No changes needed.');
       await userEvent.click(screen.getByRole('button', { name: 'Send response' }));
 
       await waitFor(() =>
         expect(api.respondToClarification).toHaveBeenCalledWith('EVT-001', { response: 'No changes needed.' }),
       );
+    });
+
+    it('Given the toggle is off, Then the detail fields are hidden and the help text explains the option', () => {
+      renderPanel();
+
+      const toggle = screen.getByRole('checkbox', { name: /Also change event details/ });
+      expect(toggle).not.toBeChecked();
+      expect(toggle).toHaveAccessibleDescription(/sent with your response/);
+      expect(screen.queryByLabelText('Layout notes')).not.toBeInTheDocument();
+    });
+
+    it('Given the toggle is turned on, Then the detail fields expand inline', async () => {
+      renderPanel();
+
+      await userEvent.click(screen.getByRole('checkbox', { name: /Also change event details/ }));
+
+      expect(screen.getByLabelText('Layout notes')).toBeInTheDocument();
+    });
+
+    it('Given a field is edited and the toggle turned off again, When sent, Then no changes are sent', async () => {
+      api.respondToClarification.mockResolvedValue(event({ status: 'UNDER_REVIEW' }));
+      renderPanel();
+      const toggle = screen.getByRole('checkbox', { name: /Also change event details/ });
+
+      await userEvent.click(toggle);
+      await userEvent.type(screen.getByLabelText('Layout notes'), 'Second exit');
+      await userEvent.click(toggle);
+      await userEvent.type(screen.getByLabelText(/Your response/), 'Never mind.');
+      await userEvent.click(screen.getByRole('button', { name: 'Send response' }));
+
+      await waitFor(() =>
+        expect(api.respondToClarification).toHaveBeenCalledWith('EVT-001', { response: 'Never mind.' }),
+      );
+    });
+
+    it('Given the toggle is turned back on after that, Then the edits were discarded', async () => {
+      renderPanel();
+      const toggle = screen.getByRole('checkbox', { name: /Also change event details/ });
+
+      await userEvent.click(toggle);
+      await userEvent.type(screen.getByLabelText('Layout notes'), 'Second exit');
+      await userEvent.click(toggle);
+      await userEvent.click(toggle);
+
+      expect(screen.getByLabelText('Layout notes')).toHaveValue('');
     });
 
     it('Given the server refuses a change, Then the problem is shown and the form stays', async () => {

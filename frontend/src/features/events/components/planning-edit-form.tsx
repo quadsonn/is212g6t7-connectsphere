@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { AttendanceSelect } from '@/components/attendance-select';
 import { Button } from '@/components/ui/button';
 import { DateTimeField } from '@/components/ui/date-time-field';
 import { CheckboxRow, Field, Select, Textarea } from '@/components/ui/form';
@@ -211,12 +212,10 @@ export function PlanningEditForm({
           errors={byField.expectedAttendance}
           required
         >
-          <Input
+          <AttendanceSelect
             id="plan-attendance"
-            type="number"
-            min={1}
             value={form.expectedAttendance}
-            onChange={(e) => set('expectedAttendance', e.target.value)}
+            onChange={(value) => set('expectedAttendance', value)}
           />
         </Field>
       </div>

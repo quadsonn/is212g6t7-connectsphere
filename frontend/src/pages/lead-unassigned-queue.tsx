@@ -3,6 +3,7 @@ import { Card, CardHeader } from '@/components/ui/card';
 import { LinkButton } from '@/components/ui/link-button';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { useQueue } from '@/features/assignments/hooks/use-assignments';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { formatDateRange, formatDateTime } from '@/lib/utils';
 import type { QueueEntry } from '@/types/api';
@@ -18,7 +19,7 @@ function QueueRow({ entry }: { entry: QueueEntry }) {
         </p>
         <p className="text-sm text-ink-700">
           Preferred {formatDateRange(entry.proposedStart, entry.proposedEnd)} ·{' '}
-          {entry.expectedAttendance ?? '—'} expected
+          {attendanceBandLabel(entry.expectedAttendance)} expected
         </p>
         <p className="text-xs text-ink-500">
           Submitted {entry.submittedAt ? formatDateTime(entry.submittedAt) : '—'}

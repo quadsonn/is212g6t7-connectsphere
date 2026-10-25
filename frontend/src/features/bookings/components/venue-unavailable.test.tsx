@@ -129,7 +129,7 @@ describe('US-52 on the affected event', () => {
     await user.click(await screen.findByRole('button', { name: 'Request a replacement venue' }));
 
     // The original booking's timing and attendance — not the event's.
-    expect(screen.getByLabelText(/Expected attendance/)).toHaveValue(80);
+    expect(screen.getByLabelText(/Expected attendance/)).toHaveValue('80');
     // Its recorded requirements, not the event's.
     expect(screen.getByText('Theatre — Stage at the front.')).toBeInTheDocument();
     expect(screen.getByText('Two projectors.')).toBeInTheDocument();
@@ -140,9 +140,7 @@ describe('US-52 on the affected event', () => {
     );
 
     // Editable: change the attendance, choose a venue, submit.
-    const attendance = screen.getByLabelText(/Expected attendance/);
-    await user.clear(attendance);
-    await user.type(attendance, '90');
+    await user.selectOptions(screen.getByLabelText(/Expected attendance/), '50 – 99');
     await user.selectOptions(await screen.findByLabelText(/Venue/), 'east');
     await user.click(screen.getByRole('button', { name: 'Submit replacement request' }));
 
@@ -152,7 +150,7 @@ describe('US-52 on the affected event', () => {
         venueId: 'east',
         start: START,
         end: END,
-        expectedAttendance: 90,
+        expectedAttendance: 99,
         replacesBookingId: 'b1',
       }),
     );

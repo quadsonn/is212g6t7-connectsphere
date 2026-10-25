@@ -447,6 +447,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
         expect(event).not.toHaveProperty('layoutNotes');
         expect(event).not.toHaveProperty('accessibilityRequirements');
         expect(event).not.toHaveProperty('accessibilityNotes');
+        // US-19 AC-3: internal planning too.
+        expect(event).not.toHaveProperty('requiredFacilities');
       }
     });
   });

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { AccessibilityFeature, RoomLayout } from '@prisma/client';
+import { AccessibilityFeature, Facility, RoomLayout } from '@prisma/client';
 import {
   ArrayUnique,
   IsArray,
@@ -114,6 +114,19 @@ export class DraftEventRequestDto {
   @IsString()
   @MaxLength(2000)
   accessibilityNotes?: string;
+
+  /**
+   * US-19 AC-3 — facilities the event needs, from the list venues use
+   * (US-18). Empty or absent means none.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsEnum(Facility, {
+    each: true,
+    message: `requiredFacilities must contain only: ${Object.values(Facility).join(', ')}`,
+  })
+  requiredFacilities?: Facility[];
 
   @IsOptional()
   @Trim()

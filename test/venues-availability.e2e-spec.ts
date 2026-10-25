@@ -134,6 +134,118 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
     });
   });
 
+  describe('AC-1: the calendar shows blocked-off periods', () => {
+    // These tests have no test case ID yet (none in docs/testing for them).
+    // Each inserts its block rows here, on top of the named setup scripts.
+    const BLOCK_REASON = 'Confidential renovation';
+    /** Vera Venue (base-users.sql), who manages the base venues. */
+    const STAFF_ID = 'USR-010';
+
+    /** A Venue Staff block, Singapore local time. */
+    const seedBlock = (start: string, end: string, venueId: string = VENUE.hall) =>
+      prisma.venueBlock.create({
+        data: {
+          venueId,
+          start: new Date(`${start}+08:00`),
+          end: new Date(`${end}+08:00`),
+          reason: BLOCK_REASON,
+          createdById: STAFF_ID,
+        },
+      });
+
+    const slots = (who: keyof typeof USERS, venueId: string, query = '') =>
+      http()
+        .get(`/venues/${venueId}/availability/slots${query}`)
+        .set('Authorization', as(who));
+
+    // No TC ID yet · setup: base-users + base-venues + a block · fails if a blocked day showed as free
+    it('Given a block on a day, Then that day is blocked', async () => {
+      await seedBlock('2027-03-15T09:00:00', '2027-03-15T13:00:00');
+
+      const res = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
+
+      expect(statusOn(res.body, '2027-03-15')).toBe('blocked');
+      expect(statusOn(res.body, '2027-03-16')).toBe('free');
+    });
+
+    // No TC ID yet · setup: base-users + base-venues + a block · fails if a multi-day block marked only its first day, or ran past midnight
+    it('Given a block across several days, Then every day it touches is blocked', async () => {
+      await seedBlock('2027-03-20T00:00:00', '2027-03-23T00:00:00');
+
+      const res = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
+
+      expect(['20', '21', '22'].map((d) => statusOn(res.body, `2027-03-${d}`))).toEqual([
+        'blocked',
+        'blocked',
+        'blocked',
+      ]);
+      expect(statusOn(res.body, '2027-03-23')).toBe('free');
+    });
+
+    // No TC ID yet · setup: base-users + base-venues + tc-s2-12-setup + a block · fails if a booking hid a block on the same day
+    it('Given a block and an approved booking on the same day, Then the day is blocked', async () => {
+      await given('tc-s2-12-setup');
+      await seedBlock('2027-03-10T18:00:00', '2027-03-10T20:00:00');
+
+      const res = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
+
+      expect(statusOn(res.body, '2027-03-10')).toBe('blocked');
+    });
+
+    // No TC ID yet · setup: base-users + base-venues + a block on another venue · fails if one venue's block appeared on another's calendar
+    it("ignores another venue's blocks", async () => {
+      await seedBlock('2027-03-15T09:00:00', '2027-03-15T13:00:00', VENUE.room);
+
+      const res = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
+
+      expect(statusOn(res.body, '2027-03-15')).toBe('free');
+    });
+
+    // No TC ID yet · setup: base-users + base-venues + a block · fails if the reason or author of a block reached a Coordinator
+    it('never reveals why the period is blocked or who blocked it', async () => {
+      const block = await seedBlock('2027-03-15T09:00:00', '2027-03-15T13:00:00');
+
+      const days = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
+      const times = await slots('coordinator', VENUE.hall, '?from=2027-03-15&to=2027-03-15').expect(200);
+
+      for (const raw of [JSON.stringify(days.body), JSON.stringify(times.body)]) {
+        for (const secret of [BLOCK_REASON, block.id, STAFF_ID]) {
+          expect(raw).not.toContain(secret);
+        }
+      }
+    });
+
+    // No TC ID yet · setup: base-users + base-venues + a block · fails if a day's times left out a blocked period
+    it("Given a block, Then the day's times list it as a blocked period", async () => {
+      await seedBlock('2027-03-15T09:00:00', '2027-03-15T13:00:00');
+
+      const res = await slots('coordinator', VENUE.hall, '?from=2027-03-15&to=2027-03-15').expect(200);
+
+      expect(res.body).toEqual([
+        {
+          status: 'blocked',
+          segments: [
+            {
+              kind: 'BLOCKED',
+              start: new Date('2027-03-15T09:00:00+08:00').toISOString(),
+              end: new Date('2027-03-15T13:00:00+08:00').toISOString(),
+            },
+          ],
+        },
+      ]);
+    });
+
+    // No TC ID yet · setup: base-users + base-venues + tc-s2-12-setup + a block · fails if blocks and bookings were not in time order
+    it('lists bookings and blocks together, earliest first', async () => {
+      await given('tc-s2-12-setup');
+      await seedBlock('2027-03-10T06:00:00', '2027-03-10T08:00:00');
+
+      const res = await slots('coordinator', VENUE.hall, '?from=2027-03-10&to=2027-03-10').expect(200);
+
+      expect(res.body.map((entry: { status: string }) => entry.status)).toEqual(['blocked', 'booked']);
+    });
+  });
+
   describe('AC-2: each month loads on its own, within two seconds', () => {
     // TC-S2-13 · setup: base-users + base-venues · fails if a future month returned the wrong days or took 2 seconds or more
     it('returns exactly the requested future month', async () => {

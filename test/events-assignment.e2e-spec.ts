@@ -311,10 +311,26 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
         where: { relatedEventId: event.id },
       });
 
-      expect(notes).toHaveLength(1);
-      expect(notes[0]).toMatchObject({
-        recipientId: ids.marcus,
-        type: NotificationType.EVENT_ASSIGNED,
+      expect(notes.map((n) => [n.recipientId, n.type]).sort()).toEqual(
+        [
+          [ids.marcus, NotificationType.EVENT_ASSIGNED],
+          // US-65: and the Organiser.
+          [ids.organiser, NotificationType.COORDINATOR_ASSIGNED],
+        ].sort(),
+      );
+    });
+
+    it('US-65: tells the Organiser who their coordinator now is, in their inbox', async () => {
+      const event = await seedEvent();
+      await assign(event.id, ids.marcus).expect(200);
+
+      const inbox = await http().get('/notifications').set('Authorization', as('organiser')).expect(200);
+
+      expect(inbox.body).toHaveLength(1);
+      expect(inbox.body[0]).toMatchObject({
+        type: 'COORDINATOR_ASSIGNED',
+        summary: `Marcus is now the coordinator for "${event.name}".`,
+        link: `/organiser/${event.id}`,
       });
     });
 
@@ -331,6 +347,20 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       });
       const stored = await prisma.eventRequest.findUniqueOrThrow({ where: { id: event.id } });
       expect(stored.coordinatorId).toBe(ids.marcus);
+    });
+
+    it('US-65 AC1: Given the event is already assigned, When a Lead assigns it again, Then the Organiser is not notified again', async () => {
+      const event = await seedEvent();
+      await assign(event.id, ids.marcus).expect(200);
+
+      await assign(event.id, ids.fatima).expect(409);
+
+      const toOrganiser = await prisma.notification.findMany({
+        where: { relatedEventId: event.id, recipientId: ids.organiser },
+      });
+      // Only the first, successful assignment's notice.
+      expect(toOrganiser).toHaveLength(1);
+      expect(toOrganiser[0].message).toBe(`Marcus is now the coordinator for "${event.name}".`);
     });
 
     it('lets only one of two simultaneous assignments win', async () => {
@@ -580,8 +610,12 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
         [
           [ids.marcus, NotificationType.EVENT_REASSIGNED],
           [ids.fatima, NotificationType.EVENT_REASSIGNED],
+          // US-65: and the Organiser, with the new coordinator's name.
+          [ids.organiser, NotificationType.COORDINATOR_ASSIGNED],
         ].sort(),
       );
+      const toOrganiser = notes.find((n) => n.recipientId === ids.organiser);
+      expect(toOrganiser?.message).toBe(`Your coordinator for "${event.name}" is now Fatima.`);
     });
 
     it('is Lead-only', async () => {

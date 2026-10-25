@@ -23,11 +23,35 @@ export const TRACKED_FIELDS = [
   'layoutNotes',
   'accessibilityRequirements',
   'accessibilityNotes',
+  'requiredFacilities',
   'equipmentNeeds',
   'registrationEnabled',
 ] as const satisfies readonly (keyof EventRequest)[];
 
 export type TrackedField = (typeof TRACKED_FIELDS)[number];
+
+/**
+ * US-58 — how a tracked field is named mid-sentence in a notification
+ * ("… and updated: expected attendance, layout notes."). The frontend's
+ * CHANGE_FIELD_LABELS name the same fields as headings.
+ */
+export const TRACKED_FIELD_LABELS: Readonly<Record<TrackedField, string>> = {
+  name: 'event name',
+  purpose: 'purpose',
+  description: 'description',
+  category: 'category',
+  programme: 'programme',
+  proposedStart: 'start',
+  proposedEnd: 'end',
+  expectedAttendance: 'expected attendance',
+  preferredLayout: 'preferred layout',
+  layoutNotes: 'layout notes',
+  accessibilityRequirements: 'accessibility requirements',
+  accessibilityNotes: 'accessibility notes',
+  requiredFacilities: 'required facilities',
+  equipmentNeeds: 'equipment needs',
+  registrationEnabled: 'registration',
+};
 
 /** JSON-safe value as stored in EventChange.changes. Dates become ISO strings. */
 export type ChangeValue = string | number | boolean | string[] | null;
@@ -86,6 +110,8 @@ export const ARRANGEMENT_SENSITIVE_FIELDS: Readonly<
     'expectedAttendance',
     'preferredLayout',
     'accessibilityRequirements',
+    // US-19 AC-3: the venue was checked against these too.
+    'requiredFacilities',
   ],
   [ConfirmedArrangement.EQUIPMENT_RESERVATION]: [
     'proposedStart',

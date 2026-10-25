@@ -520,4 +520,194 @@ describe('US-09 clarification thread (e2e)', () => {
         .expect(401);
     });
   });
+
+  // The US-58 tests have no test case ID yet (none in docs/testing for them).
+  // Each starts from tc-s1-01-setup's submitted request (EVT-146, 320 expected).
+  describe('US-58: responding with updated details', () => {
+    const respondWith = (
+      eventId: string,
+      body: { response: string; changes?: Record<string, unknown> },
+      who = 'organiser',
+    ) =>
+      http()
+        .post(`/events/${eventId}/clarifications/responses`)
+        .set('Authorization', as(who))
+        .send(body);
+
+    /** tc-s1-01-setup's SUBMITTED request, as stored. */
+    const submittedEvent = async () => {
+      await given('tc-s1-01-setup');
+      return prisma.eventRequest.findUniqueOrThrow({ where: { id: EVENT.submitted.id } });
+    };
+
+    const awaitingEvent = async () => {
+      const event = await submittedEvent();
+      await ask(event.id, 'How many will attend, and how will they leave?').expect(201);
+      return event;
+    };
+
+    const stored = (eventId: string) =>
+      prisma.eventRequest.findUniqueOrThrow({ where: { id: eventId } });
+
+    const thread = async (eventId: string) =>
+      (await http().get(`/events/mine/${eventId}`).set('Authorization', as('organiser')).expect(200))
+        .body.clarifications;
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('AC1: Given a question was asked, Then the request shows as awaiting clarification with the question', async () => {
+      const event = await awaitingEvent();
+
+      const res = await http().get(`/events/mine/${event.id}`).set('Authorization', as('organiser')).expect(200);
+
+      expect(res.body.status).toBe('AWAITING_CLARIFICATION');
+      expect(res.body.clarificationRequest).toBe('How many will attend, and how will they leave?');
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('AC3/AC4/AC5: Given changes, When the Organiser responds, Then they are saved, shown old -> new on the response, and the request returns for review', async () => {
+      const event = await awaitingEvent();
+
+      await respondWith(event.id, {
+        response: 'About 400, and we added a second exit.',
+        changes: { expectedAttendance: 400, layoutNotes: 'Second exit at the rear' },
+      }).expect(201);
+
+      const after = await stored(event.id);
+      expect(after.expectedAttendance).toBe(400);
+      expect(after.layoutNotes).toBe('Second exit at the rear');
+      expect(after.status).toBe(EventStatus.UNDER_REVIEW);
+
+      const [question, answer] = await thread(event.id);
+      expect(question.change).toBeNull();
+      expect(answer.body).toBe('About 400, and we added a second exit.');
+      expect(answer.change.changes).toEqual([
+        { field: 'expectedAttendance', previous: 320, next: 400 },
+        { field: 'layoutNotes', previous: null, next: 'Second exit at the rear' },
+      ]);
+
+      // The same edit is in the event's history, once.
+      expect(await prisma.eventChange.count({ where: { eventId: event.id } })).toBe(1);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('AC4: the Coordinator sees the response and its changes in the thread too', async () => {
+      const event = await awaitingEvent();
+      await respondWith(event.id, { response: 'About 400.', changes: { expectedAttendance: 400 } }).expect(201);
+
+      const res = await http()
+        .get(`/events/assigned/${event.id}`)
+        .set('Authorization', as('coordinatorA'))
+        .expect(200);
+
+      expect(res.body.clarifications[1].change.changes).toEqual([
+        { field: 'expectedAttendance', previous: 320, next: 400 },
+      ]);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given a field update that fails validation, Then 400, nothing is saved, and the status does not change', async () => {
+      const event = await awaitingEvent();
+
+      await respondWith(event.id, {
+        response: 'New times.',
+        changes: { proposedStart: '2030-10-01T17:00:00Z', proposedEnd: '2030-10-01T09:00:00Z' },
+      }).expect(400);
+
+      const after = await stored(event.id);
+      expect(after.proposedStart).toEqual(event.proposedStart);
+      expect(after.status).toBe(EventStatus.AWAITING_CLARIFICATION);
+      expect(await thread(event.id)).toHaveLength(1);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given a change that clears a required field, Then 400 rather than a server error, and nothing is saved', async () => {
+      const event = await awaitingEvent();
+
+      const res = await respondWith(event.id, { response: 'No name.', changes: { name: null } }).expect(400);
+
+      expect(JSON.stringify(res.body.message)).toMatch(/name/i);
+      const after = await stored(event.id);
+      expect(after.name).toBe(event.name);
+      expect(after.status).toBe(EventStatus.AWAITING_CLARIFICATION);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup + tc-s1-22-setup
+    it('Given another Organiser’s event, When they respond with changes, Then 404 and nothing is saved', async () => {
+      const event = await awaitingEvent();
+      // tc-s1-22-setup: a second Organiser, unrelated to the request.
+      await given('tc-s1-22-setup');
+      const login = await http()
+        .post('/auth/login')
+        .send({ email: 'other@example.com', password: PASSWORD })
+        .expect(200);
+      tokens.otherOrganiser = login.body.accessToken;
+
+      await respondWith(event.id, { response: 'Mine now.', changes: { expectedAttendance: 5 } }, 'otherOrganiser').expect(404);
+
+      expect((await stored(event.id)).expectedAttendance).toBe(320);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given the request is not awaiting clarification, When the Organiser responds with changes, Then 409 and nothing is saved', async () => {
+      const event = await submittedEvent();
+
+      await respondWith(event.id, { response: 'Unprompted.', changes: { expectedAttendance: 400 } }).expect(409);
+
+      expect((await stored(event.id)).expectedAttendance).toBe(320);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('AC6: Given a whitespace-only response, Then 400 and nothing changes', async () => {
+      const event = await awaitingEvent();
+
+      await respondWith(event.id, { response: '   ', changes: { expectedAttendance: 400 } }).expect(400);
+
+      const after = await stored(event.id);
+      expect(after.expectedAttendance).toBe(320);
+      expect(after.status).toBe(EventStatus.AWAITING_CLARIFICATION);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given two responses at once, Then exactly one is accepted', async () => {
+      const event = await awaitingEvent();
+
+      const results = await Promise.all([
+        respondWith(event.id, { response: 'First.', changes: { expectedAttendance: 400 } }),
+        respondWith(event.id, { response: 'Second.', changes: { expectedAttendance: 500 } }),
+      ]);
+
+      expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+      expect(await thread(event.id)).toHaveLength(2);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given a second round, Then each response keeps its own changes', async () => {
+      const event = await awaitingEvent();
+      await respondWith(event.id, { response: 'About 400.', changes: { expectedAttendance: 400 } }).expect(201);
+      await ask(event.id, 'And the layout?').expect(201);
+      await respondWith(event.id, { response: 'Banquet.', changes: { preferredLayout: 'BANQUET' } }).expect(201);
+
+      const entries = await thread(event.id);
+      expect(entries.map((e: { change: { changes: { field: string }[] } | null }) => e.change?.changes.map((c) => c.field) ?? null)).toEqual([
+        null,
+        ['expectedAttendance'],
+        null,
+        ['preferredLayout'],
+      ]);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given changes, Then the Coordinator’s notification names the updated details', async () => {
+      const event = await awaitingEvent();
+
+      await respondWith(event.id, { response: 'About 400.', changes: { expectedAttendance: 400 } }).expect(201);
+
+      const note = await prisma.notification.findFirstOrThrow({
+        where: { relatedEventId: event.id, type: NotificationType.CLARIFICATION_ANSWERED },
+      });
+      expect(note.message).toBe(
+        `The organiser has responded on "${event.name}" and updated: expected attendance.`,
+      );
+    });
+  });
 });

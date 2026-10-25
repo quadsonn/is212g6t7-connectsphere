@@ -156,6 +156,8 @@ describe('Safety check (e2e)', () => {
     await seedUser('coordinator', Role.EVENT_COORDINATOR, 'Marcus');
     await seedUser('otherCoordinator', Role.EVENT_COORDINATOR);
     await seedUser('officer', Role.SAFETY_OFFICER, 'Sam');
+    // US-64: a second officer, to show every Safety Officer is told.
+    await seedUser('officer2', Role.SAFETY_OFFICER, 'Mei');
     await seedUser('venueStaff', Role.VENUE_STAFF);
     await seedUser('techSupport', Role.TECHNICAL_SUPPORT_STAFF);
     await seedUser('attendee', Role.ATTENDEE);
@@ -682,6 +684,80 @@ describe('Safety check (e2e)', () => {
 
       await reviews(event.id, 'otherCoordinator').expect(404);
       await reviews(event.id, 'organiser').expect(403);
+    });
+  });
+
+  describe('US-64: Safety Officers alerted when a check is due', () => {
+    const safetyNotices = (eventId: string) =>
+      prisma.notification.findMany({
+        where: { relatedEventId: eventId, type: NotificationType.SAFETY_CHECK_DUE },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      });
+
+    /** The event's date as the venues' clock reads it (Singapore), e.g. "13 Nov 2026". */
+    const singaporeDate = (d: Date) =>
+      new Intl.DateTimeFormat('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Singapore',
+      }).format(d);
+
+    it('AC1: Given two Safety Officers, When the Coordinator confirms, Then each is alerted once, and nobody else', async () => {
+      const { event } = await queuedEvent();
+
+      const notes = await safetyNotices(event.id);
+      expect(notes.map((n) => n.recipientId).sort()).toEqual([ids.officer, ids.officer2].sort());
+    });
+
+    it('AC2: Given a dated event, When it enters the queue, Then the alert names the event and its date', async () => {
+      const { event } = await queuedEvent();
+
+      const notes = await safetyNotices(event.id);
+      for (const n of notes) {
+        expect(n.message).toBe(`Safety check due: Careers Fair on ${singaporeDate(start)}`);
+      }
+    });
+
+    it('AC1: Given the confirmation is refused, Then nobody is alerted', async () => {
+      const event = await seedEvent();
+      await seedBooking(event.id); // still REQUESTED, so not ready
+
+      await confirmArrangements(event.id).expect(409);
+
+      expect(await safetyNotices(event.id)).toEqual([]);
+    });
+
+    it('AC1: Given feedback answered with a changed plan, When the Coordinator resubmits, Then every Safety Officer is alerted again', async () => {
+      const { event } = await queuedEvent();
+      await decide(event.id, { outcome: 'CHANGES_REQUESTED', returnStage: 'VENUE', reason: 'Add an exit' }).expect(200);
+      await http()
+        .patch(`/events/${event.id}/planning`)
+        .set('Authorization', as('coordinator'))
+        .send({ layoutNotes: 'Second exit added at the rear' })
+        .expect(200);
+
+      await http().post(`/safety/events/${event.id}/resubmit`).set('Authorization', as('coordinator')).expect(200);
+
+      // One alert each for the confirmation, and one each for the resubmission.
+      const notes = await safetyNotices(event.id);
+      expect(notes.map((n) => n.recipientId).sort()).toEqual(
+        [ids.officer, ids.officer, ids.officer2, ids.officer2].sort(),
+      );
+    });
+
+    it('AC1: the alert is in the officer’s inbox, titled by type and linked to the existing safety check page', async () => {
+      const { event } = await queuedEvent();
+
+      const inbox = await http().get('/notifications').set('Authorization', as('officer2')).expect(200);
+
+      expect(inbox.body).toHaveLength(1);
+      expect(inbox.body[0]).toMatchObject({
+        type: 'SAFETY_CHECK_DUE',
+        read: false,
+        relatedEvent: { id: event.id, name: 'Careers Fair' },
+        link: `/safety/checks/${event.id}`,
+      });
     });
   });
 });

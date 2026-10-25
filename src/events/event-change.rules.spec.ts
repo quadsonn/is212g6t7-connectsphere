@@ -58,6 +58,12 @@ describe('event change rules (US-24, US-25)', () => {
       ]);
     });
 
+    it('US-19 AC-3: records a change to the required facilities', () => {
+      expect(
+        diffEventFields({ requiredFacilities: ['PROJECTOR'] }, { requiredFacilities: ['PROJECTOR', 'STAGE'] }),
+      ).toEqual([{ field: 'requiredFacilities', previous: ['PROJECTOR'], next: ['PROJECTOR', 'STAGE'] }]);
+    });
+
     it('never reports a field outside the tracked set', () => {
       expect(
         diffEventFields(before, { status: 'CANCELLED' } as Record<string, unknown>),
@@ -73,6 +79,15 @@ describe('event change rules (US-24, US-25)', () => {
       expect(
         affectedArrangements(change('expectedAttendance'), [
           ConfirmedArrangement.VENUE_BOOKING,
+        ]),
+      ).toEqual([ConfirmedArrangement.VENUE_BOOKING]);
+    });
+
+    it('US-19 AC-3: flags a venue booking when the required facilities change', () => {
+      expect(
+        affectedArrangements(diffEventFields({}, { requiredFacilities: ['STAGE'] }), [
+          ConfirmedArrangement.VENUE_BOOKING,
+          ConfirmedArrangement.EQUIPMENT_RESERVATION,
         ]),
       ).toEqual([ConfirmedArrangement.VENUE_BOOKING]);
     });

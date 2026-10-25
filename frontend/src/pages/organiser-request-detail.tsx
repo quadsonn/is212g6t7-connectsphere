@@ -8,6 +8,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { CancelEventPanel } from '@/features/events/components/cancel-event-panel';
+import { ClarificationPanel } from '@/features/events/components/clarification-panel';
 import { ChangeRequestForm } from '@/features/events/components/change-request-form';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { PendingChangeRequest } from '@/features/events/components/pending-change-request';
@@ -23,7 +24,7 @@ import {
   EDITABLE_EVENT_STATUSES,
 } from '@/lib/status';
 import { formatDate, formatDateTime, humanise } from '@/lib/utils';
-import { ACCESSIBILITY_FEATURE_LABELS } from '@/types/api';
+import { ACCESSIBILITY_FEATURE_LABELS, FACILITY_LABELS } from '@/types/api';
 
 /** A labelled value in the detail grid — dash when the field is still empty (a draft, US-04). */
 function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
@@ -76,7 +77,11 @@ export function OrganiserRequestDetail() {
   // US-38 AC-5: the outcome of the last request, until a new one is pending.
   const latestDecision = pendingChange ? null : (event.latestChangeDecision ?? null);
   // US-37: one pending request at a time, and only while the event is live.
-  const canRequestChange = CHANGEABLE_EVENT_STATUSES.includes(event.status) && !pendingChange;
+  // US-58: while a question waits, details change through the response instead.
+  const canRequestChange =
+    CHANGEABLE_EVENT_STATUSES.includes(event.status) &&
+    event.status !== 'AWAITING_CLARIFICATION' &&
+    !pendingChange;
 
   // US-43 AC-1: offered from submission until the event starts. The server
   // re-checks, including the clock, so a stale page cannot cancel a started event.
@@ -99,7 +104,12 @@ export function OrganiserRequestDetail() {
               </Button>
             ) : null}
             {canCancel && !cancelling ? (
-              <Button type="button" variant="secondary" onClick={() => setCancelling(true)}>
+              <Button
+                type="button"
+                variant="secondary"
+                className="text-red-700 ring-red-300 hover:bg-red-50"
+                onClick={() => setCancelling(true)}
+              >
                 <Ban className="size-4" aria-hidden="true" />
                 Cancel event
               </Button>
@@ -161,11 +171,16 @@ export function OrganiserRequestDetail() {
           </div>
         ) : null}
 
-        {event.clarificationRequested && event.clarificationRequest ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            <p className="font-medium">The coordinator asked for clarification</p>
-            <p className="mt-1">{event.clarificationRequest}</p>
-          </div>
+        {/* US-58: answer here, where the notification leads, and see the history. */}
+        {event.status === 'AWAITING_CLARIFICATION' || (event.clarifications?.length ?? 0) > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Clarification</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ClarificationPanel key={event.id} event={event} />
+            </CardContent>
+          </Card>
         ) : null}
 
         {/* US-37: the original details stay below; the request sits alongside them. */}
@@ -284,6 +299,16 @@ export function OrganiserRequestDetail() {
               </div>
               <div className="sm:col-span-2">
                 <DetailField label="Accessibility notes" value={event.accessibilityNotes} />
+              </div>
+              <div className="sm:col-span-2">
+                <DetailField
+                  label="Required facilities"
+                  value={
+                    event.requiredFacilities?.length
+                      ? event.requiredFacilities.map((f) => FACILITY_LABELS[f]).join(', ')
+                      : null
+                  }
+                />
               </div>
               <div className="sm:col-span-2">
                 <DetailField label="Equipment needs" value={event.equipmentNeeds} />

@@ -25,4 +25,10 @@ describe('US-54: calendar labels', () => {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
   });
+
+  it('US-51: the legend has a key for a conflict flag', () => {
+    render(<CalendarLegend />);
+
+    expect(screen.getByText('Conflict')).toBeInTheDocument();
+  });
 });

@@ -12,6 +12,7 @@ import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
+import { inEntryOrder } from '../prisma/readable-id';
 import { BrowseEquipmentDto, EquipmentSortField, SortOrder } from './dto/browse-equipment.dto';
 import { ChangeEquipmentStatusDto } from './dto/change-equipment-status.dto';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
@@ -411,5 +412,63 @@ export class EquipmentService {
       start: window.start,
       end: window.end,
     };
+  }
+
+  /**
+   * US-19 AC-3 — for each equipment line an event asks for (US-28), how many
+   * units are free over the event's dates, by US-30's rules. Read-only, like
+   * checkAvailability: nothing is reserved.
+   *
+   * The event's own APPROVED reservations are not counted against it: units
+   * already reserved for this event are its own, not a shortfall. A line not
+   * linked to the catalogue, or an event without dates, cannot be counted and
+   * comes back with availableQuantity null.
+   *
+   * Access is the caller's job: this is called only after the caller's own
+   * check on the event (VenuesService.getSuitability).
+   */
+  async freeUnitsForEventRequirements(
+    eventId: string,
+    window: { start: Date; end: Date } | null,
+  ): Promise<{ item: string; requestedQuantity: number; availableQuantity: number | null }[]> {
+    const lines = inEntryOrder(
+      await this.prisma.equipmentRequirement.findMany({
+        where: { eventId },
+        select: {
+          id: true,
+          createdAt: true,
+          equipmentType: true,
+          quantity: true,
+          equipment: {
+            select: { id: true, type: true, totalQuantity: true, operationalStatus: true },
+          },
+        },
+      }),
+    );
+
+    const linkedIds = [
+      ...new Set(lines.flatMap((line) => (line.equipment ? [line.equipment.id] : []))),
+    ];
+    const held =
+      window && linkedIds.length > 0
+        ? await this.prisma.equipmentReservation.findMany({
+            where: { ...holdingReservationsWhere(linkedIds, window), eventId: { not: eventId } },
+            select: { equipmentId: true, quantity: true, start: true, end: true },
+          })
+        : [];
+
+    return lines.map((line) => ({
+      item: line.equipmentType,
+      requestedQuantity: line.quantity,
+      availableQuantity:
+        window && line.equipment
+          ? computeItemAvailability({
+              equipment: line.equipment,
+              requestedQuantity: line.quantity,
+              reservations: held.filter((r) => r.equipmentId === line.equipment!.id),
+              window,
+            }).availableQuantity
+          : null,
+    }));
   }
 }

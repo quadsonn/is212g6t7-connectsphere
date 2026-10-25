@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, LoadingState, TableSkeleton } from '@/component
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { TechnicalRequirementsView } from '@/features/events/components/technical-requirements';
 import { useRelatedEvent, useRelatedEvents } from '@/features/events/hooks/use-events';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { formatDateRange, humanise } from '@/lib/utils';
 import { ACCESSIBILITY_FEATURE_LABELS } from '@/types/api';
@@ -58,7 +59,7 @@ export function RelatedEventsList({ basePath }: { basePath: string }) {
                   </div>
                   <p className="mt-1 text-xs text-ink-500">
                     {formatDateRange(event.proposedStart, event.proposedEnd)} ·{' '}
-                    {event.expectedAttendance} expected
+                    {attendanceBandLabel(event.expectedAttendance)} expected
                   </p>
                 </div>
                 <LinkButton to={`${basePath}/${event.id}`} size="sm" variant="secondary">
@@ -117,7 +118,7 @@ export function RelatedEventDetail({ basePath }: { basePath: string }) {
             <CardContent>
               <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Dates">{formatDateRange(event.proposedStart, event.proposedEnd)}</Field>
-                <Field label="Expected attendance">{event.expectedAttendance ?? '—'}</Field>
+                <Field label="Expected attendance">{attendanceBandLabel(event.expectedAttendance)}</Field>
                 <Field label="Preferred layout">
                   {event.preferredLayout ? humanise(event.preferredLayout) : 'No preference'}
                 </Field>

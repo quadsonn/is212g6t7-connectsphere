@@ -70,61 +70,74 @@ export interface VenueSuitability {
   };
 
   /**
-   * AC-3 part 1 — NOT YET CHECKED. Always null; see `notChecked`.
-   *
-   * TODO(US-20 AC-3, after US-28 merges): EventRequest has no structured
-   * facility requirements. US-28 (origin/sprint2-RAYE) records equipment as
-   * EquipmentRequirement.equipmentType, which is free text, and US-18 removed
-   * free-text matching on purpose. Once the event side has a controlled
-   * vocabulary, compare it with venue.facilities here, one RequirementFlag per
-   * requirement, exactly like `accessibility`.
+   * AC-3 part 1 — one flag per facility the event requires
+   * (EventRequest.requiredFacilities) against the venue's facilities. Both
+   * use the Facility enum (US-18), so it is an exact comparison, exactly like
+   * `accessibility`.
    */
-  facilities: RequirementFlag<Facility>[] | null;
+  facilities: {
+    status: CheckStatus;
+    items: RequirementFlag<Facility>[];
+  };
 
   /**
-   * AC-3 part 2 — NOT YET CHECKED. Always null; see `notChecked`.
+   * AC-3 part 2 — whether each equipment line the event asks for (US-28) has
+   * enough free units over its dates (US-30's rules, read-only: nothing is
+   * reserved). A free-text line not linked to the catalogue cannot be checked:
+   * `available` is null and `notChecked` says so.
    *
-   * TODO(US-20 AC-3, after E6 lands): src/equipment/ is an empty module —
-   * no service, no availability query. When it exists, read (never reserve)
-   * the catalogue: for each EquipmentRequirement on the event, sum APPROVED
-   * EquipmentReservations overlapping [proposedStart, proposedEnd] and compare
-   * with Equipment.totalQuantity. Plug the result in here.
+   * AMBIGUOUS: not part of `overall`. Equipment comes from the shared
+   * catalogue, not the venue, so it is the same answer at every venue and
+   * cannot make one venue less suitable than another. It is reported beside
+   * the verdict instead.
    */
-  equipment: { item: string; available: boolean }[] | null;
+  equipment: {
+    status: CheckStatus;
+    items: EquipmentFlag[];
+  };
 
   /** Checks that did not run, so the UI can say so instead of implying a pass. */
   notChecked: UncheckedRequirement[];
+}
+
+export interface EquipmentFlag {
+  item: string;
+  requestedQuantity: number;
+  /** Free units over the event's dates; null when the line could not be checked. */
+  availableQuantity: number | null;
+  /** Null when the line could not be checked. */
+  available: boolean | null;
+}
+
+/** One equipment line with its free units already counted; null if uncountable. */
+export interface EquipmentLine {
+  item: string;
+  requestedQuantity: number;
+  availableQuantity: number | null;
 }
 
 export interface SuitabilityVenue {
   capacity: number | null;
   accessibilityFeatures: AccessibilityFeature[];
   supportedLayouts: RoomLayout[];
+  facilities: Facility[];
 }
 
 export interface SuitabilityEvent {
   expectedAttendance: number | null;
   accessibilityRequirements: AccessibilityFeature[];
   preferredLayout: RoomLayout | null;
+  requiredFacilities: Facility[];
 }
-
-export const NOT_CHECKED: UncheckedRequirement[] = [
-  {
-    check: 'facilities',
-    reason:
-      'The event does not yet record facility requirements in a form that can be compared with the venue.',
-  },
-  {
-    check: 'equipment',
-    reason: 'Equipment availability checking is not available yet.',
-  },
-];
 
 /**
  * AC-1. Equal attendance and capacity fits. A venue with no capacity is
  * UNMET, not a pass — a data gap must not read as "suitable".
  */
-export function checkCapacity(venue: SuitabilityVenue, event: SuitabilityEvent) {
+export function checkCapacity(
+  venue: Pick<SuitabilityVenue, 'capacity'>,
+  event: Pick<SuitabilityEvent, 'expectedAttendance'>,
+) {
   const { capacity: venueCapacity } = venue;
   const { expectedAttendance } = event;
 
@@ -141,7 +154,10 @@ export function checkCapacity(venue: SuitabilityVenue, event: SuitabilityEvent) 
 }
 
 /** AC-2. One flag per recorded requirement, in the event's order. */
-export function checkAccessibility(venue: SuitabilityVenue, event: SuitabilityEvent) {
+export function checkAccessibility(
+  venue: Pick<SuitabilityVenue, 'accessibilityFeatures'>,
+  event: Pick<SuitabilityEvent, 'accessibilityRequirements'>,
+) {
   const items = event.accessibilityRequirements.map((requirement) => ({
     requirement,
     met: venue.accessibilityFeatures.includes(requirement),
@@ -157,7 +173,10 @@ export function checkAccessibility(venue: SuitabilityVenue, event: SuitabilityEv
   return { status, items };
 }
 
-export function checkLayout(venue: SuitabilityVenue, event: SuitabilityEvent) {
+export function checkLayout(
+  venue: Pick<SuitabilityVenue, 'supportedLayouts'>,
+  event: Pick<SuitabilityEvent, 'preferredLayout'>,
+) {
   const requirement = event.preferredLayout;
 
   const status =
@@ -170,6 +189,65 @@ export function checkLayout(venue: SuitabilityVenue, event: SuitabilityEvent) {
   return { status, requirement };
 }
 
+/** AC-3 part 1. One flag per required facility, in the event's order. */
+export function checkFacilities(
+  venue: Pick<SuitabilityVenue, 'facilities'>,
+  event: Pick<SuitabilityEvent, 'requiredFacilities'>,
+) {
+  const items = event.requiredFacilities.map((requirement) => ({
+    requirement,
+    met: venue.facilities.includes(requirement),
+  }));
+
+  const status =
+    items.length === 0
+      ? CheckStatus.NOT_REQUIRED
+      : items.every((item) => item.met)
+        ? CheckStatus.MET
+        : CheckStatus.UNMET;
+
+  return { status, items };
+}
+
+/**
+ * AC-3 part 2. Judged on the lines that could be counted: any short is
+ * UNMET; if none could be counted, NOT_RECORDED rather than a pass.
+ */
+export function checkEquipment(lines: EquipmentLine[]) {
+  const items: EquipmentFlag[] = lines.map((line) => ({
+    ...line,
+    available:
+      line.availableQuantity === null ? null : line.availableQuantity >= line.requestedQuantity,
+  }));
+  const checked = items.filter((item) => item.available !== null);
+
+  const status =
+    items.length === 0
+      ? CheckStatus.NOT_REQUIRED
+      : checked.some((item) => !item.available)
+        ? CheckStatus.UNMET
+        : checked.length > 0
+          ? CheckStatus.MET
+          : CheckStatus.NOT_RECORDED;
+
+  return { status, items };
+}
+
+/** Lines that could not be checked are named, never counted as a pass. */
+function uncheckedEquipment(items: EquipmentFlag[]): UncheckedRequirement[] {
+  const count = items.filter((item) => item.available === null).length;
+  if (count === 0) return [];
+  return [
+    {
+      check: 'equipment',
+      reason:
+        count === 1
+          ? '1 equipment line is not linked to the catalogue, so its availability was not checked.'
+          : `${count} equipment lines are not linked to the catalogue, so their availability was not checked.`,
+    },
+  ];
+}
+
 /** Any UNMET → not suitable; otherwise any NOT_RECORDED → incomplete. */
 export function overallOf(statuses: CheckStatus[]): OverallSuitability {
   if (statuses.includes(CheckStatus.UNMET)) return OverallSuitability.NOT_SUITABLE;
@@ -180,11 +258,20 @@ export function overallOf(statuses: CheckStatus[]): OverallSuitability {
 export function assessSuitability(
   venue: SuitabilityVenue,
   event: SuitabilityEvent,
+  equipmentLines: EquipmentLine[] = [],
 ): VenueSuitability {
   const capacity = checkCapacity(venue, event);
   const accessibility = checkAccessibility(venue, event);
   const layout = checkLayout(venue, event);
-  const overall = overallOf([capacity.status, accessibility.status, layout.status]);
+  const facilities = checkFacilities(venue, event);
+  const equipment = checkEquipment(equipmentLines);
+  // Equipment is left out on purpose; see VenueSuitability.equipment.
+  const overall = overallOf([
+    capacity.status,
+    accessibility.status,
+    layout.status,
+    facilities.status,
+  ]);
 
   return {
     overall,
@@ -192,8 +279,8 @@ export function assessSuitability(
     capacity,
     accessibility,
     layout,
-    facilities: null,
-    equipment: null,
-    notChecked: NOT_CHECKED,
+    facilities,
+    equipment,
+    notChecked: uncheckedEquipment(equipment.items),
   };
 }

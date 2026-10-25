@@ -11,6 +11,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState } from '@/components/ui/states';
 import { ConflictList } from '@/features/bookings/components/conflict-list';
 import { NeedsReviewBadge } from '@/features/bookings/components/needs-review-badge';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage, fieldErrors } from '@/lib/api-client';
 import { addDays, todayInVenueTime } from '@/lib/calendar';
 import { FULL_DAY_TIME_SLOTS, localStringToInstant } from '@/lib/date-time';
@@ -79,7 +80,7 @@ export function EntryDetail({
           ) : (
             <>
               <Detail label="Organiser">{entry.organiserName ?? '—'}</Detail>
-              <Detail label="Expected attendance">{entry.expectedAttendance ?? '—'}</Detail>
+              <Detail label="Expected attendance">{attendanceBandLabel(entry.expectedAttendance)}</Detail>
               {entry.needsReview ? (
                 <div className="sm:col-span-2">
                   <Detail label="Why it needs review">{entry.needsReviewReason ?? '—'}</Detail>

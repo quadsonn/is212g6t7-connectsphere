@@ -23,6 +23,7 @@ import { BookingsService } from './bookings.service';
 import { HoldExpiryDto, PlaceHoldDto } from './dto/hold.dto';
 import { HOLD_RELEASED_BY_STAFF, releaseExpiredHolds, releaseHold } from './hold-expiry';
 import { HoldNotifier } from './hold-notifier';
+import { technicalSnapshotData, technicalSnapshotOf } from './technical-snapshot';
 
 export const CONVERTED_FROM_HOLD = 'Converted from hold';
 
@@ -127,6 +128,8 @@ export class HoldsService {
             accessibilityRequirements: event.accessibilityRequirements,
             accessibilityNotes: event.accessibilityNotes,
             equipmentNeeds: event.equipmentNeeds,
+            // Story 20 AC-2: and its technical requirements.
+            ...technicalSnapshotData(await technicalSnapshotOf(tx, event)),
           },
           include: BOOKING_INCLUDE,
         });

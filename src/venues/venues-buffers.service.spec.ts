@@ -12,6 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { VenuesService } from './venues.service';
+import { EquipmentService } from '../equipment/equipment.service';
 
 /** US-49 — configuring a venue's setup and turnaround time. */
 describe('VenuesService updateBuffers (US-49)', () => {
@@ -78,6 +79,7 @@ describe('VenuesService updateBuffers (US-49)', () => {
       {} as unknown as SupabaseStorageService,
       {} as unknown as EventsService,
       reviews as unknown as BookingReviewService,
+      {} as unknown as EquipmentService,
     );
   });
 

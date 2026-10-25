@@ -4,6 +4,7 @@ import { Card, CardHeader } from '@/components/ui/card';
 import { LinkButton } from '@/components/ui/link-button';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { useSafetyQueue } from '@/features/safety/hooks/use-safety';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import type { SafetyQueueEntry } from '@/types/api';
@@ -21,7 +22,7 @@ function QueueRow({ entry }: { entry: SafetyQueueEntry }) {
           ) : null}
         </div>
         <p className="text-sm text-ink-700">
-          {entry.expectedAttendance ?? '—'} expected ·{' '}
+          {attendanceBandLabel(entry.expectedAttendance)} expected ·{' '}
           {entry.proposedStart ? formatDate(entry.proposedStart) : 'Date not set'}
         </p>
         <p className="text-sm text-ink-700">

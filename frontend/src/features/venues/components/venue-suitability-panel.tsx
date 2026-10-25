@@ -1,10 +1,12 @@
 import { AlertTriangle, Check, Info } from 'lucide-react';
 
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { cn, humanise } from '@/lib/utils';
 import {
   ACCESSIBILITY_FEATURE_LABELS,
+  FACILITY_LABELS,
   type SuitabilityCheckStatus,
   type VenueSuitability,
 } from '@/types/api';
@@ -33,6 +35,7 @@ export function VenueSuitabilityPanel({ venueId, eventId }: { venueId: string; e
 
   const verdict = VERDICT[data.overall];
   const missing = data.accessibility.items.filter((item) => !item.met);
+  const missingFacilities = data.facilities.items.filter((item) => !item.met);
 
   return (
     <div>
@@ -48,7 +51,7 @@ export function VenueSuitabilityPanel({ venueId, eventId }: { venueId: string; e
             ? 'No capacity recorded for this venue'
             : data.capacity.expectedAttendance === null
               ? `${data.capacity.venueCapacity} seats · attendance not recorded`
-              : `${data.capacity.venueCapacity} seats · ${data.capacity.expectedAttendance} expected`}
+              : `${data.capacity.venueCapacity} seats · ${attendanceBandLabel(data.capacity.expectedAttendance)} expected`}
         </Row>
 
         {/* AC-2: a failure names each missing requirement. */}
@@ -69,18 +72,65 @@ export function VenueSuitabilityPanel({ venueId, eventId }: { venueId: string; e
               ? humanise(data.layout.requirement)
               : `${humanise(data.layout.requirement)} not supported`}
         </Row>
+
+        {/* AC-3: the event's required facilities against the venue's. */}
+        <Row label="Facilities" status={data.facilities.status}>
+          {data.facilities.status === 'NOT_REQUIRED'
+            ? 'None required'
+            : missingFacilities.length > 0
+              ? `Missing: ${missingFacilities.map((item) => FACILITY_LABELS[item.requirement]).join(', ')}`
+              : data.facilities.items.map((item) => FACILITY_LABELS[item.requirement]).join(', ')}
+        </Row>
       </dl>
+
+      {/* AC-3: equipment comes from the shared catalogue, so it sits apart from the verdict. */}
+      <dl className="mt-3 border-t border-ink-100 text-sm">
+        <Row label="Equipment" status={data.equipment.status}>
+          {equipmentSummary(data.equipment.items)}
+        </Row>
+      </dl>
+      <p className="text-xs text-ink-500">
+        Equipment is the same at every venue, so it doesn't change the verdict above.
+      </p>
 
       {/* Checks that did not run are named, never shown as passing. */}
       {data.notChecked.length > 0 ? (
         <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-500">
           <Info className="size-3.5 shrink-0" aria-hidden="true" />
-          {data.notChecked.map((item) => humanise(item.check)).join(' and ')} not checked yet.
-          <span className="sr-only">{data.notChecked.map((item) => item.reason).join(' ')}</span>
+          {data.notChecked.map((item) => item.reason).join(' ')}
         </p>
       ) : null}
     </div>
   );
+}
+
+/** Shortfalls first, then what could not be checked; otherwise what is available. */
+function equipmentSummary(items: VenueSuitability['equipment']['items']): string {
+  if (items.length === 0) return 'None requested';
+
+  const short = items.filter((item) => item.available === false);
+  const unchecked = items.filter((item) => item.available === null);
+  const parts: string[] = [];
+
+  if (short.length > 0) {
+    parts.push(
+      `Short: ${short
+        .map((item) => `${item.item} (${item.availableQuantity} of ${item.requestedQuantity} free)`)
+        .join(', ')}`,
+    );
+  } else {
+    const available = items.filter((item) => item.available === true);
+    if (available.length > 0) {
+      parts.push(
+        `${available.map((item) => `${item.requestedQuantity} × ${item.item}`).join(', ')} available`,
+      );
+    }
+  }
+  if (unchecked.length > 0) {
+    parts.push(`Not checked: ${unchecked.map((item) => item.item).join(', ')}`);
+  }
+
+  return parts.join(' · ');
 }
 
 function Row({

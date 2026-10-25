@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { SortOrder, VenueSortField } from './dto/browse-venues.dto';
 import { VenuesService } from './venues.service';
+import { EquipmentService } from '../equipment/equipment.service';
 
 /** US-15 — browsing the catalogue. */
 describe('VenuesService browse (US-15)', () => {
@@ -47,6 +48,7 @@ describe('VenuesService browse (US-15)', () => {
       { uploadVenueImage: jest.fn() } as unknown as SupabaseStorageService,
       {} as unknown as EventsService,
       {} as unknown as BookingReviewService,
+      {} as unknown as EquipmentService,
     );
   });
 

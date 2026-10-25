@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,7 +7,19 @@ import { Field, Textarea } from '@/components/ui/form';
 import { ErrorState } from '@/components/ui/states';
 import { useCancelEvent } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
-import type { OrganiserRequestView } from '@/types/api';
+import type { CancellationResult, OrganiserRequestView } from '@/types/api';
+
+/** "1 venue booking", "2 venue bookings". */
+function countOf(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+/** US-65: "Event cancelled. 1 venue booking and 2 equipment reservations were released." */
+function cancelledMessage({ released }: CancellationResult): string {
+  return released.venueBookings + released.equipmentReservations > 0
+    ? `Event cancelled. ${countOf(released.venueBookings, 'venue booking')} and ${countOf(released.equipmentReservations, 'equipment reservation')} were released.`
+    : 'Event cancelled.';
+}
 
 /**
  * US-43 — the Organiser's cancellation form.
@@ -34,7 +47,16 @@ export function CancelEventPanel({
     setSubmitted(true);
     if (reason.trim() === '') return;
 
-    cancel.mutate({ reason: reason.trim(), confirm: true }, { onSuccess: onClose });
+    cancel.mutate(
+      { reason: reason.trim(), confirm: true },
+      {
+        onSuccess: (result) => {
+          // US-65 AC2: confirm it went through, and what it released.
+          toast.success(cancelledMessage(result));
+          onClose();
+        },
+      },
+    );
   }
 
   return (

@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
+import { EquipmentService } from '../equipment/equipment.service';
 
 /** US-13 — venue drafts and publishing. */
 describe('VenuesService (US-13)', () => {
@@ -82,6 +83,7 @@ describe('VenuesService (US-13)', () => {
       { uploadVenueImage: jest.fn() } as unknown as SupabaseStorageService,
       {} as unknown as EventsService,
       {} as unknown as BookingReviewService,
+      {} as unknown as EquipmentService,
     );
   });
 

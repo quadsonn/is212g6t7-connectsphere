@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field as FormField, Select, Textarea } from '@/components/ui/form';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import { ClarificationThread } from '@/features/events/components/clarification-thread';
 import { ChangeHistory } from '@/features/events/components/change-history';
 import { ConfirmArrangementsCard } from '@/features/events/components/confirm-arrangements-card';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
@@ -29,6 +30,7 @@ import {
   useReviewEvent,
   useStartPlanning,
 } from '@/features/events/hooks/use-events';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { SafetyHistory } from '@/features/safety/components/safety-history';
 import { useResubmitSafety, useSafetyReviews } from '@/features/safety/hooks/use-safety';
@@ -40,6 +42,7 @@ import {
 import type { PlanningUpdateResult } from '@/types/api';
 import { formatDateRange, formatDateTime, humanise } from '@/lib/utils';
 import type { EventStatus } from '@/types/api';
+import { FACILITY_LABELS } from '@/types/api';
 
 /** Mirrors BOOKABLE_EVENT_STATUSES in the backend's booking.types.ts (US-21). */
 const BOOKABLE_EVENT_STATUSES: EventStatus[] = ['APPROVED', 'PLANNING', 'AWAITING_ARRANGEMENTS'];
@@ -171,7 +174,7 @@ export function CoordinatorEventDetail() {
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Purpose">{event.purpose ?? '—'}</Field>
-              <Field label="Expected attendance">{event.expectedAttendance ?? '—'}</Field>
+              <Field label="Expected attendance">{attendanceBandLabel(event.expectedAttendance)}</Field>
               <Field label="Proposed dates">
                 {formatDateRange(event.proposedStart, event.proposedEnd)}
               </Field>
@@ -389,6 +392,25 @@ export function CoordinatorEventDetail() {
             </CardContent>
           </Card>
 
+          {/* US-19 AC-3: what the venue must have; suitability checks venues against it. */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Required facilities</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {event.requiredFacilities?.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {event.requiredFacilities.map((facility) => (
+                    <Badge key={facility} className="bg-ink-100 text-ink-700 ring-ink-300">
+                      {FACILITY_LABELS[facility]}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-ink-500">None recorded.</p>
+              )}
+            </CardContent>
+          </Card>
           <EquipmentUnavailableNotice items={event.unavailableEquipment} />
 
           <TechnicalRequirementsCard event={event} editable={inPlanning && isAssignedToMe} />
@@ -443,20 +465,14 @@ export function CoordinatorEventDetail() {
               <CardTitle>Clarification history</CardTitle>
             </CardHeader>
             <CardContent>
-              {event.clarifications.length > 0 ? (
-                <ol className="space-y-3 border-l border-ink-200 pl-4">
-                  {event.clarifications.map((message) => (
-                    <li key={message.id} className="text-sm">
-                      <p className="text-ink-800">{message.body}</p>
-                      <p className="mt-1 text-xs text-ink-500">
-                        {message.author.name} · {new Date(message.createdAt).toLocaleString()}
-                      </p>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="text-sm text-ink-500">No clarification messages yet.</p>
-              )}
+              {/* US-58 AC4: each response with the details it updated. */}
+              <ClarificationThread
+                messages={event.clarifications}
+                viewerId={session?.userId}
+                pendingLabel={
+                  event.status === 'AWAITING_CLARIFICATION' ? "Waiting for the organiser's reply" : undefined
+                }
+              />
             </CardContent>
           </Card>
 

@@ -1,19 +1,16 @@
-import { AlertTriangle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { PageHeader } from '@/components/layout/app-shell';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Field, Select } from '@/components/ui/form';
-import { LinkButton } from '@/components/ui/link-button';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { useAuth } from '@/features/auth/hooks/use-auth';
-import { BookingStatusBadge } from '@/features/bookings/components/booking-status-badge';
-import { NeedsReviewBadge } from '@/features/bookings/components/needs-review-badge';
+import { QueueRow } from '@/features/bookings/components/queue-row';
 import { useBookingQueue } from '@/features/bookings/hooks/use-bookings';
+import { type Urgency, urgencyFor } from '@/features/bookings/queue-urgency';
 import { useVenues } from '@/features/venues/hooks/use-venues';
 import { apiErrorMessage } from '@/lib/api-client';
-import { cn, formatDate, formatDateRange } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { BookingQueueEntry, BookingQueueQuery, BookingStatus } from '@/types/api';
 import { DatePicker } from '@/components/ui/date-picker';
 
@@ -40,51 +37,26 @@ function dayBoundary(date: string, end: boolean): string | undefined {
   return new Date(`${date}T${end ? '23:59:59.999' : '00:00:00'}+08:00`).toISOString();
 }
 
-/** AC-5: how close the event is, in words. */
-function urgencyLabel(days: number): string {
-  if (days < 0) return 'Event has started';
-  if (days === 0) return 'Event today';
-  if (days === 1) return 'Event tomorrow';
-  return `Event in ${days} days`;
-}
+type Ranked = { entry: BookingQueueEntry; urgency: Urgency | null };
 
-function QueueRow({ entry }: { entry: BookingQueueEntry }) {
+/** One titled group of rows in the Pending view; nothing when it is empty. */
+function QueueSection({ title, rows }: { title: string; rows: Ranked[] }) {
+  if (rows.length === 0) return null;
+  const id = `queue-${title.toLowerCase().replace(/\s+/g, '-')}`;
   return (
-    <li
-      className={cn(
-        'flex flex-wrap items-start justify-between gap-3 px-5 py-4',
-        entry.urgent && 'border-l-4 border-l-red-500 bg-red-50/40',
-        // US-44: released bookings hold nothing; kept in the history, greyed.
-        entry.status === 'RELEASED' && 'opacity-60',
-      )}
-    >
-      <div className="min-w-0 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="font-medium text-ink-900">{entry.event.name ?? 'Untitled event'}</p>
-          {entry.urgent ? (
-            <Badge className="bg-red-50 text-red-800 ring-red-300" srPrefix="Priority">
-              <AlertTriangle className="size-3" aria-hidden="true" />
-              {urgencyLabel(entry.daysUntilStart)}
-            </Badge>
-          ) : null}
-        </div>
-        <p className="text-sm text-ink-700">
-          {entry.venue.name} · {formatDateRange(entry.start, entry.end)}
-        </p>
-        <p className="text-xs text-ink-500">
-          {entry.expectedAttendance ?? '—'} expected · requested by{' '}
-          {entry.requestedBy?.name ?? '—'} for organiser {entry.event.organiser.name} · submitted{' '}
-          {formatDate(entry.createdAt)}
-        </p>
-      </div>
-      <div className="flex items-center gap-3">
-        {entry.needsReview ? <NeedsReviewBadge /> : null}
-        <BookingStatusBadge status={entry.status} />
-        <LinkButton to={`/venues/bookings/${entry.id}`} variant="secondary" size="sm">
-          View details
-        </LinkButton>
-      </div>
-    </li>
+    <section aria-labelledby={id}>
+      <h3
+        id={id}
+        className="border-b border-ink-100 bg-ink-50 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-ink-500"
+      >
+        {title} ({rows.length})
+      </h3>
+      <ul className="divide-y divide-ink-100">
+        {rows.map(({ entry, urgency }) => (
+          <QueueRow key={entry.id} entry={entry} urgency={urgency} showStatus={false} />
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -119,7 +91,11 @@ export function VenueBookingQueue() {
     ...(to ? { to: dayBoundary(to, true) } : {}),
   };
   const { data: entries, isPending, isError, error } = useBookingQueue(query);
-  const urgentCount = entries?.filter((e) => e.urgent).length ?? 0;
+  // AC-5: pending requests split by how close the event is, each group in the chosen sort order.
+  const ranked: Ranked[] =
+    view === 'pending' ? (entries ?? []).map((entry) => ({ entry, urgency: urgencyFor(entry.start) })) : [];
+  const dueThisWeek = ranked.filter((r) => r.urgency);
+  const later = ranked.filter((r) => !r.urgency);
 
   function switchView(next: View) {
     setView(next);
@@ -156,7 +132,7 @@ export function VenueBookingQueue() {
           </div>
           <p className="text-sm text-ink-500">
             {entries ? `${entries.length} ${view === 'pending' ? 'waiting' : 'decided'}` : ''}
-            {urgentCount > 0 ? ` · ${urgentCount} due within a week` : ''}
+            {dueThisWeek.length > 0 ? ` · ${dueThisWeek.length} due this week` : ''}
           </p>
         </CardHeader>
 
@@ -205,12 +181,6 @@ export function VenueBookingQueue() {
           </Field>
         </div>
 
-        {view === 'pending' && urgentCount > 0 ? (
-          <p className="border-b border-ink-200 bg-red-50 px-5 py-2 text-xs text-red-900">
-            Requests with less than a week before the event are flagged and shown first.
-          </p>
-        ) : null}
-
         {isPending ? <TableSkeleton /> : null}
         {isError ? (
           <div className="p-5">
@@ -229,10 +199,16 @@ export function VenueBookingQueue() {
           />
         ) : null}
 
-        {entries && entries.length > 0 ? (
+        {entries && entries.length > 0 && view === 'pending' ? (
+          <div className="divide-y divide-ink-200">
+            <QueueSection title="Due this week" rows={dueThisWeek} />
+            <QueueSection title="Later" rows={later} />
+          </div>
+        ) : null}
+        {entries && entries.length > 0 && view === 'decided' ? (
           <ul className="divide-y divide-ink-100">
             {entries.map((entry) => (
-              <QueueRow key={entry.id} entry={entry} />
+              <QueueRow key={entry.id} entry={entry} urgency={null} showStatus />
             ))}
           </ul>
         ) : null}

@@ -11,7 +11,7 @@ import {
   useRecentNotifications,
   useUnreadCount,
 } from '../hooks/use-notifications';
-import { notificationTitle } from '../notification-title';
+import { notificationDetail, notificationTitle, reasonLabel } from '../notification-title';
 
 /**
  * The bell in the shared header, for every role: the unread count (polled on
@@ -128,10 +128,14 @@ export function NotificationBell() {
                     />
                     <span className="min-w-0 flex-1 space-y-0.5">
                       <span className={cn('block text-ink-900', !n.read && 'font-semibold')}>
-                        {notificationTitle(n.type) ?? n.summary}
+                        {notificationTitle(n.type)}
                       </span>
-                      {notificationTitle(n.type) ? (
-                        <span className="block text-ink-700">{n.summary}</span>
+                      <span className="block text-ink-700">{notificationDetail(n.summary)}</span>
+                      {/* Clamped: the page shows a long reason in full. */}
+                      {n.reason ? (
+                        <span className="line-clamp-2 text-ink-700">
+                          <span className="font-medium">{reasonLabel(n.type)}:</span> {n.reason}
+                        </span>
                       ) : null}
                       <span className="block truncate text-xs text-ink-500">
                         {[n.relatedEvent?.name, n.relatedBooking?.venue.name].filter(Boolean).join(' · ')}

@@ -43,6 +43,11 @@ import { HoldNotifier } from './hold-notifier';
 import { VenueActivityNotifier } from './venue-activity-notifier';
 import { lockVenue } from './venue-lock';
 import {
+  carriedTechnicalSnapshot,
+  technicalSnapshotData,
+  technicalSnapshotOf,
+} from './technical-snapshot';
+import {
   VenueBookingImpact,
   VenueBookingLookup,
   VenueBookingSlot,
@@ -273,6 +278,10 @@ export class BookingsService implements VenueBookingLookup {
           // a request made from an earlier one carries that one's requirements.
           // US-53 AC-2: any set on this request are this venue's own.
           ...withOwnRequirements(requirementsOf(options.requirementsFrom ?? replaced ?? event), dto),
+          // Story 20 AC-2: always the event's, as it stands now. They are the
+          // same at every venue, so a request made from an earlier one does
+          // not inherit an older copy.
+          ...technicalSnapshotData(await technicalSnapshotOf(tx, event)),
           replacesBookingId: replaced?.id ?? null,
           // status omitted — REQUESTED is the schema default (AC-3).
         },
@@ -1198,6 +1207,7 @@ export class BookingsService implements VenueBookingLookup {
           expectedAttendance: proposedAttendance ?? booking.expectedAttendance,
           decisionReason: booking.decisionReason,
           ...requirementsOf(booking),
+          ...carriedTechnicalSnapshot(booking),
           // status omitted — REQUESTED until the originals are released.
         },
       });
@@ -1389,6 +1399,19 @@ export class BookingsService implements VenueBookingLookup {
       orderBy: { start: 'asc' },
     });
     return rows.map((row) => ({ ...row, buffers }));
+  }
+
+  /**
+   * US-17 AC-1 — the venue's blocked-off periods (US-16) reaching into
+   * [from, to). Times only: the reason and who set the block stay with Venue
+   * Staff, so they are not even selected.
+   */
+  async findBlockWindowsForVenue(venueId: string, from: Date, to: Date): Promise<TimeWindow[]> {
+    return this.prisma.venueBlock.findMany({
+      where: { venueId, start: { lt: to }, end: { gt: from } },
+      select: { start: true, end: true },
+      orderBy: { start: 'asc' },
+    });
   }
 
   /**

@@ -56,6 +56,7 @@ import {
   diffEventFields,
   FieldChange,
   sameValue,
+  TRACKED_FIELD_LABELS,
 } from './event-change.rules';
 import {
   buildStatusView,
@@ -120,6 +121,8 @@ export const CLARIFICATION_THREAD_INCLUDE = {
     orderBy: { createdAt: 'asc' },
     include: {
       author: { select: { id: true, name: true, email: true, role: true } },
+      // US-58 AC4: the details a response updated, old -> new; null otherwise.
+      change: { select: { changes: true } },
     },
   },
 } as const;
@@ -246,6 +249,7 @@ type DraftFields = Partial<
     | 'layoutNotes'
     | 'accessibilityRequirements'
     | 'accessibilityNotes'
+    | 'requiredFacilities'
     | 'equipmentNeeds'
     | 'registrationEnabled'
   >
@@ -299,6 +303,7 @@ export class EventsService {
           layoutNotes: dto.layoutNotes ?? null,
           accessibilityRequirements: dto.accessibilityRequirements ?? [],
           accessibilityNotes: dto.accessibilityNotes ?? null,
+          requiredFacilities: dto.requiredFacilities ?? [],
           equipmentNeeds: dto.equipmentNeeds ?? null,
           registrationEnabled: dto.registrationEnabled ?? false,
           // status intentionally omitted — DRAFT is the schema default, and
@@ -368,19 +373,34 @@ export class EventsService {
       });
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.eventRequest.update({
-        where: { id: event.id },
-        data: fields,
-      });
+    return this.prisma.$transaction(
+      async (tx) => (await this.applyEdits(tx, event, user.userId, fields)).updated,
+    );
+  }
 
-      const changes = diffEventFields(event, fields);
-      if (changes.length > 0) {
-        await this.recordChange(tx, event.id, user.userId, changes, []);
-      }
-
-      return updated;
+  /**
+   * The Organiser's edit of a submitted request: write the fields, and record
+   * what actually changed in the event's history (US-26). Shared by
+   * updateDraft() and a clarification response (US-58), so both write and
+   * record edits the same way. Returns the history entry's id, or null when
+   * nothing changed.
+   */
+  private async applyEdits(
+    tx: Prisma.TransactionClient,
+    event: EventRequest,
+    userId: string,
+    fields: DraftFields,
+  ): Promise<{ updated: EventRequest; changeId: string | null }> {
+    const updated = await tx.eventRequest.update({
+      where: { id: event.id },
+      data: fields,
     });
+
+    const changes = diffEventFields(event, fields);
+    const entry =
+      changes.length > 0 ? await this.recordChange(tx, event.id, userId, changes, []) : null;
+
+    return { updated, changeId: entry?.id ?? null };
   }
 
   /**
@@ -464,6 +484,7 @@ export class EventsService {
       'layoutNotes',
       'accessibilityRequirements',
       'accessibilityNotes',
+      'requiredFacilities',
       'equipmentNeeds',
       'registrationEnabled',
     ] as const) {
@@ -519,6 +540,10 @@ export class EventsService {
         expectedAttendance: true,
         accessibilityRequirements: true,
         preferredLayout: true,
+        // US-19 AC-3.
+        requiredFacilities: true,
+        proposedStart: true,
+        proposedEnd: true,
       },
     });
 
@@ -663,6 +688,14 @@ export class EventsService {
    * The answer joins the same thread, so a multi-round exchange accumulates in
    * one place. The request returns to UNDER_REVIEW: the answer is now the
    * Coordinator's to consider.
+   *
+   * US-58 AC3/AC4 — the answer may update the request's details too, written
+   * and recorded exactly as an edit (applyEdits), and the response links to
+   * that history entry so the thread shows the changes beside it. The request
+   * is already submitted, so the result must still pass the submission rules:
+   * a cleared required field or a start in the past is a 400, not a database
+   * error. Everything happens in one transaction, under a row lock: of two
+   * answers sent at once, the second finds the request already answered.
    */
   async respondToClarification(
     user: AuthenticatedUser,
@@ -670,36 +703,63 @@ export class EventsService {
     dto: RespondClarificationDto,
   ): Promise<OrganiserRequestView> {
     const event = await this.access.assertEventAccess(user, id, Action.CLARIFY);
+    const fields = dto.changes ? this.draftFields(dto.changes) : {};
 
-    if (event.status !== EventStatus.AWAITING_CLARIFICATION) {
-      throw new ConflictException(
-        `there is no outstanding clarification on this request (status ${event.status})`,
-      );
-    }
+    const { updated, changes } = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id" FROM "EventRequest" WHERE "id" = ${event.id} FOR UPDATE`;
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      // Audit gap #3: a second, simultaneous response is refused here.
-      await this.claimForDecision(event, tx);
+      // Re-read under the lock: another answer may have landed while waiting.
+      const current = await tx.eventRequest.findUniqueOrThrow({
+        where: { id: event.id },
+      });
+
+      if (current.status !== EventStatus.AWAITING_CLARIFICATION) {
+        throw new ConflictException(
+          `there is no outstanding clarification on this request (status ${current.status})`,
+        );
+      }
+
+      const changes = diffEventFields(current, fields);
+      let changeId: string | null = null;
+      if (changes.length > 0) {
+        // Checked before anything is written.
+        await this.assertReadyForSubmission({ ...current, ...fields } as EventRequest);
+        ({ changeId } = await this.applyEdits(tx, current, user.userId, fields));
+      }
 
       await tx.clarificationMessage.create({
-        data: { eventId: event.id, authorId: user.userId, body: dto.response },
+        data: {
+          eventId: event.id,
+          authorId: user.userId,
+          body: dto.response,
+          ...(changeId ? { changeId } : {}),
+        },
       });
 
       // The question has been answered; nothing is outstanding.
-      await tx.eventRequest.update({
+      const answered = await tx.eventRequest.update({
         where: { id: event.id },
         data: { clarificationRequest: null },
       });
 
-      return this.setStatus(event, EventStatus.UNDER_REVIEW, tx);
+      return {
+        updated: await this.setStatus(answered, EventStatus.UNDER_REVIEW, tx),
+        changes,
+      };
     });
 
-    // AC-4 direction 2: the Coordinator is notified of the response.
-    if (event.coordinatorId) {
+    // AC-4 direction 2: the Coordinator is notified of the response, and
+    // (US-58) of which details it updated.
+    if (updated.coordinatorId) {
+      const edited =
+        changes.length > 0
+          ? ` and updated: ${changes.map((c) => TRACKED_FIELD_LABELS[c.field]).join(', ')}`
+          : '';
       await this.notifications.notifySafely({
-        recipientId: event.coordinatorId,
+        recipientId: updated.coordinatorId,
         type: NotificationType.CLARIFICATION_ANSWERED,
-        message: `The organiser has responded on "${event.name ?? 'an event request'}".`,
+        message: `The organiser has responded on "${updated.name ?? 'an event request'}"${edited}.`,
         relatedEventId: event.id,
       });
     }
@@ -964,9 +1024,10 @@ export class EventsService {
       await this.confirmedArrangements(event.id),
     );
 
-    // Only the fields that actually changed are written.
+    // Only the fields that actually changed are written. A change can only
+    // name a field the DTO has (requiredFacilities is the Organiser's, US-20).
     const data = Object.fromEntries(
-      changes.map(({ field }) => [field, dto[field]]),
+      changes.map(({ field }) => [field, dto[field as keyof UpdatePlanningDto]]),
     ) as Prisma.EventRequestUpdateInput;
 
     const change = await this.prisma.$transaction(async (tx) => {

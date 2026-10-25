@@ -105,6 +105,65 @@ describe('US-17 venue availability aggregation', () => {
     });
   });
 
+  describe('AC-1: blocked-off periods are shown', () => {
+    /** A block given in Singapore local time. */
+    const block = (start: string, end: string) => ({
+      start: new Date(`${start}+08:00`),
+      end: new Date(`${end}+08:00`),
+    });
+
+    const statusWithBlocks = (
+      day: string,
+      bookings: VenueBookingSlot[],
+      blocks: { start: Date; end: Date }[],
+    ) => aggregateAvailability(OCTOBER, bookings, blocks).find((d) => d.date === day)?.status;
+
+    it('Given a block on a day, Then that day is blocked', () => {
+      const blocks = [block('2026-10-10T09:00:00', '2026-10-10T12:00:00')];
+
+      expect(statusWithBlocks('2026-10-10', [], blocks)).toBe(DayStatus.BLOCKED);
+      expect(statusWithBlocks('2026-10-09', [], blocks)).toBe(DayStatus.FREE);
+      expect(statusWithBlocks('2026-10-11', [], blocks)).toBe(DayStatus.FREE);
+    });
+
+    it('Given a block over several days, Then every day it touches is blocked', () => {
+      const blocks = [block('2026-10-10T18:00:00', '2026-10-13T00:00:00')];
+
+      expect(statusWithBlocks('2026-10-10', [], blocks)).toBe(DayStatus.BLOCKED);
+      expect(statusWithBlocks('2026-10-12', [], blocks)).toBe(DayStatus.BLOCKED);
+      // Ends exactly at midnight: the 13th is untouched.
+      expect(statusWithBlocks('2026-10-13', [], blocks)).toBe(DayStatus.FREE);
+    });
+
+    it('Given a block and a booking on the same day, Then blocked outranks booked, whatever the order', () => {
+      const blocks = [block('2026-10-10T14:00:00', '2026-10-10T17:00:00')];
+      const bookings = [
+        slot('2026-10-10T09:00:00', '2026-10-10T12:00:00', BookingStatus.APPROVED),
+      ];
+
+      expect(statusWithBlocks('2026-10-10', bookings, blocks)).toBe(DayStatus.BLOCKED);
+    });
+
+    it('Given a block reaching outside the range, Then only days in the range are reported', () => {
+      const days = aggregateAvailability(OCTOBER, [], [
+        block('2026-09-25T00:00:00', '2026-10-02T12:00:00'),
+      ]);
+
+      expect(days).toHaveLength(31);
+      expect(days[0]).toEqual({ date: '2026-10-01', status: DayStatus.BLOCKED });
+      expect(days[1]).toEqual({ date: '2026-10-02', status: DayStatus.BLOCKED });
+      expect(days[2]).toEqual({ date: '2026-10-03', status: DayStatus.FREE });
+    });
+
+    it('carries nothing but date and status for a blocked day', () => {
+      const days = aggregateAvailability(OCTOBER, [], [
+        block('2026-10-10T09:00:00', '2026-10-10T12:00:00'),
+      ]);
+
+      expect(Object.keys(days[9]).sort()).toEqual(['date', 'status']);
+    });
+  });
+
   describe('bookings that cross day and month boundaries', () => {
     it('marks both days of a booking that spans midnight', () => {
       const bookings = [

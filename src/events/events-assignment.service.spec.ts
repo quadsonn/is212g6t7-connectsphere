@@ -61,6 +61,7 @@ describe('EventsAssignmentService', () => {
   const queued = (overrides: Record<string, unknown> = {}) => ({
     id: 'event-1',
     name: 'Orientation',
+    organiserId: 'organiser-1',
     coordinatorId: null,
     coordinator: null,
     status: EventStatus.SUBMITTED,
@@ -239,7 +240,8 @@ describe('EventsAssignmentService', () => {
     it('notifies the assigned Coordinator', async () => {
       await service.assign(lead, 'event-1', { coordinatorId: fatima.id });
 
-      expect(notifications.notifySafely).toHaveBeenCalledTimes(1);
+      // The second is the Organiser's (US-65).
+      expect(notifications.notifySafely).toHaveBeenCalledTimes(2);
       expect(notifications.notifySafely).toHaveBeenCalledWith(
         expect.objectContaining({
           recipientId: fatima.id,
@@ -247,6 +249,17 @@ describe('EventsAssignmentService', () => {
           relatedEventId: 'event-1',
         }),
       );
+    });
+
+    it('US-65: tells the Organiser who their coordinator now is', async () => {
+      await service.assign(lead, 'event-1', { coordinatorId: fatima.id });
+
+      expect(notifications.notifySafely).toHaveBeenCalledWith({
+        recipientId: 'organiser-1',
+        type: NotificationType.COORDINATOR_ASSIGNED,
+        message: 'Fatima is now the coordinator for "Orientation".',
+        relatedEventId: 'event-1',
+      });
     });
 
     it('blocks an already-assigned request and names the current assignee', async () => {
@@ -386,7 +399,9 @@ describe('EventsAssignmentService', () => {
     it('notifies both the previous and the new Coordinator', async () => {
       await service.reassign(lead, 'event-1', { coordinatorId: fatima.id });
 
-      const calls = notifications.notifySafely.mock.calls.map(([n]) => n);
+      const calls = notifications.notifySafely.mock.calls
+        .map(([n]) => n)
+        .filter((n) => n.type === NotificationType.EVENT_REASSIGNED);
       expect(calls).toHaveLength(2);
       expect(calls).toEqual(
         expect.arrayContaining([
@@ -400,6 +415,17 @@ describe('EventsAssignmentService', () => {
           }),
         ]),
       );
+    });
+
+    it('US-65: tells the Organiser the new coordinator’s name', async () => {
+      await service.reassign(lead, 'event-1', { coordinatorId: fatima.id });
+
+      expect(notifications.notifySafely).toHaveBeenCalledWith({
+        recipientId: 'organiser-1',
+        type: NotificationType.COORDINATOR_ASSIGNED,
+        message: 'Your coordinator for "Orientation" is now Fatima.',
+        relatedEventId: 'event-1',
+      });
     });
 
     it('blocks reassigning to the current Coordinator', async () => {

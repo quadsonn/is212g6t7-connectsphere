@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { AccessibilityFeature, BookingStatus, PrismaClient, RoomLayout } from '@prisma/client';
+import { AccessibilityFeature, BookingStatus, Facility, PrismaClient, RoomLayout } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
@@ -132,6 +132,103 @@ describe('Story 20 submit a venue booking request (integration)', () => {
         venue: { id: VENUE, name: 'Main Hall' },
         event: { id: EVENT.orientation, name: 'Orientation' },
         warnings: [],
+      });
+    });
+
+    // These tests have no test case ID yet (none in docs/testing for them).
+    // Each adds the equipment lines, technical support and facilities it needs
+    // to tc-s2-34-setup's Orientation event (EVT-102).
+    describe('Story 20 AC-2: the technical requirements travel with the request', () => {
+      const withTechnicalRequirements = async () => {
+        await prisma.eventRequest.update({
+          where: { id: EVENT.orientation },
+          data: {
+            requiredFacilities: [Facility.PROJECTOR, Facility.STAGE],
+            technicalSupportNeeds: 'A technician on site for sound checks',
+          },
+        });
+        const projector = await prisma.equipment.create({ data: { type: 'Projector', totalQuantity: 4 } });
+        // Created in order, so the copy keeps the order they were entered in.
+        await prisma.equipmentRequirement.create({
+          data: { eventId: EVENT.orientation, equipmentId: projector.id, equipmentType: 'Projector', quantity: 2, notes: 'HDMI' },
+        });
+        await prisma.equipmentRequirement.create({
+          data: { eventId: EVENT.orientation, equipmentType: 'Fog machine', quantity: 1 },
+        });
+      };
+
+      // No TC ID yet · setup: base-users + base-venues + tc-s2-34-setup + technical requirements · fails if any of them were left off the request
+      it('Given equipment lines, technical support and facilities, When submitted, Then all are attached', async () => {
+        await withTechnicalRequirements();
+
+        const res = await book(validRequest).expect(201);
+
+        expect(res.body).toMatchObject({
+          requiredFacilities: ['PROJECTOR', 'STAGE'],
+          technicalSupportNeeds: 'A technician on site for sound checks',
+          equipmentRequirements: [
+            { equipmentType: 'Projector', quantity: 2, notes: 'HDMI' },
+            { equipmentType: 'Fog machine', quantity: 1, notes: null },
+          ],
+          // The free-text notes are still attached alongside.
+          equipmentNeeds: '2 wireless mics',
+        });
+      });
+
+      // No TC ID yet · setup: base-users + base-venues + tc-s2-34-setup + technical requirements · fails if Venue Staff had to open the event to see them
+      it('Given the venue manager opens the request, Then they see them without opening the event', async () => {
+        await withTechnicalRequirements();
+        const created = await book(validRequest).expect(201);
+
+        const res = await http().get(`/bookings/${created.body.id}`).set('Authorization', as('staff')).expect(200);
+
+        expect(res.body.equipmentRequirements).toHaveLength(2);
+        expect(res.body.technicalSupportNeeds).toBe('A technician on site for sound checks');
+        expect(res.body.requiredFacilities).toEqual(['PROJECTOR', 'STAGE']);
+      });
+
+      // No TC ID yet · setup: base-users + base-venues + tc-s2-34-setup + technical requirements · fails if a later event edit rewrote a submitted request
+      it('Given the event changes after submission, Then the request keeps what was submitted', async () => {
+        await withTechnicalRequirements();
+        const created = await book(validRequest).expect(201);
+
+        await prisma.equipmentRequirement.deleteMany({ where: { eventId: EVENT.orientation } });
+        await prisma.eventRequest.update({
+          where: { id: EVENT.orientation },
+          data: { technicalSupportNeeds: null, requiredFacilities: [] },
+        });
+
+        const res = await http().get(`/bookings/${created.body.id}`).set('Authorization', as('staff')).expect(200);
+        expect(res.body.equipmentRequirements).toHaveLength(2);
+        expect(res.body.technicalSupportNeeds).toBe('A technician on site for sound checks');
+        expect(res.body.requiredFacilities).toEqual(['PROJECTOR', 'STAGE']);
+      });
+
+      // No TC ID yet · setup: base-users + base-venues + tc-s2-34-setup · fails if "none recorded" looked like "not recorded"
+      it('Given none recorded, Then the request carries an empty list, not "not recorded"', async () => {
+        const res = await book(validRequest).expect(201);
+
+        expect(res.body).toMatchObject({
+          equipmentRequirements: [],
+          technicalSupportNeeds: null,
+          requiredFacilities: [],
+        });
+      });
+
+      // No TC ID yet · setup: base-users + base-venues + tc-s2-34-setup + an older request · fails if an older request seemed to have none
+      it('Given a request made before these were attached, Then its list reads as not recorded (null)', async () => {
+        const old = await prisma.venueBooking.create({
+          data: {
+            eventId: EVENT.orientation,
+            venueId: VENUE,
+            start: new Date(slot(9, 12).start),
+            end: new Date(slot(9, 12).end),
+          },
+        });
+
+        const res = await http().get(`/bookings/${old.id}`).set('Authorization', as('staff')).expect(200);
+
+        expect(res.body.equipmentRequirements).toBeNull();
       });
     });
   });

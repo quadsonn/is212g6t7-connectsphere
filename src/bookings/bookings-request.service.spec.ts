@@ -26,6 +26,7 @@ describe('BookingsService createRequest (US-20)', () => {
     venue: { findFirst: jest.Mock; findUnique: jest.Mock };
     venueBooking: { findMany: jest.Mock; findFirst: jest.Mock; create: jest.Mock };
     venueBlock: { findMany: jest.Mock };
+    equipmentRequirement: { findMany: jest.Mock };
     $executeRaw: jest.Mock;
     $queryRaw: jest.Mock;
     $transaction: jest.Mock;
@@ -89,6 +90,7 @@ describe('BookingsService createRequest (US-20)', () => {
           ),
       },
       venueBlock: { findMany: jest.fn().mockResolvedValue([]) },
+      equipmentRequirement: { findMany: jest.fn().mockResolvedValue([]) },
       $executeRaw: jest.fn().mockResolvedValue(1),
       // US-54: releaseExpiredHolds finds no expired holds.
       $queryRaw: jest.fn().mockResolvedValue([]),
@@ -172,6 +174,22 @@ describe('BookingsService createRequest (US-20)', () => {
         accessibilityNotes: 'Two wheelchair users',
         equipmentNeeds: '2 wireless mics',
         expectedAttendance: 120,
+      });
+    });
+
+    it('Story 20 AC-2: copies the equipment lines, in entry order, with technical support and facilities', async () => {
+      prisma.equipmentRequirement.findMany.mockResolvedValue([
+        { id: 'REQ-1000', createdAt: new Date(0), equipmentType: 'Laptop', quantity: 1, notes: null },
+        { id: 'REQ-999', createdAt: new Date(0), equipmentType: 'Projector', quantity: 2, notes: 'HDMI' },
+      ]);
+
+      await service.createRequest(coordinator, dto());
+
+      expect(prisma.venueBooking.create.mock.calls[0][0].data).toMatchObject({
+        equipmentRequirements: [
+          { equipmentType: 'Projector', quantity: 2, notes: 'HDMI' },
+          { equipmentType: 'Laptop', quantity: 1, notes: null },
+        ],
       });
     });
   });

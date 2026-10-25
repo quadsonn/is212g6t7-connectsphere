@@ -69,6 +69,8 @@ describe('AuthService (US-01)', () => {
     service = moduleRef.get(AuthService);
   });
 
+  // TC-S1-55 · US-01 AC-1 · unit: AuthService.login() with Prisma, bcrypt and JwtService mocked ·
+  // fails if valid credentials no longer produce a signed token for that user and role
   describe('AC-1: valid credentials establish a session', () => {
     it('returns an access token', async () => {
       prisma.user.findUnique.mockResolvedValue(buildUser());
@@ -116,6 +118,8 @@ describe('AuthService (US-01)', () => {
     });
   });
 
+  // TC-S1-56 · US-01 AC-2 · unit · fails if a wrong password or unknown email is told apart, or
+  // issues a token
   describe('AC-2: wrong credentials are rejected generically', () => {
     it('rejects a wrong password without issuing a token', async () => {
       prisma.user.findUnique.mockResolvedValue(buildUser());
@@ -157,6 +161,8 @@ describe('AuthService (US-01)', () => {
     });
   });
 
+  // TC-S1-60, TC-S1-62 · US-01 AC-5 · unit: recordFailedAttempt()/assertNotLocked() · fails if the
+  // 15/30-minute rule, the helpline message or the temporary unlock changes
   describe('AC-5: lockout after 15 failures in 30 minutes', () => {
     it('counts a failure without locking below the threshold', async () => {
       prisma.user.findUnique.mockResolvedValue(
@@ -263,6 +269,8 @@ describe('AuthService (US-01)', () => {
     });
   });
 
+  // TC-S1-59 · US-01 AC-4 · unit: logout()/isTokenRevoked() · fails if logging out no longer stores
+  // the jti that JwtStrategy refuses
   describe('AC-4: logout revokes the presented token', () => {
     it('stores the jti so the token can no longer be used', async () => {
       const exp = Math.floor(Date.now() / 1000) + 3600;

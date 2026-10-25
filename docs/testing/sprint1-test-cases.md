@@ -1,30 +1,1242 @@
 # Sprint 1 test cases
 
-# NOTE: "US-02, US-10, US-11, US-12 (Week 7 Changes 5/6) and US-13–15 (Changes 1/2) are deferred until those changes merge into Sprint3-MAIN. Existing team tests for these stories are kept and still pass; they'll be updated/converted and their test cases written after the merge."
+Written test cases for the Sprint 1 user stories (US-01 to US-15), traced from story → acceptance criterion → test case → automated test. Stories appear in the order of the Sprint 1 user-story document, and story and AC numbers follow it and [docs/BACKLOG.md](../BACKLOG.md). AC numbers count the bullets in the order the story lists them.
 
-Written test cases for the Sprint 1 user stories, traced from story → acceptance criterion → test case → automated test. Story and AC numbering follows [CONVENTIONS.md](CONVENTIONS.md).
+**Regeneration in progress (2026-10-26).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria and given UI and browser tests. Done: **US-01 to US-04**. US-05 to US-09 still show the 17 Oct results, and US-10 to US-15 get their test cases in the coming batches.
 
 ## How to read this file
 
 - Each test case is one table in the course template. The top part is the test case specification and the bottom part is the test execution record.
-- **Pre-conditions** name the exact SQL setup script(s) the test case needs. The automated test loads that same script, which is the traceability link. Scripts live in `test/fixtures/sql/`, and its [README](../../test/fixtures/sql/README.md) lists every row they create. All base users share the password `correct-horse-battery-staple`.
-- **Expected Result** is written from the AC wording, not from the code. Where the two disagree, the mismatch is listed at the end of each story group.
-- **Automated by** gives `<file>::<exact test name>`. Test names with `%s` are table-driven (`it.each`), and every row is run.
-- **Week 7 customer changes.** Expected Results follow the current AC wording, updated for Change 5 where it applies: new submissions go to the Event Coordinator Lead's unassigned queue, and Coordinators can't review or edit unassigned requests. Change 5 and Change 6 (the Safety Officer's safety-check stage) are being built on `Sprint3-MAIN` and aren't on this branch yet. No test here asserts the old behaviour as correct.
+- **Pre-conditions** name the exact SQL setup script(s) the test case needs. The integration and browser tests load that same script, which is the traceability link. Scripts live in `test/fixtures/sql/`, and its [README](../../test/fixtures/sql/README.md) lists every row they create. All fixture users share the password `correct-horse-battery-staple`.
+- **Expected Result** is written from the AC wording, not from the code. Where the two disagree, the mismatch is listed at the end of each story.
+- **Automated by** gives `<type>: <file>::<exact test name>`. Unit tests are cited by their `describe` block where the whole block serves the test case. Test names with `%s` are table-driven (`it.each`), and every row is run.
+- **Test case IDs are stable.** TC-S1-01 to TC-S1-63 keep the numbers they had on 17 Oct, so commits, `audit.md` and `coverage-s1.md` still point at the right case; new test cases continue from TC-S1-64. Within a story they are listed by acceptance criterion.
+- **Week 7 changes are merged.** Change 5 (the Event Coordinator Lead and the unassigned queue) and Change 6 (the Safety Officer's check) are in the code. Expected Results follow them: a new submission goes to the Lead's queue, and Coordinators see only requests assigned to them.
 - **Denied = 404 by design.** A user who may not see a request gets 404 rather than 403, so its existence isn't revealed. Remarks note this wherever it applies.
+
+**Test types**
+
+| Type | Where | What it runs | Command |
+|---|---|---|---|
+| **Unit** | `src/**/*.spec.ts` | One service, rule, guard or DTO on its own; Prisma and other dependencies mocked | `npm test` |
+| **Integration** (also the functional tests) | `test/*.e2e-spec.ts` | The real Nest app over HTTP (Supertest) and the local `connectsphere_test` database; one `describe` per AC | `npm run test:e2e` |
+| **UI** | `frontend/src/**/*.test.tsx` | React screens rendered with React Testing Library and Vitest; the API mocked | `npm --prefix frontend test` |
+| **E2E** (browser) | `e2e/*.spec.ts` | Playwright drives Chromium through the real React app, the real API and the local test database | `npm run test:browser` |
+
+All four use only the local test database (or none). None touches the shared Supabase database.
 
 **Legend**
 
 | Value | Meaning |
 |---|---|
-| Status **Pass** | The automated test ran and the system behaved as the Expected Result says. |
-| Status **Fail** | The automated test ran and the system did not behave as expected. These are known bugs, and Remarks name the audit gap. |
+| Status **Pass** | Every listed automated test ran and the system behaved as the Expected Result says. |
+| Status **Fail** | The system does not do what the AC asks. Remarks name the bug or gap. |
 | Status **Not Executed** | No automated test exists yet. |
-| Automated by **GAP** | No existing test covers this test case. It is listed in "Gaps". |
-| Automated by **Playwright (pending)** | The AC is about the user interface, and will be covered by an end-to-end browser test. |
-| Remarks **Pending Change 5 merge** | The Expected Result follows Week 7 Change 5 (Event Coordinator Lead and the unassigned queue). That code is on `Sprint3-MAIN` and not yet on this branch. |
+| Automated by **GAP** | No test covers this test case yet. It is listed in "Gaps". |
 
-**Run the tests:** `npm run test:e2e -- test/<file>.e2e-spec.ts`. This runs against the local `connectsphere_test` database only.
+---
+
+## US-01 Log in securely (all roles)
+
+### TC-S1-55
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-55 |
+| Story/AC ref | US-01 AC-1 |
+| Test Scenario | A registered user with valid credentials is authenticated and gets a session |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com (Olivia Organiser) exists with no failed attempts. |
+| Test Steps | 1. Olivia logs in with her email and correct password.<br>2. She inspects the token she receives.<br>3. She opens a protected route (`GET /auth/me`) with that token. |
+| Test Data | organiser@example.com / correct-horse-battery-staple |
+| Expected Result | Olivia is authenticated. She receives an access token that identifies her and her role, and the token opens protected routes. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/auth.e2e-spec.ts::returns 200 with an access token`<br>Integration: `test/auth.e2e-spec.ts::issues a token carrying userId and role`<br>Integration: `test/auth.e2e-spec.ts::establishes a session that opens protected routes`<br>Unit: `src/auth/auth.service.spec.ts::AuthService (US-01) AC-1: valid credentials establish a session` |
+
+### TC-S1-64
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-64 |
+| Story/AC ref | US-01 AC-1, AC-2 (UI) |
+| Test Scenario | Signing in on the login screen: valid credentials open the user's own dashboard; wrong credentials show the generic error |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. |
+| Test Steps | 1. On the login page, enter organiser@example.com and the correct password, and click "Sign in".<br>2. Sign out, then enter organiser@example.com with a wrong password.<br>3. Enter nobody@example.com with the correct password. |
+| Test Data | Correct password: `correct-horse-battery-staple`; wrong password: `wrong-password` |
+| Expected Result | Valid credentials sign the user in and open their role's dashboard (the Organiser's "My event requests"). For both bad attempts the page stays on the login screen, shows the same message ("invalid email or password"), which does not say which field was wrong, and keeps no session. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | Valid credentials opened `/organiser` with "My event requests". Both failures showed the identical alert text and left no token in the browser. |
+| Status | Pass |
+| Remarks | The API's response is TC-S1-55 and TC-S1-56; this case checks what the user sees. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | UI: `frontend/src/features/auth/auth-ui.test.tsx::Given valid credentials, Then it stores the session and opens the role’s dashboard`<br>UI: `frontend/src/features/auth/auth-ui.test.tsx::Given wrong credentials, Then it shows the generic error, stays on the login page and stores no session`<br>E2E: `e2e/us01-login.spec.ts::AC-1: valid credentials sign in and open the user’s own dashboard`<br>E2E: `e2e/us01-login.spec.ts::AC-2: a wrong password and an unknown email show the same generic error and stay on the login page` |
+
+### TC-S1-56
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-56 |
+| Story/AC ref | US-01 AC-2 |
+| Test Scenario | A wrong password and an unknown email get the same generic error, and no token |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com exists; nobody@example.com does not. |
+| Test Steps | 1. Log in as organiser@example.com with a wrong password.<br>2. Log in as nobody@example.com with a password.<br>3. Compare the two responses.<br>4. Log in with a number as the email. |
+| Test Data | organiser@example.com / wrong-password; nobody@example.com / correct-horse-battery-staple; email `12345` (a number) |
+| Expected Result | Both attempts are refused with the same generic message, "invalid email or password", and no token. The two responses are identical, so neither reveals which field was wrong. A malformed email (not a string) is refused as invalid input with a validation message, not a server error, and no token. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | The screen side (the message shown on the login page) is TC-S1-64. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/auth.e2e-spec.ts::rejects a wrong password with 401 and no token`<br>Integration: `test/auth.e2e-spec.ts::rejects an unknown email with 401 and no token`<br>Integration: `test/auth.e2e-spec.ts::returns byte-identical bodies for both, revealing neither field`<br>Integration: `test/auth.e2e-spec.ts::rejects a non-string email with 400 and a validation message`<br>Unit: `src/auth/auth.service.spec.ts::AuthService (US-01) AC-2: wrong credentials are rejected generically` |
+
+### TC-S1-66
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-66 |
+| Story/AC ref | US-01 AC-2 (boundary: malformed input) |
+| Test Scenario | A malformed email, a non-string email or an empty password is refused before any credential check, and a client-supplied role is ignored |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). |
+| Test Steps | 1. `POST /auth/login` with email `not-an-email`.<br>2. With email `12345` (a number).<br>3. With an empty password.<br>4. With valid credentials plus `role: EVENT_COORDINATOR`. |
+| Test Data | organiser@example.com / `correct-horse-battery-staple` |
+| Expected Result | Steps 1–3 are refused with 400 and no token, without counting toward the lockout. Step 4 signs in, and the session's role is the stored one (Organiser), not the one sent. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | Steps 1–3: 400, with "email must be a valid email address" for the number. Step 4: 200; the extra field was stripped. |
+| Status | Pass |
+| Remarks | These four tests had no test case before the regeneration. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/auth.e2e-spec.ts::rejects a malformed email with 400`<br>Integration: `test/auth.e2e-spec.ts::rejects a non-string email with 400 and a validation message`<br>Integration: `test/auth.e2e-spec.ts::rejects an empty password with 400`<br>Integration: `test/auth.e2e-spec.ts::ignores unexpected fields rather than trusting them` |
+
+### TC-S1-57
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-57 |
+| Story/AC ref | US-01 AC-3 (API) |
+| Test Scenario | A request without a valid token is refused at the API, and no data is returned |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. |
+| Test Steps | 1. Call `GET /auth/me` with no token.<br>2. Call it with a malformed token.<br>3. Call it with a token signed with the wrong secret.<br>4. Call `POST /auth/logout` with no token. |
+| Test Data | No header; `Bearer not-a-real-token`; a forged HS256 token for `user-1` / ATTENDEE |
+| Expected Result | Every request is refused as unauthenticated (401), and no protected data is returned. The refusal tells the client where to log in: a `WWW-Authenticate` header and the login URL in the body. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | The browser redirect is TC-S1-58. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/auth.e2e-spec.ts::rejects a request with no token`<br>Integration: `test/auth.e2e-spec.ts::points an unauthenticated caller at the login page`<br>Integration: `test/auth.e2e-spec.ts::rejects a malformed token`<br>Integration: `test/auth.e2e-spec.ts::rejects a token signed with the wrong secret`<br>Integration: `test/auth.e2e-spec.ts::rejects logout without a token` |
+
+### TC-S1-58
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-58 |
+| Story/AC ref | US-01 AC-3 (UI) |
+| Test Scenario | An unauthenticated user who opens a protected page is redirected to the login page |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in; no token in the browser. |
+| Test Steps | 1. Open the Organiser's event list (`/organiser`) directly in the browser, without signing in. |
+| Test Data | — |
+| Expected Result | The user is redirected to the login page, and no protected content is shown. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | The browser is sent to `/login` and the Sign in form is shown. The Organiser's list heading never renders. |
+| Status | Pass |
+| Remarks | Frontend redirect (ProtectedRoute). The API half, a 401 with `loginUrl`, is TC-S1-57. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | UI: `frontend/src/features/auth/auth-ui.test.tsx::Given no session, When a protected page is opened directly, Then it redirects to /login and renders nothing protected`<br>E2E: `e2e/us01-login.spec.ts::AC-3: opening a protected page directly while signed out lands on the login page` |
+
+### TC-S1-59
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-59 |
+| Story/AC ref | US-01 AC-4 |
+| Test Scenario | Logging out ends the session, and the old token can't be reused |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Olivia (organiser@example.com) logs in during the test. |
+| Test Steps | 1. Olivia logs in and opens `GET /auth/me`.<br>2. She logs out.<br>3. She reuses the same token on `GET /auth/me`.<br>4. She logs in again and opens `GET /auth/me`.<br>5. With two sessions open, she logs out of one and uses the other. |
+| Test Data | organiser@example.com / correct-horse-battery-staple |
+| Expected Result | Logout ends the session. Reusing the old token is refused (401), and access needs a new login. Logging out one session leaves her other sessions alone. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | The Sign out control on screen is TC-S1-65. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/auth.e2e-spec.ts::returns 204 and makes the token unusable afterwards`<br>Integration: `test/auth.e2e-spec.ts::requires logging in again to regain access`<br>Integration: `test/auth.e2e-spec.ts::does not revoke other sessions belonging to the same user`<br>Unit: `src/auth/auth.service.spec.ts::AuthService (US-01) AC-4: logout revokes the presented token` |
+
+### TC-S1-65
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-65 |
+| Story/AC ref | US-01 AC-4 (UI) |
+| Test Scenario | Signing out from the user menu ends the session; protected pages then need signing in again |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com in the browser. |
+| Test Steps | 1. Open the user menu in the top bar and click "Sign out".<br>2. Open `/organiser` directly.<br>3. Call the API with the old token. |
+| Test Data | — |
+| Expected Result | Signing out returns the user to the login page, removes the session from the browser and revokes the token on the server. Opening a protected page afterwards leads to the login page. If the server ends a session, the login page says "Your session has ended. Please sign in again." |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | Sign out led to `/login` with no stored token; `/organiser` redirected to `/login`; the old token got 401 from `/auth/me`. A failed logout call still ended the session locally. |
+| Status | Pass |
+| Remarks | The server side (revoking the jti) is TC-S1-59. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | UI: `frontend/src/features/auth/auth-ui.test.tsx::Given a signed-in user, When they sign out, Then the server is told and the stored session is cleared`<br>UI: `frontend/src/features/auth/auth-ui.test.tsx::Given the logout call fails, Then the session still ends locally`<br>UI: `frontend/src/features/auth/auth-ui.test.tsx::Given the session ended, Then the login page says so`<br>E2E: `e2e/us01-login.spec.ts::AC-4: signing out ends the session; protected pages need signing in again` |
+
+### TC-S1-60
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-60 |
+| Story/AC ref | US-01 AC-5 (14/15 boundary) |
+| Test Scenario | 14 failures leave the account open; the 15th locks it, and further attempts, even with the correct password, get the helpline message |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before every test, so no failed-attempt count carries over). Not logged in. Account organiser@example.com has 0 failed attempts and no lock. |
+| Test Steps | 1. Fail 14 times in a row, then check the account and log in correctly.<br>2. (Fresh reset) Fail 15 times in a row, then try once more with a wrong password.<br>3. (Fresh reset) Fail 15 times in a row, then try with the correct password. |
+| Test Data | organiser@example.com / wrong-password ×14 or ×15; then correct-horse-battery-staple |
+| Expected Result | After 14 failures the account is not locked, and the correct password logs in. After 15 consecutive failures within 30 minutes the account is temporarily locked. Every further attempt, including one with the correct password, is refused with a message directing the user to the IT helpline, and no token is issued. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | The 15th failure itself still returns the generic 401. The helpline message appears from the next attempt, which matches "further attempts". |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/auth.e2e-spec.ts::stays open for the first 14 failures`<br>Integration: `test/auth.e2e-spec.ts::locks on the 15th and points the user at the helpline`<br>Integration: `test/auth.e2e-spec.ts::refuses the correct password while locked`<br>Unit: `src/auth/auth.service.spec.ts::AuthService (US-01) AC-5: lockout after 15 failures in 30 minutes` |
+
+### TC-S1-61
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-61 |
+| Story/AC ref | US-01 AC-5 (30-minute window edge) |
+| Test Scenario | 15 failures count toward a lock only when they fall within 30 minutes; failures spread beyond 30 minutes don't lock |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com has 0 failed attempts. The clock is frozen at T0 (Date only), with no real waiting. |
+| Test Steps | 1. (Integration) Fail 14 times at T0.<br>2. Move the clock to T0 + 30 min + 1 ms and fail a 15th time.<br>3. Check the account, then log in with the correct password.<br>4. (Unit) With 14 failures since T0, fail a 15th time at exactly T0 + 30 min.<br>5. (Unit) With 14 failures since T0, fail a 15th time at T0 + 30 min + 1 ms.<br>6. (Unit) While a lock is in force, log in with the correct password. |
+| Test Data | organiser@example.com / wrong-password; correct-horse-battery-staple. T0 = test start (integration) or 2030-06-01T12:00Z (unit). |
+| Expected Result | A 15th failure at exactly 30 minutes is still within the window and locks the account. A 15th failure after 30 minutes does not lock it, and counting starts again from that failure, so the correct password still logs in. While a lock is in force, the correct password is refused with the helpline message. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | New tests, added this session (lockout window edge). See the mismatch note below on fixed versus sliding windows. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/auth.e2e-spec.ts::does not lock when the 15 failures are spread beyond 30 minutes`<br>Unit: `src/auth/auth.service.lockout-window.spec.ts::locks when the 15th failure lands exactly 30 minutes after the first (still within the window)`<br>Unit: `src/auth/auth.service.lockout-window.spec.ts::does not lock when the 15th failure lands 1 ms after the window closes; the count restarts at 1`<br>Unit: `src/auth/auth.service.lockout-window.spec.ts::refuses the correct password with the helpline message while a lock is in force` |
+
+### TC-S1-62
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-62 |
+| Story/AC ref | US-01 AC-5 ("consecutive", "temporarily") |
+| Test Scenario | A successful login resets the failure count, and the lock is temporary |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com has 0 failed attempts and no lock. |
+| Test Steps | 1. Fail 5 times, then log in correctly, then check the account.<br>2. (Fresh reset) Fail 15 times so the account locks, and confirm the correct password gets 429.<br>3. Let the lock period pass (the test sets `lockedUntil` to the past), then log in correctly. |
+| Test Data | organiser@example.com / wrong-password ×5 or ×15; correct-horse-battery-staple |
+| Expected Result | Failures only count while consecutive: a successful login clears the count. The lock is temporary: once it has elapsed, the correct password logs in again. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | The AC doesn't state how long the lock lasts. The code locks for 30 minutes, and the expiry is simulated by moving `lockedUntil` into the past, not by waiting. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/auth.e2e-spec.ts::resets the count after a successful login`<br>Integration: `test/auth.e2e-spec.ts::unlocks once the lock period has elapsed`<br>Unit: `src/auth/auth.service.spec.ts::AuthService (US-01) AC-5: lockout after 15 failures in 30 minutes` |
+
+**US-01 AC ↔ code mismatches**
+- **AC-5, fixed versus sliding window (flagged for the team).** The code counts failures in a fixed 30-minute window that starts at the first failure, and the first failure after the window closes restarts the count at 1. If the AC means *any* 15 consecutive failures within 30 minutes (a sliding window), the code can miss a lock. Example: 1 failure at T0, 13 at T0 + 29 min, then 2 at T0 + 30.5 min. Failures 2 to 16 all fall within about 2 minutes, so a sliding window would lock. The code restarts the count at T0 + 30.5 min and ends at 2, with no lock. TC-S1-61 passes under either reading, because its failures span more than 30 minutes. The team should confirm with the customer which reading is intended. The code is unchanged.
+- **AC-5, the 15th attempt.** The 15th failure returns the generic 401 and sets the lock. The helpline message (429) appears from the 16th attempt. This matches "further attempts", but a reader expecting the 15th response itself to name the helpline would see it one attempt later.
+- **AC-5, lock duration.** The AC says "temporarily" without a duration. The code uses 30 minutes (TC-S1-62).
+
+---
+
+## US-02 Role-appropriate access restriction (all roles)
+
+### TC-S1-67
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-67 |
+| Story/AC ref | US-02 AC-1 |
+| Test Scenario | An action with no explicit grant is denied, and nothing changes (default-deny) |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-67-setup.sql on testDB (reset before test). Logged in as each base role in turn. |
+| Test Steps | 1. Each role calls `GET /events/EVT-160/internal-notes`, a route that declares no permission.<br>2. Compare the events table before and after.<br>3. Venue Staff call `POST /events/drafts`. |
+| Test Data | `EVT-160` "Event owned by A" (CONFIRMED, Organiser USR-006, Coordinator USR-004); `EVT-161` "Event owned by B" (CONFIRMED, Organiser USR-007, Coordinator USR-005); `EVT-162` "Unreviewed draft" (DRAFT, USR-006). Each carries "INTERNAL …" planning notes. |
+| Expected Result | Every role gets 403 for the undeclared route and receives none of its content. The data is unchanged. Venue Staff, who have no create grant, get 403 and nothing is saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | 403 for every role, no payload, identical rows before and after; Venue Staff's draft was refused and not saved. |
+| Status | Pass |
+| Remarks | The rule itself (deny unless declared) is checked in the matrix and RolesGuard unit tests. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/access-control.e2e-spec.ts::denies a route that declares no permission, for every role`<br>Integration: `test/access-control.e2e-spec.ts::changes nothing when denied`<br>Integration: `test/access-control.e2e-spec.ts::denies an event action the role has no grant for`<br>Unit: `src/common/access/permission-matrix.spec.ts::Permission matrix (US-02) AC-1: default-deny`<br>Unit: `src/common/guards/roles.guard.spec.ts::RolesGuard (US-02) AC-1: default-deny`<br>Unit: `src/common/access/access-control.service.spec.ts::AccessControlService (US-02) requireScope` |
+
+### TC-S1-68
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-68 |
+| Story/AC ref | US-02 AC-2 |
+| Test Scenario | A granted action succeeds |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-67-setup.sql on testDB (reset before test). |
+| Test Steps | 1. The Organiser, a Coordinator and an Attendee each call `GET /events`.<br>2. The Organiser saves a draft (`POST /events/drafts`). |
+| Test Data | `EVT-160` "Event owned by A" (CONFIRMED, Organiser USR-006, Coordinator USR-004); `EVT-161` "Event owned by B" (CONFIRMED, Organiser USR-007, Coordinator USR-005); `EVT-162` "Unreviewed draft" (DRAFT, USR-006). Each carries "INTERNAL …" planning notes. |
+| Expected Result | Each listing succeeds (200). The Organiser's draft is created (201) and saved as their own DRAFT. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | 200 for all three; the draft was saved with organiserId USR-006 and status DRAFT. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/access-control.e2e-spec.ts::lets %s list events`<br>Integration: `test/access-control.e2e-spec.ts::lets an Organiser carry out a granted write (save a draft)`<br>Unit: `src/common/access/permission-matrix.spec.ts::Permission matrix (US-02) AC-2: granted actions are permitted`<br>Unit: `src/common/guards/roles.guard.spec.ts::RolesGuard (US-02) AC-2: granted actions pass` |
+
+### TC-S1-69
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-69 |
+| Story/AC ref | US-02 AC-3 |
+| Test Scenario | An ungranted action called directly through the API or a URL is rejected by the server, not just hidden in the UI |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-67-setup.sql on testDB (reset before test). |
+| Test Steps | 1. Venue Staff call `PATCH /events/EVT-160` directly.<br>2. Venue Staff call `GET /events/EVT-160`.<br>3. The Organiser calls `GET /events/EVT-161` (another Organiser's event).<br>4. An Attendee calls the undeclared route and the response body is inspected. |
+| Test Data | `EVT-160` "Event owned by A" (CONFIRMED, Organiser USR-006, Coordinator USR-004); `EVT-161` "Event owned by B" (CONFIRMED, Organiser USR-007, Coordinator USR-005); `EVT-162` "Unreviewed draft" (DRAFT, USR-006). Each carries "INTERNAL …" planning notes. |
+| Expected Result | Each call is refused by the server: 403 for an action the role lacks, 404 for a record outside the user's scope. No event data comes back with a refusal, and the event is unchanged. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | 1: 403, name unchanged. 2 and 3: 404 with no event data. 4: only `statusCode` and `message`. |
+| Status | Pass |
+| Remarks | 404 rather than 403 for out-of-scope records is by design (existence not revealed). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/access-control.e2e-spec.ts::rejects a direct URL call for an ungranted role`<br>Integration: `test/access-control.e2e-spec.ts::hides an event with no booking from Venue Staff (RELATED scope)`<br>Integration: `test/access-control.e2e-spec.ts::rejects a direct call for another organiser’s event`<br>Integration: `test/access-control.e2e-spec.ts::returns no payload alongside a denial`<br>Unit: `src/common/access/permission-matrix.spec.ts::Permission matrix (US-02) rolesWithPermission keeps @Roles() derived from the matrix` |
+
+### TC-S1-70
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-70 |
+| Story/AC ref | US-02 AC-4 (API) |
+| Test Scenario | The system tells each role what it may do, from the same table the server enforces |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-67-setup.sql on testDB (reset before test). |
+| Test Steps | 1. An Attendee, the Organiser and Venue Staff each call `GET /auth/me/permissions`.<br>2. Venue Staff list events.<br>3. Call it without a token. |
+| Test Data | `EVT-160` "Event owned by A" (CONFIRMED, Organiser USR-006, Coordinator USR-004); `EVT-161` "Event owned by B" (CONFIRMED, Organiser USR-007, Coordinator USR-005); `EVT-162` "Unreviewed draft" (DRAFT, USR-006). Each carries "INTERNAL …" planning notes. |
+| Expected Result | Each role gets only its own granted actions (an Attendee may REGISTER, and has nothing on BOOKING). Roles get different lists. The scope reported (Venue Staff: RELATED) matches what the server enforces. Without a token: 401. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected; Venue Staff's reported RELATED scope matched their empty event list. |
+| Status | Pass |
+| Remarks | Which menus the screen shows is TC-S1-75. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/access-control.e2e-spec.ts::reports an Attendee’s permitted actions`<br>Integration: `test/access-control.e2e-spec.ts::does not advertise actions the role lacks`<br>Integration: `test/access-control.e2e-spec.ts::differs per role`<br>Integration: `test/access-control.e2e-spec.ts::matches what the server actually enforces`<br>Integration: `test/access-control.e2e-spec.ts::requires authentication`<br>Unit: `src/common/access/permission-matrix.spec.ts::Permission matrix (US-02) AC-4: permittedActionsFor drives the UI from the same table` |
+
+### TC-S1-75
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-75 |
+| Story/AC ref | US-02 AC-3, AC-4 (UI) |
+| Test Scenario | Each role sees only its own menus, and typing another role's page address does not open it |
+| Pre-conditions | UI test: the app shell rendered per role (API mocked). Browser test: Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-67-setup.sql on testDB (reset before test). |
+| Test Steps | 1. Sign in as each role and read the side menu.<br>2. As the Organiser, type `/coordinator` in the address bar. |
+| Test Data | Menus per role (frontend `NAV_BY_ROLE`) |
+| Expected Result | Organiser: "My requests" only. Coordinator: "My events", "Change requests", "My venue requests", "Venues". Venue Staff and Attendee: their own items only. No role sees another role's items. The Organiser typing a Coordinator address is returned to their own home. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | Each role's menu matched exactly; the Organiser was redirected to `/organiser`. |
+| Status | Pass |
+| Remarks | The menus come from the frontend's own table (`NAV_BY_ROLE`), not yet from `GET /auth/me/permissions` (TC-S1-70). See the US-02 mismatch notes. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | UI: `frontend/src/features/auth/auth-ui.test.tsx::Given a %s, Then the menu shows exactly %j`<br>UI: `frontend/src/features/auth/auth-ui.test.tsx::Given an Organiser, When they open a Coordinator page by URL, Then they are sent back to their own home`<br>E2E: `e2e/us02-role-access.spec.ts::AC-4: each role sees only its own menu`<br>E2E: `e2e/us02-role-access.spec.ts::AC-3: an Organiser who types a Coordinator URL is sent back to their own home` |
+
+### TC-S1-71
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-71 |
+| Story/AC ref | US-02 AC-5 |
+| Test Scenario | An Organiser sees only their own requests; another Organiser's are denied |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-67-setup.sql on testDB (reset before test). Logged in as organiser@example.com. |
+| Test Steps | 1. List events (`GET /events`) and open "My event requests" in the browser.<br>2. Open EVT-161 by id and by URL (`/organiser/EVT-161`).<br>3. Open EVT-160, their own. |
+| Test Data | `EVT-160` "Event owned by A" (CONFIRMED, Organiser USR-006, Coordinator USR-004); `EVT-161` "Event owned by B" (CONFIRMED, Organiser USR-007, Coordinator USR-005); `EVT-162` "Unreviewed draft" (DRAFT, USR-006). Each carries "INTERNAL …" planning notes. |
+| Expected Result | The list holds only the Organiser's own requests (EVT-160 and the draft EVT-162), never EVT-161. Opening EVT-161 is denied with no data. Their own request opens. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | Only own requests listed (API and screen); EVT-161 gave 404 and an error on screen; EVT-160 opened. |
+| Status | Pass |
+| Remarks | See the US-02 mismatch notes: the AC says "their own organisation's requests", and the system has no organisation, so "own" means the Organiser's own. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/access-control.e2e-spec.ts::lists only their own`<br>Integration: `test/access-control.e2e-spec.ts::denies another organiser’s event by id`<br>Integration: `test/access-control.e2e-spec.ts::allows their own event by id`<br>E2E: `e2e/us02-role-access.spec.ts::AC-5: an Organiser sees only their own requests, and another’s cannot be opened by URL`<br>Unit: `src/common/access/access-control.service.spec.ts::AccessControlService (US-02) AC-5: Organiser sees only their own` |
+
+### TC-S1-72
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-72 |
+| Story/AC ref | US-02 AC-6 |
+| Test Scenario | A Coordinator sees only events assigned to them; others are denied |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-67-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (USR-004). |
+| Test Steps | 1. List events.<br>2. Open EVT-161 (assigned to coord.b).<br>3. Open EVT-162 (no Coordinator). |
+| Test Data | `EVT-160` "Event owned by A" (CONFIRMED, Organiser USR-006, Coordinator USR-004); `EVT-161` "Event owned by B" (CONFIRMED, Organiser USR-007, Coordinator USR-005); `EVT-162` "Unreviewed draft" (DRAFT, USR-006). Each carries "INTERNAL …" planning notes. |
+| Expected Result | Only EVT-160 is listed. EVT-161 and EVT-162 are denied with no data. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | List was exactly ["Event owned by A"]; both others gave 404. |
+| Status | Pass |
+| Remarks | 404 by design. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/access-control.e2e-spec.ts::lists only events assigned to them`<br>Integration: `test/access-control.e2e-spec.ts::denies an event assigned to another coordinator`<br>Integration: `test/access-control.e2e-spec.ts::denies an event with no coordinator assigned`<br>Unit: `src/common/access/access-control.service.spec.ts::AccessControlService (US-02) AC-6: Coordinator sees only assigned` |
+
+### TC-S1-73
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-73 |
+| Story/AC ref | US-02 AC-7 |
+| Test Scenario | An Attendee sees only public, registration-facing information, never internal planning information |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-67-setup.sql on testDB (reset before test). Logged in as attendee@example.com. |
+| Test Steps | 1. Open EVT-160 (`GET /events/EVT-160`).<br>2. List events, through the API and on the "Browse events" screen. |
+| Test Data | `EVT-160` "Event owned by A" (CONFIRMED, Organiser USR-006, Coordinator USR-004); `EVT-161` "Event owned by B" (CONFIRMED, Organiser USR-007, Coordinator USR-005); `EVT-162` "Unreviewed draft" (DRAFT, USR-006). Each carries "INTERNAL …" planning notes. |
+| Expected Result | The Attendee gets the name and registration details, but none of: layout notes, accessibility notes or requirements, equipment needs, expected attendance, organiser id, or any "INTERNAL" text. The list shows both confirmed, open events and not the draft, with no internal text. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected, in the single view, the list and the browser screen. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/access-control.e2e-spec.ts::omits internal planning fields`<br>Integration: `test/access-control.e2e-spec.ts::keeps what registration needs`<br>Integration: `test/access-control.e2e-spec.ts::hides events that have not passed review`<br>Integration: `test/access-control.e2e-spec.ts::lists confirmed events that are open for registration`<br>Integration: `test/access-control.e2e-spec.ts::strips internal fields from the list view too`<br>E2E: `e2e/us02-role-access.spec.ts::AC-7: an Attendee sees confirmed events but no drafts and no internal planning text`<br>Unit: `src/common/access/access-control.service.spec.ts::AccessControlService (US-02) AC-7: Attendee sees only registration-facing info` |
+
+### TC-S1-74
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-74 |
+| Story/AC ref | US-02 AC-8 (API) |
+| Test Scenario | An unauthenticated request to a protected resource is denied and pointed at login |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-67-setup.sql on testDB (reset before test). |
+| Test Steps | 1. `GET /events` with no token.<br>2. `GET /events/EVT-160` with no token.<br>3. `GET /events` with a forged token.<br>4. Log out, then reuse the token. |
+| Test Data | `EVT-160` "Event owned by A" (CONFIRMED, Organiser USR-006, Coordinator USR-004); `EVT-161` "Event owned by B" (CONFIRMED, Organiser USR-007, Coordinator USR-005); `EVT-162` "Unreviewed draft" (DRAFT, USR-006). Each carries "INTERNAL …" planning notes. |
+| Expected Result | Every request is refused with 401 and no event data. The response tells the client where to log in (`loginUrl`, `WWW-Authenticate`). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | 401 in all four, with loginUrl `/auth/login` and a Bearer challenge. |
+| Status | Pass |
+| Remarks | The browser redirect to the login page is TC-S1-58. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/access-control.e2e-spec.ts::denies a protected route with no token`<br>Integration: `test/access-control.e2e-spec.ts::denies a single event with no token`<br>Integration: `test/access-control.e2e-spec.ts::denies a forged token`<br>Integration: `test/access-control.e2e-spec.ts::denies once the session has been logged out`<br>Unit: `src/common/guards/roles.guard.spec.ts::RolesGuard (US-02) AC-8: unauthenticated requests` |
+
+**US-02 AC ↔ code mismatches**
+- **AC-5, "their own organisation's requests":** the system has no organisation entity; requests belong to the Organiser who raised them, so "own organisation's" is enforced as "own". If one organisation can have several Organisers who should see each other's requests, that is a new feature. Confirm with the team.
+- **AC-4, two tables for one rule:** the server's permission matrix drives `GET /auth/me/permissions` (TC-S1-70), but the screen's menus come from the frontend's `NAV_BY_ROLE` (TC-S1-75). They agree today, and both are tested, but nothing forces them to stay in step. The nav file's own comment plans to drive menus from the permissions endpoint.
+- **AC-3, 403 versus 404:** an action the role never has gets 403; a record outside the user's scope gets 404 (existence not revealed). Both are server-side refusals, as the AC asks.
+
+---
+
+## US-03 Submit a new event request (Event Organiser)
+
+### TC-S1-23
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-23 |
+| Story/AC ref | US-03 AC-1 |
+| Test Scenario | Organiser submits a complete, valid request (happy path) |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia fills in every required field and submits (`POST /events`).<br>2. Read the stored request back. |
+| Test Data | Name "Freshman Orientation 2030"; purpose "Welcome new students and introduce campus services"; category "Student engagement"; 2030-10-01 09:00–17:00 UTC; attendance 300 |
+| Expected Result | The request is submitted and recorded with status "Submitted", against the Organiser who submitted it. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-submit.e2e-spec.ts::returns 201 with status SUBMITTED`<br>Integration: `test/events-submit.e2e-spec.ts::persists the record against the calling organiser`<br>Unit: `src/events/events.service.spec.ts::EventsService (US-03) AC-1: a valid request is recorded as SUBMITTED` |
+
+### TC-S1-30
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-30 |
+| Story/AC ref | US-03 AC-1/AC-4, with US-02 AC-5 (permission) |
+| Test Scenario | A submitted request belongs only to its Organiser |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql on testDB (reset before test). Logged in as organiser@example.com and other@example.com (Otto Organiser). |
+| Test Steps | 1. Olivia submits a request with organiserId set to Otto's id and status APPROVED in the body.<br>2. Olivia submits a normal request, and Otto lists his events.<br>3. Otto opens Olivia's request by id. |
+| Test Data | organiserId USR-007, status "APPROVED" in the payload |
+| Expected Result | The client can't choose the owner or the status: the request belongs to Olivia and is Submitted. Another Organiser can't see or open it. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | Denied = 404 by design (agreed decision): the request's existence is not revealed. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-submit.e2e-spec.ts::ignores a client-supplied organiserId or status`<br>Integration: `test/events-submit.e2e-spec.ts::does not expose it to a different Organiser`<br>Integration: `test/events-submit.e2e-spec.ts::denies another Organiser the record by id` |
+
+### TC-S1-78
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-78 |
+| Story/AC ref | US-03 AC-1, US-04 AC-1, with US-02 AC-3/AC-8 (permission) |
+| Test Scenario | Only a signed-in Organiser can submit an event request or save a draft |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). |
+| Test Steps | 1. A Coordinator and an Attendee each call `POST /events` and `POST /events/drafts`.<br>2. Call both with no token. |
+| Test Data | The same payload as TC-S1-23 |
+| Expected Result | The other roles get 403 and the unauthenticated calls 401. Nothing is saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | 403 and 401 as expected; the events table stayed empty. |
+| Status | Pass |
+| Remarks | These tests had no test case before the regeneration. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-submit.e2e-spec.ts::refuses a non-Organiser (@Roles enforcement)`<br>Integration: `test/events-submit.e2e-spec.ts::refuses an unauthenticated submission`<br>Integration: `test/events-draft.e2e-spec.ts::refuses a non-Organiser`<br>Integration: `test/events-draft.e2e-spec.ts::refuses an unauthenticated caller` |
+
+### TC-S1-24
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-24 |
+| Story/AC ref | US-03 AC-2 (confirmation) |
+| Test Scenario | The Organiser receives confirmation of a successful submission |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia submits a complete request.<br>2. Inspect the response. |
+| Test Data | The same payload as TC-S1-23 |
+| Expected Result | The Organiser receives confirmation that the request was created, including its reference and status. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | The response is the saved request. The on-screen confirmation is TC-S1-76. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-submit.e2e-spec.ts::returns the persisted request as confirmation` |
+
+### TC-S1-25
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-25 |
+| Story/AC ref | US-03 AC-2 (visibility), per Week 7 Change 5 |
+| Test Scenario | A newly submitted request appears in the Event Coordinator Lead's unassigned queue, and not to Coordinators |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql on testDB (reset before test). Logged in as organiser@example.com (the Organiser), then as lead@example.com (the Event Coordinator Lead) and as coord.a@example.com (a Coordinator). |
+| Test Steps | 1. The Organiser submits a complete request (`POST /events`).<br>2. The Lead opens the unassigned queue (`GET /assignments/queue`).<br>3. The Coordinator lists their events (`GET /events`). |
+| Test Data | The same payload as TC-S1-23 |
+| Expected Result | The request appears in the Lead's unassigned queue for assignment. Coordinators can't review or edit it until it is assigned to them. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | The request is SUBMITTED with no Coordinator. It is the only entry in the Lead's unassigned queue. The Coordinator's list is empty. |
+| Status | Pass |
+| Remarks | Change 5 is merged. Assigning it from the queue is US-55 (Sprint 3); after that, the assigned Coordinator sees it. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-submit.e2e-spec.ts::puts the new request in the Event Coordinator Lead’s unassigned queue for review`<br>Integration: `test/events-submit.e2e-spec.ts::keeps the request out of every Coordinator’s view until the Lead assigns it`<br>Integration: `test/events-draft.e2e-spec.ts::keeps it out of every Coordinator’s view once submitted, until the Lead assigns it` |
+
+### TC-S1-76
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-76 |
+| Story/AC ref | US-03 AC-1, AC-2, AC-3 (UI) |
+| Test Scenario | On the request form, a refused submission flags each offending field, and a successful one is confirmed on screen |
+| Pre-conditions | UI test: the form rendered with the API mocked. Browser test: Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com. |
+| Test Steps | 1. Open "New event request" and click "Submit for review" with the form empty.<br>2. Fill every required field (name, category, purpose, description, start and end date and time, attendance) and submit. |
+| Test Data | "Freshman Orientation", Student engagement, the 15th of next month 09:00–17:00, attendance "200 – 499" |
+| Expected Result | Step 1: the form says "Please correct the highlighted fields." and shows a message under each missing or invalid field (for example "Please enter an event name."), marking those inputs invalid; nothing is saved. Step 2: the screen confirms "Request submitted for review." and the request appears in "My event requests" as Submitted. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | Step 1: each field's message shown, inputs marked invalid, no row saved. Step 2: the confirmation appeared, the list showed Submitted, and the saved row was SUBMITTED with no Coordinator. |
+| Status | Pass |
+| Remarks | **Code changed in this regeneration:** the form gave no confirmation after a successful submission (it only returned to the list). It now shows one (`organiser-new-request.tsx`, `toast.success`). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | UI: `frontend/src/pages/organiser-requests.test.tsx::AC-3: Given the API refuses the submission, Then each offending field is flagged with its own message`<br>UI: `frontend/src/pages/organiser-requests.test.tsx::AC-2: Given the submission succeeds, Then the Organiser is told and taken to their requests`<br>E2E: `e2e/us03-us04-event-request.spec.ts::US-03 AC-3: submitting an empty form is blocked and each missing field is flagged`<br>E2E: `e2e/us03-us04-event-request.spec.ts::US-03 AC-1/AC-2: a complete request is submitted, confirmed on screen and listed as Submitted` |
+
+### TC-S1-26
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-26 |
+| Story/AC ref | US-03 AC-3 (negative) |
+| Test Scenario | Submission with missing or invalid fields is blocked, and each field is flagged |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia submits with a start date in the past.<br>2. Olivia submits with attendance "three hundred".<br>3. Olivia submits with the end time before the start time.<br>4. Olivia submits with no category.<br>5. Olivia submits with several fields wrong at once.<br>6. Check no request was stored. |
+| Test Data | proposedStart 2020-01-01T09:00Z; expectedAttendance "three hundred"; start 17:00 and end 09:00; category omitted |
+| Expected Result | Submission is blocked. Each offending field is flagged with a clear message (past date, non-numeric attendance, end before start, missing category), all at once. Nothing is recorded. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | Flagging each field on screen is TC-S1-76. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-submit.e2e-spec.ts::rejects a date in the past`<br>Integration: `test/events-submit.e2e-spec.ts::rejects non-numeric attendance`<br>Integration: `test/events-submit.e2e-spec.ts::rejects an end time before the start time, flagging proposedEnd`<br>Integration: `test/events-submit.e2e-spec.ts::rejects a missing category`<br>Integration: `test/events-submit.e2e-spec.ts::flags EVERY offending field at once, not just the first`<br>Integration: `test/events-submit.e2e-spec.ts::persists nothing when validation fails` |
+
+### TC-S1-27
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-27 |
+| Story/AC ref | US-03 AC-3 (boundary) |
+| Test Scenario | Values at the edge of valid are handled correctly |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). This applies to the integration step; the unit tests need no database and freeze the clock at 2030-06-01T12:00:00.000Z. |
+| Test Steps | 1. With the clock frozen, validate one submission per boundary: start 1 ms in the past, at the current instant and 1 ms in the future; end 1 ms before, equal to and 1 ms after the start; attendance −1, 0 and 1; each required text field as "   "; a padded name.<br>2. Over the API, Olivia submits one request with a start 1 minute in the past, an end equal to it, attendance 0 and a name of spaces. |
+| Test Data | start = now − 1 ms / now / now + 1 ms; end = start − 1 ms / start / start + 1 ms; attendance −1 / 0 / 1; name, purpose, description, category = "   "; name "  Gala  " |
+| Expected Result | Blocked, each flagged on its own field: a start in the past, an end not after the start, attendance 0 or below, and whitespace-only required text. Accepted: a start at or after the current instant, an end after the start, and attendance 1. Padded text is accepted and stored trimmed. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | Closes audit G4 (US-03 boundaries). Whitespace-only text is the regression check for gap #1, fixed in 93316fa. "Now" is accepted because the AC blocks a past date, and the current instant is not past. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Unit: `src/events/create-event-request.dto.spec.ts::CreateEventRequestDto boundaries (TC-S1-27, US-03 AC-3)` (15 unit tests)<br>Integration: `test/events-submit.e2e-spec.ts::blocks boundary values and flags each field: start just past, end = start, attendance 0, blank name` |
+
+### TC-S1-28
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-28 |
+| Story/AC ref | US-03 AC-4 |
+| Test Scenario | After submitting, the Organiser sees every detail accurately with the current status |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia submits a complete request.<br>2. Olivia opens it (`GET /events/<id>`).<br>3. Olivia lists her requests. |
+| Test Data | The same payload as TC-S1-23 |
+| Expected Result | All entered details are displayed accurately and the current status is shown. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-submit.e2e-spec.ts::returns each submitted field accurately`<br>Integration: `test/events-submit.e2e-spec.ts::lists it among the organiser’s own requests`<br>Unit: `src/events/events.service.spec.ts::EventsService (US-03) AC-4: viewing a submitted request` |
+
+### TC-S1-29
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-29 |
+| Story/AC ref | US-03 AC-5 (+ boundary) |
+| Test Scenario | Expected attendance is stored as a positive whole number |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia submits with attendance 420.<br>2. Olivia submits with attendance "250" (a numeric string).<br>3. Olivia submits with 0, then −5.<br>4. Olivia submits with 12.5. |
+| Test Data | 420; "250"; 0; −5; 12.5 |
+| Expected Result | Valid attendance is stored as a positive whole number. Zero, negative and fractional values are refused. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | The at-boundary value of 1 is not yet tested (see TC-S1-27). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-submit.e2e-spec.ts::round-trips the value as a number`<br>Integration: `test/events-submit.e2e-spec.ts::accepts a numeric string and stores it as a number`<br>Integration: `test/events-submit.e2e-spec.ts::rejects zero and negative attendance (AC-5)`<br>Integration: `test/events-submit.e2e-spec.ts::rejects a fractional attendance`<br>Unit: `src/events/events.service.spec.ts::EventsService (US-03) AC-5: attendance is stored as given` |
+
+**US-03 AC ↔ code mismatches**
+- **AC-2 (resolved, Week 7 Change 5 merged):** a new submission goes to the Event Coordinator Lead's unassigned queue, not to every Coordinator (TC-S1-25, now Pass).
+- **AC-2 (fixed in this regeneration):** the screen gave no confirmation after submitting; it now shows "Request submitted for review." (TC-S1-76).
+- **AC-3 (fixed and tested):** whitespace-only required text used to be accepted (audit gap #1), fixed in 93316fa. The boundaries are tested by TC-S1-27.
+
+---
+
+## US-04 Save an incomplete request as a draft (Event Organiser)
+
+### TC-S1-31
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-31 |
+| Story/AC ref | US-04 AC-1 (+ boundary) |
+| Test Scenario | Saving an incomplete draft skips full submission validation, but not basic sanity checks |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia saves a draft with no fields.<br>2. Olivia saves a draft with only a name.<br>3. Olivia saves a draft with a start date in the past.<br>4. Olivia saves a draft with attendance "not a number", then one with the end before the start. |
+| Test Data | {}; name "Work in progress"; proposedStart 2020-01-01; expectedAttendance "not a number" |
+| Expected Result | An incomplete draft saves as a Draft with the empty fields left empty, and a past date is accepted on a draft. Values of the wrong type are still refused. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-draft.e2e-spec.ts::accepts a completely empty draft`<br>Integration: `test/events-draft.e2e-spec.ts::accepts a draft with required fields still empty`<br>Integration: `test/events-draft.e2e-spec.ts::accepts a date in the past, which submission would reject`<br>Integration: `test/events-draft.e2e-spec.ts::still rejects incoherent data`<br>Unit: `src/events/events-draft.service.spec.ts::EventsService drafts (US-04) AC-1: saving an incomplete draft` |
+
+### TC-S1-32
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-32 |
+| Story/AC ref | US-04 AC-2 |
+| Test Scenario | The Organiser returns later, opens the draft and continues editing |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia saves a draft with a name and purpose.<br>2. Later, she opens it.<br>3. She adds the purpose to a name-only draft (`PATCH`) and reopens it. |
+| Test Data | name "Half done", purpose "Partly written"; later purpose "Added on the second visit" |
+| Expected Result | The draft opens with what was entered, and the missing fields can be filled in, with earlier values kept. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-draft.e2e-spec.ts::opens the saved draft with what was entered`<br>Integration: `test/events-draft.e2e-spec.ts::fills in the missing fields incrementally`<br>Unit: `src/events/events-draft.service.spec.ts::EventsService drafts (US-04) AC-2: returning to continue editing` |
+
+### TC-S1-33
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-33 |
+| Story/AC ref | US-04 AC-3 (data) |
+| Test Scenario | In the request list, a draft is marked "Draft" and a submitted request "Submitted" |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia saves one draft and submits one complete request.<br>2. She lists her requests. |
+| Test Data | Draft "Still a draft"; submitted "Freshman Orientation 2030" |
+| Expected Result | The draft is clearly marked as Draft, distinct from the request submitted for review. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | The data half: each request carries its own status. The on-screen badge is TC-S1-34. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-draft.e2e-spec.ts::marks a draft DRAFT and a submitted request SUBMITTED`<br>Integration: `test/events-draft.e2e-spec.ts::keeps drafts out of the Coordinator review queue` |
+
+### TC-S1-34
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-34 |
+| Story/AC ref | US-04 AC-3 (UI) |
+| Test Scenario | The draft is visually distinguishable from submitted requests |
+| Pre-conditions | UI test: the Organiser's list rendered with one DRAFT and one SUBMITTED request (API mocked). Browser test: base-users.sql on testDB (reset before test), logged in as organiser@example.com. |
+| Test Steps | 1. Open "My event requests".<br>2. Compare the Status column of the draft and the submitted request.<br>3. (Browser) Save a new draft and look at its row. |
+| Test Data | `EVT-004` and `EVT-146` |
+| Expected Result | The draft is clearly marked "Draft" and looks different from requests already submitted for review. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | The draft's badge reads "Draft" in grey; the submitted request's reads "Submitted" in a different colour. A draft with no name yet is listed as "Untitled draft" with its Draft badge. |
+| Status | Pass |
+| Remarks | The API half is TC-S1-33. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | UI: `frontend/src/pages/organiser-requests.test.tsx::AC-3: Given a draft and a submitted request, Then the list labels them "Draft" and "Submitted" in different styles`<br>UI: `frontend/src/pages/organiser-requests.test.tsx::AC-3: Given a draft with no name yet, Then it still appears, as "Untitled draft"`<br>E2E: `e2e/us03-us04-event-request.spec.ts::US-04: a half-filled draft is saved, shown as Draft, then completed and submitted` |
+
+### TC-S1-77
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-77 |
+| Story/AC ref | US-04 AC-1 to AC-4 (UI) |
+| Test Scenario | An Organiser saves a half-filled draft on screen, sees it marked Draft, then returns, completes and submits it |
+| Pre-conditions | UI test: the form rendered with the API mocked. Browser test: Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com. |
+| Test Steps | 1. On "New event request", enter only a name and click "Save as draft".<br>2. Find it in "My event requests".<br>3. Open it for editing, fill the remaining required fields and click "Submit for review". |
+| Test Data | "Half-planned social" |
+| Expected Result | Step 1 saves without asking for the other fields and confirms "Draft saved.". Step 2 shows it with a Draft badge. Step 3 shows the name already entered, and submitting moves it to Submitted with the confirmation. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | Saved as DRAFT and confirmed; listed with the Draft badge; reopened with its name; submitted and stored as SUBMITTED. |
+| Status | Pass |
+| Remarks | Confirmations on saving were added with TC-S1-76's change. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | UI: `frontend/src/pages/organiser-requests.test.tsx::AC-1: Given required fields are empty, When "Save as draft" is chosen, Then it is saved as a draft and confirmed`<br>E2E: `e2e/us03-us04-event-request.spec.ts::US-04: a half-filled draft is saved, shown as Draft, then completed and submitted` |
+
+### TC-S1-35
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-35 |
+| Story/AC ref | US-04 AC-4 |
+| Test Scenario | Completing a draft and submitting it changes its status from Draft to Submitted |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia saves a complete draft.<br>2. She submits it (`POST /events/<id>/submit`). |
+| Test Data | A draft with all required fields |
+| Expected Result | The status changes from "draft" to "submitted". |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | Visibility to reviewers after submission follows Week 7 Change 5 (see TC-S1-25). `events-draft.e2e-spec.ts::makes it visible to a Coordinator once submitted` asserts the old pool behaviour, so it is not cited. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-draft.e2e-spec.ts::moves DRAFT -> SUBMITTED`<br>Unit: `src/events/events-draft.service.spec.ts::EventsService drafts (US-04) AC-4: completing and submitting a draft` |
+
+### TC-S1-36
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-36 |
+| Story/AC ref | US-04 AC-4 (negative) |
+| Test Scenario | Submitting a draft that is still incomplete, or whose date has passed, is blocked |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia saves a name-only draft and tries to submit it.<br>2. She saves a complete draft dated in the past and tries to submit it. |
+| Test Data | name "Only a name"; proposedStart 2020-01-01 |
+| Expected Result | Submission is blocked and each missing or invalid field is flagged. The request stays a Draft. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-draft.e2e-spec.ts::blocks submitting an incomplete draft and flags each missing field`<br>Integration: `test/events-draft.e2e-spec.ts::blocks submitting a draft whose date has since passed` |
+
+### TC-S1-37
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-37 |
+| Story/AC ref | US-04 AC-5 (conflict) |
+| Test Scenario | A request that has been submitted no longer behaves as an editable draft |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia submits a request.<br>2. She tries to edit it.<br>3. She checks the stored record.<br>4. She tries to submit it again.<br>5. She opens it. |
+| Test Data | Edit name "Changed after submission" |
+| Expected Result | The submitted request can't be edited or re-submitted as a draft, and is still shown with its status. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-draft.e2e-spec.ts::refuses to edit it`<br>Integration: `test/events-draft.e2e-spec.ts::leaves the stored record untouched after a refused edit`<br>Integration: `test/events-draft.e2e-spec.ts::refuses to submit it again`<br>Integration: `test/events-draft.e2e-spec.ts::still shows it, with its status`<br>Unit: `src/events/events-draft.service.spec.ts::EventsService drafts (US-04) AC-5: a submitted request is not a draft` |
+
+### TC-S1-38
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-38 |
+| Story/AC ref | US-04 AC-2/AC-4, with US-02 AC-5 (permission) |
+| Test Scenario | Another Organiser cannot edit or submit someone else's draft |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql on testDB (reset before test). Logged in as organiser@example.com and other@example.com. |
+| Test Steps | 1. Olivia saves a draft.<br>2. Otto tries to edit it.<br>3. Otto tries to submit it. |
+| Test Data | Draft "Mine"; Otto's edit name "Hijacked" |
+| Expected Result | Both attempts are denied and the draft is unchanged. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | Denied = 404 by design (agreed decision): the request's existence is not revealed. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-draft.e2e-spec.ts::refuses to edit another Organiser’s draft`<br>Integration: `test/events-draft.e2e-spec.ts::refuses to submit another Organiser’s draft` |
+
+**US-04 AC ↔ code mismatches**
+- None in behaviour. AC-3's visual part is now automated (TC-S1-34), and the test that assumed the pre-Change-5 pool now asserts the Lead's queue.
+
+---
+
+## US-05 View current status of my event request (Event Organiser)
+
+### TC-S1-39
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-39 |
+| Story/AC ref | US-05 AC-1 |
+| Test Scenario | Each of the Organiser's requests displays its current status, for every status |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-39-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia lists her requests (`GET /events/mine`). |
+| Test Data | 12 requests named "Request <STATUS>", one per status |
+| Expected Result | Each request displays its current status (draft, submitted, under review, approved, rejected, planning, confirmed, completed, cancelled, and the other lifecycle statuses). |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | All 12 requests were listed, each with the status matching its name. |
+| Status | Pass |
+| Remarks | Covers the 9 statuses AC-1 lists, plus AWAITING_CLARIFICATION, RETURNED and AWAITING_ARRANGEMENTS. When Change 6 adds a safety-check status, add its row to tc-s1-39-setup.sql. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::reports every status in the lifecycle` |
+
+### TC-S1-40
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-40 |
+| Story/AC ref | US-05 AC-1 (boundary) |
+| Test Scenario | An Organiser with no requests sees an empty list |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia lists her requests. |
+| Test Data | No requests |
+| Expected Result | An empty list is shown, not an error. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | HTTP 200 with `[]`. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::returns an empty list when the Organiser has none` |
+
+### TC-S1-41
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-41 |
+| Story/AC ref | US-05 AC-2 |
+| Test Scenario | A rejected request shows the Coordinator's reason |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-41-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia lists her requests.<br>2. Olivia opens `EVT-010`. |
+| Test Data | `EVT-011` "Clashes with the examination period"; `EVT-010` "Venue capacity insufficient" |
+| Expected Result | The rejected request shows its status and the reason the Coordinator gave, in the list and when opened. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | The first list entry was REJECTED with "Clashes with the examination period". Opening `EVT-010` showed "Venue capacity insufficient". |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::includes decisionReason on a rejected request`<br>Integration: `test/events-status-view.e2e-spec.ts::includes it when opening the request directly` |
+
+### TC-S1-42
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-42 |
+| Story/AC ref | US-05 AC-3 |
+| Test Scenario | When the Coordinator has asked for clarification, the Organiser sees that, and what is asked |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-42-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia lists her requests. |
+| Test Data | `EVT-005` "Please confirm the expected attendance figure"; `EVT-007` "Which venue did you have in mind?"; `EVT-006` no question |
+| Expected Result | Requests awaiting clarification show that clarification is needed and the question asked. A plain draft shows no clarification. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | The first entry was flagged `clarificationRequested: true`, with its question. "Returned for clarification" was flagged true and "Plain draft" false. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::flags clarification and shows what is asked`<br>Integration: `test/events-status-view.e2e-spec.ts::distinguishes a returned request from an ordinary draft` |
+
+### TC-S1-43
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-43 |
+| Story/AC ref | US-05 AC-3 (negative) |
+| Test Scenario | No clarification is shown when none was asked |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia lists her requests. |
+| Test Data | `EVT-146` with no question |
+| Expected Result | The request shows no clarification flag and no question. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | `clarificationRequested: false` and `clarificationRequest: null`. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::reports no clarification when none was asked` |
+
+### TC-S1-44
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-44 |
+| Story/AC ref | US-05 AC-4 |
+| Test Scenario | After a status change, the next view shows the most recent valid state |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia saves a complete draft and lists her requests.<br>2. She submits it through the real submit endpoint.<br>3. She lists her requests again. |
+| Test Data | A complete draft |
+| Expected Result | The displayed status reflects the latest valid state: Draft before, Submitted after. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | DRAFT before and SUBMITTED after. |
+| Status | Pass |
+| Remarks | The AC's own example (submitted → under review) has no Coordinator action that sets UNDER_REVIEW on first review (see mismatches). That transition is covered by the non-showcase test "reflects a later submitted -> under review change", which writes the status directly. Pending team decision on what triggers Under Review (raised with devs). |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::reflects a transition made through the real submit endpoint` |
+
+### TC-S1-45
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-45 |
+| Story/AC ref | US-05 AC-4 (boundary) |
+| Test Scenario | A repeated read after a change does not serve a stale, cached status |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-45-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia lists her requests (`EVT-002` is APPROVED).<br>2. The request moves to PLANNING.<br>3. Olivia lists her requests again. |
+| Test Data | `EVT-002` APPROVED → PLANNING |
+| Expected Result | The second read shows the new status, not the earlier one. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | The second read returned PLANNING. |
+| Status | Pass |
+| Remarks | The status change is applied directly to the record, standing in for the planning story's action. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::does not serve a stale status on a repeated read` |
+
+### TC-S1-46
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-46 |
+| Story/AC ref | US-05 AC-5 (permission) |
+| Test Scenario | Requests belonging to another Organiser never appear, and can't be opened |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-46-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia lists her requests.<br>2. Olivia opens Otto's request `EVT-148` by id.<br>3. Olivia lists again and opens Otto's rejected request `EVT-149`. |
+| Test Data | `EVT-008` (Olivia); `EVT-148` and `EVT-149` "CONFIDENTIAL internal note" (Otto) |
+| Expected Result | Only Olivia's own request appears. Otto's requests and their reasons are never shown. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | The list had exactly 1 entry, "Mine". Opening `EVT-148` gave HTTP 404 with no name in the body. "CONFIDENTIAL" appeared in neither the list nor the 404 body. |
+| Status | Pass |
+| Remarks | Denied = 404 by design (agreed decision): the request's existence is not revealed. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::excludes them from the list`<br>Integration: `test/events-status-view.e2e-spec.ts::denies fetching another Organiser’s request by id`<br>Integration: `test/events-status-view.e2e-spec.ts::does not leak a rejection reason belonging to someone else` |
+
+**US-05 AC ↔ code mismatches**
+- **AC-4:** the AC's example is "submitted → under review", but no Coordinator action currently moves a newly submitted request to UNDER_REVIEW. It only happens after a clarification answer. TC-S1-44 uses the real draft → submitted transition instead. Is there meant to be a "start review" step? Confirm with the team.
+- **AC-1** lists 9 statuses, and the system has 12. Week 7 Change 6 will add a safety-check status, and TC-S1-39's script must gain a row for it.
+
+---
+
+## US-06 Specify preferred room layout and accessibility requirements (Event Organiser)
+
+### TC-S1-47
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-47 |
+| Story/AC ref | US-06 AC-1 |
+| Test Scenario | The Organiser selects a preferred layout from the predefined list |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia submits a request with each listed layout in turn. |
+| Test Data | THEATRE, CLASSROOM, BANQUET, BOARDROOM |
+| Expected Result | Each predefined layout can be selected and is saved with the request. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | HTTP 201 for each, with preferredLayout echoed back. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::accepts %s` |
+
+### TC-S1-48
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-48 |
+| Story/AC ref | US-06 AC-1 (negative) |
+| Test Scenario | A layout outside the predefined list is refused |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia submits with layout "CABARET".<br>2. She submits with a free-text layout. |
+| Test Data | "CABARET"; "theatre style-ish" |
+| Expected Result | The value is refused and the valid options are named. Free text belongs in the notes, not the layout field. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Both got HTTP 400. The first message named "preferredLayout must be one of: THEATRE, CLASSROOM, BANQUET, BOARDROOM…". |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::rejects a layout outside the list and names the valid options`<br>Integration: `test/events-layout.e2e-spec.ts::rejects a free-text layout, which belongs in layoutNotes` |
+
+### TC-S1-49
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-49 |
+| Story/AC ref | US-06 AC-2 |
+| Test Scenario | Optional free-text layout notes alongside, or instead of, a selection |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia submits with layout THEATRE and a note.<br>2. She submits with a note and no layout. |
+| Test Data | "…centre aisle…"; "Cabaret, eight to a table" |
+| Expected Result | The notes are saved alongside the selection, or on their own when no listed layout fits. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | THEATRE was saved with the note. With no selection, preferredLayout was null and the "Cabaret" note was saved. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::stores notes with a selection`<br>Integration: `test/events-layout.e2e-spec.ts::stores notes with no selection, for a layout not on the list` |
+
+### TC-S1-50
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-50 |
+| Story/AC ref | US-06 AC-3 |
+| Test Scenario | The Organiser records accessibility requirements, with optional notes |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia submits with several requirements.<br>2. She submits with a requirement and notes.<br>3. She submits with the newer list entries.<br>4. She submits with notes only. |
+| Test Data | e.g. STEP_FREE_ACCESS, HEARING_LOOP; ACCESSIBLE_RESTROOMS + "…same floor…"; notes "Quiet room…" |
+| Expected Result | Accessibility requirements and notes are recorded as entered. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Every requirement list was saved exactly, the notes were saved, and notes-only saved with an empty list. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::records multiple requirements`<br>Integration: `test/events-layout.e2e-spec.ts::records requirements with notes`<br>Integration: `test/events-layout.e2e-spec.ts::accepts the newer features added to the list`<br>Integration: `test/events-layout.e2e-spec.ts::accepts notes with no structured requirement selected` |
+
+### TC-S1-51
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-51 |
+| Story/AC ref | US-06 AC-3 (negative) |
+| Test Scenario | Unknown or repeated accessibility requirements are refused |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia submits with an unknown requirement.<br>2. She submits with a requirement listed twice. |
+| Test Data | ["STEP_FREE_ACCESS", "TELEPORTER"]; a duplicated entry |
+| Expected Result | The request is refused, with a message naming the allowed requirements. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Both got HTTP 400, the first with "accessibilityRequirements must contain only…". |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::rejects an unrecognised requirement`<br>Integration: `test/events-layout.e2e-spec.ts::rejects duplicates` |
+
+### TC-S1-52
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-52 |
+| Story/AC ref | US-06 AC-4 |
+| Test Scenario | Layout and accessibility values persist on a draft and after submission, and when reopened |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia saves a draft with layout and accessibility, then reopens it.<br>2. She submits the draft and reopens it.<br>3. She changes the layout on a draft and reopens it. |
+| Test Data | THEATRE + requirements + notes; then BOARDROOM |
+| Expected Result | The values persist with the request and are visible on reopening, whether saved as a draft or submitted. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | The reopened draft matched. After submit, the values were unchanged. The edited draft showed BOARDROOM. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::persists on a draft and is there when reopened`<br>Integration: `test/events-layout.e2e-spec.ts::survives the draft being submitted`<br>Integration: `test/events-layout.e2e-spec.ts::can be edited on a draft before submission` |
+
+### TC-S1-53
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-53 |
+| Story/AC ref | US-06 AC-5 |
+| Test Scenario | Leaving layout and accessibility empty does not block saving or submission |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
+| Test Steps | 1. Olivia submits a complete request with neither set.<br>2. She saves an empty draft.<br>3. She submits a completed draft without them. |
+| Test Data | No layout or accessibility fields |
+| Expected Result | The request still saves and submits. These are preferences, not blockers. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Submitted (201, SUBMITTED) with layout null, notes null and requirements `[]`. The empty draft saved. The draft submitted with HTTP 200. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-17 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::submits a request with neither recorded`<br>Integration: `test/events-layout.e2e-spec.ts::saves an empty draft with neither recorded`<br>Integration: `test/events-layout.e2e-spec.ts::submits a completed draft that omits them` |
+
+### TC-S1-54
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-54 |
+| Story/AC ref | US-06 AC-6, updated for Week 7 Change 5 |
+| Test Scenario | The assigned Coordinator opens the submitted request and sees the layout and accessibility values |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-54-setup.sql on testDB (reset before test). Request `EVT-153` is SUBMITTED, assigned to coord.a@example.com, with layout THEATRE and accessibility STEP_FREE_ACCESS and HEARING_LOOP. Logged in as coord.a@example.com. |
+| Test Steps | 1. Cody opens the request assigned to him. |
+| Test Data | THEATRE; STEP_FREE_ACCESS, HEARING_LOOP; notes "Ramp access to the stage" |
+| Expected Result | The layout and accessibility values the Organiser entered are visible to the reviewing Coordinator. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | — |
+| Status | Not Executed |
+| Remarks | The two US-06 AC-6 tests in `events-layout.e2e-spec.ts` read an unassigned request from the shared pool. Week 7 Change 5 removes that, so they are not cited. The assigned-Coordinator path is tested in `events-coordinator-view.e2e-spec.ts` ("returns the venue requirements", "returns the accessibility needs"), and will be linked, loading tc-s1-54-setup.sql, when that file is converted in group 3. |
+| Executed By | — |
+| Date of Execution | — |
+| Automated by | GAP |
+
+**US-06 AC ↔ code mismatches**
+- **AC-6 (Week 7 Change 5):** the existing AC-6 tests rely on a Coordinator reading an unassigned request (TC-S1-54). They will need updating when Change 5 merges.
 
 ---
 
@@ -49,7 +1261,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-review.e2e-spec.ts::moves a submitted request to APPROVED`<br>`test/events-review.e2e-spec.ts::is visible to the Organiser afterwards` |
+| Automated by | Integration: `test/events-review.e2e-spec.ts::moves a submitted request to APPROVED`<br>Integration: `test/events-review.e2e-spec.ts::is visible to the Organiser afterwards` |
 
 ### TC-S1-02
 
@@ -70,7 +1282,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-review.e2e-spec.ts::shows %s` (DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED)<br>`test/events-review.e2e-spec.ts::shows a returned request with its outstanding question` |
+| Automated by | Integration: `test/events-review.e2e-spec.ts::shows %s` (DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED)<br>Integration: `test/events-review.e2e-spec.ts::shows a returned request with its outstanding question` |
 
 ### TC-S1-03
 
@@ -91,7 +1303,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-review.e2e-spec.ts::returns name, purpose, description and proposed date & time` |
+| Automated by | Integration: `test/events-review.e2e-spec.ts::returns name, purpose, description and proposed date & time` |
 
 ### TC-S1-04
 
@@ -112,7 +1324,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Conflict case: an illegal status transition. Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-review.e2e-spec.ts::refuses to approve a DRAFT`<br>`test/events-review.e2e-spec.ts::refuses to approve a CANCELLED request` |
+| Automated by | Integration: `test/events-review.e2e-spec.ts::refuses to approve a DRAFT`<br>Integration: `test/events-review.e2e-spec.ts::refuses to approve a CANCELLED request` |
 
 ### TC-S1-05
 
@@ -133,7 +1345,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-review.e2e-spec.ts::is idempotent — approving twice leaves it APPROVED` |
+| Automated by | Integration: `test/events-review.e2e-spec.ts::is idempotent — approving twice leaves it APPROVED` |
 
 ### TC-S1-06
 
@@ -154,7 +1366,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Denied = 404 by design (agreed decision): a peer Coordinator gets 404 rather than 403, so the request's existence is not revealed. Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-review.e2e-spec.ts::refuses a Coordinator assigned to a different event`<br>`test/events-review.e2e-spec.ts::refuses %s at the role gate` (organiser, attendee) |
+| Automated by | Integration: `test/events-review.e2e-spec.ts::refuses a Coordinator assigned to a different event`<br>Integration: `test/events-review.e2e-spec.ts::refuses %s at the role gate` (organiser, attendee) |
 
 ### TC-S1-07
 
@@ -175,7 +1387,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Bug found by test audit; fixed (gap #2) in `61401ec`. Each decision now row-locks the request at the start of its transaction, and only while it still holds the status that was read, so the loser gets 409 and its writes roll back. Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-review.e2e-spec.ts::lets exactly one of a simultaneous approve and reject succeed, and stores that outcome` |
+| Automated by | Integration: `test/events-review.e2e-spec.ts::lets exactly one of a simultaneous approve and reject succeed, and stores that outcome` |
 
 **US-07 AC ↔ code mismatches**
 - **AC-3 (resolved by Week 7 Change 5):** approving requires an assigned Coordinator. An unassigned request returns 409 "assign a coordinator to this request before reviewing it". That matches Change 5, where Coordinators can't review unassigned requests, so it's no longer a mismatch. TC-S1-01 to 07 state the assignment in their pre-conditions.
@@ -204,7 +1416,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-decision.e2e-spec.ts::reject and return are different endpoints with different outcomes` |
+| Automated by | Integration: `test/events-decision.e2e-spec.ts::reject and return are different endpoints with different outcomes` |
 
 ### TC-S1-09
 
@@ -225,7 +1437,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-decision.e2e-spec.ts::%s is blocked when the reason is missing` (reject, return)<br>`test/events-decision.e2e-spec.ts::nothing is written when the reason is missing` |
+| Automated by | Integration: `test/events-decision.e2e-spec.ts::%s is blocked when the reason is missing` (reject, return)<br>Integration: `test/events-decision.e2e-spec.ts::nothing is written when the reason is missing` |
 
 ### TC-S1-10
 
@@ -246,7 +1458,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-decision.e2e-spec.ts::%s is blocked when the reason is an empty string` (reject, return) |
+| Automated by | Integration: `test/events-decision.e2e-spec.ts::%s is blocked when the reason is an empty string` (reject, return) |
 
 ### TC-S1-11
 
@@ -267,7 +1479,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Bug found by test audit; fixed (gap #1). Fixed in 93316fa. This test is now the regression test. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-decision.e2e-spec.ts::%s is blocked when the reason is whitespace-only` (reject, return) |
+| Automated by | Integration: `test/events-decision.e2e-spec.ts::%s is blocked when the reason is whitespace-only` (reject, return) |
 
 ### TC-S1-12
 
@@ -288,7 +1500,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Three separate tests, each starting from a fresh reset. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-decision.e2e-spec.ts::shows the rejection reason in the Organiser’s view (US-05 AC-2)`<br>`test/events-decision.e2e-spec.ts::retains the reason across later reads`<br>`test/events-decision.e2e-spec.ts::shows the return reason as an outstanding clarification (US-05 AC-3)` |
+| Automated by | Integration: `test/events-decision.e2e-spec.ts::shows the rejection reason in the Organiser’s view (US-05 AC-2)`<br>Integration: `test/events-decision.e2e-spec.ts::retains the reason across later reads`<br>Integration: `test/events-decision.e2e-spec.ts::shows the return reason as an outstanding clarification (US-05 AC-3)` |
 
 ### TC-S1-13
 
@@ -309,7 +1521,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-decision.e2e-spec.ts::a rejected request cannot then be returned`<br>`test/events-decision.e2e-spec.ts::rejecting does not leave the request amendable` |
+| Automated by | Integration: `test/events-decision.e2e-spec.ts::a rejected request cannot then be returned`<br>Integration: `test/events-decision.e2e-spec.ts::rejecting does not leave the request amendable` |
 
 ### TC-S1-14
 
@@ -330,7 +1542,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Denied = 404 by design (agreed decision), as in TC-S1-06. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-decision.e2e-spec.ts::%s refuses a Coordinator assigned elsewhere` (reject, return)<br>`test/events-decision.e2e-spec.ts::refuses %s at the role gate` (organiser, attendee) |
+| Automated by | Integration: `test/events-decision.e2e-spec.ts::%s refuses a Coordinator assigned elsewhere` (reject, return)<br>Integration: `test/events-decision.e2e-spec.ts::refuses %s at the role gate` (organiser, attendee) |
 
 **US-08 AC ↔ code mismatches**
 - **AC-2 (fixed):** a whitespace-only reason used to be accepted (audit gap #1). Fixed in 93316fa, and TC-S1-11 is now its regression test.
@@ -380,7 +1592,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-clarification.e2e-spec.ts::accepts a free-text question`<br>`test/events-clarification.e2e-spec.ts::stores the message against the event` |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::accepts a free-text question`<br>Integration: `test/events-clarification.e2e-spec.ts::stores the message against the event` |
 
 ### TC-S1-17
 
@@ -401,7 +1613,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-clarification.e2e-spec.ts::requires the question to be non-empty`<br>`test/events-clarification.e2e-spec.ts::rejects a missing question entirely` |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::requires the question to be non-empty`<br>Integration: `test/events-clarification.e2e-spec.ts::rejects a missing question entirely` |
 
 ### TC-S1-18
 
@@ -422,7 +1634,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Bug found by test audit; fixed (gap #1) in 93316fa. This test is its regression test. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-clarification.e2e-spec.ts::rejects a whitespace-only question` |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::rejects a whitespace-only question` |
 
 ### TC-S1-19
 
@@ -443,7 +1655,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-clarification.e2e-spec.ts::updates the stored status`<br>`test/events-clarification.e2e-spec.ts::is visible to the Organiser`<br>`test/events-clarification.e2e-spec.ts::is visible to the Coordinator` |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::updates the stored status`<br>Integration: `test/events-clarification.e2e-spec.ts::is visible to the Organiser`<br>Integration: `test/events-clarification.e2e-spec.ts::is visible to the Coordinator` |
 
 ### TC-S1-20
 
@@ -464,7 +1676,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Notifications in progress (Sprint 3 story: Be Notified of My Request Outcome). The linked test currently checks only that a CLARIFICATION_ANSWERED notification record is stored for the Coordinator. It passed on 2026-10-17, but that is not yet the notification the AC describes. |
 | Executed By | — |
 | Date of Execution | — |
-| Automated by | `test/events-clarification.e2e-spec.ts::notifies the Coordinator when the Organiser responds` |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::notifies the Coordinator when the Organiser responds` |
 
 ### TC-S1-21
 
@@ -485,7 +1697,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-clarification.e2e-spec.ts::shows the full exchange to the Organiser`<br>`test/events-clarification.e2e-spec.ts::identifies the sender of each entry`<br>`test/events-clarification.e2e-spec.ts::timestamps every entry, in chronological order`<br>`test/events-clarification.e2e-spec.ts::shows the same exchange to the Coordinator` |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::shows the full exchange to the Organiser`<br>Integration: `test/events-clarification.e2e-spec.ts::identifies the sender of each entry`<br>Integration: `test/events-clarification.e2e-spec.ts::timestamps every entry, in chronological order`<br>Integration: `test/events-clarification.e2e-spec.ts::shows the same exchange to the Coordinator` |
 
 ### TC-S1-22
 
@@ -506,7 +1718,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Denied = 404 by design (agreed decision), as in TC-S1-06. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-clarification.e2e-spec.ts::refuses a Coordinator who is not assigned`<br>`test/events-clarification.e2e-spec.ts::refuses a response from another Organiser` |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::refuses a Coordinator who is not assigned`<br>Integration: `test/events-clarification.e2e-spec.ts::refuses a response from another Organiser` |
 
 ### TC-S1-63
 
@@ -527,7 +1739,7 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 | Remarks | Bug found by test audit; fixed (gap #3). `respondToClarification()` now starts its transaction with the same row lock as the review decisions (`claimForDecision`), so the loser gets 409 and its answer and notification are never saved. The notification is checked as a stored record only (see TC-S1-20). Listed after TC-S1-22 to keep it with US-09. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-17 |
-| Automated by | `test/events-clarification.e2e-spec.ts::accepts exactly one of two simultaneous responses to the same question` |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::accepts exactly one of two simultaneous responses to the same question` |
 
 **US-09 AC ↔ code mismatches**
 - **AC-1 (fixed):** a whitespace-only question used to be accepted (audit gap #1). Fixed in 93316fa, and TC-S1-18 is now its regression test.
@@ -536,883 +1748,39 @@ Written test cases for the Sprint 1 user stories, traced from story → acceptan
 
 ---
 
-## US-03 Submit a new event request (Event Organiser)
+## US-10 Be assigned as main point of contact for an event (Event Coordinator)
 
-### TC-S1-23
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-23 |
-| Story/AC ref | US-03 AC-1 |
-| Test Scenario | Organiser submits a complete, valid request (happy path) |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia fills in every required field and submits (`POST /events`).<br>2. Read the stored request back. |
-| Test Data | Name "Freshman Orientation 2030"; purpose "Welcome new students and introduce campus services"; category "Student engagement"; 2030-10-01 09:00–17:00 UTC; attendance 300 |
-| Expected Result | The request is submitted and recorded with status "Submitted", against the Organiser who submitted it. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | HTTP 201 with status SUBMITTED and a new id. The stored record is SUBMITTED, with organiserId USR-006. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-submit.e2e-spec.ts::returns 201 with status SUBMITTED`<br>`test/events-submit.e2e-spec.ts::persists the record against the calling organiser` |
-
-### TC-S1-24
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-24 |
-| Story/AC ref | US-03 AC-2 (confirmation) |
-| Test Scenario | The Organiser receives confirmation of a successful submission |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits a complete request.<br>2. Inspect the response. |
-| Test Data | The same payload as TC-S1-23 |
-| Expected Result | The Organiser receives confirmation that the request was created, including its reference and status. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | HTTP 201 returned the persisted request: every submitted field, its id, status SUBMITTED, and createdAt. |
-| Status | Pass |
-| Remarks | Confirmation is read as the API response the UI shows. If the team means a separate notification, this belongs to the Sprint 3 notifications story. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-submit.e2e-spec.ts::returns the persisted request as confirmation` |
-
-### TC-S1-25
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-25 |
-| Story/AC ref | US-03 AC-2 (visibility), updated for Week 7 Change 5 |
-| Test Scenario | A newly submitted request appears in the Event Coordinator Lead's unassigned queue, and not to Coordinators |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com, then as the Event Coordinator Lead and as coord.a@example.com. |
-| Test Steps | 1. Olivia submits a complete request.<br>2. The Lead opens the unassigned queue.<br>3. Cody (Coordinator) lists events and tries to open the request. |
-| Test Data | The same payload as TC-S1-23 |
-| Expected Result | The request appears in the Lead's unassigned queue for assignment. Coordinators can't review or edit it until it is assigned to them. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | — |
-| Status | Not Executed |
-| Remarks | Pending Change 5 merge. Today any Coordinator sees unassigned submissions in a shared pool. `events-submit.e2e-spec.ts::makes the request visible to a Coordinator for review` asserts that old behaviour, so it is not cited here. |
-| Executed By | — |
-| Date of Execution | — |
-| Automated by | GAP |
-
-### TC-S1-26
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-26 |
-| Story/AC ref | US-03 AC-3 (negative) |
-| Test Scenario | Submission with missing or invalid fields is blocked, and each field is flagged |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits with a start date in the past.<br>2. Olivia submits with attendance "three hundred".<br>3. Olivia submits with the end time before the start time.<br>4. Olivia submits with no category.<br>5. Olivia submits with several fields wrong at once.<br>6. Check no request was stored. |
-| Test Data | proposedStart 2020-01-01T09:00Z; expectedAttendance "three hundred"; start 17:00 and end 09:00; category omitted |
-| Expected Result | Submission is blocked. Each offending field is flagged with a clear message (past date, non-numeric attendance, end before start, missing category), all at once. Nothing is recorded. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | HTTP 400 each time, with "proposedStart must be in the future", "expectedAttendance must be a whole number", "proposedEnd must be later than proposedStart" and "category is required". The combined case flags all five fields together. The request count stayed 0. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-submit.e2e-spec.ts::rejects a date in the past`<br>`test/events-submit.e2e-spec.ts::rejects non-numeric attendance`<br>`test/events-submit.e2e-spec.ts::rejects an end time before the start time, flagging proposedEnd`<br>`test/events-submit.e2e-spec.ts::rejects a missing category`<br>`test/events-submit.e2e-spec.ts::flags EVERY offending field at once, not just the first`<br>`test/events-submit.e2e-spec.ts::persists nothing when validation fails` |
-
-### TC-S1-27
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-27 |
-| Story/AC ref | US-03 AC-3 (boundary) |
-| Test Scenario | Values at the edge of valid are handled correctly |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). This applies to the integration step; the unit tests need no database and freeze the clock at 2030-06-01T12:00:00.000Z. |
-| Test Steps | 1. With the clock frozen, validate one submission per boundary: start 1 ms in the past, at the current instant and 1 ms in the future; end 1 ms before, equal to and 1 ms after the start; attendance −1, 0 and 1; each required text field as "   "; a padded name.<br>2. Over the API, Olivia submits one request with a start 1 minute in the past, an end equal to it, attendance 0 and a name of spaces. |
-| Test Data | start = now − 1 ms / now / now + 1 ms; end = start − 1 ms / start / start + 1 ms; attendance −1 / 0 / 1; name, purpose, description, category = "   "; name "  Gala  " |
-| Expected Result | Blocked, each flagged on its own field: a start in the past, an end not after the start, attendance 0 or below, and whitespace-only required text. Accepted: a start at or after the current instant, an end after the start, and attendance 1. Padded text is accepted and stored trimmed. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Unit (15/15): the past start flagged proposedStart; the end equal to or before the start flagged proposedEnd; 0 and −1 flagged expectedAttendance; each "   " field flagged that field ("… is required"). A start at or after the instant, an end 1 ms after the start and attendance 1 were accepted, and "  Gala  " was stored as "Gala". Integration: HTTP 400 naming all four fields, with no request stored. 22/22 passed in each of 3 runs. |
-| Status | Pass |
-| Remarks | Closes audit G4 (US-03 boundaries). Whitespace-only text is the regression check for gap #1, fixed in 93316fa. "Now" is accepted because the AC blocks a past date, and the current instant is not past. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `src/events/create-event-request.dto.spec.ts::CreateEventRequestDto boundaries (TC-S1-27, US-03 AC-3)` (15 unit tests)<br>`test/events-submit.e2e-spec.ts::blocks boundary values and flags each field: start just past, end = start, attendance 0, blank name` |
-
-### TC-S1-28
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-28 |
-| Story/AC ref | US-03 AC-4 |
-| Test Scenario | After submitting, the Organiser sees every detail accurately with the current status |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits a complete request.<br>2. Olivia opens it (`GET /events/<id>`).<br>3. Olivia lists her requests. |
-| Test Data | The same payload as TC-S1-23 |
-| Expected Result | All entered details are displayed accurately and the current status is shown. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Every submitted field matched, including start and end to the millisecond. The list contained exactly one request, with status SUBMITTED. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-submit.e2e-spec.ts::returns each submitted field accurately`<br>`test/events-submit.e2e-spec.ts::lists it among the organiser’s own requests` |
-
-### TC-S1-29
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-29 |
-| Story/AC ref | US-03 AC-5 (+ boundary) |
-| Test Scenario | Expected attendance is stored as a positive whole number |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits with attendance 420.<br>2. Olivia submits with attendance "250" (a numeric string).<br>3. Olivia submits with 0, then −5.<br>4. Olivia submits with 12.5. |
-| Test Data | 420; "250"; 0; −5; 12.5 |
-| Expected Result | Valid attendance is stored as a positive whole number. Zero, negative and fractional values are refused. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | 420 was stored as the integer 420 (> 0). "250" was stored as the number 250. 0 and −5 got 400 "expectedAttendance must be greater than zero", and 12.5 got 400 "must be a whole number". |
-| Status | Pass |
-| Remarks | The at-boundary value of 1 is not yet tested (see TC-S1-27). |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-submit.e2e-spec.ts::round-trips the value as a number`<br>`test/events-submit.e2e-spec.ts::accepts a numeric string and stores it as a number`<br>`test/events-submit.e2e-spec.ts::rejects zero and negative attendance (AC-5)`<br>`test/events-submit.e2e-spec.ts::rejects a fractional attendance` |
-
-### TC-S1-30
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-30 |
-| Story/AC ref | US-03 AC-1/AC-4, with US-02 AC-5 (permission) |
-| Test Scenario | A submitted request belongs only to its Organiser |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql on testDB (reset before test). Logged in as organiser@example.com and other@example.com (Otto Organiser). |
-| Test Steps | 1. Olivia submits a request with organiserId set to Otto's id and status APPROVED in the body.<br>2. Olivia submits a normal request, and Otto lists his events.<br>3. Otto opens Olivia's request by id. |
-| Test Data | organiserId USR-007, status "APPROVED" in the payload |
-| Expected Result | The client can't choose the owner or the status: the request belongs to Olivia and is Submitted. Another Organiser can't see or open it. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | The forged fields were ignored: organiserId USR-006, status SUBMITTED. Otto's list was empty, and opening the request gave HTTP 404. |
-| Status | Pass |
-| Remarks | Denied = 404 by design (agreed decision): the request's existence is not revealed. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-submit.e2e-spec.ts::ignores a client-supplied organiserId or status`<br>`test/events-submit.e2e-spec.ts::does not expose it to a different Organiser`<br>`test/events-submit.e2e-spec.ts::denies another Organiser the record by id` |
-
-**US-03 AC ↔ code mismatches**
-- **AC-2 (Week 7 Change 5):** new submissions currently land in a pool that every Coordinator can see and review. Change 5 sends them to the Lead's unassigned queue instead (TC-S1-25).
-- **AC-3 (fixed and tested):** whitespace-only required text used to be accepted (audit gap #1), fixed in 93316fa. The boundaries (end = start, start just past, attendance 0/1, whitespace) are now tested by TC-S1-27.
+Test cases for this story are written in a later batch of the Sprint 1 regeneration.
 
 ---
 
-## US-04 Save an incomplete request as a draft (Event Organiser)
+## US-11 Event status updates automatically as actions are taken (Event Coordinator)
 
-### TC-S1-31
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-31 |
-| Story/AC ref | US-04 AC-1 (+ boundary) |
-| Test Scenario | Saving an incomplete draft skips full submission validation, but not basic sanity checks |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia saves a draft with no fields.<br>2. Olivia saves a draft with only a name.<br>3. Olivia saves a draft with a start date in the past.<br>4. Olivia saves a draft with attendance "not a number", then one with the end before the start. |
-| Test Data | {}; name "Work in progress"; proposedStart 2020-01-01; expectedAttendance "not a number" |
-| Expected Result | An incomplete draft saves as a Draft with the empty fields left empty, and a past date is accepted on a draft. Values of the wrong type are still refused. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | The empty draft and the name-only draft got HTTP 201 with status DRAFT (purpose and attendance null). The past-date draft got 201. "not a number" got 400, and end before start got 400. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-draft.e2e-spec.ts::accepts a completely empty draft`<br>`test/events-draft.e2e-spec.ts::accepts a draft with required fields still empty`<br>`test/events-draft.e2e-spec.ts::accepts a date in the past, which submission would reject`<br>`test/events-draft.e2e-spec.ts::still rejects incoherent data` |
-
-### TC-S1-32
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-32 |
-| Story/AC ref | US-04 AC-2 |
-| Test Scenario | The Organiser returns later, opens the draft and continues editing |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia saves a draft with a name and purpose.<br>2. Later, she opens it.<br>3. She adds the purpose to a name-only draft (`PATCH`) and reopens it. |
-| Test Data | name "Half done", purpose "Partly written"; later purpose "Added on the second visit" |
-| Expected Result | The draft opens with what was entered, and the missing fields can be filled in, with earlier values kept. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Reopening returned name and purpose as saved. The PATCH got 200, and the reopened draft kept "Half done" with the new purpose. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-draft.e2e-spec.ts::opens the saved draft with what was entered`<br>`test/events-draft.e2e-spec.ts::fills in the missing fields incrementally` |
-
-### TC-S1-33
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-33 |
-| Story/AC ref | US-04 AC-3 (data) |
-| Test Scenario | In the request list, a draft is marked "Draft" and a submitted request "Submitted" |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia saves one draft and submits one complete request.<br>2. She lists her requests. |
-| Test Data | Draft "Still a draft"; submitted "Freshman Orientation 2030" |
-| Expected Result | The draft is clearly marked as Draft, distinct from the request submitted for review. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | The list had 2 requests: "Still a draft" was DRAFT and the other SUBMITTED. |
-| Status | Pass |
-| Remarks | The visual styling is covered by TC-S1-34. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-draft.e2e-spec.ts::marks a draft DRAFT and a submitted request SUBMITTED` |
-
-### TC-S1-34
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-34 |
-| Story/AC ref | US-04 AC-3 (UI) |
-| Test Scenario | The draft is visually distinguishable from submitted requests |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-02-setup.sql on testDB (reset before test). The Organiser has, among others, `EVT-004` (DRAFT) and `EVT-146` (SUBMITTED). Logged in to the web app as organiser@example.com. |
-| Test Steps | 1. Olivia opens "My requests". |
-| Test Data | `EVT-004` and `EVT-146` |
-| Expected Result | The draft is clearly marked "Draft" and looks different from requests already submitted for review. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | — |
-| Status | Not Executed |
-| Remarks | This AC is about the user interface. |
-| Executed By | — |
-| Date of Execution | — |
-| Automated by | Playwright (pending) |
-
-### TC-S1-35
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-35 |
-| Story/AC ref | US-04 AC-4 |
-| Test Scenario | Completing a draft and submitting it changes its status from Draft to Submitted |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia saves a complete draft.<br>2. She submits it (`POST /events/<id>/submit`). |
-| Test Data | A draft with all required fields |
-| Expected Result | The status changes from "draft" to "submitted". |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Saved as DRAFT, then submit returned HTTP 200 with status SUBMITTED. |
-| Status | Pass |
-| Remarks | Visibility to reviewers after submission follows Week 7 Change 5 (see TC-S1-25). `events-draft.e2e-spec.ts::makes it visible to a Coordinator once submitted` asserts the old pool behaviour, so it is not cited. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-draft.e2e-spec.ts::moves DRAFT -> SUBMITTED` |
-
-### TC-S1-36
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-36 |
-| Story/AC ref | US-04 AC-4 (negative) |
-| Test Scenario | Submitting a draft that is still incomplete, or whose date has passed, is blocked |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia saves a name-only draft and tries to submit it.<br>2. She saves a complete draft dated in the past and tries to submit it. |
-| Test Data | name "Only a name"; proposedStart 2020-01-01 |
-| Expected Result | Submission is blocked and each missing or invalid field is flagged. The request stays a Draft. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | HTTP 400 naming purpose, category and expectedAttendance, with the stored status still DRAFT. The past-dated draft got 400 "proposedStart must be in the future". |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-draft.e2e-spec.ts::blocks submitting an incomplete draft and flags each missing field`<br>`test/events-draft.e2e-spec.ts::blocks submitting a draft whose date has since passed` |
-
-### TC-S1-37
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-37 |
-| Story/AC ref | US-04 AC-5 (conflict) |
-| Test Scenario | A request that has been submitted no longer behaves as an editable draft |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits a request.<br>2. She tries to edit it.<br>3. She checks the stored record.<br>4. She tries to submit it again.<br>5. She opens it. |
-| Test Data | Edit name "Changed after submission" |
-| Expected Result | The submitted request can't be edited or re-submitted as a draft, and is still shown with its status. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Edit got HTTP 409 (message names SUBMITTED), and the stored name was unchanged. Re-submit got 409. Opening it returned status SUBMITTED. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-draft.e2e-spec.ts::refuses to edit it`<br>`test/events-draft.e2e-spec.ts::leaves the stored record untouched after a refused edit`<br>`test/events-draft.e2e-spec.ts::refuses to submit it again`<br>`test/events-draft.e2e-spec.ts::still shows it, with its status` |
-
-### TC-S1-38
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-38 |
-| Story/AC ref | US-04 AC-2/AC-4, with US-02 AC-5 (permission) |
-| Test Scenario | Another Organiser cannot edit or submit someone else's draft |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql on testDB (reset before test). Logged in as organiser@example.com and other@example.com. |
-| Test Steps | 1. Olivia saves a draft.<br>2. Otto tries to edit it.<br>3. Otto tries to submit it. |
-| Test Data | Draft "Mine"; Otto's edit name "Hijacked" |
-| Expected Result | Both attempts are denied and the draft is unchanged. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Edit got HTTP 404 and the stored name is still "Mine". Submit got 404. |
-| Status | Pass |
-| Remarks | Denied = 404 by design (agreed decision): the request's existence is not revealed. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-draft.e2e-spec.ts::refuses to edit another Organiser’s draft`<br>`test/events-draft.e2e-spec.ts::refuses to submit another Organiser’s draft` |
-
-**US-04 AC ↔ code mismatches**
-- None in behaviour. AC-3's visual part is pending Playwright (TC-S1-34).
-- One test asserts the pre-Change-5 pool (`makes it visible to a Coordinator once submitted`) and will need updating when Change 5 merges.
+Test cases for this story are written in a later batch of the Sprint 1 regeneration.
 
 ---
 
-## US-05 View current status of my event request (Event Organiser)
+## US-12 View all details of a submitted event request (Event Coordinator)
 
-### TC-S1-39
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-39 |
-| Story/AC ref | US-05 AC-1 |
-| Test Scenario | Each of the Organiser's requests displays its current status, for every status |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-39-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia lists her requests (`GET /events/mine`). |
-| Test Data | 12 requests named "Request <STATUS>", one per status |
-| Expected Result | Each request displays its current status (draft, submitted, under review, approved, rejected, planning, confirmed, completed, cancelled, and the other lifecycle statuses). |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | All 12 requests were listed, each with the status matching its name. |
-| Status | Pass |
-| Remarks | Covers the 9 statuses AC-1 lists, plus AWAITING_CLARIFICATION, RETURNED and AWAITING_ARRANGEMENTS. When Change 6 adds a safety-check status, add its row to tc-s1-39-setup.sql. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-status-view.e2e-spec.ts::reports every status in the lifecycle` |
-
-### TC-S1-40
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-40 |
-| Story/AC ref | US-05 AC-1 (boundary) |
-| Test Scenario | An Organiser with no requests sees an empty list |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia lists her requests. |
-| Test Data | No requests |
-| Expected Result | An empty list is shown, not an error. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | HTTP 200 with `[]`. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-status-view.e2e-spec.ts::returns an empty list when the Organiser has none` |
-
-### TC-S1-41
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-41 |
-| Story/AC ref | US-05 AC-2 |
-| Test Scenario | A rejected request shows the Coordinator's reason |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-41-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia lists her requests.<br>2. Olivia opens `EVT-010`. |
-| Test Data | `EVT-011` "Clashes with the examination period"; `EVT-010` "Venue capacity insufficient" |
-| Expected Result | The rejected request shows its status and the reason the Coordinator gave, in the list and when opened. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | The first list entry was REJECTED with "Clashes with the examination period". Opening `EVT-010` showed "Venue capacity insufficient". |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-status-view.e2e-spec.ts::includes decisionReason on a rejected request`<br>`test/events-status-view.e2e-spec.ts::includes it when opening the request directly` |
-
-### TC-S1-42
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-42 |
-| Story/AC ref | US-05 AC-3 |
-| Test Scenario | When the Coordinator has asked for clarification, the Organiser sees that, and what is asked |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-42-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia lists her requests. |
-| Test Data | `EVT-005` "Please confirm the expected attendance figure"; `EVT-007` "Which venue did you have in mind?"; `EVT-006` no question |
-| Expected Result | Requests awaiting clarification show that clarification is needed and the question asked. A plain draft shows no clarification. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | The first entry was flagged `clarificationRequested: true`, with its question. "Returned for clarification" was flagged true and "Plain draft" false. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-status-view.e2e-spec.ts::flags clarification and shows what is asked`<br>`test/events-status-view.e2e-spec.ts::distinguishes a returned request from an ordinary draft` |
-
-### TC-S1-43
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-43 |
-| Story/AC ref | US-05 AC-3 (negative) |
-| Test Scenario | No clarification is shown when none was asked |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia lists her requests. |
-| Test Data | `EVT-146` with no question |
-| Expected Result | The request shows no clarification flag and no question. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | `clarificationRequested: false` and `clarificationRequest: null`. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-status-view.e2e-spec.ts::reports no clarification when none was asked` |
-
-### TC-S1-44
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-44 |
-| Story/AC ref | US-05 AC-4 |
-| Test Scenario | After a status change, the next view shows the most recent valid state |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia saves a complete draft and lists her requests.<br>2. She submits it through the real submit endpoint.<br>3. She lists her requests again. |
-| Test Data | A complete draft |
-| Expected Result | The displayed status reflects the latest valid state: Draft before, Submitted after. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | DRAFT before and SUBMITTED after. |
-| Status | Pass |
-| Remarks | The AC's own example (submitted → under review) has no Coordinator action that sets UNDER_REVIEW on first review (see mismatches). That transition is covered by the non-showcase test "reflects a later submitted -> under review change", which writes the status directly. Pending team decision on what triggers Under Review (raised with devs). |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-status-view.e2e-spec.ts::reflects a transition made through the real submit endpoint` |
-
-### TC-S1-45
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-45 |
-| Story/AC ref | US-05 AC-4 (boundary) |
-| Test Scenario | A repeated read after a change does not serve a stale, cached status |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-45-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia lists her requests (`EVT-002` is APPROVED).<br>2. The request moves to PLANNING.<br>3. Olivia lists her requests again. |
-| Test Data | `EVT-002` APPROVED → PLANNING |
-| Expected Result | The second read shows the new status, not the earlier one. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | The second read returned PLANNING. |
-| Status | Pass |
-| Remarks | The status change is applied directly to the record, standing in for the planning story's action. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-status-view.e2e-spec.ts::does not serve a stale status on a repeated read` |
-
-### TC-S1-46
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-46 |
-| Story/AC ref | US-05 AC-5 (permission) |
-| Test Scenario | Requests belonging to another Organiser never appear, and can't be opened |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-46-setup.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia lists her requests.<br>2. Olivia opens Otto's request `EVT-148` by id.<br>3. Olivia lists again and opens Otto's rejected request `EVT-149`. |
-| Test Data | `EVT-008` (Olivia); `EVT-148` and `EVT-149` "CONFIDENTIAL internal note" (Otto) |
-| Expected Result | Only Olivia's own request appears. Otto's requests and their reasons are never shown. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | The list had exactly 1 entry, "Mine". Opening `EVT-148` gave HTTP 404 with no name in the body. "CONFIDENTIAL" appeared in neither the list nor the 404 body. |
-| Status | Pass |
-| Remarks | Denied = 404 by design (agreed decision): the request's existence is not revealed. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-status-view.e2e-spec.ts::excludes them from the list`<br>`test/events-status-view.e2e-spec.ts::denies fetching another Organiser’s request by id`<br>`test/events-status-view.e2e-spec.ts::does not leak a rejection reason belonging to someone else` |
-
-**US-05 AC ↔ code mismatches**
-- **AC-4:** the AC's example is "submitted → under review", but no Coordinator action currently moves a newly submitted request to UNDER_REVIEW. It only happens after a clarification answer. TC-S1-44 uses the real draft → submitted transition instead. Is there meant to be a "start review" step? Confirm with the team.
-- **AC-1** lists 9 statuses, and the system has 12. Week 7 Change 6 will add a safety-check status, and TC-S1-39's script must gain a row for it.
+Test cases for this story are written in a later batch of the Sprint 1 regeneration.
 
 ---
 
-## US-06 Specify preferred room layout and accessibility requirements (Event Organiser)
+## US-13 Add a new venue with its key characteristics (Venue Staff)
 
-### TC-S1-47
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-47 |
-| Story/AC ref | US-06 AC-1 |
-| Test Scenario | The Organiser selects a preferred layout from the predefined list |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits a request with each listed layout in turn. |
-| Test Data | THEATRE, CLASSROOM, BANQUET, BOARDROOM |
-| Expected Result | Each predefined layout can be selected and is saved with the request. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | HTTP 201 for each, with preferredLayout echoed back. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-layout.e2e-spec.ts::accepts %s` |
-
-### TC-S1-48
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-48 |
-| Story/AC ref | US-06 AC-1 (negative) |
-| Test Scenario | A layout outside the predefined list is refused |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits with layout "CABARET".<br>2. She submits with a free-text layout. |
-| Test Data | "CABARET"; "theatre style-ish" |
-| Expected Result | The value is refused and the valid options are named. Free text belongs in the notes, not the layout field. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Both got HTTP 400. The first message named "preferredLayout must be one of: THEATRE, CLASSROOM, BANQUET, BOARDROOM…". |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-layout.e2e-spec.ts::rejects a layout outside the list and names the valid options`<br>`test/events-layout.e2e-spec.ts::rejects a free-text layout, which belongs in layoutNotes` |
-
-### TC-S1-49
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-49 |
-| Story/AC ref | US-06 AC-2 |
-| Test Scenario | Optional free-text layout notes alongside, or instead of, a selection |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits with layout THEATRE and a note.<br>2. She submits with a note and no layout. |
-| Test Data | "…centre aisle…"; "Cabaret, eight to a table" |
-| Expected Result | The notes are saved alongside the selection, or on their own when no listed layout fits. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | THEATRE was saved with the note. With no selection, preferredLayout was null and the "Cabaret" note was saved. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-layout.e2e-spec.ts::stores notes with a selection`<br>`test/events-layout.e2e-spec.ts::stores notes with no selection, for a layout not on the list` |
-
-### TC-S1-50
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-50 |
-| Story/AC ref | US-06 AC-3 |
-| Test Scenario | The Organiser records accessibility requirements, with optional notes |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits with several requirements.<br>2. She submits with a requirement and notes.<br>3. She submits with the newer list entries.<br>4. She submits with notes only. |
-| Test Data | e.g. STEP_FREE_ACCESS, HEARING_LOOP; ACCESSIBLE_RESTROOMS + "…same floor…"; notes "Quiet room…" |
-| Expected Result | Accessibility requirements and notes are recorded as entered. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Every requirement list was saved exactly, the notes were saved, and notes-only saved with an empty list. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-layout.e2e-spec.ts::records multiple requirements`<br>`test/events-layout.e2e-spec.ts::records requirements with notes`<br>`test/events-layout.e2e-spec.ts::accepts the newer features added to the list`<br>`test/events-layout.e2e-spec.ts::accepts notes with no structured requirement selected` |
-
-### TC-S1-51
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-51 |
-| Story/AC ref | US-06 AC-3 (negative) |
-| Test Scenario | Unknown or repeated accessibility requirements are refused |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits with an unknown requirement.<br>2. She submits with a requirement listed twice. |
-| Test Data | ["STEP_FREE_ACCESS", "TELEPORTER"]; a duplicated entry |
-| Expected Result | The request is refused, with a message naming the allowed requirements. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Both got HTTP 400, the first with "accessibilityRequirements must contain only…". |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-layout.e2e-spec.ts::rejects an unrecognised requirement`<br>`test/events-layout.e2e-spec.ts::rejects duplicates` |
-
-### TC-S1-52
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-52 |
-| Story/AC ref | US-06 AC-4 |
-| Test Scenario | Layout and accessibility values persist on a draft and after submission, and when reopened |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia saves a draft with layout and accessibility, then reopens it.<br>2. She submits the draft and reopens it.<br>3. She changes the layout on a draft and reopens it. |
-| Test Data | THEATRE + requirements + notes; then BOARDROOM |
-| Expected Result | The values persist with the request and are visible on reopening, whether saved as a draft or submitted. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | The reopened draft matched. After submit, the values were unchanged. The edited draft showed BOARDROOM. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-layout.e2e-spec.ts::persists on a draft and is there when reopened`<br>`test/events-layout.e2e-spec.ts::survives the draft being submitted`<br>`test/events-layout.e2e-spec.ts::can be edited on a draft before submission` |
-
-### TC-S1-53
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-53 |
-| Story/AC ref | US-06 AC-5 |
-| Test Scenario | Leaving layout and accessibility empty does not block saving or submission |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia submits a complete request with neither set.<br>2. She saves an empty draft.<br>3. She submits a completed draft without them. |
-| Test Data | No layout or accessibility fields |
-| Expected Result | The request still saves and submits. These are preferences, not blockers. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Submitted (201, SUBMITTED) with layout null, notes null and requirements `[]`. The empty draft saved. The draft submitted with HTTP 200. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/events-layout.e2e-spec.ts::submits a request with neither recorded`<br>`test/events-layout.e2e-spec.ts::saves an empty draft with neither recorded`<br>`test/events-layout.e2e-spec.ts::submits a completed draft that omits them` |
-
-### TC-S1-54
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-54 |
-| Story/AC ref | US-06 AC-6, updated for Week 7 Change 5 |
-| Test Scenario | The assigned Coordinator opens the submitted request and sees the layout and accessibility values |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-54-setup.sql on testDB (reset before test). Request `EVT-153` is SUBMITTED, assigned to coord.a@example.com, with layout THEATRE and accessibility STEP_FREE_ACCESS and HEARING_LOOP. Logged in as coord.a@example.com. |
-| Test Steps | 1. Cody opens the request assigned to him. |
-| Test Data | THEATRE; STEP_FREE_ACCESS, HEARING_LOOP; notes "Ramp access to the stage" |
-| Expected Result | The layout and accessibility values the Organiser entered are visible to the reviewing Coordinator. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | — |
-| Status | Not Executed |
-| Remarks | The two US-06 AC-6 tests in `events-layout.e2e-spec.ts` read an unassigned request from the shared pool. Week 7 Change 5 removes that, so they are not cited. The assigned-Coordinator path is tested in `events-coordinator-view.e2e-spec.ts` ("returns the venue requirements", "returns the accessibility needs"), and will be linked, loading tc-s1-54-setup.sql, when that file is converted in group 3. |
-| Executed By | — |
-| Date of Execution | — |
-| Automated by | GAP |
-
-**US-06 AC ↔ code mismatches**
-- **AC-6 (Week 7 Change 5):** the existing AC-6 tests rely on a Coordinator reading an unassigned request (TC-S1-54). They will need updating when Change 5 merges.
+Test cases for this story are written in a later batch of the Sprint 1 regeneration.
 
 ---
 
-## US-01 Log in securely (all roles)
+## US-14 Update a venue's details as facilities change (Venue Staff)
 
-### TC-S1-55
+Test cases for this story are written in a later batch of the Sprint 1 regeneration.
 
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-55 |
-| Story/AC ref | US-01 AC-1 |
-| Test Scenario | A registered user with valid credentials is authenticated and gets a session |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com (Olivia Organiser) exists with no failed attempts. |
-| Test Steps | 1. Olivia logs in with her email and correct password.<br>2. She inspects the token she receives.<br>3. She opens a protected route (`GET /auth/me`) with that token. |
-| Test Data | organiser@example.com / correct-horse-battery-staple |
-| Expected Result | Olivia is authenticated. She receives an access token that identifies her and her role, and the token opens protected routes. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | HTTP 200 with a three-part JWT. Its `sub` was `USR-006` and its `role` was `EVENT_ORGANISER`. `GET /auth/me` with the token returned 200. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/auth.e2e-spec.ts::returns 200 with an access token`<br>`test/auth.e2e-spec.ts::issues a token carrying userId and role`<br>`test/auth.e2e-spec.ts::establishes a session that opens protected routes` |
+---
 
-### TC-S1-56
+## US-15 Browse the full catalogue of venues (Venue Staff)
 
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-56 |
-| Story/AC ref | US-01 AC-2 |
-| Test Scenario | A wrong password and an unknown email get the same generic error, and no token |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com exists; nobody@example.com does not. |
-| Test Steps | 1. Log in as organiser@example.com with a wrong password.<br>2. Log in as nobody@example.com with a password.<br>3. Compare the two responses.<br>4. Log in with a number as the email. |
-| Test Data | organiser@example.com / wrong-password; nobody@example.com / correct-horse-battery-staple; email `12345` (a number) |
-| Expected Result | Both attempts are refused with the same generic message, "invalid email or password", and no token. The two responses are identical, so neither reveals which field was wrong. A malformed email (not a string) is refused as invalid input with a validation message, not a server error, and no token. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Both returned HTTP 401 with message "invalid email or password" and no `accessToken`. The two bodies and status codes were identical. Neither body contained wording such as "wrong password" or "not found". The numeric email returned HTTP 400 with "email must be a valid email address" and no token. |
-| Status | Pass |
-| Remarks | The unknown email is still checked against a dummy bcrypt hash, so the two failures also take a similar time. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/auth.e2e-spec.ts::rejects a wrong password with 401 and no token`<br>`test/auth.e2e-spec.ts::rejects an unknown email with 401 and no token`<br>`test/auth.e2e-spec.ts::returns byte-identical bodies for both, revealing neither field`<br>`test/auth.e2e-spec.ts::rejects a non-string email with 400 and a validation message` |
-
-### TC-S1-57
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-57 |
-| Story/AC ref | US-01 AC-3 (API) |
-| Test Scenario | A request without a valid token is refused at the API, and no data is returned |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. |
-| Test Steps | 1. Call `GET /auth/me` with no token.<br>2. Call it with a malformed token.<br>3. Call it with a token signed with the wrong secret.<br>4. Call `POST /auth/logout` with no token. |
-| Test Data | No header; `Bearer not-a-real-token`; a forged HS256 token for `user-1` / ATTENDEE |
-| Expected Result | Every request is refused as unauthenticated (401), and no protected data is returned. The refusal tells the client where to log in: a `WWW-Authenticate` header and the login URL in the body. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | All four requests returned HTTP 401. The no-token response contained no `userId` or `role`, and had `WWW-Authenticate: Bearer realm="connectsphere"` and `loginUrl: "/auth/login"`. |
-| Status | Pass |
-| Remarks | The browser redirect is the UI half of this AC (TC-S1-58). Since `configureApp()` (895d205), the test app registers `UnauthorizedFilter` as production does, so the 401 shape tested here is the production one. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/auth.e2e-spec.ts::rejects a request with no token`<br>`test/auth.e2e-spec.ts::points an unauthenticated caller at the login page`<br>`test/auth.e2e-spec.ts::rejects a malformed token`<br>`test/auth.e2e-spec.ts::rejects a token signed with the wrong secret`<br>`test/auth.e2e-spec.ts::rejects logout without a token` |
-
-### TC-S1-58
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-58 |
-| Story/AC ref | US-01 AC-3 (UI) |
-| Test Scenario | An unauthenticated user who opens a protected page is redirected to the login page |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in; no token in the browser. |
-| Test Steps | 1. Open a protected page (for example, the Organiser's event list) in the browser. |
-| Test Data | — |
-| Expected Result | The user is redirected to the login page, and no protected content is shown. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | — |
-| Status | Not Executed |
-| Remarks | A browser redirect, to be covered by the planned Playwright E2E session. The API half is TC-S1-57. |
-| Executed By | — |
-| Date of Execution | — |
-| Automated by | Playwright (pending) |
-
-### TC-S1-59
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-59 |
-| Story/AC ref | US-01 AC-4 |
-| Test Scenario | Logging out ends the session, and the old token can't be reused |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Olivia (organiser@example.com) logs in during the test. |
-| Test Steps | 1. Olivia logs in and opens `GET /auth/me`.<br>2. She logs out.<br>3. She reuses the same token on `GET /auth/me`.<br>4. She logs in again and opens `GET /auth/me`.<br>5. With two sessions open, she logs out of one and uses the other. |
-| Test Data | organiser@example.com / correct-horse-battery-staple |
-| Expected Result | Logout ends the session. Reusing the old token is refused (401), and access needs a new login. Logging out one session leaves her other sessions alone. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | `/auth/me` returned 200, logout returned 204, and the same token then got 401. A new login issued a different token that returned 200. After logging out session A, session B still returned 200. |
-| Status | Pass |
-| Remarks | Logout revokes the token by its `jti`. Only that token is revoked. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/auth.e2e-spec.ts::returns 204 and makes the token unusable afterwards`<br>`test/auth.e2e-spec.ts::requires logging in again to regain access`<br>`test/auth.e2e-spec.ts::does not revoke other sessions belonging to the same user` |
-
-### TC-S1-60
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-60 |
-| Story/AC ref | US-01 AC-5 (14/15 boundary) |
-| Test Scenario | 14 failures leave the account open; the 15th locks it, and further attempts, even with the correct password, get the helpline message |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before every test, so no failed-attempt count carries over). Not logged in. Account organiser@example.com has 0 failed attempts and no lock. |
-| Test Steps | 1. Fail 14 times in a row, then check the account and log in correctly.<br>2. (Fresh reset) Fail 15 times in a row, then try once more with a wrong password.<br>3. (Fresh reset) Fail 15 times in a row, then try with the correct password. |
-| Test Data | organiser@example.com / wrong-password ×14 or ×15; then correct-horse-battery-staple |
-| Expected Result | After 14 failures the account is not locked, and the correct password logs in. After 15 consecutive failures within 30 minutes the account is temporarily locked. Every further attempt, including one with the correct password, is refused with a message directing the user to the IT helpline, and no token is issued. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | After 14 failures: count 14, `lockedUntil` null, and the correct login returned 200. The 15th failure returned 401 "invalid email or password" and set the lock. The 16th attempt returned 429 with "Account temporarily locked due to repeated failed sign-in attempts. Please contact the IT helpline for assistance." and no token. The correct password while locked also returned 429 with no token. |
-| Status | Pass |
-| Remarks | The 15th failure itself still returns the generic 401. The helpline message appears from the next attempt, which matches "further attempts". |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/auth.e2e-spec.ts::stays open for the first 14 failures`<br>`test/auth.e2e-spec.ts::locks on the 15th and points the user at the helpline`<br>`test/auth.e2e-spec.ts::refuses the correct password while locked` |
-
-### TC-S1-61
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-61 |
-| Story/AC ref | US-01 AC-5 (30-minute window edge) |
-| Test Scenario | 15 failures count toward a lock only when they fall within 30 minutes; failures spread beyond 30 minutes don't lock |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com has 0 failed attempts. The clock is frozen at T0 (Date only), with no real waiting. |
-| Test Steps | 1. (Integration) Fail 14 times at T0.<br>2. Move the clock to T0 + 30 min + 1 ms and fail a 15th time.<br>3. Check the account, then log in with the correct password.<br>4. (Unit) With 14 failures since T0, fail a 15th time at exactly T0 + 30 min.<br>5. (Unit) With 14 failures since T0, fail a 15th time at T0 + 30 min + 1 ms.<br>6. (Unit) While a lock is in force, log in with the correct password. |
-| Test Data | organiser@example.com / wrong-password; correct-horse-battery-staple. T0 = test start (integration) or 2030-06-01T12:00Z (unit). |
-| Expected Result | A 15th failure at exactly 30 minutes is still within the window and locks the account. A 15th failure after 30 minutes does not lock it, and counting starts again from that failure, so the correct password still logs in. While a lock is in force, the correct password is refused with the helpline message. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Integration: the 15th failure at T0 + 30 min + 1 ms returned 401 "invalid email or password". The stored count was 1, `lockedUntil` was null, and the correct login returned 200. Unit: at exactly 30 min the count reached 15, with `lockedUntil` = T0 + 60 min. At 30 min + 1 ms the count reset to 1 with a new window start and no lock. Under a lock, the correct password got 429 with the helpline message. |
-| Status | Pass |
-| Remarks | New tests, added this session (lockout window edge). See the mismatch note below on fixed versus sliding windows. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/auth.e2e-spec.ts::does not lock when the 15 failures are spread beyond 30 minutes`<br>`src/auth/auth.service.lockout-window.spec.ts::locks when the 15th failure lands exactly 30 minutes after the first (still within the window)`<br>`src/auth/auth.service.lockout-window.spec.ts::does not lock when the 15th failure lands 1 ms after the window closes; the count restarts at 1`<br>`src/auth/auth.service.lockout-window.spec.ts::refuses the correct password with the helpline message while a lock is in force` |
-
-### TC-S1-62
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-62 |
-| Story/AC ref | US-01 AC-5 ("consecutive", "temporarily") |
-| Test Scenario | A successful login resets the failure count, and the lock is temporary |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Not logged in. Account organiser@example.com has 0 failed attempts and no lock. |
-| Test Steps | 1. Fail 5 times, then log in correctly, then check the account.<br>2. (Fresh reset) Fail 15 times so the account locks, and confirm the correct password gets 429.<br>3. Let the lock period pass (the test sets `lockedUntil` to the past), then log in correctly. |
-| Test Data | organiser@example.com / wrong-password ×5 or ×15; correct-horse-battery-staple |
-| Expected Result | Failures only count while consecutive: a successful login clears the count. The lock is temporary: once it has elapsed, the correct password logs in again. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | After 5 failures and a successful login, the count was 0 and the window start was null. The locked account got 429. Once `lockedUntil` was in the past, the correct login returned 200. |
-| Status | Pass |
-| Remarks | The AC doesn't state how long the lock lasts. The code locks for 30 minutes, and the expiry is simulated by moving `lockedUntil` into the past, not by waiting. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | `test/auth.e2e-spec.ts::resets the count after a successful login`<br>`test/auth.e2e-spec.ts::unlocks once the lock period has elapsed` |
-
-**US-01 AC ↔ code mismatches**
-- **AC-5, fixed versus sliding window (flagged for the team).** The code counts failures in a fixed 30-minute window that starts at the first failure, and the first failure after the window closes restarts the count at 1. If the AC means *any* 15 consecutive failures within 30 minutes (a sliding window), the code can miss a lock. Example: 1 failure at T0, 13 at T0 + 29 min, then 2 at T0 + 30.5 min. Failures 2 to 16 all fall within about 2 minutes, so a sliding window would lock. The code restarts the count at T0 + 30.5 min and ends at 2, with no lock. TC-S1-61 passes under either reading, because its failures span more than 30 minutes. The team should confirm with the customer which reading is intended. The code is unchanged.
-- **AC-5, the 15th attempt.** The 15th failure returns the generic 401 and sets the lock. The helpline message (429) appears from the 16th attempt. This matches "further attempts", but a reader expecting the 15th response itself to name the helpline would see it one attempt later.
-- **AC-5, lock duration.** The AC says "temporarily" without a duration. The code uses 30 minutes (TC-S1-62).
+Test cases for this story are written in a later batch of the Sprint 1 regeneration.
 
 ---
 
@@ -1422,6 +1790,7 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 
 | Date | Change | Commit | Test cases affected |
 |---|---|---|---|
+| 2026-10-26 | **Regeneration, batch 1 (US-01 to US-04), after the Sprint 3/4 merges.** Stories now follow the user-story document's order. Every test cites its test case, story and AC, and a `Code:` line. New UI tests (React Testing Library) and browser tests (Playwright, `npm run test:browser`). `test/access-control.e2e-spec.ts` moved to the shared setup scripts (`tc-s1-67-setup.sql`). New `tc-s1-25-setup.sql` adds the Event Coordinator Lead. **Code change:** the request form now confirms a successful submission or save (US-03 AC-2). | this commit | TC-S1-25, 34, 58: Not Executed → Pass. New: TC-S1-64 to 78. All US-01, 03, 04 cases re-run. |
 | 2026-10-17 | **Test apps match production; coverage gaps filled.** `configureApp()` is now shared by `main.ts` and the 8 converted integration files, so tests see the same pipes, `UnauthorizedFilter` and CORS as production; no existing result changed. Two tests were added from coverage-s1.md: the 401 carries `WWW-Authenticate` and `loginUrl`, and a numeric email gets 400. | `895d205` (setup); this commit (tests) | TC-S1-56 and TC-S1-57 (extra test each; still Pass). |
 | 2026-10-17 | **Concurrent clarification responses made atomic (audit gap #3).** `respondToClarification()` starts its transaction with the same row lock as the review decisions (`claimForDecision`), so a second, simultaneous response gets 409 and stores nothing. The conflict message is now neutral: "this request has just been updated by someone else; reload it and try again". | this commit | TC-S1-63 (new; Fail as `it.failing` in `da1e278`, now Pass). |
 | 2026-10-17 | **Concurrent review decisions made atomic (audit gap #2).** Approve, reject, return and request clarification each start their transaction by row-locking the request only while it still holds the status that was read (`claimForDecision`, `SELECT … FOR UPDATE`). A concurrent decision waits, then gets 409 Conflict, and its reason, question and history roll back. `setStatus()` is still the only writer of status. | `61401ec` | TC-S1-07 (Fail → Pass; the race test is now a regular regression test, no longer `it.failing`, and requires the loser to get 409). |
@@ -1436,8 +1805,7 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 
 | Test case | Story/AC | What's missing |
 |---|---|---|
-| TC-S1-15 | US-09 AC-1 (UI) | A Playwright check that the clarification text field exists (planned E2E session) |
-| TC-S1-25 | US-03 AC-2 | A test that a new submission appears in the Lead's unassigned queue and not to Coordinators. Pending the Change 5 merge. |
-| TC-S1-34 | US-04 AC-3 (UI) | A Playwright check that a draft is visually distinguishable (planned E2E session) |
-| TC-S1-54 | US-06 AC-6 | The assigned-Coordinator view, to be linked when `events-coordinator-view` is converted (group 3) |
-| TC-S1-58 | US-01 AC-3 (UI) | A Playwright check that an unauthenticated visit to a protected page redirects to login (planned E2E session) |
+| TC-S1-15 | US-09 AC-1 (UI) | A UI or browser check that the clarification form offers a text field (batch 3) |
+| TC-S1-20 | US-09 AC-4 | Checking the Coordinator is notified of a response (batch 3) |
+| TC-S1-54 | US-06 AC-6 | The assigned Coordinator's view of layout and accessibility (batch 2) |
+| US-10 to US-15 | all | Test cases to be written in batches 3 and 4 |

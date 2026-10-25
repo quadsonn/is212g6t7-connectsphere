@@ -85,6 +85,8 @@ describe('EventsService drafts (US-04)', () => {
     );
   });
 
+  // TC-S1-31 · US-04 AC-1 · unit: EventsService.saveDraft() with Prisma mocked · fails if a draft is
+  // checked against submission rules or saved with another status
   describe('AC-1: saving an incomplete draft', () => {
     it('saves with no fields at all, at status DRAFT', async () => {
       const result = await service.saveDraft(organiser, {} as DraftEventRequestDto);
@@ -128,6 +130,8 @@ describe('EventsService drafts (US-04)', () => {
     });
   });
 
+  // TC-S1-32 · US-04 AC-2 · unit: updateDraft() · fails if editing a draft drops fields already
+  // entered
   describe('AC-2: returning to continue editing', () => {
     it('enforces ownership through the UPDATE grant', async () => {
       access.assertEventAccess.mockResolvedValue(row());
@@ -164,6 +168,8 @@ describe('EventsService drafts (US-04)', () => {
     });
   });
 
+  // TC-S1-35, TC-S1-36 · US-04 AC-4 · unit: submitDraft() · fails if an incomplete draft submits, or
+  // a complete one does not move to SUBMITTED via setStatus
   describe('AC-4: completing and submitting a draft', () => {
     it('transitions DRAFT -> SUBMITTED via setStatus', async () => {
       access.assertEventAccess.mockResolvedValue(completeDraft());
@@ -228,6 +234,8 @@ describe('EventsService drafts (US-04)', () => {
     });
   });
 
+  // TC-S1-37 · US-04 AC-5 · unit: assertIsEditable() · fails if a SUBMITTED request can still be
+  // edited or submitted again
   describe('AC-5: a submitted request is not a draft', () => {
     it('refuses to edit a SUBMITTED request', async () => {
       access.assertEventAccess.mockResolvedValue(

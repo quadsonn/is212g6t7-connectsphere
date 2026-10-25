@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, Send } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
@@ -81,6 +82,14 @@ export function OrganiserNewRequest() {
 
     try {
       await mutation.mutateAsync(toPayload(form));
+      // US-03 AC-2: the Organiser is told the request went through.
+      toast.success(
+        action === 'submit'
+          ? 'Request submitted for review.'
+          : isEdit
+            ? 'Changes saved.'
+            : 'Draft saved.',
+      );
       navigate(isEdit ? `/organiser/${id}` : '/organiser');
     } catch (error) {
       // The API flags every offending field at once; show each against its

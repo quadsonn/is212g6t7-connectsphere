@@ -24,6 +24,8 @@ Both helpers check that they are connected to a local `_test` database before wr
 | `tc-s1-45-setup.sql` | 1 APPROVED request | TC-S1-45 (US-05 AC-4) |
 | `tc-s1-46-setup.sql` | 1 request of USR-006's and 2 of USR-007's. Load after `tc-s1-22-setup`. | TC-S1-46 (US-05 AC-5) |
 | `tc-s1-54-setup.sql` | 1 SUBMITTED request with layout and accessibility, assigned to `USR-004` | TC-S1-54 (US-06 AC-6). Not yet loaded; linked when `events-coordinator-view` is converted (group 3). |
+| `tc-s1-25-setup.sql` | The Event Coordinator Lead, `USR-012` / lead@example.com | TC-S1-25 (US-03 AC-2: a new submission reaches the Lead's unassigned queue) |
+| `tc-s1-67-setup.sql` | 2 CONFIRMED events (one per Organiser) and 1 draft, with "INTERNAL …" planning notes. Load after `tc-s1-22-setup`. | TC-S1-67 to 75 (US-02), integration and browser tests |
 
 Specs load the `tc-s1-*` scripts per test, in the Arrange step: `await given('tc-s1-01-setup')`. A test can always be traced to exactly the script its test case names. Test-case pre-conditions are in `docs/testing/sprint1-test-cases.md`.
 
@@ -108,6 +110,26 @@ Every row uses purpose "Purpose", description "Description", category "Conferenc
 | ID | Status | Organiser | Coordinator | Key values |
 |---|---|---|---|---|
 | `EVT-153` | SUBMITTED | `USR-006` | `USR-004` | Layout THEATRE, notes "Centre aisle, front row reserved". Accessibility STEP_FREE_ACCESS and HEARING_LOOP, notes "Ramp access to the stage". Equipment "Six wireless microphones, two projectors". Registration enabled. Attendance 320. |
+
+### `tc-s1-25-setup.sql`
+
+| ID | Email | Name | Role |
+|---|---|---|---|
+| `USR-012` | lead@example.com | Leah Lead | EVENT_COORDINATOR_LEAD |
+
+### `tc-s1-67-setup.sql`
+
+| ID | Status | Organiser | Coordinator | Key values |
+|---|---|---|---|---|
+| `EVT-160` | CONFIRMED | `USR-006` | `USR-004` | "Event owned by A"; 1 Oct 2030 09:00–17:00 UTC; registration open 1 Jan 2026 – 28 Sep 2030; layout notes, accessibility notes and equipment needs all start "INTERNAL" |
+| `EVT-161` | CONFIRMED | `USR-007` | `USR-005` | "Event owned by B"; same dates and notes |
+| `EVT-162` | DRAFT | `USR-006` | none | "Unreviewed draft"; same notes, registration window not set |
+
+None has a venue booking, so Venue Staff (RELATED scope) see none of them.
+
+## Browser tests (Playwright)
+
+The browser tests in `e2e/` load the same scripts through `e2e/support/db.ts` (`given('base-users', ...)`), which calls the same `resetDb` and `loadSql`. `playwright.config.ts` points the API it starts at the test database and refuses anything that isn't a local `_test` database.
 
 ## Loading a script by hand
 

@@ -32,3 +32,7 @@ yarn-error.log*
 # build info
 *.tsbuildinfo
 frontend/vite.config.ts
+
+# Playwright (browser tests) output
+e2e/report/
+e2e/results/

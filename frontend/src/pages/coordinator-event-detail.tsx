@@ -42,7 +42,7 @@ import {
 import type { PlanningUpdateResult } from '@/types/api';
 import { formatDateRange, formatDateTime, humanise } from '@/lib/utils';
 import type { EventStatus } from '@/types/api';
-import { FACILITY_LABELS } from '@/types/api';
+import { ACCESSIBILITY_FEATURE_LABELS, FACILITY_LABELS } from '@/types/api';
 
 /** Mirrors BOOKABLE_EVENT_STATUSES in the backend's booking.types.ts (US-21). */
 const BOOKABLE_EVENT_STATUSES: EventStatus[] = ['APPROVED', 'PLANNING', 'AWAITING_ARRANGEMENTS'];
@@ -381,7 +381,8 @@ export function CoordinatorEventDetail() {
                 <div className="flex flex-wrap gap-2">
                   {event.accessibilityRequirements.map((feature) => (
                     <Badge key={feature} className="bg-ink-100 text-ink-700 ring-ink-300">
-                      {humanise(feature)}
+                      {/* The same wording the Organiser chose from (US-06 AC-6). */}
+                      {ACCESSIBILITY_FEATURE_LABELS[feature]}
                     </Badge>
                   ))}
                 </div>

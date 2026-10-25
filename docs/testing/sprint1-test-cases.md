@@ -2,7 +2,7 @@
 
 Written test cases for the Sprint 1 user stories (US-01 to US-15), traced from story → acceptance criterion → test case → automated test. Stories appear in the order of the Sprint 1 user-story document, and story and AC numbers follow it and [docs/BACKLOG.md](../BACKLOG.md). AC numbers count the bullets in the order the story lists them.
 
-**Regeneration in progress (2026-10-26).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria and given UI and browser tests. Done: **US-01 to US-04**. US-05 to US-09 still show the 17 Oct results, and US-10 to US-15 get their test cases in the coming batches.
+**Regeneration in progress (2026-10-26).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria and given UI and browser tests. Done: **US-01 to US-08**. US-09 still shows the 17 Oct results, and US-10 to US-15 get their test cases in the coming batches.
 
 ## How to read this file
 
@@ -905,12 +905,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | All 12 requests were listed, each with the status matching its name. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | Covers the 9 statuses AC-1 lists, plus AWAITING_CLARIFICATION, RETURNED and AWAITING_ARRANGEMENTS. When Change 6 adds a safety-check status, add its row to tc-s1-39-setup.sql. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-status-view.e2e-spec.ts::reports every status in the lifecycle` |
+| Remarks | Covers all 14 statuses the system has: the 9 AC-1 lists, plus AWAITING_CLARIFICATION, RETURNED, AWAITING_ARRANGEMENTS, and Week 7 Change 6's AWAITING_SAFETY_CHECK and SAFETY_REJECTED. The badges on screen are TC-S1-80. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::reports every status in the lifecycle`<br>Unit: `src/events/events-status-view.service.spec.ts::EventsService status view (US-05) AC-1: every status is reported` |
 
 ### TC-S1-40
 
@@ -926,12 +926,33 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | HTTP 200 with `[]`. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-status-view.e2e-spec.ts::returns an empty list when the Organiser has none` |
+
+### TC-S1-79
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-79 |
+| Story/AC ref | US-05 AC-1, AC-5, with US-02 AC-3/AC-8 (permission) |
+| Test Scenario | Only a signed-in Organiser can open the "my requests" status view, and its address is never mistaken for a request id |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). (+ tc-s1-01-setup.sql for the routing check) |
+| Test Steps | 1. A Coordinator calls `GET /events/mine`.<br>2. Call it with no token.<br>3. The Organiser calls `GET /events/mine` with a request on file. |
+| Test Data | — |
+| Expected Result | 1: refused (403). 2: refused (401). 3: the Organiser's list, not a "request not found" error. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | 403, 401, and a 200 list containing EVT-146. |
+| Status | Pass |
+| Remarks | These three tests had no test case before the regeneration. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::refuses a non-Organiser`<br>Integration: `test/events-status-view.e2e-spec.ts::refuses an unauthenticated caller`<br>Integration: `test/events-status-view.e2e-spec.ts::does not treat "mine" as an event id` |
 
 ### TC-S1-41
 
@@ -947,12 +968,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | The first list entry was REJECTED with "Clashes with the examination period". Opening `EVT-010` showed "Venue capacity insufficient". |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-status-view.e2e-spec.ts::includes decisionReason on a rejected request`<br>Integration: `test/events-status-view.e2e-spec.ts::includes it when opening the request directly` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::includes decisionReason on a rejected request`<br>Integration: `test/events-status-view.e2e-spec.ts::includes it when opening the request directly`<br>Unit: `src/events/events-status-view.service.spec.ts::EventsService status view (US-05) AC-2: a rejected request shows the reason` |
 
 ### TC-S1-42
 
@@ -968,12 +989,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | The first entry was flagged `clarificationRequested: true`, with its question. "Returned for clarification" was flagged true and "Plain draft" false. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-status-view.e2e-spec.ts::flags clarification and shows what is asked`<br>Integration: `test/events-status-view.e2e-spec.ts::distinguishes a returned request from an ordinary draft` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::flags clarification and shows what is asked`<br>Integration: `test/events-status-view.e2e-spec.ts::distinguishes a returned request from an ordinary draft`<br>Unit: `src/events/events-status-view.service.spec.ts::EventsService status view (US-05) AC-3: clarification is visible, with the question asked` |
 
 ### TC-S1-43
 
@@ -989,12 +1010,33 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | `clarificationRequested: false` and `clarificationRequest: null`. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-status-view.e2e-spec.ts::reports no clarification when none was asked` |
+
+### TC-S1-80
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-80 |
+| Story/AC ref | US-05 AC-1, AC-2, AC-3 (UI) |
+| Test Scenario | On screen, the Organiser sees each request's status, the reason for a rejection, and that clarification is needed with the question asked |
+| Pre-conditions | UI test: the Organiser's list rendered with the API mocked. Browser test: Run test/fixtures/sql/base-users.sql on testDB (reset before test). + tc-s1-01-setup.sql; the assigned Coordinator (coord.a) asks a question, then the Organiser signs in. |
+| Test Steps | 1. Open "My event requests" with requests under review, approved, cancelled and rejected.<br>2. (Browser) The Coordinator asks "How many speakers will there be?"; the Organiser opens their list and the request. |
+| Test Data | Rejected reason "Clashes with exams" |
+| Expected Result | Each row's badge shows its own status. A rejected row shows the Coordinator's reason. After the question, the list shows "Awaiting clarification" and the request page shows the question. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected in both the UI test and the browser. |
+| Status | Pass |
+| Remarks | The rejection reason after a real Reject is also shown in TC-S1-83. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | UI: `frontend/src/pages/organiser-status-layout.test.tsx::AC-1: Given requests in several states, Then each row shows its own status`<br>UI: `frontend/src/pages/organiser-status-layout.test.tsx::AC-2: Given a rejected request, Then its row shows the Coordinator’s reason`<br>E2E: `e2e/us05-us08-review.spec.ts::US-05: after the Coordinator asks a question, the Organiser sees clarification is needed and what is asked` |
 
 ### TC-S1-44
 
@@ -1004,18 +1046,18 @@ All four use only the local test database (or none). None touches the shared Sup
 | Story/AC ref | US-05 AC-4 |
 | Test Scenario | After a status change, the next view shows the most recent valid state |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as organiser@example.com (Olivia Organiser). |
-| Test Steps | 1. Olivia saves a complete draft and lists her requests.<br>2. She submits it through the real submit endpoint.<br>3. She lists her requests again. |
+| Test Steps | 1. The Organiser saves a complete draft and lists their requests.<br>2. They submit it through the real submit endpoint and list again.<br>3. (Second test) On a submitted request, the assigned Coordinator asks a question and the Organiser answers it; the Organiser lists again. |
 | Test Data | A complete draft |
-| Expected Result | The displayed status reflects the latest valid state: Draft before, Submitted after. |
+| Expected Result | The displayed status reflects the latest valid state: Draft, then Submitted; and Under review once the question is answered. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | DRAFT before and SUBMITTED after. |
+| Actual Result | Draft → Submitted → Under review, each shown on the next read. |
 | Status | Pass |
-| Remarks | The AC's own example (submitted → under review) has no Coordinator action that sets UNDER_REVIEW on first review (see mismatches). That transition is covered by the non-showcase test "reflects a later submitted -> under review change", which writes the status directly. Pending team decision on what triggers Under Review (raised with devs). |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-status-view.e2e-spec.ts::reflects a transition made through the real submit endpoint` |
+| Remarks | The AC's example (submitted → under review) is now reached through the only real action that sets it, answering a clarification. The test used to write the status directly. See the US-05 notes. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::reflects a transition made through the real submit endpoint`<br>Integration: `test/events-status-view.e2e-spec.ts::reflects a later submitted -> under review change`<br>Unit: `src/events/events-status-view.service.spec.ts::EventsService status view (US-05) AC-4: the most recent state is what is shown` |
 
 ### TC-S1-45
 
@@ -1031,11 +1073,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | The second read returned PLANNING. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | The status change is applied directly to the record, standing in for the planning story's action. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-status-view.e2e-spec.ts::does not serve a stale status on a repeated read` |
 
 ### TC-S1-46
@@ -1052,16 +1094,16 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | The list had exactly 1 entry, "Mine". Opening `EVT-148` gave HTTP 404 with no name in the body. "CONFIDENTIAL" appeared in neither the list nor the 404 body. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | Denied = 404 by design (agreed decision): the request's existence is not revealed. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-status-view.e2e-spec.ts::excludes them from the list`<br>Integration: `test/events-status-view.e2e-spec.ts::denies fetching another Organiser’s request by id`<br>Integration: `test/events-status-view.e2e-spec.ts::does not leak a rejection reason belonging to someone else` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-status-view.e2e-spec.ts::excludes them from the list`<br>Integration: `test/events-status-view.e2e-spec.ts::denies fetching another Organiser’s request by id`<br>Integration: `test/events-status-view.e2e-spec.ts::does not leak a rejection reason belonging to someone else`<br>Unit: `src/events/events-status-view.service.spec.ts::EventsService status view (US-05) AC-5: only the Organiser’s own requests` |
 
 **US-05 AC ↔ code mismatches**
-- **AC-4:** the AC's example is "submitted → under review", but no Coordinator action currently moves a newly submitted request to UNDER_REVIEW. It only happens after a clarification answer. TC-S1-44 uses the real draft → submitted transition instead. Is there meant to be a "start review" step? Confirm with the team.
-- **AC-1** lists 9 statuses, and the system has 12. Week 7 Change 6 will add a safety-check status, and TC-S1-39's script must gain a row for it.
+- **AC-4, what moves a request to Under review (open question for the team):** the AC's example is "submitted → under review", but no Coordinator action does that on first look. Only answering a clarification does (AWAITING_CLARIFICATION → UNDER_REVIEW). TC-S1-44 now uses that real path rather than writing the status directly. Is a "start review" step intended?
+- **AC-1:** the AC lists 9 statuses; the system has 14 (adds Awaiting clarification, Returned, Awaiting arrangements, and Change 6's Awaiting safety check and Safety rejected). All 14 are shown and tested (TC-S1-39).
 
 ---
 
@@ -1081,12 +1123,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | HTTP 201 for each, with preferredLayout echoed back. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-layout.e2e-spec.ts::accepts %s` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::accepts %s`<br>Unit: `src/events/events-layout.service.spec.ts::EventsService layout & accessibility (US-06) AC-1 / AC-2: layout selection and notes` |
 
 ### TC-S1-48
 
@@ -1102,11 +1144,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Both got HTTP 400. The first message named "preferredLayout must be one of: THEATRE, CLASSROOM, BANQUET, BOARDROOM…". |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-layout.e2e-spec.ts::rejects a layout outside the list and names the valid options`<br>Integration: `test/events-layout.e2e-spec.ts::rejects a free-text layout, which belongs in layoutNotes` |
 
 ### TC-S1-49
@@ -1123,11 +1165,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | THEATRE was saved with the note. With no selection, preferredLayout was null and the "Cabaret" note was saved. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-layout.e2e-spec.ts::stores notes with a selection`<br>Integration: `test/events-layout.e2e-spec.ts::stores notes with no selection, for a layout not on the list` |
 
 ### TC-S1-50
@@ -1144,12 +1186,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Every requirement list was saved exactly, the notes were saved, and notes-only saved with an empty list. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-layout.e2e-spec.ts::records multiple requirements`<br>Integration: `test/events-layout.e2e-spec.ts::records requirements with notes`<br>Integration: `test/events-layout.e2e-spec.ts::accepts the newer features added to the list`<br>Integration: `test/events-layout.e2e-spec.ts::accepts notes with no structured requirement selected` |
+| Remarks | Picking several requirements on screen is TC-S1-81. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::records multiple requirements`<br>Integration: `test/events-layout.e2e-spec.ts::records requirements with notes`<br>Integration: `test/events-layout.e2e-spec.ts::accepts the newer features added to the list`<br>Integration: `test/events-layout.e2e-spec.ts::accepts notes with no structured requirement selected`<br>Unit: `src/events/events-layout.service.spec.ts::EventsService layout & accessibility (US-06) AC-3: accessibility requirements` |
 
 ### TC-S1-51
 
@@ -1165,12 +1207,33 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Both got HTTP 400, the first with "accessibilityRequirements must contain only…". |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-layout.e2e-spec.ts::rejects an unrecognised requirement`<br>Integration: `test/events-layout.e2e-spec.ts::rejects duplicates` |
+
+### TC-S1-81
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-81 |
+| Story/AC ref | US-06 AC-1 to AC-6 (UI) |
+| Test Scenario | On the form, the Organiser picks a layout from the list, adds notes and any number of accessibility requirements; they survive reopening and the assigned Coordinator sees them |
+| Pre-conditions | UI test: the form rendered with the API mocked. Browser tests: Run test/fixtures/sql/base-users.sql on testDB (reset before test). (and tc-s1-54-setup.sql for the Coordinator's view). |
+| Test Steps | 1. Open the layout list.<br>2. Choose Theatre with notes, select Step-free access and Hearing loop, add notes and save a draft.<br>3. Reopen the draft for editing.<br>4. Save a request with no layout or accessibility.<br>5. (Browser) The assigned Coordinator opens EVT-153. |
+| Test Data | Layout Theatre or Banquet; requirements Step-free access + Hearing loop |
+| Expected Result | 1: the list includes Theatre, Classroom, Banquet and Boardroom. 2: all values are saved together, both requirements included. 3: both requirements are still selected. 4: it saves. 5: the Coordinator sees the layout, notes and each requirement, in the same wording. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. Before the fix, step 2 could hold only one requirement and step 3 dropped the second. |
+| Status | Pass |
+| Remarks | **Code changed in this regeneration:** the form's accessibility field was a single dropdown and reopening a request kept only its first requirement, so saving silently dropped the rest. It is now a multi-choice group (like Required facilities) and keeps the whole list. The Coordinator's page now uses the same labels as the form ("Step-free access", not "Step free access"). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | UI: `frontend/src/pages/organiser-status-layout.test.tsx::AC-1: Then the layout is chosen from a predefined list including theatre, classroom, banquet and boardroom`<br>UI: `frontend/src/pages/organiser-status-layout.test.tsx::AC-2/AC-3: Given a layout with notes and two accessibility requirements, Then all are saved together`<br>UI: `frontend/src/pages/organiser-status-layout.test.tsx::AC-4: Given a saved request with two requirements, When it is reopened and saved, Then both are kept`<br>UI: `frontend/src/pages/organiser-status-layout.test.tsx::AC-5: Given layout and accessibility left empty, Then the payload carries no layout and no requirements`<br>E2E: `e2e/us05-us08-review.spec.ts::US-06: an Organiser picks a layout and two accessibility needs, and both are still selected when the draft is reopened`<br>E2E: `e2e/us05-us08-review.spec.ts::US-06: the assigned Coordinator sees the layout and accessibility the Organiser entered` |
 
 ### TC-S1-52
 
@@ -1186,12 +1249,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | The reopened draft matched. After submit, the values were unchanged. The edited draft showed BOARDROOM. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-layout.e2e-spec.ts::persists on a draft and is there when reopened`<br>Integration: `test/events-layout.e2e-spec.ts::survives the draft being submitted`<br>Integration: `test/events-layout.e2e-spec.ts::can be edited on a draft before submission` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::persists on a draft and is there when reopened`<br>Integration: `test/events-layout.e2e-spec.ts::survives the draft being submitted`<br>Integration: `test/events-layout.e2e-spec.ts::can be edited on a draft before submission`<br>Unit: `src/events/events-layout.service.spec.ts::EventsService layout & accessibility (US-06) AC-4: values persist on a draft too` |
 
 ### TC-S1-53
 
@@ -1207,61 +1270,41 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Submitted (201, SUBMITTED) with layout null, notes null and requirements `[]`. The empty draft saved. The draft submitted with HTTP 200. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-layout.e2e-spec.ts::submits a request with neither recorded`<br>Integration: `test/events-layout.e2e-spec.ts::saves an empty draft with neither recorded`<br>Integration: `test/events-layout.e2e-spec.ts::submits a completed draft that omits them` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::submits a request with neither recorded`<br>Integration: `test/events-layout.e2e-spec.ts::saves an empty draft with neither recorded`<br>Integration: `test/events-layout.e2e-spec.ts::submits a completed draft that omits them`<br>Unit: `src/events/events-layout.service.spec.ts::EventsService layout & accessibility (US-06) AC-5: these are preferences, not blockers` |
 
 ### TC-S1-54
 
 | Test case specification | |
 |---|---|
 | Test Case ID | TC-S1-54 |
-| Story/AC ref | US-06 AC-6, updated for Week 7 Change 5 |
+| Story/AC ref | US-06 AC-6 |
 | Test Scenario | The assigned Coordinator opens the submitted request and sees the layout and accessibility values |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-54-setup.sql on testDB (reset before test). Request `EVT-153` is SUBMITTED, assigned to coord.a@example.com, with layout THEATRE and accessibility STEP_FREE_ACCESS and HEARING_LOOP. Logged in as coord.a@example.com. |
-| Test Steps | 1. Cody opens the request assigned to him. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-54-setup.sql on testDB (reset before test). Request `EVT-153` is SUBMITTED, assigned to coord.a@example.com, with layout THEATRE and accessibility STEP_FREE_ACCESS and HEARING_LOOP. Logged in as coord.a@example.com (the assigned Coordinator), then as attendee@example.com. |
+| Test Steps | 1. The Coordinator lists their requests (`GET /events`).<br>2. The Coordinator opens EVT-153 (`GET /events/EVT-153`, and the review page in the browser).<br>3. An Attendee lists events and tries to open EVT-153. |
 | Test Data | THEATRE; STEP_FREE_ACCESS, HEARING_LOOP; notes "Ramp access to the stage" |
-| Expected Result | The layout and accessibility values the Organiser entered are visible to the reviewing Coordinator. |
+| Expected Result | The layout and accessibility values the Organiser entered are visible to the reviewing Coordinator, in the list and when opened. An Attendee never sees them. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | — |
-| Status | Not Executed |
-| Remarks | The two US-06 AC-6 tests in `events-layout.e2e-spec.ts` read an unassigned request from the shared pool. Week 7 Change 5 removes that, so they are not cited. The assigned-Coordinator path is tested in `events-coordinator-view.e2e-spec.ts` ("returns the venue requirements", "returns the accessibility needs"), and will be linked, loading tc-s1-54-setup.sql, when that file is converted in group 3. |
-| Executed By | — |
-| Date of Execution | — |
-| Automated by | GAP |
+| Actual Result | Both API reads and the review page showed Theatre, the layout notes, Step-free access, Hearing loop and the accessibility notes. The Attendee got no row and a 404. |
+| Status | Pass |
+| Remarks | Change 5 is merged, so the tests now load tc-s1-54-setup.sql (a request already assigned to this Coordinator) instead of reading the old shared pool. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-layout.e2e-spec.ts::shows layout and accessibility in the Coordinator’s list of assigned requests`<br>Integration: `test/events-layout.e2e-spec.ts::shows them when the Coordinator opens the request`<br>Integration: `test/events-layout.e2e-spec.ts::still hides them from an Attendee — they are internal planning`<br>E2E: `e2e/us05-us08-review.spec.ts::US-06: the assigned Coordinator sees the layout and accessibility the Organiser entered` |
 
 **US-06 AC ↔ code mismatches**
-- **AC-6 (Week 7 Change 5):** the existing AC-6 tests rely on a Coordinator reading an unassigned request (TC-S1-54). They will need updating when Change 5 merges.
+- **AC-3 (fixed in this regeneration):** the API accepted several accessibility requirements, but the form offered one dropdown and, on reopening a request, kept only the first, so saving dropped the others. The form now lets the Organiser choose any number and keeps them all (TC-S1-81).
+- **AC-6 (resolved, Change 5 merged):** the Coordinator who sees the preferences is the one assigned to the request (TC-S1-54 now Pass). The review page now shows accessibility needs in the form's wording.
 
 ---
 
 ## US-07 Review submitted request for clarity/completeness (Event Coordinator)
-
-### TC-S1-01
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-01 |
-| Story/AC ref | US-07 AC-3 |
-| Test Scenario | Coordinator approves a submitted request that is ready to proceed (happy path) |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). Request `EVT-146` is SUBMITTED and assigned to Cody. |
-| Test Steps | 1. Cody clicks "Approve" on request `EVT-146` (`POST /events/EVT-146/approve`).<br>2. Read the request back.<br>3. Log in as organiser@example.com and open "My requests". |
-| Test Data | Request `EVT-146` ("Freshman Orientation 2030") |
-| Expected Result | The request status updates to "Approved". The Organiser sees it as Approved. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | HTTP 200 with status APPROVED. The stored status is APPROVED. The Organiser's list shows APPROVED. |
-| Status | Pass |
-| Remarks | Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-review.e2e-spec.ts::moves a submitted request to APPROVED`<br>Integration: `test/events-review.e2e-spec.ts::is visible to the Organiser afterwards` |
 
 ### TC-S1-02
 
@@ -1277,12 +1320,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | All six requests returned their stored status. The returned request also showed `clarificationRequested: true` and its question. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-review.e2e-spec.ts::shows %s` (DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED)<br>Integration: `test/events-review.e2e-spec.ts::shows a returned request with its outstanding question` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-review.e2e-spec.ts::shows %s` (DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED)<br>Integration: `test/events-review.e2e-spec.ts::shows a returned request with its outstanding question`<br>Integration: `test/events-review.e2e-spec.ts::does not mark an ordinary draft as returned`<br>Unit: `src/events/events-review.service.spec.ts::EventsService review (US-07) AC-1: current status is reported` |
 
 ### TC-S1-03
 
@@ -1298,12 +1341,33 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Name, purpose, description, start (2030-10-01T09:00:00.000Z) and end (2030-10-01T17:00:00.000Z) were all returned exactly as entered. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-review.e2e-spec.ts::returns name, purpose, description and proposed date & time` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-review.e2e-spec.ts::returns name, purpose, description and proposed date & time`<br>Unit: `src/events/events-review.service.spec.ts::EventsService review (US-07) AC-2: all details are shown` |
+
+### TC-S1-01
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-01 |
+| Story/AC ref | US-07 AC-3 |
+| Test Scenario | Coordinator approves a submitted request that is ready to proceed (happy path) |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). Request `EVT-146` is SUBMITTED and assigned to Cody. |
+| Test Steps | 1. Cody clicks "Approve" on request `EVT-146` (`POST /events/EVT-146/approve`).<br>2. Read the request back.<br>3. Log in as organiser@example.com and open "My requests". |
+| Test Data | Request `EVT-146` ("Freshman Orientation 2030") |
+| Expected Result | The request status updates to "Approved". The Organiser sees it as Approved. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | The request is assigned to this Coordinator, as Week 7 Change 5 requires before a review. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-review.e2e-spec.ts::moves a submitted request to APPROVED`<br>Integration: `test/events-review.e2e-spec.ts::is visible to the Organiser afterwards`<br>Integration: `test/events-review.e2e-spec.ts::approves from UNDER_REVIEW`<br>Integration: `test/events-review.e2e-spec.ts::clears a stale clarification and rejection reason`<br>Unit: `src/events/events-review.service.spec.ts::EventsService review (US-07) AC-3: approving moves the request to APPROVED` |
 
 ### TC-S1-04
 
@@ -1319,11 +1383,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Both returned HTTP 409. `EVT-004` is still DRAFT. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | Conflict case: an illegal status transition. Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Remarks | Conflict case: an illegal status transition. The request is assigned to this Coordinator, as Week 7 Change 5 requires before a review. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-review.e2e-spec.ts::refuses to approve a DRAFT`<br>Integration: `test/events-review.e2e-spec.ts::refuses to approve a CANCELLED request` |
 
 ### TC-S1-05
@@ -1340,11 +1404,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | HTTP 200 both times. The stored status is APPROVED. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Remarks | The request is assigned to this Coordinator, as Week 7 Change 5 requires before a review. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-review.e2e-spec.ts::is idempotent — approving twice leaves it APPROVED` |
 
 ### TC-S1-06
@@ -1361,12 +1425,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Casey got HTTP 404; the Organiser and Attendee got HTTP 403. The status is still SUBMITTED each time. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | Denied = 404 by design (agreed decision): a peer Coordinator gets 404 rather than 403, so the request's existence is not revealed. Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-review.e2e-spec.ts::refuses a Coordinator assigned to a different event`<br>Integration: `test/events-review.e2e-spec.ts::refuses %s at the role gate` (organiser, attendee) |
+| Remarks | Denied = 404 by design: a peer Coordinator gets 404 rather than 403, so the request's existence is not revealed. A request nobody has been assigned is refused too, and once the Lead assigns it (through the real `/assignments` endpoint) its Coordinator can approve it. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-review.e2e-spec.ts::refuses a Coordinator assigned to a different event`<br>Integration: `test/events-review.e2e-spec.ts::refuses %s at the role gate` (organiser, attendee)<br>Integration: `test/events-review.e2e-spec.ts::refuses to approve an unassigned request from the pool`<br>Integration: `test/events-review.e2e-spec.ts::approves once that request has been assigned`<br>Integration: `test/events-review.e2e-spec.ts::refuses an unauthenticated caller`<br>Unit: `src/events/events-review.service.spec.ts::EventsService review (US-07) assignment ownership` |
 
 ### TC-S1-07
 
@@ -1382,16 +1446,37 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | After the fix: in 3 runs of 20 iterations (60 in total), exactly one call returned HTTP 200 and the other 409 every time. The stored status matched the winner, and `decisionReason` was set only when Reject won. (Before the fix: both calls returned 200 in 60 of 60 iterations.) |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | Bug found by test audit; fixed (gap #2) in `61401ec`. Each decision now row-locks the request at the start of its transaction, and only while it still holds the status that was read, so the loser gets 409 and its writes roll back. Approval requires an assigned Coordinator, consistent with Week 7 Change 5. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-review.e2e-spec.ts::lets exactly one of a simultaneous approve and reject succeed, and stores that outcome` |
 
+### TC-S1-82
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-82 |
+| Story/AC ref | US-07 AC-1, AC-2, AC-3 (UI), with US-05 AC-4 |
+| Test Scenario | On the review page, the assigned Coordinator sees the request's status and details, approves it, and the Organiser then sees Approved |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). + tc-s1-01-setup.sql. Logged in as coord.a@example.com (the assigned Coordinator), then as organiser@example.com. |
+| Test Steps | 1. Open the request EVT-146 for review.<br>2. Choose "Approve" and submit the decision.<br>3. The Organiser opens "My event requests". |
+| Test Data | EVT-146 "Freshman Orientation 2030" |
+| Expected Result | The page shows the status (Submitted), name, purpose and description. After approving, it shows Approved, and so does the Organiser's list. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected; the stored status is APPROVED. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us05-us08-review.spec.ts::US-07: the assigned Coordinator sees the status and details, approves, and the Organiser sees Approved` |
+
 **US-07 AC ↔ code mismatches**
-- **AC-3 (resolved by Week 7 Change 5):** approving requires an assigned Coordinator. An unassigned request returns 409 "assign a coordinator to this request before reviewing it". That matches Change 5, where Coordinators can't review unassigned requests, so it's no longer a mismatch. TC-S1-01 to 07 state the assignment in their pre-conditions.
-- **Permission (TC-S1-06), a decision rather than a mismatch:** a Coordinator who isn't assigned gets 404 rather than 403. "Denied = 404 by design" is an agreed team decision, so the request's existence isn't revealed.
+- **AC-3 (Week 7 Change 5):** approving requires the request to be assigned to this Coordinator. An unassigned request, or one assigned to someone else, is refused with 404 (not revealed), and the Lead assigns requests from the unassigned queue (US-55).
+- **Permission (TC-S1-06), a decision rather than a mismatch:** a Coordinator who isn't assigned gets 404 rather than 403, so the request's existence isn't revealed.
 
 ---
 
@@ -1411,12 +1496,33 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Both returned HTTP 200, with statuses REJECTED and RETURNED respectively. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-decision.e2e-spec.ts::reject and return are different endpoints with different outcomes` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-decision.e2e-spec.ts::reject and return are different endpoints with different outcomes`<br>Integration: `test/events-decision.e2e-spec.ts::returning does leave the request amendable`<br>Integration: `test/events-decision.e2e-spec.ts::reject sets REJECTED`<br>Integration: `test/events-decision.e2e-spec.ts::return sets RETURNED`<br>Integration: `test/events-decision.e2e-spec.ts::both work from UNDER_REVIEW`<br>Integration: `test/events-decision.e2e-spec.ts::refuses to reject a DRAFT`<br>Integration: `test/events-decision.e2e-spec.ts::returns, is amended, resubmitted and then approved`<br>Unit: `src/events/events-decision.service.spec.ts::EventsService reject / return (US-08) AC-1 / AC-3: the two actions are distinct`<br>Unit: `src/events/events-decision.service.spec.ts::EventsService reject / return (US-08) AC-3: status changes go through setStatus` |
+
+### TC-S1-13
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-13 |
+| Story/AC ref | US-08 AC-1 (conflict) |
+| Test Scenario | A rejected request cannot then be returned or amended |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com and organiser@example.com. |
+| Test Steps | 1. Cody rejects `EVT-146`.<br>2. Cody then tries "Return" on it.<br>3. Separately, after a rejection, the Organiser tries to edit the request. |
+| Test Data | Reject reason "No"; return reason "Changed my mind"; edit purpose "Trying to edit" |
+| Expected Result | The Return is refused and the request stays Rejected. The Organiser cannot amend a rejected request. Each option is a separate, final action. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-decision.e2e-spec.ts::a rejected request cannot then be returned`<br>Integration: `test/events-decision.e2e-spec.ts::rejecting does not leave the request amendable` |
 
 ### TC-S1-09
 
@@ -1432,11 +1538,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | HTTP 400 with "a reason is required to reject / return this request". The status is still SUBMITTED and `decisionReason` is null. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Remarks | On screen, the confirm button stays disabled until a reason is typed (TC-S1-83). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-decision.e2e-spec.ts::%s is blocked when the reason is missing` (reject, return)<br>Integration: `test/events-decision.e2e-spec.ts::nothing is written when the reason is missing` |
 
 ### TC-S1-10
@@ -1453,11 +1559,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | HTTP 400 for both. The status is still SUBMITTED. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-decision.e2e-spec.ts::%s is blocked when the reason is an empty string` (reject, return) |
 
 ### TC-S1-11
@@ -1474,11 +1580,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Both refused: HTTP 400 for reject and for return. The stored request stayed SUBMITTED, with `decisionReason` and `clarificationRequest` still null. 26/26 passed in each of 3 runs. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | Bug found by test audit; fixed (gap #1). Fixed in 93316fa. This test is now the regression test. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-decision.e2e-spec.ts::%s is blocked when the reason is whitespace-only` (reject, return) |
 
 ### TC-S1-12
@@ -1495,33 +1601,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | After the rejection, the list shows REJECTED with the reason, and two consecutive reads both return the same reason. After the return, the request shows RETURNED with `clarificationRequested: true` and the reason. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | Three separate tests, each starting from a fresh reset. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-decision.e2e-spec.ts::shows the rejection reason in the Organiser’s view (US-05 AC-2)`<br>Integration: `test/events-decision.e2e-spec.ts::retains the reason across later reads`<br>Integration: `test/events-decision.e2e-spec.ts::shows the return reason as an outstanding clarification (US-05 AC-3)` |
-
-### TC-S1-13
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-13 |
-| Story/AC ref | US-08 AC-1 (conflict) |
-| Test Scenario | A rejected request cannot then be returned or amended |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com and organiser@example.com. |
-| Test Steps | 1. Cody rejects `EVT-146`.<br>2. Cody then tries "Return" on it.<br>3. Separately, after a rejection, the Organiser tries to edit the request. |
-| Test Data | Reject reason "No"; return reason "Changed my mind"; edit purpose "Trying to edit" |
-| Expected Result | The Return is refused and the request stays Rejected. The Organiser cannot amend a rejected request. Each option is a separate, final action. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | The Return after Reject got HTTP 409, and the edit after Reject got HTTP 409. |
-| Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-decision.e2e-spec.ts::a rejected request cannot then be returned`<br>Integration: `test/events-decision.e2e-spec.ts::rejecting does not leave the request amendable` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-decision.e2e-spec.ts::shows the rejection reason in the Organiser’s view (US-05 AC-2)`<br>Integration: `test/events-decision.e2e-spec.ts::retains the reason across later reads`<br>Integration: `test/events-decision.e2e-spec.ts::shows the return reason as an outstanding clarification (US-05 AC-3)`<br>Integration: `test/events-decision.e2e-spec.ts::a rejection clears an earlier clarification`<br>Unit: `src/events/events-decision.service.spec.ts::EventsService reject / return (US-08) AC-4: the reason is retained` |
 
 ### TC-S1-14
 
@@ -1537,12 +1622,33 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | Casey got HTTP 404 for both reject and return. The Organiser and Attendee got HTTP 403. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | Denied = 404 by design (agreed decision), as in TC-S1-06. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-decision.e2e-spec.ts::%s refuses a Coordinator assigned elsewhere` (reject, return)<br>Integration: `test/events-decision.e2e-spec.ts::refuses %s at the role gate` (organiser, attendee) |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-decision.e2e-spec.ts::%s refuses a Coordinator assigned elsewhere` (reject, return)<br>Integration: `test/events-decision.e2e-spec.ts::refuses %s at the role gate` (organiser, attendee)<br>Integration: `test/events-decision.e2e-spec.ts::refuses to decide an unassigned request from the pool`<br>Integration: `test/events-decision.e2e-spec.ts::refuses an unauthenticated caller`<br>Unit: `src/events/events-decision.service.spec.ts::EventsService reject / return (US-08) assignment ownership` |
+
+### TC-S1-83
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-83 |
+| Story/AC ref | US-08 AC-1 to AC-4 (UI), with US-05 AC-2 |
+| Test Scenario | On the review page, Reject and Return are separate choices; neither can be confirmed without a reason, and the Organiser sees the outcome and why |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql on testDB (reset before test). + tc-s1-01-setup.sql. Logged in as coord.a@example.com, then as organiser@example.com. |
+| Test Steps | 1. Choose "Reject" and try to submit with no reason; then enter "Clashes with the exam period" and submit.<br>2. (Fresh request) Choose "Return for changes" with "Please add the programme" and submit.<br>3. The Organiser opens the request each time. |
+| Test Data | EVT-146 |
+| Expected Result | The submit button stays disabled until a reason is entered. Reject stores Rejected and the Organiser sees "Rejected: <reason>". Return stores Returned, the Organiser sees the reason and can edit and resubmit. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected for both. |
+| Status | Pass |
+| Remarks | The API refusal of a missing reason is TC-S1-09 to 11. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us05-us08-review.spec.ts::US-08: Reject needs a reason before it can be confirmed, and the Organiser then sees the reason`<br>E2E: `e2e/us05-us08-review.spec.ts::US-08: Return for changes is a separate action; the Organiser sees why and can amend the request` |
 
 **US-08 AC ↔ code mismatches**
 - **AC-2 (fixed):** a whitespace-only reason used to be accepted (audit gap #1). Fixed in 93316fa, and TC-S1-11 is now its regression test.
@@ -1790,7 +1896,8 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 
 | Date | Change | Commit | Test cases affected |
 |---|---|---|---|
-| 2026-10-26 | **Regeneration, batch 1 (US-01 to US-04), after the Sprint 3/4 merges.** Stories now follow the user-story document's order. Every test cites its test case, story and AC, and a `Code:` line. New UI tests (React Testing Library) and browser tests (Playwright, `npm run test:browser`). `test/access-control.e2e-spec.ts` moved to the shared setup scripts (`tc-s1-67-setup.sql`). New `tc-s1-25-setup.sql` adds the Event Coordinator Lead. **Code change:** the request form now confirms a successful submission or save (US-03 AC-2). | this commit | TC-S1-25, 34, 58: Not Executed → Pass. New: TC-S1-64 to 78. All US-01, 03, 04 cases re-run. |
+| 2026-10-26 | **Regeneration, batch 2 (US-05 to US-08).** Every test commented with its test case, story/AC and a `Code:` line. US-06 AC-6 now uses `tc-s1-54-setup.sql` (a request assigned to the Coordinator); US-05 AC-4's "under review" step goes through a real clarification answer; US-07's assignment goes through the Lead's `/assignments` endpoint. New UI tests (Organiser list and form) and browser tests (`e2e/us05-us08-review.spec.ts`). **Code changes:** the request form now records any number of accessibility requirements and no longer drops all but the first when a request is reopened (US-06 AC-3); the Coordinator's review page shows accessibility needs in the form's wording. | this commit | TC-S1-54: Not Executed → Pass. New: TC-S1-79 to 83. All US-05 to US-08 cases re-run. |
+| 2026-10-26 | **Regeneration, batch 1 (US-01 to US-04), after the Sprint 3/4 merges.** Stories now follow the user-story document's order. Every test cites its test case, story and AC, and a `Code:` line. New UI tests (React Testing Library) and browser tests (Playwright, `npm run test:browser`). `test/access-control.e2e-spec.ts` moved to the shared setup scripts (`tc-s1-67-setup.sql`). New `tc-s1-25-setup.sql` adds the Event Coordinator Lead. **Code change:** the request form now confirms a successful submission or save (US-03 AC-2). | `7f8783b` | TC-S1-25, 34, 58: Not Executed → Pass. New: TC-S1-64 to 78. All US-01, 03, 04 cases re-run. |
 | 2026-10-17 | **Test apps match production; coverage gaps filled.** `configureApp()` is now shared by `main.ts` and the 8 converted integration files, so tests see the same pipes, `UnauthorizedFilter` and CORS as production; no existing result changed. Two tests were added from coverage-s1.md: the 401 carries `WWW-Authenticate` and `loginUrl`, and a numeric email gets 400. | `895d205` (setup); this commit (tests) | TC-S1-56 and TC-S1-57 (extra test each; still Pass). |
 | 2026-10-17 | **Concurrent clarification responses made atomic (audit gap #3).** `respondToClarification()` starts its transaction with the same row lock as the review decisions (`claimForDecision`), so a second, simultaneous response gets 409 and stores nothing. The conflict message is now neutral: "this request has just been updated by someone else; reload it and try again". | this commit | TC-S1-63 (new; Fail as `it.failing` in `da1e278`, now Pass). |
 | 2026-10-17 | **Concurrent review decisions made atomic (audit gap #2).** Approve, reject, return and request clarification each start their transaction by row-locking the request only while it still holds the status that was read (`claimForDecision`, `SELECT … FOR UPDATE`). A concurrent decision waits, then gets 409 Conflict, and its reason, question and history roll back. `setStatus()` is still the only writer of status. | `61401ec` | TC-S1-07 (Fail → Pass; the race test is now a regular regression test, no longer `it.failing`, and requires the loser to get 409). |
@@ -1807,5 +1914,4 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 |---|---|---|
 | TC-S1-15 | US-09 AC-1 (UI) | A UI or browser check that the clarification form offers a text field (batch 3) |
 | TC-S1-20 | US-09 AC-4 | Checking the Coordinator is notified of a response (batch 3) |
-| TC-S1-54 | US-06 AC-6 | The assigned Coordinator's view of layout and accessibility (batch 2) |
 | US-10 to US-15 | all | Test cases to be written in batches 3 and 4 |

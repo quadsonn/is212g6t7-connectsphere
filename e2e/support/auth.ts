@@ -10,6 +10,8 @@ export const USERS = {
   venueStaff: 'venue.staff@example.com',
   techSupport: 'tech.support@example.com',
   attendee: 'attendee@example.com',
+  /** Only in tc-s1-25-setup.sql. */
+  lead: 'lead@example.com',
 } as const;
 
 /** Signs in through the login form, as a user would. */

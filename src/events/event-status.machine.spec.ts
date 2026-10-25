@@ -23,6 +23,8 @@ describe('Event state machine (US-11)', () => {
     ...overrides,
   }) as never;
 
+  // TC-S1-88 · US-11 AC-1 · unit: the status machine (event-status.machine.ts) · fails if a status
+  // has no row, or a status could be two things at once
   describe('AC-1: exactly one status, and the table covers them all', () => {
     it('covers the ten statuses the acceptance criteria enumerate', () => {
       for (const status of [
@@ -64,6 +66,8 @@ describe('Event state machine (US-11)', () => {
     });
   });
 
+  // TC-S1-88 · US-11 AC-3 · unit · fails if an action from US-03 to US-09 could move a request along
+  // an edge the stories do not allow
   describe('transition rules gathered from US-03..US-09', () => {
     it('allows the submission path', () => {
       expect(canTransition(EventStatus.DRAFT, EventStatus.SUBMITTED)).toBe(true);
@@ -195,6 +199,8 @@ describe('Event state machine (US-11)', () => {
     });
   });
 
+  // TC-S1-89 · US-11 AC-2 · unit: the status view builder · fails if a rejection is shown without
+  // its decision and reason
   describe('AC-2: a decision is shown with its reason', () => {
     it('reports a rejection with its reason', () => {
       const view = buildStatusView(
@@ -265,6 +271,7 @@ describe('Event state machine (US-11)', () => {
     });
   });
 
+  // TC-S1-88 · US-11 AC-3 · unit · fails if the shown status could lag behind the stored one
   describe('AC-3: the view is derived, never cached', () => {
     it('reflects whatever the record currently holds', () => {
       const before = buildStatusView(record({ status: EventStatus.SUBMITTED }));

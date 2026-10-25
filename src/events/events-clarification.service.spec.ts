@@ -99,6 +99,8 @@ describe('EventsService clarification (US-09)', () => {
     );
   });
 
+  // TC-S1-16 · US-09 AC-2 · unit: askClarification() with Prisma and notifications mocked · fails if
+  // the question is not saved against its own request
   describe('AC-2: the question is tied to its event request', () => {
     it('appends a thread entry against the event', async () => {
       await service.askClarification(coordinator, 'event-1', {
@@ -131,6 +133,8 @@ describe('EventsService clarification (US-09)', () => {
     });
   });
 
+  // TC-S1-19 · US-09 AC-3 · unit · fails if asking does not move the request to
+  // AWAITING_CLARIFICATION through setStatus()
   describe('AC-3: status becomes AWAITING_CLARIFICATION', () => {
     it('transitions through setStatus', async () => {
       const result = await service.askClarification(coordinator, 'event-1', {
@@ -179,6 +183,8 @@ describe('EventsService clarification (US-09)', () => {
     });
   });
 
+  // TC-S1-20 · US-09 AC-4 · unit · fails if the Coordinator (on an answer) or the Organiser (on a
+  // question) is not notified
   describe('AC-4: notifications are raised, not skipped', () => {
     it('notifies the Organiser when a question is asked', async () => {
       await service.askClarification(coordinator, 'event-1', { question: 'Q?' });
@@ -239,6 +245,8 @@ describe('EventsService clarification (US-09)', () => {
     });
   });
 
+  // TC-S1-19, TC-S1-21 · US-09 AC-4, AC-5 · unit: respondToClarification() · fails if the answer is
+  // not added to the thread or the request does not return to UNDER_REVIEW
   describe('AC-4/AC-5: the Organiser responds', () => {
     it('appends the response to the same thread', async () => {
       stored = event({ status: EventStatus.AWAITING_CLARIFICATION });
@@ -302,6 +310,8 @@ describe('EventsService clarification (US-09)', () => {
     });
   });
 
+  // TC-S1-22 · US-09, US-02 AC-5/AC-6 · unit · fails if anyone but the assigned Coordinator can ask,
+  // or anyone but the owning Organiser can answer
   describe('permissions', () => {
     it('asks under the CLARIFY grant', async () => {
       await service.askClarification(coordinator, 'event-1', { question: 'Q?' });

@@ -9,7 +9,14 @@ import { loadSql } from './helpers/load-sql';
 import { resetDb } from './helpers/reset-db';
 
 /**
- * US-09 e2e — clarification thread and audit trail.
+ * US-09 (Request clarification from the Organiser through the system),
+ * integration tests: the real Nest app over HTTP (Supertest) and the local test
+ * database, one describe per acceptance criterion. Code under test:
+ * POST /events/:id/clarifications -> askClarification() (AWAITING_CLARIFICATION,
+ * notifies the Organiser) and POST /events/:id/clarifications/responses ->
+ * respondToClarification() (UNDER_REVIEW, notifies the Coordinator), both
+ * through claimForDecision() and setStatus(); the thread is ClarificationMessage.
+ * The "US-58" block at the end is a Sprint 4 story's tests, kept here.
  *
  * Pre-condition for every test: reset the testDB, then run
  * test/fixtures/sql/base-users.sql; each test then loads the tc-s1 script its
@@ -106,7 +113,8 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   describe('AC-1: a text field is available for the question', () => {
-    // TC-S1-18 · setup: base-users + tc-s1-01-setup · fails if a whitespace-only question is accepted (regression for audit gap #1)
+    // TC-S1-18 · US-09 AC-1 · setup: base-users + tc-s1-01-setup · fails if a whitespace-only question is accepted (regression for audit gap #1)
+    // Code: @Trim() runs before @IsNotEmpty, so "   " is refused with 400 (fixed in 93316fa).
     it('rejects a whitespace-only question', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -120,7 +128,9 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(stored.clarificationRequest).toBeNull();
     });
 
-    // TC-S1-16 · setup: base-users + tc-s1-01-setup · fails if a free-text question was refused or not stored
+    // TC-S1-16 · US-09 AC-1 · setup: base-users + tc-s1-01-setup · fails if a free-text question was refused or not stored
+    // Code: POST /events/:id/clarifications (AskClarificationDto: question @Trim @IsNotEmpty) ->
+    // askClarification() stores it as a ClarificationMessage.
     it('accepts a free-text question', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -132,7 +142,8 @@ describe('US-09 clarification thread (e2e)', () => {
       );
     });
 
-    // TC-S1-17 · setup: base-users + tc-s1-01-setup · fails if an empty question was accepted
+    // TC-S1-17 · US-09 AC-1 · setup: base-users + tc-s1-01-setup · fails if an empty question was accepted
+    // Code: @IsNotEmpty answers 400 "a question is required to request clarification".
     it('requires the question to be non-empty', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -143,7 +154,8 @@ describe('US-09 clarification thread (e2e)', () => {
       );
     });
 
-    // TC-S1-17 · setup: base-users + tc-s1-01-setup · fails if a request with no question was accepted
+    // TC-S1-17 · US-09 AC-1 · setup: base-users + tc-s1-01-setup · fails if a request with no question was accepted
+    // Code: a body without question fails the same @IsNotEmpty check (400).
     it('rejects a missing question entirely', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -157,7 +169,9 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   describe('AC-2: the question is tied to its event request', () => {
-    // TC-S1-16 · setup: base-users + tc-s1-01-setup · fails if the question was not tied to its event request
+    // TC-S1-16 · US-09 AC-2 · setup: base-users + tc-s1-01-setup · fails if the question was not tied to its event request
+    // Code: askClarification() creates the ClarificationMessage with eventId and authorId in the
+    // same transaction.
     it('stores the message against the event', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -172,6 +186,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(messages[0].authorId).toBe(ids.coordinatorA);
     });
 
+    // TC-S1-16 · US-09 AC-2 · setup: base-users + tc-s1-01-setup · fails if one request's questions appeared on another's thread
+    // Code: the thread is read by eventId, so each request has its own.
     it('keeps threads on separate events apart', async () => {
       await given('tc-s1-02-setup');
       const a = EVENT.submitted;
@@ -189,7 +205,9 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   describe('AC-3: status becomes AWAITING_CLARIFICATION for both parties', () => {
-    // TC-S1-19 · setup: base-users + tc-s1-01-setup · fails if asking did not move the request to AWAITING_CLARIFICATION
+    // TC-S1-19 · US-09 AC-3 · setup: base-users + tc-s1-01-setup · fails if asking did not move the request to AWAITING_CLARIFICATION
+    // Code: askClarification() calls setStatus(AWAITING_CLARIFICATION) inside the transaction,
+    // after claimForDecision().
     it('updates the stored status', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -202,7 +220,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(stored.status).toBe(EventStatus.AWAITING_CLARIFICATION);
     });
 
-    // TC-S1-19 · setup: base-users + tc-s1-01-setup · fails if the Organiser could not see that clarification is needed
+    // TC-S1-19 · US-09 AC-3, US-05 AC-3 · setup: base-users + tc-s1-01-setup · fails if the Organiser could not see that clarification is needed
+    // Code: the Organiser's statusView reports AWAITING_CLARIFICATION with the question.
     it('is visible to the Organiser', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -218,7 +237,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(res.body.clarificationRequest).toMatch(/attendance/);
     });
 
-    // TC-S1-19 · setup: base-users + tc-s1-01-setup · fails if the Coordinator view showed a stale status
+    // TC-S1-19 · US-09 AC-3 · setup: base-users + tc-s1-01-setup · fails if the Coordinator view showed a stale status
+    // Code: GET /events/assigned/:id reads the same row.
     it('is visible to the Coordinator', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -232,6 +252,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(res.body.status).toBe(EventStatus.AWAITING_CLARIFICATION);
     });
 
+    // TC-S1-19 · US-09 AC-3 · setup: base-users + tc-s1-01-setup · fails if a question could be asked on a request never submitted
+    // Code: DRAFT -> AWAITING_CLARIFICATION is not an edge in the status machine, so 409.
     it('refuses to ask on a DRAFT', async () => {
       await given('tc-s1-02-setup');
       const event = EVENT.draft;
@@ -241,6 +263,9 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   describe('AC-4: the other party is notified', () => {
+    // TC-S1-20 · US-09 AC-4 (the other direction), with US-39 · setup: base-users + tc-s1-01-setup · fails if the Organiser was not told a question is waiting
+    // Code: askClarification() calls notifySafely(CLARIFICATION_REQUESTED) for the Organiser after
+    // the commit.
     it('notifies the Organiser when a question is asked', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -255,7 +280,9 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(notes[0].relatedEventId).toBe(event.id);
     });
 
-    // TC-S1-20 · setup: base-users + tc-s1-01-setup · fails if no notification was recorded for the Coordinator
+    // TC-S1-20 · US-09 AC-4 · setup: base-users + tc-s1-01-setup · fails if no notification was recorded for the Coordinator
+    // Code: respondToClarification() calls notifySafely(CLARIFICATION_ANSWERED) for the assigned
+    // Coordinator.
     it('notifies the Coordinator when the Organiser responds', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -271,6 +298,27 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(notes[0].relatedEventId).toBe(event.id);
     });
 
+    // TC-S1-20 · US-09 AC-4 · setup: base-users + tc-s1-01-setup · fails if the Coordinator's inbox did not show the answer, or not as unread
+    // Code: GET /notifications (NotificationsInboxService.list) and /notifications/unread-count
+    // read the caller's own notifications.
+    it('shows the answer in the Coordinator’s notifications inbox, unread', async () => {
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
+      await ask(event.id, 'Q?').expect(201);
+      await respond(event.id, 'We expect 320 attendees').expect(201);
+
+      const inbox = await http().get('/notifications').set('Authorization', as('coordinatorA')).expect(200);
+      const count = await http().get('/notifications/unread-count').set('Authorization', as('coordinatorA')).expect(200);
+
+      expect(inbox.body).toEqual([
+        expect.objectContaining({ type: NotificationType.CLARIFICATION_ANSWERED, read: false }),
+      ]);
+      expect(JSON.stringify(inbox.body[0])).toContain(event.id);
+      expect(count.body).toEqual({ unread: 1 });
+    });
+
+    // TC-S1-20 · US-09 AC-4 · setup: base-users + tc-s1-01-setup · fails if a new notification were stored as already read
+    // Code: notifications are created with read = false and a createdAt timestamp.
     it('records notifications unread, for a future feed to consume', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -285,6 +333,9 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   describe('the response path', () => {
+    // TC-S1-19 · US-09 AC-4, US-11 AC-3 · setup: base-users + tc-s1-01-setup · fails if answering left the request awaiting clarification
+    // Code: respondToClarification() calls setStatus(UNDER_REVIEW): the answer is now the
+    // Coordinator's to review.
     it('returns the request to UNDER_REVIEW', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -299,6 +350,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(stored.clarificationRequest).toBeNull();
     });
 
+    // TC-S1-87 · US-09 AC-4 · setup: base-users + tc-s1-01-setup · fails if an Organiser could "answer" a question nobody asked
+    // Code: respondToClarification() refuses unless the request is AWAITING_CLARIFICATION (409).
     it('refuses a response when nothing was asked', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -306,7 +359,8 @@ describe('US-09 clarification thread (e2e)', () => {
       await respond(event.id, 'Unprompted').expect(409);
     });
 
-    // TC-S1-22 · setup: base-users + tc-s1-01-setup + tc-s1-22-setup · fails if an Organiser could answer on someone else's request
+    // TC-S1-22 · US-09 AC-4, US-02 AC-5 · setup: base-users + tc-s1-01-setup + tc-s1-22-setup · fails if an Organiser could answer on someone else's request
+    // Code: assertEventAccess(CLARIFY) under OWN scope finds no row, so 404.
     it('refuses a response from another Organiser', async () => {
       await given('tc-s1-01-setup', 'tc-s1-22-setup');
       const event = EVENT.submitted;
@@ -320,6 +374,8 @@ describe('US-09 clarification thread (e2e)', () => {
       await respond(event.id, 'Not mine', 'otherOrganiser').expect(404);
     });
 
+    // TC-S1-87 · US-09 AC-4 · setup: base-users + tc-s1-01-setup · fails if an empty answer was accepted
+    // Code: RespondClarificationDto: response @Trim @IsNotEmpty (400).
     it('refuses an empty response', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -328,8 +384,9 @@ describe('US-09 clarification thread (e2e)', () => {
       await respond(event.id, '').expect(400);
     });
 
-    // TC-S1-63 · setup: base-users + tc-s1-01-setup (fresh before each of 20 iterations) · fails if two simultaneous responses to one question both succeed
-    // Regression test for audit gap #3 (fixed in the same commit as this test was switched to it(...))
+    // TC-S1-63 · US-09 AC-4 · setup: base-users + tc-s1-01-setup (fresh before each of 20 iterations) · fails if two simultaneous responses to one question both succeed
+    // Code: respondToClarification() starts with claimForDecision() (row lock while still
+    // AWAITING_CLARIFICATION); the second gets 409 (audit gap #3).
     it('accepts exactly one of two simultaneous responses to the same question', async () => {
       const ITERATIONS = 20;
       const violations: string[] = [];
@@ -375,7 +432,8 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   describe('AC-5: a timestamped audit trail with sender and time', () => {
-    // TC-S1-21 · setup: base-users + tc-s1-01-setup · fails if a question or answer was missing from the trail
+    // TC-S1-21 · US-09 AC-5 · setup: base-users + tc-s1-01-setup · fails if a question or answer was missing from the trail
+    // Code: the Organiser's view includes every ClarificationMessage of the event.
     it('shows the full exchange to the Organiser', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -398,7 +456,8 @@ describe('US-09 clarification thread (e2e)', () => {
       ]);
     });
 
-    // TC-S1-21 · setup: base-users + tc-s1-01-setup · fails if the Coordinator saw a different trail
+    // TC-S1-21 · US-09 AC-5 · setup: base-users + tc-s1-01-setup · fails if the Coordinator saw a different trail
+    // Code: the Coordinator's view reads the same messages.
     it('shows the same exchange to the Coordinator', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -413,7 +472,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(res.body.clarifications).toHaveLength(2);
     });
 
-    // TC-S1-21 · setup: base-users + tc-s1-01-setup · fails if an entry lost its sender
+    // TC-S1-21 · US-09 AC-5 · setup: base-users + tc-s1-01-setup · fails if an entry lost its sender
+    // Code: each message is returned with its author (id, name, role).
     it('identifies the sender of each entry', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -437,7 +497,8 @@ describe('US-09 clarification thread (e2e)', () => {
       });
     });
 
-    // TC-S1-21 · setup: base-users + tc-s1-01-setup · fails if entries were untimestamped or out of order
+    // TC-S1-21 · US-09 AC-5 · setup: base-users + tc-s1-01-setup · fails if entries were untimestamped or out of order
+    // Code: messages are ordered by createdAt ascending, each with its createdAt.
     it('timestamps every entry, in chronological order', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -458,6 +519,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect([...times]).toEqual([...times].sort((a, b) => a - b));
     });
 
+    // TC-S1-21 · US-09 AC-5 · setup: base-users + tc-s1-01-setup · fails if answering removed or replaced the question
+    // Code: both sides only ever create messages; none is updated or deleted.
     it('is append-only — an answered question stays in the trail', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -479,7 +542,8 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   describe('permissions', () => {
-    // TC-S1-22 · setup: base-users + tc-s1-01-setup + tc-s1-22-setup · fails if an unassigned Coordinator could ask a question
+    // TC-S1-22 · US-09 AC-2, US-02 AC-6 · setup: base-users + tc-s1-01-setup + tc-s1-22-setup · fails if an unassigned Coordinator could ask a question
+    // Code: assertEventAccess(CLARIFY) under ASSIGNED scope finds no row, so 404.
     it('refuses a Coordinator who is not assigned', async () => {
       await given('tc-s1-01-setup', 'tc-s1-22-setup');
       const event = EVENT.submitted;
@@ -487,6 +551,8 @@ describe('US-09 clarification thread (e2e)', () => {
       await ask(event.id, 'Q?', 'coordinatorB').expect(404);
     });
 
+    // TC-S1-22 · US-09 AC-1, US-02 AC-3 · setup: base-users + tc-s1-01-setup · fails if an Organiser could post a Coordinator's question
+    // Code: POST /events/:id/clarifications is @Roles(EVENT_COORDINATOR); RolesGuard answers 403.
     it('refuses an Organiser trying to ask', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -498,6 +564,8 @@ describe('US-09 clarification thread (e2e)', () => {
         .expect(403);
     });
 
+    // TC-S1-22 · US-09 AC-4, US-02 AC-3 · setup: base-users + tc-s1-01-setup · fails if a Coordinator could answer their own question
+    // Code: POST /events/:id/clarifications/responses is @Roles(EVENT_ORGANISER), so 403.
     it('refuses a Coordinator trying to respond', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -510,6 +578,8 @@ describe('US-09 clarification thread (e2e)', () => {
         .expect(403);
     });
 
+    // TC-S1-22 · US-09, US-02 AC-8 · setup: base-users + tc-s1-01-setup · fails if questions or answers could be posted without signing in
+    // Code: JwtAuthGuard answers 401 on both routes.
     it('refuses unauthenticated callers', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;

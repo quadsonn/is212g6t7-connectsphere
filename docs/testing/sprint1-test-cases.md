@@ -2,7 +2,7 @@
 
 Written test cases for the Sprint 1 user stories (US-01 to US-15), traced from story → acceptance criterion → test case → automated test. Stories appear in the order of the Sprint 1 user-story document, and story and AC numbers follow it and [docs/BACKLOG.md](../BACKLOG.md). AC numbers count the bullets in the order the story lists them.
 
-**Regeneration in progress (2026-10-26).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria and given UI and browser tests. Done: **US-01 to US-08**. US-09 still shows the 17 Oct results, and US-10 to US-15 get their test cases in the coming batches.
+**Regeneration in progress (2026-10-26).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria and given UI and browser tests. Done: **US-01 to US-12**. US-13 to US-15 get their test cases in the last batch.
 
 ## How to read this file
 
@@ -1665,19 +1665,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S1-15 |
 | Story/AC ref | US-09 AC-1 (UI) |
 | Test Scenario | The clarification form offers a text field for the question |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in to the web app as coord.a@example.com. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in to the web app as coord.a@example.com (the assigned Coordinator). |
 | Test Steps | 1. Open request `EVT-146`.<br>2. Choose "Request clarification" as the decision. |
 | Test Data | — |
 | Expected Result | A text field is shown for entering the clarification question. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | — |
-| Status | Not Executed |
-| Remarks | This AC is about the user interface. |
-| Executed By | — |
-| Date of Execution | — |
-| Automated by | Playwright (pending) |
+| Actual Result | Choosing "Request clarification" showed a "Clarification question" text field; the Submit decision button stayed disabled until it had text, then the question was sent and the request showed Awaiting clarification. |
+| Status | Pass |
+| Remarks | The same browser test continues through AC-2 to AC-5 (answer, notification, dated thread). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us09-us12-coordination.spec.ts::US-09: the Coordinator asks in a text field, the Organiser answers, and the Coordinator is notified and sees the dated thread` |
 
 ### TC-S1-16
 
@@ -1693,12 +1693,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | HTTP 201 with the question as the outstanding clarification. Exactly one message is stored for `EVT-146`, with the same text and Cody as author. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-clarification.e2e-spec.ts::accepts a free-text question`<br>Integration: `test/events-clarification.e2e-spec.ts::stores the message against the event` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::accepts a free-text question`<br>Integration: `test/events-clarification.e2e-spec.ts::stores the message against the event`<br>Integration: `test/events-clarification.e2e-spec.ts::keeps threads on separate events apart`<br>Unit: `src/events/events-clarification.service.spec.ts::EventsService clarification (US-09) AC-2: the question is tied to its event request` |
 
 ### TC-S1-17
 
@@ -1714,11 +1714,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | HTTP 400 with "a question is required to request clarification" for the empty question, and HTTP 400 for the missing field. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-clarification.e2e-spec.ts::requires the question to be non-empty`<br>Integration: `test/events-clarification.e2e-spec.ts::rejects a missing question entirely` |
 
 ### TC-S1-18
@@ -1735,11 +1735,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | HTTP 400 with "a question is required to request clarification". No clarification message was stored. The request stayed SUBMITTED with no outstanding question. 26/26 passed in each of 3 runs. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | Bug found by test audit; fixed (gap #1) in 93316fa. This test is its regression test. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-clarification.e2e-spec.ts::rejects a whitespace-only question` |
 
 ### TC-S1-19
@@ -1756,12 +1756,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | The stored status is AWAITING_CLARIFICATION. The Organiser's view shows that status with `clarificationRequested: true` and the question. The Coordinator's view shows the same status. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-clarification.e2e-spec.ts::updates the stored status`<br>Integration: `test/events-clarification.e2e-spec.ts::is visible to the Organiser`<br>Integration: `test/events-clarification.e2e-spec.ts::is visible to the Coordinator` |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::updates the stored status`<br>Integration: `test/events-clarification.e2e-spec.ts::is visible to the Organiser`<br>Integration: `test/events-clarification.e2e-spec.ts::is visible to the Coordinator`<br>Integration: `test/events-clarification.e2e-spec.ts::refuses to ask on a DRAFT`<br>Integration: `test/events-clarification.e2e-spec.ts::returns the request to UNDER_REVIEW`<br>Unit: `src/events/events-clarification.service.spec.ts::EventsService clarification (US-09) AC-3: status becomes AWAITING_CLARIFICATION` |
 
 ### TC-S1-20
 
@@ -1770,61 +1770,40 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S1-20 |
 | Story/AC ref | US-09 AC-4 |
 | Test Scenario | When the Organiser responds, the Coordinator is notified |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com and organiser@example.com. |
-| Test Steps | 1. Cody asks a question on `EVT-146`.<br>2. The Organiser submits a response.<br>3. Check Cody's notifications. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (the assigned Coordinator) and organiser@example.com. |
+| Test Steps | 1. The Coordinator asks a question on `EVT-146`.<br>2. The Organiser submits a response.<br>3. Check the Coordinator's notifications (`GET /notifications`, the unread count, and the bell in the browser). |
 | Test Data | Response "We expect 320 attendees" |
 | Expected Result | The Coordinator is notified that the Organiser has responded on this request. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | — (not recorded; see Remarks) |
-| Status | Not Executed |
-| Remarks | Notifications in progress (Sprint 3 story: Be Notified of My Request Outcome). The linked test currently checks only that a CLARIFICATION_ANSWERED notification record is stored for the Coordinator. It passed on 2026-10-17, but that is not yet the notification the AC describes. |
-| Executed By | — |
-| Date of Execution | — |
-| Automated by | Integration: `test/events-clarification.e2e-spec.ts::notifies the Coordinator when the Organiser responds` |
+| Actual Result | A CLARIFICATION_ANSWERED notification for EVT-146 was created for the Coordinator, unread, and appears in their inbox; the unread count was 1 and the bell showed "1 unread". |
+| Status | Pass |
+| Remarks | Sprint 3 added the notifications inbox and bell, so the notification now reaches the Coordinator, which is what the AC asks. The Organiser is likewise notified when a question is asked. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::notifies the Coordinator when the Organiser responds`<br>Integration: `test/events-clarification.e2e-spec.ts::shows the answer in the Coordinator’s notifications inbox, unread`<br>Integration: `test/events-clarification.e2e-spec.ts::notifies the Organiser when a question is asked`<br>Integration: `test/events-clarification.e2e-spec.ts::records notifications unread, for a future feed to consume`<br>Unit: `src/events/events-clarification.service.spec.ts::EventsService clarification (US-09) AC-4: notifications are raised, not skipped`<br>E2E: `e2e/us09-us12-coordination.spec.ts::US-09: the Coordinator asks in a text field, the Organiser answers, and the Coordinator is notified and sees the dated thread` |
 
-### TC-S1-21
+### TC-S1-87
 
 | Test case specification | |
 |---|---|
-| Test Case ID | TC-S1-21 |
-| Story/AC ref | US-09 AC-5 |
-| Test Scenario | Both parties see the whole exchange as a timestamped audit trail, with sender and time |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com and organiser@example.com. |
-| Test Steps | 1. Cody asks Q1, the Organiser answers A1, Cody asks Q2, and the Organiser answers A2.<br>2. The Organiser opens the request.<br>3. Cody opens the request. |
-| Test Data | "Q1: how many attendees?", "A1: 320", "Q2: any accessibility needs?", "A2: hearing loop" |
-| Expected Result | All questions and responses are shown in order, each with its sender and time, to both the Coordinator and the Organiser. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
+| Test Case ID | TC-S1-87 |
+| Story/AC ref | US-09 AC-4 (negative) |
+| Test Scenario | An answer is only accepted when a question is waiting, and must have content |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as organiser@example.com. |
+| Test Steps | 1. The Organiser responds on EVT-146 when nothing was asked.<br>2. After a question, they send an empty response. |
+| Test Data | EVT-146 |
+| Expected Result | Both are refused and nothing is added to the thread; the status is unchanged. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
 | **Test execution record** | |
-| Actual Result | The Organiser sees all 4 entries in order. Each entry names its author (id, role and email), every entry has a valid timestamp, and the timestamps are ascending. The Coordinator sees the same trail. |
+| Actual Result | 1: 409. 2: 400. |
 | Status | Pass |
-| Remarks | — |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-clarification.e2e-spec.ts::shows the full exchange to the Organiser`<br>Integration: `test/events-clarification.e2e-spec.ts::identifies the sender of each entry`<br>Integration: `test/events-clarification.e2e-spec.ts::timestamps every entry, in chronological order`<br>Integration: `test/events-clarification.e2e-spec.ts::shows the same exchange to the Coordinator` |
-
-### TC-S1-22
-
-| Test case specification | |
-|---|---|
-| Test Case ID | TC-S1-22 |
-| Story/AC ref | US-09 AC-2/AC-4, with US-02 AC-5/AC-6 (permission) |
-| Test Scenario | Only the assigned Coordinator can ask, and only the owning Organiser can answer |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql + tc-s1-22-setup.sql on testDB (reset before test). `EVT-146` is owned by organiser@example.com and assigned to Cody. Logged in as coord.b@example.com (not assigned) and other@example.com (a different Organiser). |
-| Test Steps | 1. Casey tries to ask a question on `EVT-146`.<br>2. Cody asks a question.<br>3. Otto (other@example.com) tries to answer it. |
-| Test Data | Question "Q?"; Otto's response "Not mine" |
-| Expected Result | Both attempts are denied. Neither Casey nor Otto can take part in this request's clarification thread. |
-| Created By | Raye Yap |
-| Date of Creation | 2026-10-17 |
-| **Test execution record** | |
-| Actual Result | Casey got HTTP 404 and Otto got HTTP 404. |
-| Status | Pass |
-| Remarks | Denied = 404 by design (agreed decision), as in TC-S1-06. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
-| Automated by | Integration: `test/events-clarification.e2e-spec.ts::refuses a Coordinator who is not assigned`<br>Integration: `test/events-clarification.e2e-spec.ts::refuses a response from another Organiser` |
+| Remarks | These tests had no test case before the regeneration. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::refuses a response when nothing was asked`<br>Integration: `test/events-clarification.e2e-spec.ts::refuses an empty response` |
 
 ### TC-S1-63
 
@@ -1840,35 +1819,314 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-17 |
 | **Test execution record** | |
-| Actual Result | After the fix: in 3 runs of 20 iterations (60 in total), one response returned 201 and the other 409 every time. The status was UNDER_REVIEW, with 1 answer stored and 1 notification record for Cody. (Before the fix: both returned 201 in 57 of 60 iterations, with 2 answers and 2 notifications. Only the first iteration of each run was clean.) |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | Bug found by test audit; fixed (gap #3). `respondToClarification()` now starts its transaction with the same row lock as the review decisions (`claimForDecision`), so the loser gets 409 and its answer and notification are never saved. The notification is checked as a stored record only (see TC-S1-20). Listed after TC-S1-22 to keep it with US-09. |
-| Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-17 |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-clarification.e2e-spec.ts::accepts exactly one of two simultaneous responses to the same question` |
 
+### TC-S1-21
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-21 |
+| Story/AC ref | US-09 AC-5 |
+| Test Scenario | Both parties see the whole exchange as a timestamped audit trail, with sender and time |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql on testDB (reset before test). Logged in as coord.a@example.com and organiser@example.com. |
+| Test Steps | 1. Cody asks Q1, the Organiser answers A1, Cody asks Q2, and the Organiser answers A2.<br>2. The Organiser opens the request.<br>3. Cody opens the request. |
+| Test Data | "Q1: how many attendees?", "A1: 320", "Q2: any accessibility needs?", "A2: hearing loop" |
+| Expected Result | All questions and responses are shown in order, each with its sender and time, to both the Coordinator and the Organiser. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::shows the full exchange to the Organiser`<br>Integration: `test/events-clarification.e2e-spec.ts::identifies the sender of each entry`<br>Integration: `test/events-clarification.e2e-spec.ts::timestamps every entry, in chronological order`<br>Integration: `test/events-clarification.e2e-spec.ts::shows the same exchange to the Coordinator`<br>Integration: `test/events-clarification.e2e-spec.ts::is append-only — an answered question stays in the trail`<br>Unit: `src/events/events-clarification.service.spec.ts::EventsService clarification (US-09) AC-4/AC-5: the Organiser responds` |
+
+### TC-S1-22
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-22 |
+| Story/AC ref | US-09 AC-2/AC-4, with US-02 AC-5/AC-6 (permission) |
+| Test Scenario | Only the assigned Coordinator can ask, and only the owning Organiser can answer |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-01-setup.sql + tc-s1-22-setup.sql on testDB (reset before test). `EVT-146` is owned by organiser@example.com and assigned to Cody. Logged in as coord.b@example.com (not assigned) and other@example.com (a different Organiser). |
+| Test Steps | 1. Casey tries to ask a question on `EVT-146`.<br>2. Cody asks a question.<br>3. Otto (other@example.com) tries to answer it. |
+| Test Data | Question "Q?"; Otto's response "Not mine" |
+| Expected Result | Both attempts are denied. Neither Casey nor Otto can take part in this request's clarification thread. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-17 |
+| **Test execution record** | |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | Denied = 404 by design (agreed decision), as in TC-S1-06. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-clarification.e2e-spec.ts::refuses a Coordinator who is not assigned`<br>Integration: `test/events-clarification.e2e-spec.ts::refuses a response from another Organiser`<br>Integration: `test/events-clarification.e2e-spec.ts::refuses an Organiser trying to ask`<br>Integration: `test/events-clarification.e2e-spec.ts::refuses a Coordinator trying to respond`<br>Integration: `test/events-clarification.e2e-spec.ts::refuses unauthenticated callers`<br>Unit: `src/events/events-clarification.service.spec.ts::EventsService clarification (US-09) permissions` |
+
 **US-09 AC ↔ code mismatches**
-- **AC-1 (fixed):** a whitespace-only question used to be accepted (audit gap #1). Fixed in 93316fa, and TC-S1-18 is now its regression test.
-- **AC-4:** "the Coordinator is notified" is only met by storing a notification record today. Nothing is delivered (no email, push or in-app feed). TC-S1-20 stays Not Executed until the Sprint 3 story "Be Notified of My Request Outcome" lands.
-- **AC-4 (fixed):** two simultaneous responses to one question were both accepted, storing two answers and notifying twice (audit gap #3). Fixed, and TC-S1-63 is now its regression test.
+- **AC-1 (fixed):** a whitespace-only question used to be accepted (audit gap #1). Fixed in 93316fa; TC-S1-18 is its regression test.
+- **AC-4 (resolved by Sprint 3):** "the Coordinator is notified" used to mean only a stored record. The notifications inbox and bell now show it to the Coordinator (TC-S1-20, now Pass).
+- **AC-4 (fixed):** two simultaneous responses to one question were both accepted (audit gap #3). Fixed; TC-S1-63 is its regression test.
 
 ---
 
 ## US-10 Be assigned as main point of contact for an event (Event Coordinator)
 
-Test cases for this story are written in a later batch of the Sprint 1 regeneration.
+### TC-S1-90
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-90 |
+| Story/AC ref | US-10 AC-1 |
+| Test Scenario | A Coordinator is linked to a submitted event as its main point of contact |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s1-84-setup.sql on testDB (reset before test). Logged in as lead@example.com (the Event Coordinator Lead) and coord.a@example.com. |
+| Test Steps | 1. The Lead assigns EVT-164 to coord.a (`POST /assignments/queue/EVT-164/assign`).<br>2. coord.a lists their requests.<br>3. Try to assign an Attendee instead. |
+| Test Data | `EVT-164` "Waiting for the Lead", SUBMITTED, no Coordinator |
+| Expected Result | coord.a becomes the request's Coordinator and it appears in their list; the status is still Submitted. Assigning someone who isn't a Coordinator is refused. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | coordinatorId = USR-004; listed for coord.a; status SUBMITTED; the Attendee assignment got 400 and nothing changed. |
+| Status | Pass |
+| Remarks | Week 7 Change 5: the Lead assigns (US-55); Coordinators no longer assign themselves. The Lead's own stories are tested in `test/events-assignment.e2e-spec.ts`. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-main-contact.e2e-spec.ts::links the Coordinator to the submitted request, and it appears in their list`<br>Integration: `test/events-main-contact.e2e-spec.ts::leaves the request’s status as it was`<br>Integration: `test/events-main-contact.e2e-spec.ts::refuses to make a non-Coordinator the contact` |
+
+### TC-S1-91
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-91 |
+| Story/AC ref | US-10 AC-2 |
+| Test Scenario | The event can be reassigned to a different Coordinator if availability changes |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s1-84-setup.sql on testDB (reset before test). |
+| Test Steps | 1. The Lead assigns EVT-164 to coord.a, then reassigns it to coord.b (`POST /assignments/events/EVT-164/reassign`).<br>2. Each Coordinator opens it.<br>3. coord.a tries to reassign it themselves. |
+| Test Data | EVT-164 |
+| Expected Result | After reassignment coord.b can open it and coord.a cannot. A Coordinator can't reassign; it is the Lead's action. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | coord.b 200, coord.a 404; coord.a's reassign attempt got 403 and nothing changed. |
+| Status | Pass |
+| Remarks | Reassigning is US-56 (the Lead). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-main-contact.e2e-spec.ts::hands the event to another Coordinator: the new one gains it, the old one loses it`<br>Integration: `test/events-main-contact.e2e-spec.ts::is the Lead’s action: a Coordinator cannot reassign` |
+
+### TC-S1-92
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-92 |
+| Story/AC ref | US-10 AC-3 |
+| Test Scenario | The assigned Coordinator is visible to any authorised user viewing the event |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s1-84-setup.sql on testDB (reset before test). (+ tc-s1-22-setup.sql + tc-s1-67-setup.sql for the Attendee's public event) |
+| Test Steps | 1. Before and after assignment, the Organiser opens EVT-164.<br>2. After a reassignment, the Organiser opens it again.<br>3. The assigned Coordinator opens it.<br>4. An Attendee opens the public event EVT-160. |
+| Test Data | Cody Coordinator (coord.a@example.com), Casey Coordinator (coord.b@example.com) |
+| Expected Result | No contact before assignment; then the Organiser, the Coordinator and an Attendee each see the Coordinator's name and email; after reassignment the Organiser sees the new one. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected in every view. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-main-contact.e2e-spec.ts::shows the Coordinator to the Organiser who raised the request`<br>Integration: `test/events-main-contact.e2e-spec.ts::shows the new contact after a reassignment`<br>Integration: `test/events-main-contact.e2e-spec.ts::shows the Coordinator in their own view of the event`<br>Integration: `test/events-main-contact.e2e-spec.ts::shows the Coordinator to an Attendee viewing a public event`<br>Integration: `test/events-main-contact.e2e-spec.ts::reports no contact until one is assigned`<br>Unit: `src/events/events-coordinator-view.service.spec.ts::EventsService coordinator view (US-12) contacts` |
+
+### TC-S1-93
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-93 |
+| Story/AC ref | US-10 AC-1, AC-3 (UI) |
+| Test Scenario | On screen, the Lead assigns a Coordinator, who then appears as the contact on the Organiser's request and has the request in their list |
+| Pre-conditions | Browser test: Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s1-84-setup.sql on testDB (reset before test). |
+| Test Steps | 1. The Lead opens EVT-164 in the unassigned queue, chooses Cody Coordinator and clicks "Assign".<br>2. The Organiser opens the request.<br>3. The Coordinator opens "My events". |
+| Test Data | EVT-164 |
+| Expected Result | The Lead sees "Assigned to Cody Coordinator". The Organiser sees "Cody Coordinator (coord.a@example.com)" as the assigned coordinator. The request is in Cody's list. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us09-us12-coordination.spec.ts::US-10: the Lead assigns a Coordinator, who becomes the contact the Organiser sees` |
+
+**US-10 AC ↔ code mismatches**
+- **Who assigns (Week 7 Change 5):** the story is written from the Coordinator's side ("I want to be assigned"); since Change 5 the Event Coordinator Lead makes every assignment and reassignment (US-55, US-56). The three outcomes US-10 asks for are tested through the Lead's endpoints. The old self-assign route, and its test file, were removed in Sprint 3.
+- **AC-2, "if availability changes":** the system doesn't record availability; the Lead decides when to reassign.
 
 ---
 
 ## US-11 Event status updates automatically as actions are taken (Event Coordinator)
 
-Test cases for this story are written in a later batch of the Sprint 1 regeneration.
+### TC-S1-88
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-88 |
+| Story/AC ref | US-11 AC-1, AC-3 |
+| Test Scenario | As other stories' actions are taken, the event shows exactly one status at a time, and the Organiser and the Coordinator always see the same, current one |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql on testDB (reset before test). Logged in as organiser@example.com, lead@example.com and coord.a@example.com. |
+| Test Steps | 1. The Organiser saves a draft and submits it.<br>2. The Lead assigns it to coord.a.<br>3. The Coordinator asks a question; the Organiser answers.<br>4. The Coordinator approves and starts planning.<br>5. The Organiser cancels it.<br>6. (Second request) Return for changes, then resubmit.<br>7. (Third request) Try an action that isn't allowed.<br>After each step, read the status as the Organiser and as the Coordinator. |
+| Test Data | "Lifecycle Gala" |
+| Expected Result | Draft → Submitted → (assigned, still Submitted) → Awaiting clarification → Under review → Approved → Planning → Cancelled; and Returned → Submitted. Both parties see the same status after each step, and it is always one of the defined statuses. A refused action leaves the status unchanged. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | Every step showed the expected status to both parties; the refused actions (404, 409) changed nothing. Each status has its own label on screen. |
+| Status | Pass |
+| Remarks | No status is written directly: every step goes through the real endpoint. See the US-11 notes for Awaiting arrangements (TC-S1-95). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-status-lifecycle.e2e-spec.ts::follows a request from draft to cancelled, showing one status at a time to both parties`<br>Integration: `test/events-status-lifecycle.e2e-spec.ts::reflects a return for changes and the resubmission`<br>Integration: `test/events-status-lifecycle.e2e-spec.ts::leaves the status as it was when an action is refused`<br>UI: `frontend/src/features/events/components/event-status-badge.test.tsx::Given %s, Then the badge shows its own label and no raw code`<br>UI: `frontend/src/features/events/components/event-status-badge.test.tsx::Then no two statuses share a label`<br>UI: `frontend/src/features/events/components/event-status-badge.test.tsx::Then every status the AC lists can be shown`<br>E2E: `e2e/us09-us12-coordination.spec.ts::US-09: the Coordinator asks in a text field, the Organiser answers, and the Coordinator is notified and sees the dated thread`<br>Unit: `src/events/event-status.machine.spec.ts::Event state machine (US-11) AC-1: exactly one status, and the table covers them all`<br>Unit: `src/events/event-status.machine.spec.ts::Event state machine (US-11) transition rules gathered from US-03..US-09`<br>Unit: `src/events/event-status.machine.spec.ts::Event state machine (US-11) AC-3: the view is derived, never cached`<br>Unit: `src/events/events-status-audit.spec.ts::status write audit (US-11)` |
+
+### TC-S1-89
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-89 |
+| Story/AC ref | US-11 AC-2 |
+| Test Scenario | A rejected request shows the decision and the reason along with its status |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql on testDB (reset before test). |
+| Test Steps | 1. Submit a request; the Lead assigns it to coord.a.<br>2. The Coordinator rejects it with "Clashes with exams".<br>3. Read it as the Organiser and as the Coordinator. |
+| Test Data | "Lifecycle Gala" |
+| Expected Result | Both see Rejected. The Organiser's status view carries the decision (Rejected) and the reason; the Coordinator sees the same reason. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | statusView.decision = { outcome: REJECTED, reason: "Clashes with exams" }; the Coordinator's decisionReason matched. In the browser the Organiser saw "Rejected: …" (TC-S1-83). |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-status-lifecycle.e2e-spec.ts::shows Rejected with the decision and the reason, to both parties`<br>Unit: `src/events/event-status.machine.spec.ts::Event state machine (US-11) AC-2: a decision is shown with its reason`<br>E2E: `e2e/us05-us08-review.spec.ts::US-08: Reject needs a reason before it can be confirmed, and the Organiser then sees the reason` |
+
+### TC-S1-95
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-95 |
+| Story/AC ref | US-11 AC-1 (Awaiting arrangements) |
+| Test Scenario | While arrangements are pending, the event shows "Awaiting arrangements" and whose action it is waiting on |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql on testDB (reset before test). |
+| Test Steps | 1. Take a request to Planning and request a venue and equipment that are still pending.<br>2. Read its status. |
+| Test Data | — |
+| Expected Result | The status is Awaiting arrangements, with who the pending action is from (the AC's example: "pending action from __"). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | The status stays Planning. Nothing in the system moves an event to AWAITING_ARRANGEMENTS, and no "pending action from" information exists. The status machine's own comment says so. |
+| Status | Fail |
+| Remarks | **Code gap, not fixed:** the AC leaves "pending action from __" blank, so which events count and whose action is shown is a team decision. Inventing it would add a requirement. The status itself exists, has a label, and can be shown (TC-S1-88). |
+| Executed By | Marilyn Ong (code inspection: event-status.machine.ts, events.service.ts) |
+| Date of Execution | 2026-10-26 |
+| Automated by | GAP |
+
+**US-11 AC ↔ code mismatches**
+- **AC-1, Awaiting arrangements (code gap, TC-S1-95 Fail):** the status exists, but nothing moves an event into it, and there is no "pending action from __" information (the AC leaves the blank unfilled). The team needs to decide what triggers it and whose action it names.
+- **AC-1:** the system has more statuses than the AC lists (Returned, Awaiting clarification, Week 7 Change 6's Awaiting safety check and Safety rejected). Each is shown with its own label.
 
 ---
 
 ## US-12 View all details of a submitted event request (Event Coordinator)
 
-Test cases for this story are written in a later batch of the Sprint 1 regeneration.
+### TC-S1-84
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-84 |
+| Story/AC ref | US-12 AC-1 |
+| Test Scenario | The assigned Coordinator viewing a submitted request sees the name, description, purpose, dates, attendance, venue requirements and accessibility needs |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-54-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Open EVT-153 (`GET /events/assigned/EVT-153`).<br>2. List assigned requests (`GET /events/assigned`). |
+| Test Data | `EVT-153` "Freshman Orientation 2030": every detail filled in (layout THEATRE, Step-free access + Hearing loop, equipment needs, registration on), SUBMITTED, assigned to coord.a (USR-004) |
+| Expected Result | Every core detail is returned as entered, plus the layout, layout notes, accessibility requirements and notes, and who raised it. The list shows the same detail. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | All fields matched; the Organiser was identified (USR-006, organiser@example.com). |
+| Status | Pass |
+| Remarks | The suite was converted to the shared setup scripts in this regeneration (it used to create its own users and rows). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-coordinator-view.e2e-spec.ts::returns name, purpose, description, dates and attendance`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::returns the venue requirements`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::returns the accessibility needs`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::identifies who raised the request`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::lists the assigned requests with the same detail`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::does not treat "assigned" as an event id`<br>Unit: `src/events/events-coordinator-view.service.spec.ts::EventsService coordinator view (US-12) AC-1: core details are all present` |
+
+### TC-S1-85
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-85 |
+| Story/AC ref | US-12 AC-2 |
+| Test Scenario | Equipment and registration requirements are shown alongside the core details, and their absence is shown as none |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-54-setup.sql on testDB (reset before test). (+ tc-s1-84-setup.sql for the request with none) |
+| Test Steps | 1. Open EVT-153.<br>2. Open EVT-163, which has no equipment needs, no accessibility, and registration off. |
+| Test Data | `EVT-153` "Freshman Orientation 2030": every detail filled in (layout THEATRE, Step-free access + Hearing loop, equipment needs, registration on), SUBMITTED, assigned to coord.a (USR-004); `EVT-163` "Bare request" |
+| Expected Result | EVT-153 shows its equipment needs and that registration is open, with the core details. EVT-163 shows them as none (empty, not missing). |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | On screen, see TC-S1-94. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-coordinator-view.e2e-spec.ts::shows equipment needs alongside the core details`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::shows the registration setting`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::reports absent requirements explicitly rather than omitting the keys`<br>Unit: `src/events/events-coordinator-view.service.spec.ts::EventsService coordinator view (US-12) AC-2: equipment and registration requirements` |
+
+### TC-S1-94
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-94 |
+| Story/AC ref | US-12 AC-1, AC-2 (UI) |
+| Test Scenario | On the review page, the assigned Coordinator sees every detail of the request, including equipment needs and registration |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + tc-s1-54-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Open EVT-153 for review. |
+| Test Data | `EVT-153` "Freshman Orientation 2030": every detail filled in (layout THEATRE, Step-free access + Hearing loop, equipment needs, registration on), SUBMITTED, assigned to coord.a (USR-004) |
+| Expected Result | The page shows the name, purpose, description, dates, attendance, layout, accessibility needs and notes, the Organiser's equipment needs, and that registration is open. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | Every detail shown. |
+| Status | Pass |
+| Remarks | **Code changed in this regeneration:** the review page did not show the Organiser's equipment needs, although the API returned them. It now has an "Equipment needs" card (`coordinator-event-detail.tsx`). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us09-us12-coordination.spec.ts::US-12: the assigned Coordinator sees every detail of the request, including equipment and registration` |
+
+### TC-S1-86
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-86 |
+| Story/AC ref | US-12 AC-3 |
+| Test Scenario | A user who isn't assigned to or associated with the event can't view it, and gets no event data |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-22-setup.sql + tc-s1-54-setup.sql on testDB (reset before test). (+ tc-s1-84-setup.sql for the unassigned request and draft) |
+| Test Steps | 1. coord.b opens EVT-153 and lists their requests.<br>2. The Organisers, an Attendee and Venue Staff use the Coordinator's view.<br>3. Call it without a token.<br>4. Any Coordinator opens the unassigned EVT-164 and the draft EVT-165, and a made-up id. |
+| Test Data | `EVT-153` "Freshman Orientation 2030": every detail filled in (layout THEATRE, Step-free access + Hearing loop, equipment needs, registration on), SUBMITTED, assigned to coord.a (USR-004) |
+| Expected Result | Every one is refused with no event data and no Organiser contact details: 404 for an out-of-scope Coordinator, 403 for other roles, 401 without a token. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected in all cases. |
+| Status | Pass |
+| Remarks | Denied = 404 by design for a Coordinator, so the request's existence isn't revealed. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-coordinator-view.e2e-spec.ts::denies a Coordinator the request is not assigned to`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::keeps it out of another Coordinator’s list`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::refuses %s at the role gate`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::refuses an unauthenticated caller`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::does not leak the organiser’s contact details on denial`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::denies an event that does not exist`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::hides an unassigned SUBMITTED request from every Coordinator`<br>Integration: `test/events-coordinator-view.e2e-spec.ts::never exposes an unassigned DRAFT`<br>Unit: `src/events/events-coordinator-view.service.spec.ts::EventsService coordinator view (US-12) AC-3: unauthorised callers get no data`<br>Unit: `src/events/events-coordinator-view.service.spec.ts::EventsService coordinator view (US-12) reuses the US-02 ownership helper` |
+
+**US-12 AC ↔ code mismatches**
+- **AC-2 (fixed in this regeneration):** the API returned the Organiser's equipment needs, but the Coordinator's review page didn't show them. It now does (TC-S1-94).
+- **AC-1, "venue requirements":** read as layout, layout notes and attendance, plus the required facilities added in Sprint 4 (US-20 AC-3), which the page also shows.
 
 ---
 
@@ -1896,7 +2154,8 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 
 | Date | Change | Commit | Test cases affected |
 |---|---|---|---|
-| 2026-10-26 | **Regeneration, batch 2 (US-05 to US-08).** Every test commented with its test case, story/AC and a `Code:` line. US-06 AC-6 now uses `tc-s1-54-setup.sql` (a request assigned to the Coordinator); US-05 AC-4's "under review" step goes through a real clarification answer; US-07's assignment goes through the Lead's `/assignments` endpoint. New UI tests (Organiser list and form) and browser tests (`e2e/us05-us08-review.spec.ts`). **Code changes:** the request form now records any number of accessibility requirements and no longer drops all but the first when a request is reopened (US-06 AC-3); the Coordinator's review page shows accessibility needs in the form's wording. | this commit | TC-S1-54: Not Executed → Pass. New: TC-S1-79 to 83. All US-05 to US-08 cases re-run. |
+| 2026-10-26 | **Regeneration, batch 3 (US-09 to US-12).** Every test commented with its test case, story/AC and a `Code:` line. `test/events-coordinator-view.e2e-spec.ts` moved to the shared setup scripts (`tc-s1-54-setup.sql`, new `tc-s1-84-setup.sql`). New integration tests: `events-status-lifecycle.e2e-spec.ts` (US-11, one request through every action) and `events-main-contact.e2e-spec.ts` (US-10 through the Lead's endpoints); a test that the Organiser's answer reaches the Coordinator's inbox. New UI test (status labels) and browser tests (`e2e/us09-us12-coordination.spec.ts`). **Code change:** the Coordinator's review page now shows the Organiser's equipment needs (US-12 AC-2). | this commit | TC-S1-15, 20: Not Executed → Pass. New: TC-S1-84 to 95 (TC-S1-95 Fail: Awaiting arrangements is never set). All US-09 cases re-run. |
+| 2026-10-26 | **Regeneration, batch 2 (US-05 to US-08).** Every test commented with its test case, story/AC and a `Code:` line. US-06 AC-6 now uses `tc-s1-54-setup.sql` (a request assigned to the Coordinator); US-05 AC-4's "under review" step goes through a real clarification answer; US-07's assignment goes through the Lead's `/assignments` endpoint. New UI tests (Organiser list and form) and browser tests (`e2e/us05-us08-review.spec.ts`). **Code changes:** the request form now records any number of accessibility requirements and no longer drops all but the first when a request is reopened (US-06 AC-3); the Coordinator's review page shows accessibility needs in the form's wording. | `a0d820c` | TC-S1-54: Not Executed → Pass. New: TC-S1-79 to 83. All US-05 to US-08 cases re-run. |
 | 2026-10-26 | **Regeneration, batch 1 (US-01 to US-04), after the Sprint 3/4 merges.** Stories now follow the user-story document's order. Every test cites its test case, story and AC, and a `Code:` line. New UI tests (React Testing Library) and browser tests (Playwright, `npm run test:browser`). `test/access-control.e2e-spec.ts` moved to the shared setup scripts (`tc-s1-67-setup.sql`). New `tc-s1-25-setup.sql` adds the Event Coordinator Lead. **Code change:** the request form now confirms a successful submission or save (US-03 AC-2). | `7f8783b` | TC-S1-25, 34, 58: Not Executed → Pass. New: TC-S1-64 to 78. All US-01, 03, 04 cases re-run. |
 | 2026-10-17 | **Test apps match production; coverage gaps filled.** `configureApp()` is now shared by `main.ts` and the 8 converted integration files, so tests see the same pipes, `UnauthorizedFilter` and CORS as production; no existing result changed. Two tests were added from coverage-s1.md: the 401 carries `WWW-Authenticate` and `loginUrl`, and a numeric email gets 400. | `895d205` (setup); this commit (tests) | TC-S1-56 and TC-S1-57 (extra test each; still Pass). |
 | 2026-10-17 | **Concurrent clarification responses made atomic (audit gap #3).** `respondToClarification()` starts its transaction with the same row lock as the review decisions (`claimForDecision`), so a second, simultaneous response gets 409 and stores nothing. The conflict message is now neutral: "this request has just been updated by someone else; reload it and try again". | this commit | TC-S1-63 (new; Fail as `it.failing` in `da1e278`, now Pass). |
@@ -1912,6 +2171,5 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 
 | Test case | Story/AC | What's missing |
 |---|---|---|
-| TC-S1-15 | US-09 AC-1 (UI) | A UI or browser check that the clarification form offers a text field (batch 3) |
-| TC-S1-20 | US-09 AC-4 | Checking the Coordinator is notified of a response (batch 3) |
-| US-10 to US-15 | all | Test cases to be written in batches 3 and 4 |
+| TC-S1-95 | US-11 AC-1 | No test: the behaviour doesn't exist yet (nothing sets Awaiting arrangements). A team decision is needed first. |
+| US-13 to US-15 | all | Test cases to be written in batch 4 |

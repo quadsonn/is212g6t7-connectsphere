@@ -414,6 +414,21 @@ export function CoordinatorEventDetail() {
           </Card>
           <EquipmentUnavailableNotice items={event.unavailableEquipment} />
 
+          {/* US-12 AC-2: the Organiser's own description of the equipment they need,
+              shown with the core details (the structured list is the card below). */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Equipment needs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {event.equipmentNeeds?.trim() ? (
+                <p className="whitespace-pre-line text-sm text-ink-800">{event.equipmentNeeds}</p>
+              ) : (
+                <p className="text-sm text-ink-500">None recorded.</p>
+              )}
+            </CardContent>
+          </Card>
+
           <TechnicalRequirementsCard event={event} editable={inPlanning && isAssignedToMe} />
 
           {/* US-61: only the event's own Coordinator assigns, and only once

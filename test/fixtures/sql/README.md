@@ -23,7 +23,8 @@ Both helpers check that they are connected to a local `_test` database before wr
 | `tc-s1-42-setup.sql` | 3 drafts: plain, returned with a question, and one asked about attendance | TC-S1-42 (US-05 AC-3) |
 | `tc-s1-45-setup.sql` | 1 APPROVED request | TC-S1-45 (US-05 AC-4) |
 | `tc-s1-46-setup.sql` | 1 request of USR-006's and 2 of USR-007's. Load after `tc-s1-22-setup`. | TC-S1-46 (US-05 AC-5) |
-| `tc-s1-54-setup.sql` | 1 SUBMITTED request with layout and accessibility, assigned to `USR-004` | TC-S1-54 (US-06 AC-6). Not yet loaded; linked when `events-coordinator-view` is converted (group 3). |
+| `tc-s1-54-setup.sql` | 1 SUBMITTED request with every detail filled in (layout, accessibility, equipment needs, registration), assigned to `USR-004` | TC-S1-54 (US-06 AC-6), TC-S1-84 to 86 and 94 (US-12) |
+| `tc-s1-84-setup.sql` | 3 of USR-006's requests: SUBMITTED and assigned with no optional details, SUBMITTED and unassigned, and an unassigned DRAFT | TC-S1-85, 86 (US-12), TC-S1-90 to 93 (US-10) |
 | `tc-s1-25-setup.sql` | The Event Coordinator Lead, `USR-012` / lead@example.com | TC-S1-25 (US-03 AC-2: a new submission reaches the Lead's unassigned queue) |
 | `tc-s1-67-setup.sql` | 2 CONFIRMED events (one per Organiser) and 1 draft, with "INTERNAL …" planning notes. Load after `tc-s1-22-setup`. | TC-S1-67 to 75 (US-02), integration and browser tests |
 
@@ -126,6 +127,14 @@ Every row uses purpose "Purpose", description "Description", category "Conferenc
 | `EVT-162` | DRAFT | `USR-006` | none | "Unreviewed draft"; same notes, registration window not set |
 
 None has a venue booking, so Venue Staff (RELATED scope) see none of them.
+
+### `tc-s1-84-setup.sql`
+
+| ID | Status | Organiser | Coordinator | Key values |
+|---|---|---|---|---|
+| `EVT-163` | SUBMITTED | `USR-006` | `USR-004` | "Bare request": no equipment needs, accessibility or notes; registration off |
+| `EVT-164` | SUBMITTED | `USR-006` | none | "Waiting for the Lead": in the Lead's unassigned queue |
+| `EVT-165` | DRAFT | `USR-006` | none | "Unfinished draft" |
 
 ## Browser tests (Playwright)
 

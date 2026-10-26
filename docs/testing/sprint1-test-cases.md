@@ -2,7 +2,7 @@
 
 Written test cases for the Sprint 1 user stories (US-01 to US-15), traced from story → acceptance criterion → test case → automated test. Stories appear in the order of the Sprint 1 user-story document, and story and AC numbers follow it and [docs/BACKLOG.md](../BACKLOG.md). AC numbers count the bullets in the order the story lists them.
 
-**Regeneration in progress (2026-10-26).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria and given UI and browser tests. Done: **US-01 to US-12**. US-13 to US-15 get their test cases in the last batch.
+**Regenerated 2026-10-26.** After the Sprint 3 and Sprint 4 merges, every story (US-01 to US-15) was re-checked against its acceptance criteria, its tests were commented with the test case and AC they prove, and UI and browser tests were added.
 
 ## How to read this file
 
@@ -2132,19 +2132,363 @@ All four use only the local test database (or none). None touches the shared Sup
 
 ## US-13 Add a new venue with its key characteristics (Venue Staff)
 
-Test cases for this story are written in a later batch of the Sprint 1 regeneration.
+### TC-S1-96
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-96 |
+| Story/AC ref | US-13 AC-1 |
+| Test Scenario | When adding a venue, Venue Staff can give its location, capacity, facilities, accessibility features, supported layouts and operating hours |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-96-setup.sql on testDB (reset before test). No venues exist; the test creates them. Logged in as venue.staff@example.com (Venue Staff, USR-010). |
+| Test Steps | 1. Create a venue with every detail filled in (`POST /venues/drafts`).<br>2. Try a facility, an accessibility feature and a layout outside the shared lists, and a capacity of "lots".<br>3. On the "Add a venue" screen, fill in every field and click "Save draft". |
+| Test Data | "Campus Green", "Outdoor, adjacent to Library", 800, Power outlets, Step-free access + Accessible restrooms, Banquet + Theatre, "Daily, subject to weather" |
+| Expected Result | Every detail is stored and returned as entered. Values outside the shared lists, and a non-numeric capacity, are refused with 400. The screen has a field for each detail and sends what was entered. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | All details stored as entered; the four bad values got 400. The form sent every field. |
+| Status | Pass |
+| Remarks | Facilities and accessibility use the US-18 lists, and layouts the US-06 list an event request uses, so a Coordinator's search can match them. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues.e2e-spec.ts::accepts location, capacity, facilities, accessibility, layouts and hours`<br>Integration: `test/venues.e2e-spec.ts::US-18: rejects facilities or accessibility outside the controlled vocabulary`<br>Integration: `test/venues.e2e-spec.ts::rejects a layout outside the shared US-06 vocabulary`<br>Integration: `test/venues.e2e-spec.ts::rejects a non-numeric capacity`<br>UI: `frontend/src/features/venues/components/venue-draft-form.test.tsx::AC-1: offers every venue detail and sends what was entered`<br>Unit: `src/venues/venues.service.spec.ts::VenuesService (US-13) AC-1: the full set of venue details` |
+
+### TC-S1-97
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-97 |
+| Story/AC ref | US-13 AC-2 |
+| Test Scenario | A venue with incomplete details can be saved as a draft |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-96-setup.sql on testDB (reset before test). No venues exist; the test creates them. Logged in as venue.staff@example.com (Venue Staff, USR-010). |
+| Test Steps | 1. Save a venue with nothing filled in, then one with only a name.<br>2. Complete a draft over several edits (`PATCH /venues/:id`).<br>3. As a Coordinator and an Attendee, try to add a venue.<br>4. On screen, click "Save draft" on an empty form. |
+| Test Data | "Half done"; "Sandbox Auditorium", "School of Computing, Level 1", 420 |
+| Expected Result | Both save as DRAFT, with the missing fields empty. Later edits keep what earlier ones saved. Other roles are refused (403). On screen the empty draft saves and "Draft saved." is shown. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected; 403 for both other roles and no venue created. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues.e2e-spec.ts::saves with nothing filled in`<br>Integration: `test/venues.e2e-spec.ts::saves a partially filled venue`<br>Integration: `test/venues.e2e-spec.ts::can be completed over several edits`<br>Integration: `test/venues.e2e-spec.ts::refuses %s at the role gate`<br>UI: `frontend/src/features/venues/components/venue-draft-form.test.tsx::AC-2: saves an empty form as a draft`<br>Unit: `src/venues/venues.service.spec.ts::VenuesService (US-13) AC-2: an incomplete venue saves as a draft` |
+
+### TC-S1-98
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-98 |
+| Story/AC ref | US-13 AC-3 |
+| Test Scenario | A draft can't be published until its required fields (name, location, capacity) are filled in |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-96-setup.sql on testDB (reset before test). No venues exist; the test creates them. Logged in as venue.staff@example.com (Venue Staff, USR-010). |
+| Test Steps | 1. Try to publish an empty draft, and one missing only the capacity.<br>2. Publish one with name, location and capacity only.<br>3. On screen, watch the "Publish to catalogue" button as the fields are filled. |
+| Test Data | "Sandbox Auditorium", "Level 1", 420 |
+| Expected Result | Publishing an incomplete draft is refused (400), naming every missing field, and it stays a draft. A draft with just the three required fields publishes. On screen, Publish stays disabled until all three are filled, and a refusal is shown under the missing field. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected: "name is required", "location is required", "capacity is required"; Publish enabled only after the capacity was entered. |
+| Status | Pass |
+| Remarks | The AC gives "e.g. name, capacity"; the team also requires the location (PublishableVenueDto). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues.e2e-spec.ts::blocks an empty draft and names each missing field`<br>Integration: `test/venues.e2e-spec.ts::blocks a draft missing only capacity`<br>Integration: `test/venues.e2e-spec.ts::publishes without facilities, layouts or operating hours`<br>UI: `frontend/src/features/venues/components/venue-draft-form.test.tsx::AC-3: keeps Publish disabled until the required fields are complete`<br>UI: `frontend/src/features/venues/components/venue-draft-form.test.tsx::AC-3: shows the server’s refusal against the field that is missing`<br>Unit: `src/venues/venues.service.spec.ts::VenuesService (US-13) AC-3: publishing is blocked until complete` |
+
+### TC-S1-99
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-99 |
+| Story/AC ref | US-13 AC-4 |
+| Test Scenario | A draft venue doesn't appear when a Coordinator browses or searches; only the Venue Staff member managing it can see it |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-96-setup.sql on testDB (reset before test). No venues exist; the test creates them. (US-15's checks also load base-venues.sql, whose `VEN-001` is a draft.) |
+| Test Steps | 1. venue.staff saves a draft.<br>2. A Coordinator and a second Venue Staff member (venue.staff2) list the catalogue, open the draft by id, and search for it.<br>3. venue.staff2 tries to edit and publish it.<br>4. venue.staff lists the catalogue. |
+| Test Data | "Unfinished venue"; `VEN-001` "Annex (draft)" |
+| Expected Result | Only venue.staff sees the draft. Everyone else gets no trace of it: not in the list or a search, 404 by id with no details, and 404 on edit or publish. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Denied = 404 by design, so the draft's existence isn't revealed. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues.e2e-spec.ts::hides a draft from a Coordinator browsing the catalogue`<br>Integration: `test/venues.e2e-spec.ts::hides a draft from another Venue Staff member`<br>Integration: `test/venues.e2e-spec.ts::shows the draft to its own manager`<br>Integration: `test/venues.e2e-spec.ts::denies fetching another manager’s draft by id`<br>Integration: `test/venues.e2e-spec.ts::refuses another manager’s attempt to edit or publish it`<br>Integration: `test/venues.e2e-spec.ts::refuses an unauthenticated caller`<br>Integration: `test/venues-browse.e2e-spec.ts::hides another manager’s draft from a Coordinator`<br>Integration: `test/venues-browse.e2e-spec.ts::hides it from a different Venue Staff member`<br>Integration: `test/venues-browse.e2e-spec.ts::never widens visibility through a search`<br>Unit: `src/venues/venues.service.spec.ts::VenuesService (US-13) AC-4: drafts are visible only to their manager`<br>Unit: `src/venues/venues.service.spec.ts::VenuesService (US-13) managing another staff member’s venue` |
+
+### TC-S1-100
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-100 |
+| Story/AC ref | US-13 AC-5 |
+| Test Scenario | Once the required fields are complete and the venue is published, it is saved and appears in the catalogue on the Coordinator's next load |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-96-setup.sql on testDB (reset before test). No venues exist; the test creates them. |
+| Test Steps | 1. A Coordinator lists the catalogue (empty).<br>2. venue.staff publishes a complete draft.<br>3. The Coordinator lists it again; so does an Organiser.<br>4. Publish it a second time. |
+| Test Data | "Sandbox Auditorium"; "Innovation Lab" |
+| Expected Result | The venue is stored as PUBLISHED and is in the Coordinator's (and Organiser's) next list. Publishing again changes nothing. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected; the catalogue is sent with Cache-Control: no-store. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues.e2e-spec.ts::appears to a Coordinator on the next load`<br>Integration: `test/venues.e2e-spec.ts::persists the change`<br>Integration: `test/venues.e2e-spec.ts::is idempotent`<br>Integration: `test/venues.e2e-spec.ts::becomes visible to an Organiser too`<br>Integration: `test/venues-browse.e2e-spec.ts::shows a newly published venue on the next load`<br>Unit: `src/venues/venues-browse.service.spec.ts::VenuesService browse (US-15) US-13 AC-5 / US-14 AC-2: no stale data` |
+
+### TC-S1-101
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-101 |
+| Story/AC ref | US-13 AC-6 |
+| Test Scenario | In the catalogue, Venue Staff can tell published venues from drafts |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-96-setup.sql on testDB (reset before test). No venues exist; the test creates them. For the screen: base-venues.sql's catalogue, API mocked. |
+| Test Steps | 1. venue.staff has one draft and one published venue, and lists the catalogue and opens each.<br>2. On the "Venue catalogue" screen, read each row's State. |
+| Test Data | "Still a draft", "Sandbox Auditorium"; `VEN-001` "Annex (draft)", `VEN-002` Main Hall |
+| Expected Result | Every entry carries its status. On screen each row has a "Draft" or "Published" label, and the manager's drafts are listed first. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues.e2e-spec.ts::labels each entry with its status`<br>Integration: `test/venues.e2e-spec.ts::shows the status on a single entry too`<br>Integration: `test/venues.e2e-spec.ts::does not treat "drafts" as a venue id`<br>Integration: `test/venues-browse.e2e-spec.ts::shows it to its own manager, listed before published entries`<br>UI: `frontend/src/pages/venue-catalogue.test.tsx::labels each venue Draft or Published` |
+
+### TC-S1-102
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-102 |
+| Story/AC ref | US-13 AC-1 to AC-6 (UI) |
+| Test Scenario | On screen, Venue Staff save an incomplete venue as a draft, finish and publish it, and the Coordinator sees it only once it is published |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql on testDB (reset before test). Logged in as venue.staff@example.com, then coord.a@example.com. |
+| Test Steps | 1. Venue Staff click "+ Add venue", enter only a name and click "Save draft".<br>2. Back in the catalogue, read its State.<br>3. The Coordinator opens Venues.<br>4. Venue Staff edit the venue, fill in the rest and click "Publish to catalogue".<br>5. The Coordinator opens Venues again. |
+| Test Data | "Sandbox Auditorium", "School of Computing, Level 1", 420, Projector, Step-free access, Theatre, 8:00 AM – 10:00 PM |
+| Expected Result | Publish is disabled while only the name is filled in; the draft saves and is labelled Draft; the Coordinator sees "No venues published yet". After publishing it is labelled Published and the Coordinator sees it with its location and capacity. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us13-us15-venues.spec.ts::US-13: Venue Staff save a draft, publish it once complete, and only then the Coordinator sees it` |
+
+**US-13 AC ↔ code mismatches**
+- **AC-3, "all required fields (e.g. name, capacity)":** the AC doesn't give the full list. The team requires name, location and capacity (PublishableVenueDto); nothing else is needed to publish.
+- **AC-4, venues created before this story:** `managedById` is nullable because older venues had no owner to backfill. A draft with no manager is visible to nobody.
 
 ---
 
 ## US-14 Update a venue's details as facilities change (Venue Staff)
 
-Test cases for this story are written in a later batch of the Sprint 1 regeneration.
+### TC-S1-103
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-103 |
+| Story/AC ref | US-14 AC-1 |
+| Test Scenario | Opening an existing venue, Venue Staff can edit any of its details |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s1-96-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com (Venue Staff, USR-010). |
+| Test Steps | 1. Edit Main Hall's capacity, facilities, accessibility, layouts and hours, then its name and location (`PATCH /venues/VEN-002`).<br>2. Try a layout outside the shared list.<br>3. A Coordinator, an Organiser and venue.staff2 each try an edit.<br>4. On the edit screen, check it opens with Main Hall's details, then change some and click "Save changes". |
+| Test Data | `VEN-002` Main Hall (Block A, Level 1, 300; Projector, Sound system, Stage; Step-free access, Hearing loop; Theatre, Banquet; 8:00 AM – 10:00 PM), `VEN-038` Seminar Room (40), `VEN-004` Rooftop Terrace (120), all PUBLISHED; `VEN-001` "Annex (draft)" DRAFT. All managed by venue.staff (USR-010). |
+| Expected Result | Every detail can be changed, and the response shows the new values. A bad layout gets 400. Other roles get 403 and another Venue Staff member 404, with nothing changed. The edit screen opens with the current details and saves the change for that venue; a published venue has no Publish button. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | The AC lists capacity, facilities, accessibility, layouts and operating hours; name and location are editable too. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-update.e2e-spec.ts::edits capacity, facilities, accessibility, layouts and hours`<br>Integration: `test/venues-update.e2e-spec.ts::edits the name and location`<br>Integration: `test/venues-update.e2e-spec.ts::rejects a layout outside the shared vocabulary`<br>Integration: `test/venues-update.e2e-spec.ts::refuses %s at the role gate`<br>Integration: `test/venues-update.e2e-spec.ts::refuses another manager’s venue`<br>UI: `frontend/src/features/venues/components/venue-draft-form.test.tsx::AC-1: opens with the current details and saves an edit to that venue`<br>UI: `frontend/src/features/venues/components/venue-draft-form.test.tsx::AC-1: does not offer to publish a venue that is already published`<br>Unit: `src/venues/venues-update.service.spec.ts::VenuesService update (US-14) AC-1: any detail can be edited`<br>Unit: `src/venues/venues-update.service.spec.ts::VenuesService update (US-14) ownership` |
+
+### TC-S1-104
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-104 |
+| Story/AC ref | US-14 AC-2 |
+| Test Scenario | Saved changes are stored, and the catalogue shows them on the next load |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s1-96-setup.sql on testDB (reset before test). |
+| Test Steps | 1. venue.staff changes Main Hall's capacity, then its hours, then Rooftop Terrace's capacity.<br>2. A Coordinator lists the catalogue and opens Main Hall. |
+| Test Data | `VEN-002` Main Hall (Block A, Level 1, 300; Projector, Sound system, Stage; Step-free access, Hearing loop; Theatre, Banquet; 8:00 AM – 10:00 PM), `VEN-038` Seminar Room (40), `VEN-004` Rooftop Terrace (120), all PUBLISHED; `VEN-001` "Annex (draft)" DRAFT. All managed by venue.staff (USR-010). |
+| Expected Result | Each change is in the database and in the Coordinator's next list; details that weren't edited are unchanged. The catalogue and a single venue are sent with Cache-Control: no-store, so no stale copy is shown. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-update.e2e-spec.ts::is visible to a Coordinator on next load`<br>Integration: `test/venues-update.e2e-spec.ts::persists to the database`<br>Integration: `test/venues-update.e2e-spec.ts::leaves the details it did not touch as they were`<br>Integration: `test/venues-browse.e2e-spec.ts::reflects an edit immediately`<br>Integration: `test/venues-browse.e2e-spec.ts::tells caches not to store the catalogue`<br>Integration: `test/venues-browse.e2e-spec.ts::tells caches not to store a single venue either`<br>Unit: `src/venues/venues-update.service.spec.ts::VenuesService update (US-14) AC-2: the change persists`<br>Unit: `src/venues/venues-browse.service.spec.ts::VenuesService browse (US-15) US-13 AC-5 / US-14 AC-2: no stale data` |
+
+### TC-S1-105
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-105 |
+| Story/AC ref | US-14 AC-3 |
+| Test Scenario | When a venue with active or upcoming bookings has a suitability-affecting detail changed (e.g. reduced capacity), Venue Staff are told the bookings may need review |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s1-96-setup.sql + tc-s1-105-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com (Venue Staff, USR-010). |
+| Test Steps | 1. Reduce Main Hall's capacity from 300 to 100; withdraw its Banquet layout; remove its Hearing loop.<br>2. Increase its capacity instead.<br>3. Reduce Seminar Room (finished booking only) and Rooftop Terrace (rejected booking only).<br>4. Reduce Main Hall with no bookings loaded.<br>5. On the edit screen, save a change the API warns about. |
+| Test Data | `BKG-001` upcoming APPROVED on Main Hall; `BKG-002` finished on Seminar Room; `BKG-003` REJECTED on Rooftop Terrace |
+| Expected Result | Step 1: the change is saved, and the response carries a BOOKINGS_MAY_NEED_REVIEW warning naming BKG-001 and the reason; a notification is created for the Venue Staff member. Steps 2–4: no warning. Step 5: the warning is shown on screen. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected: "1 existing booking(s) on this venue may need review: capacity reduced from 300 to 100"; one VENUE_CHANGED_BOOKINGS_AFFECTED notification. |
+| Status | Pass |
+| Remarks | **Code changed in this regeneration:** the API returned the warning, but the edit screen didn't show it (it appeared only in the notifications inbox, at the bell's next poll). The form now shows it after saving, and the bell refreshes at once. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-update.e2e-spec.ts::warns when capacity is reduced on a venue with a live booking`<br>Integration: `test/venues-update.e2e-spec.ts::applies the change anyway — a warning is not a rejection`<br>Integration: `test/venues-update.e2e-spec.ts::records a durable notification for the staff member`<br>Integration: `test/venues-update.e2e-spec.ts::warns when a layout is withdrawn`<br>Integration: `test/venues-update.e2e-spec.ts::warns when an accessibility feature is removed`<br>Integration: `test/venues-update.e2e-spec.ts::does not warn when capacity increases`<br>Integration: `test/venues-update.e2e-spec.ts::does not warn when the venue has no live bookings`<br>Integration: `test/venues-update.e2e-spec.ts::ignores a booking that has already finished`<br>Integration: `test/venues-update.e2e-spec.ts::ignores a rejected booking`<br>UI: `frontend/src/features/venues/components/venue-draft-form.test.tsx::AC-3: shows the warning when the change may affect existing bookings`<br>UI: `frontend/src/features/venues/components/venue-draft-form.test.tsx::AC-3: shows no warning when nothing is at risk`<br>Unit: `src/venues/venues-update.service.spec.ts::VenuesService update (US-14) AC-3: bookings that may need review` |
+
+### TC-S1-106
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-106 |
+| Story/AC ref | US-14 AC-4 |
+| Test Scenario | If a required field is cleared and left blank, saving is prevented until it is filled in again |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s1-96-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com (Venue Staff, USR-010). |
+| Test Steps | 1. On published Main Hall, clear the name, the location, and the capacity in turn; then send a name of spaces.<br>2. Fill the name in again.<br>3. Clear the name of the draft `VEN-001`.<br>4. On the edit screen, clear the name and click "Save changes". |
+| Test Data | `VEN-002` Main Hall (Block A, Level 1, 300; Projector, Sound system, Stage; Step-free access, Hearing loop; Theatre, Banquet; 8:00 AM – 10:00 PM), `VEN-038` Seminar Room (40), `VEN-004` Rooftop Terrace (120), all PUBLISHED; `VEN-001` "Annex (draft)" DRAFT. All managed by venue.staff (USR-010). |
+| Expected Result | Each blank on the published venue is refused (400, "… is required") and nothing is changed; a real value then saves. A draft may be left without a name. On screen the error is shown under Venue name and nothing is reported saved. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-update.e2e-spec.ts::refuses to clear %s on a published venue`<br>Integration: `test/venues-update.e2e-spec.ts::treats an empty string as blank`<br>Integration: `test/venues-update.e2e-spec.ts::allows clearing on a draft, which may be incomplete`<br>Integration: `test/venues-update.e2e-spec.ts::still allows replacing a required field with a real value`<br>UI: `frontend/src/features/venues/components/venue-draft-form.test.tsx::AC-4: flags a cleared required field and does not report it saved`<br>Unit: `src/venues/venues-update.service.spec.ts::VenuesService update (US-14) AC-4: a required field cannot be blanked on a published venue` |
+
+### TC-S1-107
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-107 |
+| Story/AC ref | US-14 AC-1 to AC-4 (UI) |
+| Test Scenario | On screen, Venue Staff edit a venue that has an upcoming booking, are warned, can't save a blank name, and the Coordinator sees the change |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s1-105-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com, then coord.a@example.com. |
+| Test Steps | 1. Venue Staff click Edit on Main Hall, set the capacity to 100 and click "Save changes".<br>2. Check the bell.<br>3. Clear the name and save; reload.<br>4. The Coordinator opens Venues. |
+| Test Data | `VEN-002` Main Hall, 300; `BKG-001` |
+| Expected Result | "Changes saved." and a warning that existing bookings may need review (capacity reduced from 300 to 100); the bell shows 1 unread. The blank name is refused under the field and the name is still Main Hall after a reload. The Coordinator sees Main Hall with 100 seats. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us13-us15-venues.spec.ts::US-14: Venue Staff edit a booked venue, are warned, cannot blank the name, and the Coordinator sees the change` |
+
+**US-14 AC ↔ code mismatches**
+- **AC-3 (fixed in this regeneration):** the warning reached the API response and the notifications inbox, but the edit screen didn't show it, and the bell only caught up at its next poll. The form now shows the warning after saving, and the bell refreshes at once (TC-S1-105, 107).
+- **AC-3, "active/upcoming bookings" and "suitability-affecting":** read as any live booking (not rejected, not finished) and a reduced capacity, a withdrawn layout or accessibility feature, or a changed location. Adding something never warns.
+- **AC-4:** only a published venue is held to the required fields; a draft may still be incomplete (US-13 AC-2).
 
 ---
 
 ## US-15 Browse the full catalogue of venues (Venue Staff)
 
-Test cases for this story are written in a later batch of the Sprint 1 regeneration.
+### TC-S1-108
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-108 |
+| Story/AC ref | US-15 AC-1 |
+| Test Scenario | Opening the catalogue lists all venues with their key details (name, location, capacity) at a glance |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s1-96-setup.sql on testDB (reset before test). |
+| Test Steps | 1. A Coordinator, venue.staff and venue.staff2 list the catalogue (`GET /venues`).<br>2. An Attendee, and a caller without a token, try.<br>3. On the "Venue catalogue" screen, read the rows. |
+| Test Data | `VEN-002` Main Hall (Block A, Level 1, 300; Projector, Sound system, Stage; Step-free access, Hearing loop; Theatre, Banquet; 8:00 AM – 10:00 PM), `VEN-038` Seminar Room (40), `VEN-004` Rooftop Terrace (120), all PUBLISHED; `VEN-001` "Annex (draft)" DRAFT. All managed by venue.staff (USR-010). |
+| Expected Result | Every published venue is listed (plus the caller's own drafts), each with name, location and capacity. Attendees get 403, no token 401. On screen each venue has a row with its name, location, capacity and layouts in words. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | **Code changed in this regeneration:** the catalogue showed layouts as raw codes ("THEATRE · BANQUET"); it now shows "Theatre · Banquet". |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-browse.e2e-spec.ts::returns every published venue`<br>Integration: `test/venues-browse.e2e-spec.ts::includes name, location and capacity at a glance`<br>Integration: `test/venues-browse.e2e-spec.ts::is available to Venue Staff and Coordinators`<br>Integration: `test/venues-browse.e2e-spec.ts::gives an Attendee no access to the catalogue`<br>Integration: `test/venues-browse.e2e-spec.ts::refuses an unauthenticated caller`<br>UI: `frontend/src/pages/venue-catalogue.test.tsx::lists each venue with its name, location and capacity`<br>UI: `frontend/src/pages/venue-catalogue.test.tsx::shows supported layouts in words`<br>Unit: `src/venues/venues-browse.service.spec.ts::VenuesService browse (US-15) AC-1: the list is scoped and ordered sensibly` |
+
+### TC-S1-109
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-109 |
+| Story/AC ref | US-15 AC-2 |
+| Test Scenario | Selecting a venue shows its full details: facilities, accessibility, layouts and operating hours |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s1-96-setup.sql on testDB (reset before test). |
+| Test Steps | 1. Open Main Hall (`GET /venues/VEN-002`), and a venue that doesn't exist.<br>2. On screen, click Edit on Main Hall in the catalogue. |
+| Test Data | `VEN-002` Main Hall (Block A, Level 1, 300; Projector, Sound system, Stage; Step-free access, Hearing loop; Theatre, Banquet; 8:00 AM – 10:00 PM), `VEN-038` Seminar Room (40), `VEN-004` Rooftop Terrace (120), all PUBLISHED; `VEN-001` "Annex (draft)" DRAFT. All managed by venue.staff (USR-010). |
+| Expected Result | Main Hall's facilities, accessibility features, layouts and operating hours are all returned; an unknown id is 404. On screen the venue opens with each of them shown. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | For Venue Staff, a venue opens on its edit screen, which shows every detail; there is no separate read-only view. (Coordinators have one, `/coordinator/venues/:id`, from US-18.) |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-browse.e2e-spec.ts::returns facilities, accessibility, layouts and operating hours`<br>Integration: `test/venues-browse.e2e-spec.ts::reports an unknown venue as not found`<br>UI: `frontend/src/pages/venue-catalogue.test.tsx::opens the venue with every detail shown` |
+
+### TC-S1-110
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-110 |
+| Story/AC ref | US-15 AC-3 |
+| Test Scenario | With many venues, a specific one can be found without scrolling through unrelated ones, by looking it up by name or sorting |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s1-96-setup.sql on testDB (reset before test). |
+| Test Steps | 1. Search "hall", "ROOFTOP" and "nonexistent".<br>2. List with the default order, by capacity, and by capacity descending.<br>3. Send an unknown sort field and order.<br>4. As a Coordinator, search for the draft's name.<br>5. On screen, type in the search box, change the sort field, and flip the direction. |
+| Test Data | `VEN-002` Main Hall (Block A, Level 1, 300; Projector, Sound system, Stage; Step-free access, Hearing loop; Theatre, Banquet; 8:00 AM – 10:00 PM), `VEN-038` Seminar Room (40), `VEN-004` Rooftop Terrace (120), all PUBLISHED; `VEN-001` "Annex (draft)" DRAFT. All managed by venue.staff (USR-010). |
+| Expected Result | The search returns only matching venues, whatever the case; no match is an empty list. The default order is by name; capacity sorts 40, 120, 300 and descending 300, 120, 40. Unknown sort values get 400. A search never shows a draft to someone who may not see it. On screen the search and sort are sent to the API and the result replaces the list, with "No venues match that search" when empty. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Search matches the name only, which is what the AC asks ("lookup by name"). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-browse.e2e-spec.ts::finds a venue by a name fragment`<br>Integration: `test/venues-browse.e2e-spec.ts::matches case-insensitively`<br>Integration: `test/venues-browse.e2e-spec.ts::returns an empty list when nothing matches`<br>Integration: `test/venues-browse.e2e-spec.ts::sorts by name ascending by default`<br>Integration: `test/venues-browse.e2e-spec.ts::sorts by capacity`<br>Integration: `test/venues-browse.e2e-spec.ts::sorts descending when asked`<br>Integration: `test/venues-browse.e2e-spec.ts::rejects an unknown sort field rather than ignoring it`<br>Integration: `test/venues-browse.e2e-spec.ts::rejects an unknown sort order`<br>Integration: `test/venues-browse.e2e-spec.ts::never widens visibility through a search`<br>UI: `frontend/src/pages/venue-catalogue.test.tsx::looks a venue up by name`<br>UI: `frontend/src/pages/venue-catalogue.test.tsx::says when nothing matches`<br>UI: `frontend/src/pages/venue-catalogue.test.tsx::sorts by the chosen field, in either direction`<br>Unit: `src/venues/venues-browse.service.spec.ts::VenuesService browse (US-15) AC-3: finding one venue without scrolling` |
+
+### TC-S1-111
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S1-111 |
+| Story/AC ref | US-15 AC-1 to AC-3 (UI) |
+| Test Scenario | On screen, Venue Staff see every venue at a glance, look one up, sort, and open one for its full details |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + base-venues.sql on testDB (reset before test). Logged in as venue.staff@example.com (Venue Staff, USR-010). |
+| Test Steps | 1. Open the Venue catalogue.<br>2. Search "hall", then clear it.<br>3. Sort by capacity, then flip to descending.<br>4. Click Edit on Main Hall. |
+| Test Data | `VEN-002` Main Hall (Block A, Level 1, 300; Projector, Sound system, Stage; Step-free access, Hearing loop; Theatre, Banquet; 8:00 AM – 10:00 PM), `VEN-038` Seminar Room (40), `VEN-004` Rooftop Terrace (120), all PUBLISHED; `VEN-001` "Annex (draft)" DRAFT. All managed by venue.staff (USR-010). |
+| Expected Result | Four rows, each with name, location and capacity. The search leaves only Main Hall. By capacity: Annex (draft), Seminar Room, Rooftop Terrace, Main Hall; descending: Annex (draft), Main Hall, Rooftop Terrace, Seminar Room (the manager's draft first). Main Hall opens with Projector, Sound system and Stage, two accessibility features, Theatre and Banquet, and 8:00 AM to 10:00 PM. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us13-us15-venues.spec.ts::US-15: Venue Staff see every venue at a glance, look one up, sort, and open one for its full details` |
+
+**US-15 AC ↔ code mismatches**
+- **Relabelled in this regeneration:** the tests and code comments cited a "US-15 AC-4" (the list reflects the latest data), which the story doesn't have. That behaviour is US-13 AC-5 and US-14 AC-2, and is now cited there (TC-S1-100, 104).
+- **AC-1 (fixed in this regeneration):** the Venue Staff catalogue showed layouts as raw codes; it now shows them in words.
+- **AC-2:** Venue Staff open a venue on its edit screen, which shows every detail. There is no separate read-only page for them.
 
 ---
 
@@ -2154,7 +2498,8 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 
 | Date | Change | Commit | Test cases affected |
 |---|---|---|---|
-| 2026-10-26 | **Regeneration, batch 3 (US-09 to US-12).** Every test commented with its test case, story/AC and a `Code:` line. `test/events-coordinator-view.e2e-spec.ts` moved to the shared setup scripts (`tc-s1-54-setup.sql`, new `tc-s1-84-setup.sql`). New integration tests: `events-status-lifecycle.e2e-spec.ts` (US-11, one request through every action) and `events-main-contact.e2e-spec.ts` (US-10 through the Lead's endpoints); a test that the Organiser's answer reaches the Coordinator's inbox. New UI test (status labels) and browser tests (`e2e/us09-us12-coordination.spec.ts`). **Code change:** the Coordinator's review page now shows the Organiser's equipment needs (US-12 AC-2). | this commit | TC-S1-15, 20: Not Executed → Pass. New: TC-S1-84 to 95 (TC-S1-95 Fail: Awaiting arrangements is never set). All US-09 cases re-run. |
+| 2026-10-26 | **Regeneration, batch 4 (US-13 to US-15).** The three venue integration suites (`venues`, `venues-update`, `venues-browse`) moved to the shared setup scripts (`base-venues.sql`, new `tc-s1-96-setup.sql` and `tc-s1-105-setup.sql`); every test commented with its test case, story/AC and a `Code:` line. New UI tests (`venue-draft-form.test.tsx`, `venue-catalogue.test.tsx`) and browser tests (`e2e/us13-us15-venues.spec.ts`). "US-15 AC-4" relabelled to US-13 AC-5 / US-14 AC-2. **Code changes:** the venue edit screen shows the booking warning (US-14 AC-3) and refreshes the bell; the catalogue shows layouts in words (US-15 AC-1). | this commit | New: TC-S1-96 to 111 (all Pass). |
+| 2026-10-26 | **Regeneration, batch 3 (US-09 to US-12).** Every test commented with its test case, story/AC and a `Code:` line. `test/events-coordinator-view.e2e-spec.ts` moved to the shared setup scripts (`tc-s1-54-setup.sql`, new `tc-s1-84-setup.sql`). New integration tests: `events-status-lifecycle.e2e-spec.ts` (US-11, one request through every action) and `events-main-contact.e2e-spec.ts` (US-10 through the Lead's endpoints); a test that the Organiser's answer reaches the Coordinator's inbox. New UI test (status labels) and browser tests (`e2e/us09-us12-coordination.spec.ts`). **Code change:** the Coordinator's review page now shows the Organiser's equipment needs (US-12 AC-2). | `486f2b1` | TC-S1-15, 20: Not Executed → Pass. New: TC-S1-84 to 95 (TC-S1-95 Fail: Awaiting arrangements is never set). All US-09 cases re-run. |
 | 2026-10-26 | **Regeneration, batch 2 (US-05 to US-08).** Every test commented with its test case, story/AC and a `Code:` line. US-06 AC-6 now uses `tc-s1-54-setup.sql` (a request assigned to the Coordinator); US-05 AC-4's "under review" step goes through a real clarification answer; US-07's assignment goes through the Lead's `/assignments` endpoint. New UI tests (Organiser list and form) and browser tests (`e2e/us05-us08-review.spec.ts`). **Code changes:** the request form now records any number of accessibility requirements and no longer drops all but the first when a request is reopened (US-06 AC-3); the Coordinator's review page shows accessibility needs in the form's wording. | `a0d820c` | TC-S1-54: Not Executed → Pass. New: TC-S1-79 to 83. All US-05 to US-08 cases re-run. |
 | 2026-10-26 | **Regeneration, batch 1 (US-01 to US-04), after the Sprint 3/4 merges.** Stories now follow the user-story document's order. Every test cites its test case, story and AC, and a `Code:` line. New UI tests (React Testing Library) and browser tests (Playwright, `npm run test:browser`). `test/access-control.e2e-spec.ts` moved to the shared setup scripts (`tc-s1-67-setup.sql`). New `tc-s1-25-setup.sql` adds the Event Coordinator Lead. **Code change:** the request form now confirms a successful submission or save (US-03 AC-2). | `7f8783b` | TC-S1-25, 34, 58: Not Executed → Pass. New: TC-S1-64 to 78. All US-01, 03, 04 cases re-run. |
 | 2026-10-17 | **Test apps match production; coverage gaps filled.** `configureApp()` is now shared by `main.ts` and the 8 converted integration files, so tests see the same pipes, `UnauthorizedFilter` and CORS as production; no existing result changed. Two tests were added from coverage-s1.md: the 401 carries `WWW-Authenticate` and `loginUrl`, and a numeric email gets 400. | `895d205` (setup); this commit (tests) | TC-S1-56 and TC-S1-57 (extra test each; still Pass). |
@@ -2172,4 +2517,3 @@ Changes to the system or to these test cases made after the Sprint 1 review, new
 | Test case | Story/AC | What's missing |
 |---|---|---|
 | TC-S1-95 | US-11 AC-1 | No test: the behaviour doesn't exist yet (nothing sets Awaiting arrangements). A team decision is needed first. |
-| US-13 to US-15 | all | Test cases to be written in batch 4 |

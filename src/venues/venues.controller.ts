@@ -44,7 +44,7 @@ export class VenuesController {
    */
   @Get()
   @RequirePermission(Resource.VENUE, Action.READ)
-  // US-15 AC-4: the catalogue changes whenever staff edit it, so a cached copy
+  // US-13 AC-5 / US-14 AC-2: the catalogue changes whenever staff edit it, so a cached copy
   // is a wrong copy. This stops a browser or proxy serving a stale list; the
   // server itself holds no cache.
   @Header('Cache-Control', 'no-store')

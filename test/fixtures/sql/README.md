@@ -14,7 +14,7 @@ Both helpers check that they are connected to a local `_test` database before wr
 | Script | Creates | Used by |
 |---|---|---|
 | `base-users.sql` | 6 users: one per Sprint 1 role, with two Coordinators | Every converted spec (`beforeEach`) |
-| `base-venues.sql` | 4 venues (3 published, 1 draft), all managed by `USR-010`. Load after `base-users.sql`. | Venue specs, once converted |
+| `base-venues.sql` | 4 venues (3 published, 1 draft), all managed by `USR-010`. Load after `base-users.sql`. | TC-S1-103 to 111 (US-14, US-15), and the Sprint 2 venue and booking specs |
 | `tc-s1-01-setup.sql` | 1 SUBMITTED request, `EVT-146`, assigned to `USR-004` | TC-S1-01, 03, 05, 06, 09–14, 16, 17, 19–22 (US-07/08/09), 43 (US-05) |
 | `tc-s1-02-setup.sql` | 12 requests covering every review state (see below) | TC-S1-02, 04, 08 (US-07/08), plus status-variant tests in the US-07/08/09 specs |
 | `tc-s1-22-setup.sql` | A second Organiser, `USR-007` / other@example.com | TC-S1-22, 30, 38, 46 |
@@ -27,6 +27,8 @@ Both helpers check that they are connected to a local `_test` database before wr
 | `tc-s1-84-setup.sql` | 3 of USR-006's requests: SUBMITTED and assigned with no optional details, SUBMITTED and unassigned, and an unassigned DRAFT | TC-S1-85, 86 (US-12), TC-S1-90 to 93 (US-10) |
 | `tc-s1-25-setup.sql` | The Event Coordinator Lead, `USR-012` / lead@example.com | TC-S1-25 (US-03 AC-2: a new submission reaches the Lead's unassigned queue) |
 | `tc-s1-67-setup.sql` | 2 CONFIRMED events (one per Organiser) and 1 draft, with "INTERNAL …" planning notes. Load after `tc-s1-22-setup`. | TC-S1-67 to 75 (US-02), integration and browser tests |
+| `tc-s1-96-setup.sql` | A second Venue Staff member, `USR-013` / venue.staff2@example.com, who manages no venues | TC-S1-96 to 111 (US-13 to US-15: drafts and edits are limited to their manager) |
+| `tc-s1-105-setup.sql` | 3 bookings on the base venues: upcoming APPROVED on Main Hall, finished on Seminar Room, REJECTED on Rooftop Terrace. Load after `base-venues.sql`. | TC-S1-105, 107 (US-14 AC-3) |
 
 Specs load the `tc-s1-*` scripts per test, in the Arrange step: `await given('tc-s1-01-setup')`. A test can always be traced to exactly the script its test case names. Test-case pre-conditions are in `docs/testing/sprint1-test-cases.md`.
 
@@ -135,6 +137,22 @@ None has a venue booking, so Venue Staff (RELATED scope) see none of them.
 | `EVT-163` | SUBMITTED | `USR-006` | `USR-004` | "Bare request": no equipment needs, accessibility or notes; registration off |
 | `EVT-164` | SUBMITTED | `USR-006` | none | "Waiting for the Lead": in the Lead's unassigned queue |
 | `EVT-165` | DRAFT | `USR-006` | none | "Unfinished draft" |
+
+### `tc-s1-96-setup.sql`
+
+| ID | Email | Name | Role |
+|---|---|---|---|
+| `USR-013` | venue.staff2@example.com | Vince Venue | VENUE_STAFF |
+
+### `tc-s1-105-setup.sql`
+
+Every event is `USR-006`'s and assigned to `USR-004`. Times are UTC.
+
+| Booking | Venue | Event | Slot | Status | Why |
+|---|---|---|---|---|---|
+| `BKG-001` | `VEN-002` Main Hall | `EVT-166` "Orientation", APPROVED, 250 | 2030-10-01 08:00–18:00 | APPROVED | Upcoming: an edit that reduces Main Hall must warn |
+| `BKG-002` | `VEN-038` Seminar Room | `EVT-167` "Past seminar", COMPLETED, 30 | 2020-01-01 08:00–18:00 | APPROVED | Finished: must not count |
+| `BKG-003` | `VEN-004` Rooftop Terrace | `EVT-168` "Rejected party", APPROVED, 100 | 2030-10-02 18:00–23:00 | REJECTED | Rejected: must not count |
 
 ## Browser tests (Playwright)
 

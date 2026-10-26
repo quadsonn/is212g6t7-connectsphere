@@ -112,10 +112,10 @@ export class VenuesService {
   }
 
   /**
-   * US-13 AC-4/AC-6 and US-15 AC-1/AC-3/AC-4 — the catalogue, scoped to the
+   * US-13 AC-4/AC-5/AC-6, US-14 AC-2 and US-15 AC-1/AC-3 — the catalogue, scoped to the
    * caller and optionally searched or sorted.
    *
-   * AC-4: read straight from the database on every call. Nothing is cached
+   * US-13 AC-5 / US-14 AC-2: read straight from the database on every call. Nothing is cached
    * server-side, so a venue added or edited a moment ago is present in the
    * next response.
    *

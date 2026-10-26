@@ -224,6 +224,16 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - **Step 2:** two new tests in `auth.e2e-spec.ts`. TC-S1-57: the 401 carries `WWW-Authenticate` and `loginUrl`, with no protected data. TC-S1-56: a numeric email gets 400 with a validation message. 24/24 in 3 runs.
 - **Coverage re-measured:** combined 97.7% statements / 89.5% branches (was 96.0% / 87.9%). `UnauthorizedFilter` is now 100% of statements (its one remaining branch is unreachable and marked EXCLUDE), and the login DTO is 100%. No TEST gaps remain in coverage-s1.md.
 
+## 2026-10-27: Sprint 3, Story 38 and 39 (TC-S3-38 to 53)
+
+- **Prisma client regenerated** (`npx prisma generate`, no database touched): after the merge it was older than `schema.prisma`, so 46 unit suites and every integration file failed to compile. Afterwards: unit 1873/1873; the 15 Sprint 3-related integration files 361/361.
+- **Story 38:** new `test/us38-attendee-change-notifications.e2e-spec.ts` (4 tests) and scripts `tc-s3-38/39/40-setup.sql`. Approved change request, replacement venue after a reversal, a multi-venue event, Registered vs Withdrawn, and a description-only edit.
+- **Bug found (audit gap #4):** a venue replaced through the Story 52 replacement request tells no Attendee (TC-S3-40, `it.failing`).
+- **Story 39:** new `test/us39-request-outcome-notifications.e2e-spec.ts` (6 runs: approve, reject, return and clarify table-driven; repeat approve; draft save). Uses `tc-s1-01-setup.sql`.
+- Both files passed 3 runs against `localhost` / `connectsphere_test` (about 0.9 s each).
+- **Code gaps recorded:** no email or polling worker, so Story 38 AC-7 and Story 39 AC-7 are Fail (TC-S3-46, 53); AC-3 content is checked in-app.
+- **Next:** Story 40 (convert `us40-venue-notifications`, `notifications`), Story 41 (`bookings-suggestions`), Story 42 (`events-confirm`, Playwright), then the Sprint 3 coverage report.
+
 ## Open
 - **TC IDs:** done for US-07/08/09, US-03/04/05/06 and US-01 (TC-S1-01 to 62). The remaining stories get theirs as each group is written.
 - **Integration files still to convert:** `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`.

@@ -298,3 +298,20 @@ Extra users added by Sprint 2 scripts (same password as the base users):
 | `USR-008` | other.organiser@example.com | Oscar Organiser | EVENT_ORGANISER (`tc-s2-52-setup.sql`, and again in `tc-s2-170-setup.sql`; never load both) |
 | `USR-002` | attendee.b@example.com | Bea Attendee | ATTENDEE (`tc-s2-142-setup.sql`) |
 | `USR-003` | attendee.c@example.com | Cal Attendee | ATTENDEE (`tc-s2-142-setup.sql`) |
+
+## Sprint 3 scripts
+
+Named after the first Sprint 3 test case that needs them (`TC-S3-XX`, see [sprint3-test-cases.md](../../../docs/testing/sprint3-test-cases.md)). Load after `base-users.sql` and `base-venues.sql`. Sprint 3 numbers continue after the highest ID any earlier script uses for that table.
+
+| Script | Creates | Used by (TC-S3-) |
+|---|---|---|
+| `tc-s3-38-setup.sql` | `EVT-191` "Harbour Gala" in PLANNING with Main Hall approved (`BKG-074`); Ann and Rita Registered, Walt Withdrawn (`REG-009` to `REG-011`); `CRQ-006` pending, moving it to 2 Oct 2030 09:00–18:00 Singapore time | 38, 41, 42, 43, 45 |
+| `tc-s3-39-setup.sql` | `EVT-192` "Riverside Fair": Rooftop Terrace approved (`BKG-075`), Main Hall approved then reversed to REJECTED (`BKG-076`, decisions `BDC-001`, `BDC-002`), Seminar Room requested in its place (`BKG-077`); Ann Registered (`REG-012`) | 39, 44 |
+| `tc-s3-40-setup.sql` | `EVT-193` "Lakeside Talk": Main Hall approved and flagged as needing a replacement (`BKG-078`); Ann Registered (`REG-013`) | 40 |
+
+Extra users added by Sprint 3 scripts (same password as the base users):
+
+| ID | Email | Name | Role |
+|---|---|---|---|
+| `USR-014` | rita@example.com | Rita Registered | ATTENDEE (`tc-s3-38-setup.sql`) |
+| `USR-015` | walt@example.com | Walt Withdrawn | ATTENDEE (`tc-s3-38-setup.sql`) |

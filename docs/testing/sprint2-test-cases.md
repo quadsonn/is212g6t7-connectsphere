@@ -1,15 +1,31 @@
 # Sprint 2 test cases
 
-Written test cases for the Sprint 2 user stories, traced from story → acceptance criterion → test case → automated test. Story numbers follow the user-story document, and so do the `US-XX` labels in every test file. App code comments and migration folder names still use older labels (see [sprint2-conventions.md](sprint2-conventions.md)).
+Written test cases for the Sprint 2 user stories (Story 16 to 37), traced from story → acceptance criterion → test case → automated test. Stories appear in the order of the Sprint 2 user-story document, and the `US-XX` labels in every test file use its numbers. App code comments and migration folder names still use older labels (see [sprint2-conventions.md](sprint2-conventions.md)).
+
+**Regeneration in progress (2026-10-26).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria, every test is commented with its test case, story/AC and the code it checks, and UI and browser tests are added. Done: **Story 16 to 19**. The rest follow in batches.
+
+US-14 and US-15 were carried over from Sprint 1 and finished in Sprint 2. Their test cases stay in [sprint1-test-cases.md](sprint1-test-cases.md) (TC-S1-103 to 111); their results are reported with Sprint 2.
 
 ## How to read this file
 
 - Each test case is one table in the course template. The top part is the test case specification; the bottom part is the test execution record.
 - **Pre-conditions** name the exact SQL setup script(s). The automated test loads the same scripts, which is the traceability link. Scripts are in `test/fixtures/sql/` and listed in its [README](../../test/fixtures/sql/README.md). All users share the password `correct-horse-battery-staple`.
 - Where a test case has several tests, Pre-conditions list every script any of them loads; a few validation and access tests need only `base-users.sql`.
-- **Expected Result** is written from the AC wording, not from the code. Code gaps are noted in Remarks.
-- **Automated by** gives `<file>::<exact test name>`. Names with `%s` are table-driven (`it.each`), and every row runs.
-- **Manual** test cases cover what only the user interface can show. Run them on the app, fill in the execution record, and change the Status.
+- **Expected Result** is written from the AC wording, not from the code. Code gaps are noted in Remarks, and each story ends with its AC ↔ code notes.
+- **Automated by** gives `<type>: <file>::<exact test name>`. Unit tests are cited by their `describe` block where the whole block serves the test case. Names with `%s` are table-driven (`it.each`), and every row runs.
+- **Test case IDs are stable.** TC-S2-01 to TC-S2-181 keep their 18 Oct numbers; new test cases continue from TC-S2-182.
+- **Manual** test cases cover what only the user interface can show. The regeneration replaces them with UI and browser tests where it can; any left are run on the app.
+
+**Test types**
+
+| Type | Where | What it runs | Command |
+|---|---|---|---|
+| **Unit** | `src/**/*.spec.ts` | One service, rule or DTO on its own; Prisma and other dependencies mocked | `npm test` |
+| **Integration** (also the functional tests) | `test/*.e2e-spec.ts` | The real Nest app over HTTP (Supertest) and the local `connectsphere_test` database; one `describe` per AC | `npm run test:e2e` |
+| **UI** | `frontend/src/**/*.test.tsx` | React screens rendered with React Testing Library and Vitest; the API mocked | `npm --prefix frontend test` |
+| **E2E** (browser) | `e2e/*.spec.ts` | Playwright drives Chromium through the real React app, the real API and the local test database | `npm run test:browser` |
+
+All four use only the local test database (or none). None touches the shared Supabase database.
 
 **Legend**
 
@@ -20,8 +36,6 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Status **Not Executed** | A manual test case not yet run. |
 | Status **N/A** | The AC was superseded by a customer clarification; Remarks say where it is recorded. |
 | Remarks **Code gap** | Part of the AC is not implemented; the test proves what currently happens. |
-
-**Run the tests:** `npm run test:e2e -- test/<file>.e2e-spec.ts`, against the local `connectsphere_test` database only.
 
 ---
 
@@ -41,12 +55,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/calendar.e2e-spec.ts::lists only the published venues I manage` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/calendar.e2e-spec.ts::lists only the published venues I manage`<br>Unit: `src/bookings/calendar.service.spec.ts::CalendarService (US-16) AC-1: my venues, each slot distinguished by status` |
 
 ### TC-S2-02
 
@@ -62,12 +76,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | Available time is the absence of an entry; the UI shades it. |
+| Remarks | Available time is the absence of an entry; the screen shades it. Since US-54 a pending request is labelled Pending and a live hold Tentative (the AC's "tentatively held"). |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/calendar.e2e-spec.ts::marks pending as tentative, approved as confirmed and blocks as blocked` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/calendar.e2e-spec.ts::marks pending as pending, approved as confirmed and blocks as blocked`<br>Unit: `src/bookings/calendar.service.spec.ts::CalendarService (US-16) AC-1: my venues, each slot distinguished by status`<br>UI: `frontend/src/features/calendar/calendar-week.test.tsx::US-16 AC-1: a free day is an empty, faintly filled cell with no "Available" text` |
 
 ### TC-S2-03
 
@@ -83,12 +97,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/calendar.e2e-spec.ts::is denied to a Coordinator (403)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/calendar.e2e-spec.ts::is denied to a Coordinator (403)` |
 
 ### TC-S2-04
 
@@ -104,12 +118,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | Switching views in the UI is covered by TC-S2-10 (manual). |
+| Remarks | Switching views on screen is TC-S2-10. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/calendar.e2e-spec.ts::only returns entries in the requested window`<br>`test/calendar.e2e-spec.ts::accepts the exact windows the Day, Week and Month views ask for`<br>`test/calendar.e2e-spec.ts::excludes an entry from a day it does not touch`<br>`test/calendar.e2e-spec.ts::rejects a window over six weeks, or one that ends before it starts (400)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/calendar.e2e-spec.ts::only returns entries in the requested window`<br>Integration: `test/calendar.e2e-spec.ts::accepts the exact windows the Day, Week and Month views ask for`<br>Integration: `test/calendar.e2e-spec.ts::excludes an entry from a day it does not touch`<br>Integration: `test/calendar.e2e-spec.ts::rejects a window over six weeks, or one that ends before it starts (400)`<br>Unit: `src/bookings/calendar.service.spec.ts::CalendarService (US-16) AC-2: day, week and month windows` |
 
 ### TC-S2-05
 
@@ -125,12 +139,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/calendar.e2e-spec.ts::narrows the venues and entries to the chosen venue`<br>`test/calendar.e2e-spec.ts::returns nothing for a venue I do not manage` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/calendar.e2e-spec.ts::narrows the venues and entries to the chosen venue`<br>Integration: `test/calendar.e2e-spec.ts::returns nothing for a venue I do not manage`<br>Unit: `src/bookings/calendar.service.spec.ts::CalendarService (US-16) AC-3: filter to a single venue`<br>UI: `frontend/src/features/calendar/calendar-week.test.tsx::US-16 AC-3: a venue search box replaces the "starts with" letters`<br>UI: `frontend/src/features/calendar/calendar-week.test.tsx::US-16 AC-3: the search narrows the calendar itself, ignoring case` |
 
 ### TC-S2-06
 
@@ -146,12 +160,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/calendar.e2e-spec.ts::includes event name, organiser, time and attendance`<br>`test/calendar.e2e-spec.ts::opens the full booking for that slot (the click-through)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/calendar.e2e-spec.ts::includes event name, organiser, time and attendance`<br>Integration: `test/calendar.e2e-spec.ts::opens the full booking for that slot (the click-through)`<br>Unit: `src/bookings/calendar.service.spec.ts::CalendarService (US-16) AC-4: a booked slot carries its event details` |
 
 ### TC-S2-07
 
@@ -167,12 +181,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/calendar.e2e-spec.ts::shows a booking as confirmed on the next read after it is approved`<br>`test/calendar.e2e-spec.ts::drops a booking from the calendar on the next read after it is cancelled`<br>`test/calendar.e2e-spec.ts::shows a rejected request as gone, not tentative` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/calendar.e2e-spec.ts::shows a booking as confirmed on the next read after it is approved`<br>Integration: `test/calendar.e2e-spec.ts::drops a booking from the calendar on the next read after it is cancelled`<br>Integration: `test/calendar.e2e-spec.ts::shows a rejected request as gone, not tentative` |
 
 ### TC-S2-08
 
@@ -188,12 +202,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/calendar.e2e-spec.ts::blocks out time, which then appears as BLOCKED`<br>`test/calendar.e2e-spec.ts::requires a reason and an end after the start (400)`<br>`test/calendar.e2e-spec.ts::refuses a venue I do not manage (404) and a Coordinator (403)`<br>`test/calendar.e2e-spec.ts::removes a block` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/calendar.e2e-spec.ts::blocks out time, which then appears as BLOCKED`<br>Integration: `test/calendar.e2e-spec.ts::requires a reason and an end after the start (400)`<br>Integration: `test/calendar.e2e-spec.ts::refuses a venue I do not manage (404) and a Coordinator (403)`<br>Integration: `test/calendar.e2e-spec.ts::removes a block`<br>Unit: `src/bookings/calendar.service.spec.ts::CalendarService (US-16) AC-6: blocked-out periods`<br>UI: `frontend/src/pages/venue-calendar.test.tsx::opens a blocked period as "Blocked out", with its reason and who set it` |
 
 ### TC-S2-09
 
@@ -209,33 +223,33 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/calendar.e2e-spec.ts::reports existing bookings inside the new block`<br>`test/calendar.e2e-spec.ts::stops a Coordinator requesting, and staff approving, inside a block` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/calendar.e2e-spec.ts::reports existing bookings inside the new block`<br>Integration: `test/calendar.e2e-spec.ts::stops a Coordinator requesting, and staff approving, inside a block`<br>Unit: `src/bookings/calendar.service.spec.ts::CalendarService (US-16) AC-6: blocked-out periods` |
 
 ### TC-S2-10
 
 | Test case specification | |
 |---|---|
 | Test Case ID | TC-S2-10 |
-| Story/AC ref | Story 16 AC-2, AC-4 |
+| Story/AC ref | Story 16 AC-1, AC-2, AC-4, AC-6 (UI) |
 | Test Scenario | Switch between Day, Week and Month views, and open a booked slot |
-| Pre-conditions | Log in as venue.staff@example.com on the running app. At least one booking exists on a venue you manage. |
-| Test Steps | 1. Open Availability calendar.<br>2. Click Day, then Week, then Month.<br>3. Click a booked slot. |
-| Test Data | Seed data on the running app |
-| Expected Result | Each view shows the same bookings at the right times. Clicking a slot shows the event name, organiser, time and attendance. |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-10-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com (Vera Venue). UI tests: API mocked. |
+| Test Steps | 1. Open Availability calendar.<br>2. Click Day, then Month, then Week.<br>3. Click the booked slot, then close it.<br>4. Click the blocked period. |
+| Test Data | `BKG-019` "Gala today" on Main Hall, today 10:00-12:00 (Olivia Organiser, 80 expected); `BLK-001` on Seminar Room, today 14:00-16:00, "Maintenance" |
+| Expected Result | Each view shows the booking. Clicking it shows the event name, organiser, time and attendance. The blocked period is drawn and opens as "Blocked out" with its reason and who set it, not as a booking. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result |  |
-| Status | Not Executed |
-| Remarks | Manual: the AC is about the user interface. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | Manual |
+| Actual Result | As expected. Each view loaded its own window (1, 7 and a month's days). |
+| Status | Pass |
+| Remarks | Was manual; now automated by UI and browser tests. The browser test's data is dated relative to today, because the calendar opens on today. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us16-us19-venues.spec.ts::US-16: Venue Staff switch views, open a booking, and see blocked time apart from bookings`<br>UI: `frontend/src/pages/venue-calendar.test.tsx::switches between Day, Week and Month, loading each one’s window`<br>UI: `frontend/src/pages/venue-calendar.test.tsx::shows the event name, organiser, time and attendance of the clicked booking`<br>UI: `frontend/src/features/calendar/calendar-week.test.tsx::US-16 AC-4: a booking is a pill with a compact time and its name`<br>UI: `frontend/src/features/calendar/calendar-week.test.tsx::US-16 AC-4: hovering a pill shows full time, name and status; click still selects it`<br>UI: `frontend/src/features/calendar/calendar-week.test.tsx::US-16: compact ranges drop leading zeros and on-the-hour minutes`<br>UI: `frontend/src/features/calendar/calendar-week.test.tsx::US-16: free cells stay blank when the Availability filter hides free time`<br>UI: `frontend/src/features/calendar/calendar-week.test.tsx::US-16: the whole current-day column is tinted`<br>UI: `frontend/src/features/calendar/calendar-week.test.tsx::US-16: a long venue name wraps, with a tooltip only when it is cut off`<br>UI: `frontend/src/features/calendar/calendar-week.test.tsx::US-16: Available has no count; the other statuses keep theirs` |
 
 ### TC-S2-11
 
@@ -244,19 +258,26 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Test Case ID | TC-S2-11 |
 | Story/AC ref | Story 16 AC-7 |
 | Test Scenario | Use the calendar on a phone-sized screen |
-| Pre-conditions | Log in as venue.staff@example.com. Browser window narrowed to about 400px, or a phone. |
-| Test Steps | 1. Open the navigation bar under the header and choose Availability calendar.<br>2. Switch to Week and Month.<br>3. Tap a booked slot. |
-| Test Data | Seed data on the running app |
-| Expected Result | The page is reachable, nothing overflows the screen, the week and month views show as a day-by-day list, and tapping opens the details. |
+| Pre-conditions | Browser test at 390 × 844 (a phone): run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-10-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. |
+| Test Steps | 1. Open Availability calendar.<br>2. Switch to Week, Month and Day.<br>3. Tap the booked slot.<br>4. Check the page doesn't scroll sideways. |
+| Test Data | `BKG-019` "Gala today" |
+| Expected Result | Every view shows the booking, tapping it opens its details, and nothing overflows the screen. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result |  |
-| Status | Not Executed |
-| Remarks | Manual: the AC is about the user interface. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | Manual |
+| Actual Result | As expected; the page was no wider than the screen. |
+| Status | Pass |
+| Remarks | Was manual; now a browser test at phone size. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us16-us19-venues.spec.ts::US-16: the calendar works on a phone-sized screen`<br>UI: `frontend/src/features/calendar/calendar-week.test.tsx::US-16: the panel collapses and expands` |
+
+**US-16 AC ↔ code notes**
+
+- **AC-1, "tentatively held":** since US-54 a live hold is Tentative and a pending request is Pending; both are told apart from Confirmed and Blocked (TC-S2-02).
+- **AC-2, AC-4, AC-7 (now automated):** the manual test cases TC-S2-10 and 11 are covered by UI tests and browser tests, including one at phone size.
+
+---
 
 ## Story 17: View a venue's availability calendar before requesting it (Event Coordinator)
 
@@ -274,12 +295,33 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | Code gap: blocked-off periods (Story 16) are not shown on this calendar, although AC-1 asks for them. Not tested until implemented. |
+| Remarks | Blocked-off periods (the code gap noted here on 18 Oct) are now shown; see TC-S2-182. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-availability.e2e-spec.ts::defaults to every day of the current and next month`<br>`test/venues-availability.e2e-spec.ts::shows existing bookings for that venue`<br>`test/venues-availability.e2e-spec.ts::ignores another venue's bookings`<br>`test/venues-availability.e2e-spec.ts::is not cached` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-availability.e2e-spec.ts::defaults to every day of the current and next month`<br>Integration: `test/venues-availability.e2e-spec.ts::shows existing bookings for that venue`<br>Integration: `test/venues-availability.e2e-spec.ts::ignores another venue's bookings`<br>Integration: `test/venues-availability.e2e-spec.ts::is not cached`<br>Unit: `src/venues/availability.spec.ts::US-17 venue availability aggregation AC-1: every day in the range is reported`<br>Unit: `src/venues/availability.spec.ts::US-17 venue availability aggregation bookings that cross day and month boundaries`<br>Unit: `src/venues/availability.spec.ts::US-17 venue availability aggregation resolveRange`<br>Unit: `src/venues/availability.spec.ts::US-17 venue availability aggregation rangeBounds` |
+
+### TC-S2-182
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-182 |
+| Story/AC ref | Story 17 AC-1 |
+| Test Scenario | A venue's calendar shows its blocked-off periods: every day a block touches, and the block's hours on the day |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-182-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). Two tests also load tc-s2-12-setup.sql (a confirmed booking on 10 Mar). |
+| Test Steps | 1. Open Main Hall's March 2027 calendar.<br>2. Open Seminar Room's.<br>3. Open Main Hall's hours for 15 Mar, and for 10 Mar (with the booking). |
+| Test Data | `BLK-001` Main Hall 15 Mar 09:00-13:00; `BLK-002` Main Hall 20-23 Mar (three whole days); `BLK-003` Main Hall 10 Mar 06:00-08:00; `BLK-004` Seminar Room 25 Mar |
+| Expected Result | 15 Mar is blocked and 16 Mar free; 20, 21 and 22 Mar are blocked and 23 Mar free; 10 Mar is blocked even though it also has a booking. Main Hall's 25 Mar is free; Seminar Room's is blocked. 15 Mar's hours list one blocked period, 09:00-13:00; 10 Mar's list the block and then the booking. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | These tests had no test case before the regeneration, and inserted their rows in the test; they now load tc-s2-182-setup.sql. A block outranks a booking on the same day. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-availability.e2e-spec.ts::Given a block on a day, Then that day is blocked`<br>Integration: `test/venues-availability.e2e-spec.ts::Given a block across several days, Then every day it touches is blocked`<br>Integration: `test/venues-availability.e2e-spec.ts::Given a block and an approved booking on the same day, Then the day is blocked`<br>Integration: `test/venues-availability.e2e-spec.ts::ignores another venue's blocks`<br>Integration: `test/venues-availability.e2e-spec.ts::Given a block, Then the day's times list it as a blocked period`<br>Integration: `test/venues-availability.e2e-spec.ts::lists bookings and blocks together, earliest first`<br>Unit: `src/venues/availability.spec.ts::US-17 venue availability aggregation AC-1: blocked-off periods are shown`<br>UI: `frontend/src/features/venues/components/venue-availability-calendar.test.tsx::Given a blocked day, Then it is labelled Blocked and the legend explains it` |
 
 ### TC-S2-13
 
@@ -295,12 +337,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-availability.e2e-spec.ts::returns exactly the requested future month`<br>`test/venues-availability.e2e-spec.ts::still loads a busy month within two seconds`<br>`test/venues-availability.e2e-spec.ts::rejects a malformed month`<br>`test/venues-availability.e2e-spec.ts::rejects a range longer than two months` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-availability.e2e-spec.ts::returns exactly the requested future month`<br>Integration: `test/venues-availability.e2e-spec.ts::still loads a busy month within two seconds`<br>Integration: `test/venues-availability.e2e-spec.ts::rejects a malformed month`<br>Integration: `test/venues-availability.e2e-spec.ts::rejects a range longer than two months`<br>Unit: `src/venues/availability.spec.ts::US-17 venue availability aggregation resolveRange` |
 
 ### TC-S2-14
 
@@ -316,12 +358,33 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-availability.e2e-spec.ts::returns only date and status for every day`<br>`test/venues-availability.e2e-spec.ts::never mentions the event, its id, or its organiser`<br>`test/venues-availability.e2e-spec.ts::marks an approved day as booked` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-availability.e2e-spec.ts::returns only date and status for every day`<br>Integration: `test/venues-availability.e2e-spec.ts::never mentions the event, its id, or its organiser`<br>Integration: `test/venues-availability.e2e-spec.ts::marks an approved day as booked`<br>Unit: `src/venues/availability.spec.ts::US-17 venue availability aggregation AC-3: a confirmed booking marks the day booked` |
+
+### TC-S2-183
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-183 |
+| Story/AC ref | Story 17 AC-3 |
+| Test Scenario | A Coordinator sees that a period is blocked, but never why or who blocked it |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-182-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). |
+| Test Steps | 1. Read Main Hall's March 2027 calendar and 15 Mar's hours.<br>2. Search both responses for the block's reason, id and author. |
+| Test Data | `BLK-001`, reason "Confidential renovation", set by USR-010 |
+| Expected Result | Neither response contains the reason, the block's id or who set it. On screen, a blocked day's hours are listed with nothing about why. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | AC-3 names the other booking's event and organiser; the same privacy is applied to Venue Staff's blocks. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-availability.e2e-spec.ts::never reveals why the period is blocked or who blocked it`<br>UI: `frontend/src/features/venues/components/venue-availability-calendar.test.tsx::Given a blocked day is selected, Then its blocked hours are listed, with nothing about why` |
 
 ### TC-S2-15
 
@@ -337,12 +400,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-availability.e2e-spec.ts::marks a day with only a pending request as tentative`<br>`test/venues-availability.e2e-spec.ts::treats a rejected request as free` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-availability.e2e-spec.ts::marks a day with only a pending request as tentative`<br>Integration: `test/venues-availability.e2e-spec.ts::treats a rejected request as free`<br>Unit: `src/venues/availability.spec.ts::US-17 venue availability aggregation AC-4: pending-only days are tentative` |
 
 ### TC-S2-16
 
@@ -358,33 +421,39 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-availability.e2e-spec.ts::refuses %s with 403`<br>`test/venues-availability.e2e-spec.ts::refuses an unauthenticated caller`<br>`test/venues-availability.e2e-spec.ts::reports a draft venue as not found`<br>`test/venues-availability.e2e-spec.ts::reports an unknown venue as not found` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-availability.e2e-spec.ts::refuses %s with 403`<br>Integration: `test/venues-availability.e2e-spec.ts::refuses an unauthenticated caller`<br>Integration: `test/venues-availability.e2e-spec.ts::reports a draft venue as not found`<br>Integration: `test/venues-availability.e2e-spec.ts::reports an unknown venue as not found` |
 
 ### TC-S2-17
 
 | Test case specification | |
 |---|---|
 | Test Case ID | TC-S2-17 |
-| Story/AC ref | Story 17 AC-3, AC-4 |
+| Story/AC ref | Story 17 AC-1, AC-3, AC-4 (UI) |
 | Test Scenario | See booked, tentative and free days styled differently on a venue's calendar |
-| Pre-conditions | Log in as coord.a@example.com. A venue has one confirmed and one pending booking next month. |
-| Test Steps | 1. Open the venue's details, then its availability calendar.<br>2. Go to next month. |
-| Test Data | Seed data on the running app |
-| Expected Result | Booked days are shaded, the pending day is styled as tentative (different from both), and no event name or organiser is shown. |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-14-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. UI tests: API mocked. |
+| Test Steps | 1. Open Main Hall's details, then its availability calendar.<br>2. Go forward to March 2027.<br>3. Read 10, 12 and 16 March. |
+| Test Data | tc-s2-14: a confirmed booking on 10 Mar 2027 and a pending request on 12 Mar, for "Secret Board Offsite" by Olivia Organiser |
+| Expected Result | 10 March is shown as booked, 12 March as tentatively held, 16 March as free, each styled differently and named in the legend. Neither the event name nor the organiser appears. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result |  |
-| Status | Not Executed |
-| Remarks | Manual: the AC is about the user interface. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | Manual |
+| Actual Result | As expected: "Booked" (shaded and struck through), "Tentatively held" (amber), "Free" (plain). |
+| Status | Pass |
+| Remarks | Was manual; now automated by UI and browser tests. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us16-us19-venues.spec.ts::US-17: a Coordinator sees booked, tentative and free days apart, and nothing about the other event`<br>UI: `frontend/src/features/venues/components/venue-availability-calendar.test.tsx::labels and styles each status differently, and the legend names them`<br>UI: `frontend/src/features/venues/components/venue-availability-calendar.test.tsx::marks a tentative booking as tentatively held`<br>UI: `frontend/src/features/venues/components/venue-availability-calendar.test.tsx::free days are not selectable, and nothing is fetched until a day is chosen`<br>UI: `frontend/src/features/venues/components/venue-availability-calendar.test.tsx::lists a selected day’s setup, event and turnaround as separate times` |
+
+**US-17 AC ↔ code notes**
+
+- **AC-1 (resolved since 18 Oct):** blocked-off periods are now shown on the Coordinator's calendar (TC-S2-182), without the reason or who set them (TC-S2-183).
+
+---
 
 ## Story 18: Search and filter venues by date, capacity, accessibility, facilities (Event Coordinator)
 
@@ -402,12 +471,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-search.e2e-spec.ts::US-18: an empty search returns every published venue`<br>`test/venues-search.e2e-spec.ts::US-18: never returns a draft venue, even one matching every filter`<br>`test/venues-search.e2e-spec.ts::US-18: is not cached` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-search.e2e-spec.ts::US-18: an empty search returns every published venue`<br>Integration: `test/venues-search.e2e-spec.ts::US-18: never returns a draft venue, even one matching every filter`<br>Integration: `test/venues-search.e2e-spec.ts::US-18: is not cached`<br>Unit: `src/venues/venues-search.service.spec.ts::US-18 VenuesService.search` |
 
 ### TC-S2-19
 
@@ -423,12 +492,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-search.e2e-spec.ts::excludes a venue with an APPROVED booking overlapping the slot`<br>`test/venues-search.e2e-spec.ts::includes a venue with only a pending (REQUESTED) booking — AC-1 says "confirmed"`<br>`test/venues-search.e2e-spec.ts::includes venues with a rejected or back-to-back booking`<br>`test/venues-search.e2e-spec.ts::includes the approved venue again for a slot that does not overlap`<br>`test/venues-search.e2e-spec.ts::excludes a venue whose confirmed booking %s`<br>`test/venues-search.e2e-spec.ts::rejects half a range`<br>`test/venues-search.e2e-spec.ts::rejects a range that ends before it starts` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-search.e2e-spec.ts::excludes a venue with an APPROVED booking overlapping the slot`<br>Integration: `test/venues-search.e2e-spec.ts::includes a venue with only a pending (REQUESTED) booking — AC-1 says "confirmed"`<br>Integration: `test/venues-search.e2e-spec.ts::includes venues with a rejected or back-to-back booking`<br>Integration: `test/venues-search.e2e-spec.ts::includes the approved venue again for a slot that does not overlap`<br>Integration: `test/venues-search.e2e-spec.ts::excludes a venue whose confirmed booking %s`<br>Integration: `test/venues-search.e2e-spec.ts::rejects half a range`<br>Integration: `test/venues-search.e2e-spec.ts::rejects a range that ends before it starts`<br>Unit: `src/venues/venues-search.service.spec.ts::US-18 VenuesService.search`<br>Unit: `src/venues/venues-search.service.spec.ts::US-18 VenuesService.search VenueSearchDto` |
 
 ### TC-S2-20
 
@@ -444,12 +513,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-search.e2e-spec.ts::includes a venue whose capacity equals the minimum`<br>`test/venues-search.e2e-spec.ts::excludes a venue one below the minimum`<br>`test/venues-search.e2e-spec.ts::rejects a non-numeric minimum` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-search.e2e-spec.ts::includes a venue whose capacity equals the minimum`<br>Integration: `test/venues-search.e2e-spec.ts::excludes a venue one below the minimum`<br>Integration: `test/venues-search.e2e-spec.ts::rejects a non-numeric minimum`<br>Unit: `src/venues/venues-search.service.spec.ts::US-18 VenuesService.search` |
 
 ### TC-S2-21
 
@@ -465,12 +534,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-search.e2e-spec.ts::matches a venue offering the one selected feature`<br>`test/venues-search.e2e-spec.ts::excludes a venue missing one of several selected features`<br>`test/venues-search.e2e-spec.ts::accepts the list as a repeated key`<br>`test/venues-search.e2e-spec.ts::rejects a value outside the shared vocabulary` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-search.e2e-spec.ts::matches a venue offering the one selected feature`<br>Integration: `test/venues-search.e2e-spec.ts::excludes a venue missing one of several selected features`<br>Integration: `test/venues-search.e2e-spec.ts::accepts the list as a repeated key`<br>Integration: `test/venues-search.e2e-spec.ts::rejects a value outside the shared vocabulary`<br>Unit: `src/venues/venues-search.service.spec.ts::US-18 VenuesService.search` |
 
 ### TC-S2-22
 
@@ -486,12 +555,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-search.e2e-spec.ts::excludes a venue missing one selected facility`<br>`test/venues-search.e2e-spec.ts::includes every venue offering the selected facility`<br>`test/venues-search.e2e-spec.ts::rejects a value outside the Facility vocabulary` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-search.e2e-spec.ts::excludes a venue missing one selected facility`<br>Integration: `test/venues-search.e2e-spec.ts::includes every venue offering the selected facility`<br>Integration: `test/venues-search.e2e-spec.ts::rejects a value outside the Facility vocabulary`<br>Unit: `src/venues/venues-search.service.spec.ts::US-18 VenuesService.search` |
 
 ### TC-S2-23
 
@@ -507,12 +576,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-search.e2e-spec.ts::returns only the venue satisfying every dimension at once` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-search.e2e-spec.ts::returns only the venue satisfying every dimension at once`<br>Unit: `src/venues/venues-search.service.spec.ts::US-18 VenuesService.search`<br>UI: `frontend/src/pages/coordinator-venues.test.tsx::sends minimum capacity, accessibility and facilities in one search when Apply is pressed` |
 
 ### TC-S2-24
 
@@ -528,12 +597,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | The plain name lookup in the same file proves Story 15 AC-3, which belongs to Sprint 1. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-search.e2e-spec.ts::combines a name lookup with the other filters by AND` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-search.e2e-spec.ts::combines a name lookup with the other filters by AND`<br>Unit: `src/venues/venues-search.service.spec.ts::US-18 VenuesService.search` |
 
 ### TC-S2-25
 
@@ -549,12 +618,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | None. |
+| Remarks | The screen's "no results" state is TC-S2-185. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-search.e2e-spec.ts::returns 200 with an empty array` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-search.e2e-spec.ts::returns 200 with an empty array`<br>UI: `frontend/src/pages/coordinator-venues.test.tsx::says no venues match, and offers to clear the filters` |
 
 ### TC-S2-26
 
@@ -570,12 +639,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-search.e2e-spec.ts::searches 300 venues with 600 bookings in one round trip under 2s` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-search.e2e-spec.ts::searches 300 venues with 600 bookings in one round trip under 2s` |
 
 ### TC-S2-27
 
@@ -591,12 +660,39 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-search.e2e-spec.ts::refuses %s with 403`<br>`test/venues-search.e2e-spec.ts::refuses an unauthenticated caller` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-search.e2e-spec.ts::refuses %s with 403`<br>Integration: `test/venues-search.e2e-spec.ts::refuses an unauthenticated caller` |
+
+### TC-S2-185
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-185 |
+| Story/AC ref | Story 18 AC-2, AC-6 (UI) |
+| Test Scenario | On the venue search page, a Coordinator filters by minimum capacity and sees a clear message when nothing matches |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + base-venues.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Open Venues.<br>2. Set Minimum capacity to 100 and click Apply filters.<br>3. Set it to 5000 and apply again. |
+| Test Data | Main Hall 300, Rooftop Terrace 120, Seminar Room 40 |
+| Expected Result | Step 2 leaves Main Hall and Rooftop Terrace and drops Seminar Room. Step 3 shows "No venues match your filters", not an empty or broken list. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us16-us19-venues.spec.ts::US-18: a Coordinator filters venues by capacity, and sees a clear message when nothing matches`<br>UI: `frontend/src/pages/coordinator-venues.test.tsx::says no venues match, and offers to clear the filters` |
+
+**US-18 AC ↔ code notes**
+
+- **Name lookup:** the search also takes a venue name (US-15 AC-3, kept when US-18 replaced the catalogue page for Coordinators), combined with the other filters by AND (TC-S2-24).
+
+---
 
 ## Story 19: System flags whether a venue appears suitable before submitting (Event Coordinator)
 
@@ -614,12 +710,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-suitability.e2e-spec.ts::US-19: reports a suitable venue as positively SUITABLE, with each check shown` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-suitability.e2e-spec.ts::US-19: reports a suitable venue as positively SUITABLE, with each check shown`<br>Unit: `src/venues/suitability.spec.ts::US-19 venue suitability AC-1: capacity`<br>Unit: `src/venues/suitability.spec.ts::US-19 venue suitability layout (beyond the listed ACs)`<br>Unit: `src/venues/suitability.spec.ts::US-19 venue suitability AC-4: overall indicator`<br>UI: `frontend/src/features/venues/components/venue-suitability-panel.test.tsx::shows a clear "Appears suitable" when every check is met` |
 
 ### TC-S2-29
 
@@ -635,12 +731,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-suitability.e2e-spec.ts::US-19: flags capacity and each missing accessibility requirement individually` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-suitability.e2e-spec.ts::US-19: flags capacity and each missing accessibility requirement individually`<br>Unit: `src/venues/suitability.spec.ts::US-19 venue suitability AC-1: capacity`<br>Unit: `src/venues/suitability.spec.ts::US-19 venue suitability AC-2: accessibility, one flag per requirement`<br>UI: `frontend/src/features/venues/components/venue-suitability-panel.test.tsx::flags over-capacity and names each missing accessibility requirement` |
 
 ### TC-S2-30
 
@@ -648,20 +744,41 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 |---|---|
 | Test Case ID | TC-S2-30 |
 | Story/AC ref | Story 19 AC-3 |
-| Test Scenario | Facilities are checked against the event's equipment/technical requirements |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-28-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Check Hall's suitability for event "Fits". |
-| Test Data | — |
-| Expected Result | AC-3: the system flags whether the venue's facilities cover the requirements. |
+| Test Scenario | The venue's facilities are checked against each facility the event requires |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-28-setup.sql + tc-s2-30-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). |
+| Test Steps | 1. Check Equipped hall against "Needs projector and mics".<br>2. Check it against "Needs a stage".<br>3. Check Hall against "Fits", which requires no facility. |
+| Test Data | `VEN-036` Equipped hall (Projector, Microphones); `EVT-180` needs Projector + Microphones; `EVT-181` needs Projector + Stage; `EVT-076` needs none |
+| Expected Result | 1: Facilities met, each one listed, venue suitable. 2: Facilities not met, Stage named as missing, venue may not be suitable. 3: Nothing required, and nothing reported as unchecked. The panel shows the same. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Facilities and equipment are returned as null and listed under "not checked", with the reason. No facility check is made. |
-| Status | Fail |
-| Remarks | Code gap: AC-3 is not implemented. The test proves the check is reported as "not checked" (facilities and equipment null, with a reason) rather than faked as a pass. |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Was Fail (code gap) on 18 Oct. Sprint 4 added the event's required facilities and the check, so AC-3 is now met for facilities; equipment is TC-S2-184. The test cited on 18 Oct no longer exists. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-suitability.e2e-spec.ts::US-19: returns null for both with the reason` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-suitability.e2e-spec.ts::US-19: Given the venue has every required facility, Then facilities are met`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: Given a required facility the venue lacks, Then it is flagged and the venue may not be suitable`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: Given no required facilities, Then nothing is required and nothing is reported unchecked`<br>Unit: `src/venues/suitability.spec.ts::US-19 venue suitability AC-3: facilities cover the technical requirements`<br>UI: `frontend/src/features/venues/components/venue-suitability-panel.test.tsx::Given every required facility is met, Then the Facilities row lists them`<br>UI: `frontend/src/features/venues/components/venue-suitability-panel.test.tsx::Given a missing facility, Then the Facilities row names it`<br>UI: `frontend/src/features/venues/components/venue-suitability-panel.test.tsx::Given no facilities are required, Then it says none required` |
+
+### TC-S2-184
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-184 |
+| Story/AC ref | Story 19 AC-3 |
+| Test Scenario | The event's equipment is checked against what is free over the event's dates |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-28-setup.sql + tc-s2-30-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). |
+| Test Steps | Check Hall against each of EVT-182, 183, 185, 186, 187 and 188 in turn. |
+| Test Data | Each event needs one catalogue item of 6: `EVT-182` 4 (nothing else holds it); `EVT-183` 4 (another event holds 3, approved); `EVT-185` 4 (its own approved reservation of 4); `EVT-186` 4 (another event's request for 6, pending only); `EVT-187` 1 (item under maintenance); `EVT-188` a free-text "Fog machine" |
+| Expected Result | 182: met, 6 free. 183: not met, 3 free; the venue verdict is unchanged, since equipment is the same at every venue. 185: met, its own reservation isn't counted against it. 186: met, a pending request holds nothing. 187: none available. 188: not checked, with a reason, never shown as met. Checking reserves nothing. The panel shows each of these. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | These tests had no test case before the regeneration, and inserted their rows in the test; they now load tc-s2-30-setup.sql. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-suitability.e2e-spec.ts::US-19: Given enough free units, Then equipment is met, with the free count`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: Given another event's approved reservation leaves too few units, Then equipment is unmet`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: Given the event's own approved reservation, Then its units are not counted against it`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: Given a pending reservation elsewhere, Then it holds no units`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: Given an item under maintenance, Then none of its units are available`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: Given a free-text line, Then it is listed as not checked, never as a pass`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: reserves nothing while checking`<br>Unit: `src/venues/suitability.spec.ts::US-19 venue suitability AC-3: the equipment asked for is available`<br>UI: `frontend/src/features/venues/components/venue-suitability-panel.test.tsx::Given an equipment item is short, Then the Equipment row says how many are free`<br>UI: `frontend/src/features/venues/components/venue-suitability-panel.test.tsx::Given all equipment is available, Then the Equipment row lists it`<br>UI: `frontend/src/features/venues/components/venue-suitability-panel.test.tsx::Given a free-text equipment line, Then the panel says it was not checked, with the reason`<br>UI: `frontend/src/features/venues/components/venue-suitability-panel.test.tsx::Then the panel explains equipment does not change the venue verdict` |
 
 ### TC-S2-31
 
@@ -677,12 +794,33 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | Updated 2026-10-23: the event's attendance was lowered from 500 to 80. Capacity is now a hard block (an over-capacity request is refused with CAPACITY_EXCEEDED), so the advisory flag is the missing hearing loop. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-suitability.e2e-spec.ts::US-19: changes nothing — no booking, reservation, notification or event edit`<br>`test/venues-suitability.e2e-spec.ts::US-19 AC-5: a booking request still submits after suitability reports flags` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-suitability.e2e-spec.ts::US-19: changes nothing — no booking, reservation, notification or event edit`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19 AC-5: a booking request still submits after suitability reports flags`<br>E2E: `e2e/us16-us19-venues.spec.ts::US-19: a misfit is flagged, and the Coordinator can still request the venue` |
+
+### TC-S2-186
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-186 |
+| Story/AC ref | Story 19 AC-2, AC-5 (UI) |
+| Test Scenario | On screen, a venue that doesn't suit the event is flagged, and the Coordinator can still go on and request it |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + tc-s2-28-setup.sql + tc-s2-31-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Test Steps | 1. Open Hall's Suitability tab and check it against "Misfit".<br>2. Click "Request this venue".<br>3. Submit the booking request. |
+| Test Data | `VEN-035` Hall (no hearing loop); `EVT-091` "Misfit" needs a hearing loop, 80 expected |
+| Expected Result | The panel says "May not be suitable" and names the missing hearing loop. "Request this venue" opens Misfit's booking form with Hall already chosen, and the request is submitted as pending. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | **Code changed in this regeneration:** "Request this venue" was a disabled button saying the booking flow wasn't available yet, although it was (on the event's page). It now opens that event's booking form with the venue chosen, or the Suitability tab if no event is chosen yet. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us16-us19-venues.spec.ts::US-19: a misfit is flagged, and the Coordinator can still request the venue` |
 
 ### TC-S2-32
 
@@ -698,12 +836,12 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-suitability.e2e-spec.ts::US-19: answers within two seconds` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-suitability.e2e-spec.ts::US-19: answers within two seconds` |
 
 ### TC-S2-33
 
@@ -719,12 +857,20 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | `test/venues-suitability.e2e-spec.ts::US-19: hides another Coordinator's event as not found`<br>`test/venues-suitability.e2e-spec.ts::US-19: hides an unassigned event from the review pool`<br>`test/venues-suitability.e2e-spec.ts::US-19: hides a %s event as not found`<br>`test/venues-suitability.e2e-spec.ts::US-19: reports a draft venue as not found`<br>`test/venues-suitability.e2e-spec.ts::US-19: requires an eventId`<br>`test/venues-suitability.e2e-spec.ts::US-19: refuses %s with 403` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-suitability.e2e-spec.ts::US-19: hides another Coordinator's event as not found`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: hides an unassigned event from the review pool`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: hides a %s event as not found`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: reports a draft venue as not found`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: requires an eventId`<br>Integration: `test/venues-suitability.e2e-spec.ts::US-19: refuses %s with 403` |
+
+**US-19 AC ↔ code notes**
+
+- **AC-3 (resolved since 18 Oct):** the check now covers the event's required facilities (TC-S2-30) and its catalogue equipment over the event's dates (TC-S2-184).
+- **AC-5 vs the capacity rule:** a later customer change made over-capacity a hard block on the booking request (CAPACITY_EXCEEDED), so capacity is no longer only advisory. Every other flag still is (TC-S2-31).
+- **AC-5 (fixed in this regeneration):** "Request this venue" on the venue's page was disabled; it now opens the event's booking form with the venue chosen (TC-S2-186).
+
+---
 
 ## Story 20: Submit a request to book a venue with timing and requirements (Event Coordinator)
 
@@ -747,7 +893,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-request.e2e-spec.ts::rejects a request missing them, flagging each field`<br>`test/bookings-request.e2e-spec.ts::refuses %s (400) and creates nothing` |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::rejects a request missing them, flagging each field`<br>Integration: `test/bookings-request.e2e-spec.ts::refuses %s (400) and creates nothing` |
 
 ### TC-S2-35
 
@@ -768,7 +914,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | Code gap (AC-2): the structured equipment list and "technical support needed" (Story 27) are not attached; only the free-text equipment notes are. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-request.e2e-spec.ts::creates a REQUESTED booking carrying the event requirements` |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::creates a REQUESTED booking carrying the event requirements` |
 
 ### TC-S2-36
 
@@ -789,7 +935,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-request.e2e-spec.ts::returns 409 naming the conflicting booking, and creates nothing` |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::returns 409 naming the conflicting booking, and creates nothing` |
 
 ### TC-S2-37
 
@@ -810,7 +956,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-request.e2e-spec.ts::allows a back-to-back slot that only touches the confirmed one` |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::allows a back-to-back slot that only touches the confirmed one` |
 
 ### TC-S2-38
 
@@ -831,7 +977,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-request.e2e-spec.ts::creates the request and warns about the pending one`<br>`test/bookings-request.e2e-spec.ts::names the conflicting request by event and time range` |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::creates the request and warns about the pending one`<br>Integration: `test/bookings-request.e2e-spec.ts::names the conflicting request by event and time range` |
 
 ### TC-S2-39
 
@@ -852,7 +998,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-request.e2e-spec.ts::lists it under GET /bookings/mine for the requester only` |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::lists it under GET /bookings/mine for the requester only` |
 
 ### TC-S2-40
 
@@ -873,7 +1019,9 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-request.e2e-spec.ts::denies an Organiser (403)`<br>`test/bookings-request.e2e-spec.ts::hides an event assigned to another Coordinator (404)`<br>`test/bookings-request.e2e-spec.ts::refuses an event that has not been approved yet (409)`<br>`test/bookings-request.e2e-spec.ts::shows full detail to the requester, the event's Organiser and the venue's manager only` |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::denies an Organiser (403)`<br>Integration: `test/bookings-request.e2e-spec.ts::hides an event assigned to another Coordinator (404)`<br>Integration: `test/bookings-request.e2e-spec.ts::refuses an event that has not been approved yet (409)`<br>Integration: `test/bookings-request.e2e-spec.ts::shows full detail to the requester, the event's Organiser and the venue's manager only` |
+
+---
 
 ## Story 21: Venue Booking Request Queue (Venue Staff)
 
@@ -896,7 +1044,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-queue.e2e-spec.ts::excludes other staff's venues and decided requests`<br>`test/bookings-queue.e2e-spec.ts::is denied to a Coordinator (403)` |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::excludes other staff's venues and decided requests`<br>Integration: `test/bookings-queue.e2e-spec.ts::is denied to a Coordinator (403)` |
 
 ### TC-S2-42
 
@@ -917,7 +1065,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-queue.e2e-spec.ts::carries event, venue, times, attendance, requester and organiser` |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::carries event, venue, times, attendance, requester and organiser` |
 
 ### TC-S2-43
 
@@ -938,7 +1086,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-queue.e2e-spec.ts::sorts by event date, soonest first, by default`<br>`test/bookings-queue.e2e-spec.ts::sorts by event date, latest first, when asked`<br>`test/bookings-queue.e2e-spec.ts::sorts by submission date when asked`<br>`test/bookings-queue.e2e-spec.ts::rejects an unknown sort field (400)` |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::sorts by event date, soonest first, by default`<br>Integration: `test/bookings-queue.e2e-spec.ts::sorts by event date, latest first, when asked`<br>Integration: `test/bookings-queue.e2e-spec.ts::sorts by submission date when asked`<br>Integration: `test/bookings-queue.e2e-spec.ts::rejects an unknown sort field (400)` |
 
 ### TC-S2-44
 
@@ -959,7 +1107,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-queue.e2e-spec.ts::filters by venue`<br>`test/bookings-queue.e2e-spec.ts::filters by date range`<br>`test/bookings-queue.e2e-spec.ts::filters the decided view by status` |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::filters by venue`<br>Integration: `test/bookings-queue.e2e-spec.ts::filters by date range`<br>Integration: `test/bookings-queue.e2e-spec.ts::filters the decided view by status` |
 
 ### TC-S2-45
 
@@ -980,7 +1128,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | Threshold: 7 days, per the team's comment on the story. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-queue.e2e-spec.ts::puts requests under a week away at the top, flagged`<br>`test/bookings-queue.e2e-spec.ts::still flags a request whose event has started, with a negative day count` |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::puts requests under a week away at the top, flagged`<br>Integration: `test/bookings-queue.e2e-spec.ts::still flags a request whose event has started, with a negative day count` |
 
 ### TC-S2-46
 
@@ -1001,7 +1149,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-queue.e2e-spec.ts::GET /bookings/:id returns it with its requirements` |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::GET /bookings/:id returns it with its requirements` |
 
 ### TC-S2-47
 
@@ -1022,7 +1170,9 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-queue.e2e-spec.ts::moves a request out of Pending as soon as it is approved or rejected`<br>`test/bookings-queue.e2e-spec.ts::shows approved and rejected requests only under view=decided` |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::moves a request out of Pending as soon as it is approved or rejected`<br>Integration: `test/bookings-queue.e2e-spec.ts::shows approved and rejected requests only under view=decided` |
+
+---
 
 ## Story 22: Approve/Reject Booking Request with Reason (Venue Staff)
 
@@ -1045,7 +1195,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | AC-1 itself (approve and reject are on the request detail view) is about the screen: TC-S2-81 (manual). |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-decision.e2e-spec.ts::is refused for another staff member's venue (404) and for a Coordinator (403)` |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::is refused for another staff member's venue (404) and for a Coordinator (403)` |
 
 ### TC-S2-49
 
@@ -1066,7 +1216,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | Bug: a reason of only spaces is accepted and saved as an empty reason, because RejectBookingDto (and ReverseBookingDto) do not trim before checking. Captured with it.failing; fix by adding @Trim() above @IsNotEmpty(), as the Sprint 1 DTOs do. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-decision.e2e-spec.ts::refuses a rejection without a reason, and changes nothing`<br>`test/bookings-decision.e2e-spec.ts::refuses a reason made only of spaces`<br>`test/bookings-decision.e2e-spec.ts::rejects with a reason` |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::refuses a rejection without a reason, and changes nothing`<br>Integration: `test/bookings-decision.e2e-spec.ts::refuses a reason made only of spaces`<br>Integration: `test/bookings-decision.e2e-spec.ts::rejects with a reason` |
 
 ### TC-S2-50
 
@@ -1087,7 +1237,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-decision.e2e-spec.ts::approves with no body at all`<br>`test/bookings-decision.e2e-spec.ts::approves with a note` |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::approves with no body at all`<br>Integration: `test/bookings-decision.e2e-spec.ts::approves with a note` |
 
 ### TC-S2-51
 
@@ -1108,7 +1258,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-decision.e2e-spec.ts::returns a decision history entry naming the staff member` |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::returns a decision history entry naming the staff member` |
 
 ### TC-S2-52
 
@@ -1129,7 +1279,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-decision.e2e-spec.ts::shows it to both on GET /bookings/events/:eventId, and notifies both`<br>`test/bookings-decision.e2e-spec.ts::hides it from an unrelated Organiser` |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::shows it to both on GET /bookings/events/:eventId, and notifies both`<br>Integration: `test/bookings-decision.e2e-spec.ts::hides it from an unrelated Organiser` |
 
 ### TC-S2-53
 
@@ -1150,7 +1300,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-decision.e2e-spec.ts::keeps the original decision and appends the reversal`<br>`test/bookings-decision.e2e-spec.ts::requires a reason to reverse`<br>`test/bookings-decision.e2e-spec.ts::refuses to reverse a request that has not been decided (409)`<br>`test/bookings-decision.e2e-spec.ts::re-checks the slot when a rejection is reversed into an approval` |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::keeps the original decision and appends the reversal`<br>Integration: `test/bookings-decision.e2e-spec.ts::requires a reason to reverse`<br>Integration: `test/bookings-decision.e2e-spec.ts::refuses to reverse a request that has not been decided (409)`<br>Integration: `test/bookings-decision.e2e-spec.ts::re-checks the slot when a rejection is reversed into an approval` |
 
 ### TC-S2-54
 
@@ -1171,7 +1321,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | The "action is disabled/hidden" part of AC-7 is about the screen: TC-S2-81 (manual). |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-decision.e2e-spec.ts::refuses a second approve or reject (409) and records nothing more`<br>`test/bookings-decision.e2e-spec.ts::lets only one of two simultaneous approvals through` |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::refuses a second approve or reject (409) and records nothing more`<br>Integration: `test/bookings-decision.e2e-spec.ts::lets only one of two simultaneous approvals through` |
 
 ### TC-S2-55
 
@@ -1192,7 +1342,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-decision.e2e-spec.ts::refuses to approve a second, overlapping request` |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::refuses to approve a second, overlapping request` |
 
 ### TC-S2-81
 
@@ -1215,6 +1365,8 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Date of Execution |  |
 | Automated by | Manual |
 
+---
+
 ## Story 23: Overlapping Booking Detection (Venue Staff)
 
 ### TC-S2-56
@@ -1236,7 +1388,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-conflicts.e2e-spec.ts::a confirmed booking that %s: conflict = %s`<br>`test/bookings-conflicts.e2e-spec.ts::names the event and time range of each conflict` |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::a confirmed booking that %s: conflict = %s`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::names the event and time range of each conflict` |
 
 ### TC-S2-57
 
@@ -1257,7 +1409,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-conflicts.e2e-spec.ts::lists confirmed overlaps as hard and pending ones as soft, ignoring rejected ones and itself`<br>`test/bookings-conflicts.e2e-spec.ts::reports a pending-only overlap as soft, without a hard conflict` |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::lists confirmed overlaps as hard and pending ones as soft, ignoring rejected ones and itself`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::reports a pending-only overlap as soft, without a hard conflict` |
 
 ### TC-S2-58
 
@@ -1278,7 +1430,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-conflicts.e2e-spec.ts::lists an overlapping block, and marks the request as hard-conflicting` |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::lists an overlapping block, and marks the request as hard-conflicting` |
 
 ### TC-S2-59
 
@@ -1299,7 +1451,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-conflicts.e2e-spec.ts::reports nothing` |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::reports nothing` |
 
 ### TC-S2-60
 
@@ -1320,7 +1472,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-conflicts.e2e-spec.ts::hides the booking from another Venue Staff member (404)`<br>`test/bookings-conflicts.e2e-spec.ts::refuses a Coordinator (403)` |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::hides the booking from another Venue Staff member (404)`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::refuses a Coordinator (403)` |
 
 ### TC-S2-61
 
@@ -1341,7 +1493,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | AC-5 also says "or reassign": there is no way to move the conflicting booking to another time or venue; it can only be reversed. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-conflicts.e2e-spec.ts::refuses approval with 409 and leaves the request pending`<br>`test/bookings-conflicts.e2e-spec.ts::allows approval once the conflicting booking has been reversed` |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::refuses approval with 409 and leaves the request pending`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::allows approval once the conflicting booking has been reversed` |
 
 ### TC-S2-62
 
@@ -1362,7 +1514,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-conflicts.e2e-spec.ts::approves with a warning naming the pending request` |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::approves with a warning naming the pending request` |
 
 ### TC-S2-63
 
@@ -1383,7 +1535,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-conflicts.e2e-spec.ts::catches a conflict that appeared after the page loaded` |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::catches a conflict that appeared after the page loaded` |
 
 ### TC-S2-64
 
@@ -1404,7 +1556,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/bookings-conflicts.e2e-spec.ts::lets exactly one of two simultaneous overlapping approvals through`<br>`test/bookings-conflicts.e2e-spec.ts::is backed by the database: a direct write of an overlapping APPROVED booking fails`<br>`test/bookings-conflicts.e2e-spec.ts::still allows back-to-back APPROVED bookings and overlapping pending ones` |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::lets exactly one of two simultaneous overlapping approvals through`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::is backed by the database: a direct write of an overlapping APPROVED booking fails`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::still allows back-to-back APPROVED bookings and overlapping pending ones` |
 
 ### TC-S2-65
 
@@ -1425,7 +1577,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | The migration folder keeps the old label (us24); migration folders are never renamed. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/booking-overlap-migration.e2e-spec.ts::US-23: adds the constraint when existing data is clean (back-to-back and pending overlaps are fine)`<br>`test/booking-overlap-migration.e2e-spec.ts::US-23: stops and lists existing overlapping APPROVED bookings, changing nothing`<br>`test/booking-overlap-migration.e2e-spec.ts::US-23: also reports APPROVED bookings whose end is before their start` |
+| Automated by | Integration: `test/booking-overlap-migration.e2e-spec.ts::US-23: adds the constraint when existing data is clean (back-to-back and pending overlaps are fine)`<br>Integration: `test/booking-overlap-migration.e2e-spec.ts::US-23: stops and lists existing overlapping APPROVED bookings, changing nothing`<br>Integration: `test/booking-overlap-migration.e2e-spec.ts::US-23: also reports APPROVED bookings whose end is before their start` |
 
 ### TC-S2-66
 
@@ -1490,6 +1642,8 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Date of Execution |  |
 | Automated by | Manual |
 
+---
+
 ## Story 24: Update event information during planning (Event Coordinator)
 
 ### TC-S2-68
@@ -1511,7 +1665,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::saves the programme and attendance to the event record`<br>`test/events-planning-history.e2e-spec.ts::leaves fields that were not sent untouched`<br>`test/events-planning-history.e2e-spec.ts::does not change the status` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::saves the programme and attendance to the event record`<br>Integration: `test/events-planning-history.e2e-spec.ts::leaves fields that were not sent untouched`<br>Integration: `test/events-planning-history.e2e-spec.ts::does not change the status` |
 
 ### TC-S2-69
 
@@ -1532,7 +1686,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::rejects emptying a required field`<br>`test/events-planning-history.e2e-spec.ts::rejects an end before the stored start` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::rejects emptying a required field`<br>Integration: `test/events-planning-history.e2e-spec.ts::rejects an end before the stored start` |
 
 ### TC-S2-70
 
@@ -1553,7 +1707,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::refuses an event that is not in planning (409)`<br>`test/events-planning-history.e2e-spec.ts::hides the event from a Coordinator it is not assigned to (404)`<br>`test/events-planning-history.e2e-spec.ts::refuses the Organiser, even for their own event (403)`<br>`test/events-planning-history.e2e-spec.ts::moves an approved event into planning, after which it can be edited` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::refuses an event that is not in planning (409)`<br>Integration: `test/events-planning-history.e2e-spec.ts::hides the event from a Coordinator it is not assigned to (404)`<br>Integration: `test/events-planning-history.e2e-spec.ts::refuses the Organiser, even for their own event (403)`<br>Integration: `test/events-planning-history.e2e-spec.ts::moves an approved event into planning, after which it can be edited` |
 
 ### TC-S2-71
 
@@ -1574,7 +1728,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | AC-2 does not say who reviews the flag or how it is cleared; neither is built. AC-2 also names "venue": the venue is not an event field, so it cannot change through a planning edit; it changes only through a new booking request (Story 20). |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::flags an attendance change when the venue booking is approved`<br>`test/events-planning-history.e2e-spec.ts::keeps the flag on the history entry` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::flags an attendance change when the venue booking is approved`<br>Integration: `test/events-planning-history.e2e-spec.ts::keeps the flag on the history entry` |
 
 ### TC-S2-72
 
@@ -1595,7 +1749,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::flags a date change against both venue and equipment` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::flags a date change against both venue and equipment` |
 
 ### TC-S2-73
 
@@ -1616,7 +1770,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::treats the change as ordinary when the booking is only requested`<br>`test/events-planning-history.e2e-spec.ts::treats a programme change as ordinary even with confirmed arrangements` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::treats the change as ordinary when the booking is only requested`<br>Integration: `test/events-planning-history.e2e-spec.ts::treats a programme change as ordinary even with confirmed arrangements` |
 
 ### TC-S2-74
 
@@ -1637,7 +1791,9 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::shows Venue Staff the updated event when it has a booking`<br>`test/events-planning-history.e2e-spec.ts::shows Technical Support the updated equipment needs`<br>`test/events-planning-history.e2e-spec.ts::lists only related events for Venue Staff`<br>`test/events-planning-history.e2e-spec.ts::hides an event with no booking from Venue Staff (404)`<br>`test/events-planning-history.e2e-spec.ts::shows the assigned Coordinator the update too` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::shows Venue Staff the updated event when it has a booking`<br>Integration: `test/events-planning-history.e2e-spec.ts::shows Technical Support the updated equipment needs`<br>Integration: `test/events-planning-history.e2e-spec.ts::lists only related events for Venue Staff`<br>Integration: `test/events-planning-history.e2e-spec.ts::hides an event with no booking from Venue Staff (404)`<br>Integration: `test/events-planning-history.e2e-spec.ts::shows the assigned Coordinator the update too` |
+
+---
 
 ## Story 25: View history of changes made to an event's information (Event Coordinator)
 
@@ -1660,7 +1816,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::lists changes oldest first`<br>`test/events-planning-history.e2e-spec.ts::does not record a save that changed nothing` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::lists changes oldest first`<br>Integration: `test/events-planning-history.e2e-spec.ts::does not record a save that changed nothing` |
 
 ### TC-S2-76
 
@@ -1681,7 +1837,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::sorts recorded changes by time, whatever order they were stored in` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::sorts recorded changes by time, whatever order they were stored in` |
 
 ### TC-S2-77
 
@@ -1702,7 +1858,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::includes an Organiser's amendments to a returned request` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::includes an Organiser's amendments to a returned request` |
 
 ### TC-S2-78
 
@@ -1723,7 +1879,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::is not available to a Coordinator who cannot see the event (404)`<br>`test/events-planning-history.e2e-spec.ts::is refused to %s (403)` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::is not available to a Coordinator who cannot see the event (404)`<br>Integration: `test/events-planning-history.e2e-spec.ts::is refused to %s (403)` |
 
 ### TC-S2-79
 
@@ -1744,7 +1900,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::records every changed field with its previous and new value` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::records every changed field with its previous and new value` |
 
 ### TC-S2-80
 
@@ -1765,7 +1921,9 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-planning-history.e2e-spec.ts::says so explicitly` |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::says so explicitly` |
+
+---
 
 ## Story 26: Have an event reassigned when my availability changes (Event Coordinator)
 
@@ -1788,7 +1946,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-reassign.e2e-spec.ts::lists the other Coordinators only, not the requester` |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::lists the other Coordinators only, not the requester` |
 
 ### TC-S2-84
 
@@ -1809,7 +1967,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | AC-1 starts from "the Coordinator's availability has changed": the system has no record of availability, so any responsible Coordinator may ask. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-reassign.e2e-spec.ts::refuses a Coordinator who is not responsible for the event (403)`<br>`test/events-reassign.e2e-spec.ts::refuses %s (403)`<br>`test/events-reassign.e2e-spec.ts::refuses a finished event (409)` |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::refuses a Coordinator who is not responsible for the event (403)`<br>Integration: `test/events-reassign.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/events-reassign.e2e-spec.ts::refuses a finished event (409)` |
 
 ### TC-S2-85
 
@@ -1830,7 +1988,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-reassign.e2e-spec.ts::hands the event to the selected Coordinator`<br>`test/events-reassign.e2e-spec.ts::moves the event between the two Coordinators' queues` |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::hands the event to the selected Coordinator`<br>Integration: `test/events-reassign.e2e-spec.ts::moves the event between the two Coordinators' queues` |
 
 ### TC-S2-86
 
@@ -1851,7 +2009,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-reassign.e2e-spec.ts::rejects reassigning to yourself (400)`<br>`test/events-reassign.e2e-spec.ts::rejects a user who is not a Coordinator (400)`<br>`test/events-reassign.e2e-spec.ts::rejects an unknown user (404)`<br>`test/events-reassign.e2e-spec.ts::requires a coordinatorId (400)` |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::rejects reassigning to yourself (400)`<br>Integration: `test/events-reassign.e2e-spec.ts::rejects a user who is not a Coordinator (400)`<br>Integration: `test/events-reassign.e2e-spec.ts::rejects an unknown user (404)`<br>Integration: `test/events-reassign.e2e-spec.ts::requires a coordinatorId (400)` |
 
 ### TC-S2-87
 
@@ -1872,7 +2030,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-reassign.e2e-spec.ts::notifies the previous and the new Coordinator`<br>`test/events-reassign.e2e-spec.ts::notifies nobody when the reassignment is refused` |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::notifies the previous and the new Coordinator`<br>Integration: `test/events-reassign.e2e-spec.ts::notifies nobody when the reassignment is refused` |
 
 ### TC-S2-88
 
@@ -1893,7 +2051,9 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-reassign.e2e-spec.ts::shows who handed it over, from whom, to whom` |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::shows who handed it over, from whom, to whom` |
+
+---
 
 ## Story 27: Record equipment and technical requirements needed for an event (Event Coordinator)
 
@@ -1916,7 +2076,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-technical-requirements.e2e-spec.ts::saves each line against the event`<br>`test/events-technical-requirements.e2e-spec.ts::replaces the list on a later save`<br>`test/events-technical-requirements.e2e-spec.ts::clears the list when sent empty` |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::saves each line against the event`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::replaces the list on a later save`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::clears the list when sent empty` |
 
 ### TC-S2-90
 
@@ -1937,7 +2097,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | Bug: a type of only spaces is accepted and saved as an empty type, because EquipmentRequirementDto does not trim before checking. Captured with it.failing; fix by adding @Trim() above @IsNotEmpty(). |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-technical-requirements.e2e-spec.ts::rejects %s (400) and saves nothing`<br>`test/events-technical-requirements.e2e-spec.ts::rejects a type made only of spaces (400)`<br>`test/events-technical-requirements.e2e-spec.ts::rejects the same type twice, whatever its case (400)` |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::rejects %s (400) and saves nothing`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::rejects a type made only of spaces (400)`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::rejects the same type twice, whatever its case (400)` |
 
 ### TC-S2-91
 
@@ -1958,7 +2118,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-technical-requirements.e2e-spec.ts::saves the description against the event` |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::saves the description against the event` |
 
 ### TC-S2-92
 
@@ -1979,7 +2139,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-technical-requirements.e2e-spec.ts::refuses an event that is not in planning (409)`<br>`test/events-technical-requirements.e2e-spec.ts::hides the event from a Coordinator it is not assigned to (404)`<br>`test/events-technical-requirements.e2e-spec.ts::refuses %s (403)` |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::refuses an event that is not in planning (409)`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::hides the event from a Coordinator it is not assigned to (404)`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::refuses %s (403)` |
 
 ### TC-S2-93
 
@@ -2000,7 +2160,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-technical-requirements.e2e-spec.ts::shows them on the event`<br>`test/events-technical-requirements.e2e-spec.ts::shows them to the Coordinator on the detail view` |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::shows them on the event`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::shows them to the Coordinator on the detail view` |
 
 ### TC-S2-94
 
@@ -2021,7 +2181,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | The Organiser's free-text equipment notes alone do not put an event in this list; Story 30 covers those on its own page. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-technical-requirements.e2e-spec.ts::lists an event once it has requirements, even with nothing reserved`<br>`test/events-technical-requirements.e2e-spec.ts::still lists an event that only has a reservation` |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::lists an event once it has requirements, even with nothing reserved`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::still lists an event that only has a reservation` |
 
 ### TC-S2-95
 
@@ -2042,7 +2202,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-technical-requirements.e2e-spec.ts::never shows them to an Attendee` |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::never shows them to an Attendee` |
 
 ### TC-S2-96
 
@@ -2063,7 +2223,9 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-technical-requirements.e2e-spec.ts::records each save with the before and after` |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::records each save with the before and after` |
+
+---
 
 ## Story 28: View the equipment catalogue to know what's available (Technical Support Staff)
 
@@ -2086,7 +2248,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-browse.e2e-spec.ts::returns every item with its key details`<br>`test/equipment-browse.e2e-spec.ts::lists an item with no description or location, showing them as empty` |
+| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::returns every item with its key details`<br>Integration: `test/equipment-browse.e2e-spec.ts::lists an item with no description or location, showing them as empty` |
 
 ### TC-S2-98
 
@@ -2107,7 +2269,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-browse.e2e-spec.ts::refuses %s (403)`<br>`test/equipment-browse.e2e-spec.ts::refuses a request without a token (401)` |
+| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/equipment-browse.e2e-spec.ts::refuses a request without a token (401)` |
 
 ### TC-S2-99
 
@@ -2128,7 +2290,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-browse.e2e-spec.ts::includes the operational status`<br>`test/equipment-browse.e2e-spec.ts::refuses a Coordinator (403)`<br>`test/equipment-browse.e2e-spec.ts::reports an unknown item as not found (404)` |
+| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::includes the operational status`<br>Integration: `test/equipment-browse.e2e-spec.ts::refuses a Coordinator (403)`<br>Integration: `test/equipment-browse.e2e-spec.ts::reports an unknown item as not found (404)` |
 
 ### TC-S2-100
 
@@ -2149,7 +2311,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-browse.e2e-spec.ts::looks up by a case-insensitive part of the type`<br>`test/equipment-browse.e2e-spec.ts::returns an empty list when nothing matches`<br>`test/equipment-browse.e2e-spec.ts::sorts by type, A to Z`<br>`test/equipment-browse.e2e-spec.ts::sorts by total quantity`<br>`test/equipment-browse.e2e-spec.ts::rejects a sort field outside the fixed list (400)` |
+| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::looks up by a case-insensitive part of the type`<br>Integration: `test/equipment-browse.e2e-spec.ts::returns an empty list when nothing matches`<br>Integration: `test/equipment-browse.e2e-spec.ts::sorts by type, A to Z`<br>Integration: `test/equipment-browse.e2e-spec.ts::sorts by total quantity`<br>Integration: `test/equipment-browse.e2e-spec.ts::rejects a sort field outside the fixed list (400)` |
 
 ### TC-S2-101
 
@@ -2170,7 +2332,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-browse.e2e-spec.ts::shows a newly saved item on the next load, and is not cached`<br>`test/equipment-browse.e2e-spec.ts::shows a changed operational status when the item is reopened` |
+| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::shows a newly saved item on the next load, and is not cached`<br>Integration: `test/equipment-browse.e2e-spec.ts::shows a changed operational status when the item is reopened` |
 
 ### TC-S2-102
 
@@ -2193,6 +2355,8 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Date of Execution |  |
 | Automated by | Manual |
 
+---
+
 ## Story 29: Check equipment availability for an event's date and time (Technical Support Staff)
 
 ### TC-S2-103
@@ -2214,7 +2378,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-availability.e2e-spec.ts::returns the free count for the window` |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::returns the free count for the window` |
 
 ### TC-S2-104
 
@@ -2235,7 +2399,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-availability.e2e-spec.ts::refuses %s (403)`<br>`test/equipment-availability.e2e-spec.ts::refuses a request without a token (401)` |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/equipment-availability.e2e-spec.ts::refuses a request without a token (401)` |
 
 ### TC-S2-105
 
@@ -2256,7 +2420,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-availability.e2e-spec.ts::rejects an end that is not after the start (400)`<br>`test/equipment-availability.e2e-spec.ts::rejects a missing or malformed date (400)`<br>`test/equipment-availability.e2e-spec.ts::rejects a quantity of %s (400)`<br>`test/equipment-availability.e2e-spec.ts::reports an unknown item as not found (404)` |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::rejects an end that is not after the start (400)`<br>Integration: `test/equipment-availability.e2e-spec.ts::rejects a missing or malformed date (400)`<br>Integration: `test/equipment-availability.e2e-spec.ts::rejects a quantity of %s (400)`<br>Integration: `test/equipment-availability.e2e-spec.ts::reports an unknown item as not found (404)` |
 
 ### TC-S2-106
 
@@ -2277,7 +2441,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-availability.e2e-spec.ts::subtracts this item's units reserved at an overlapping time, and only those` |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::subtracts this item's units reserved at an overlapping time, and only those` |
 
 ### TC-S2-107
 
@@ -2298,7 +2462,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-availability.e2e-spec.ts::ignores reservations at other times, including back-to-back ones` |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::ignores reservations at other times, including back-to-back ones` |
 
 ### TC-S2-108
 
@@ -2319,7 +2483,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | "Already reserved" is read as a confirmed (approved) reservation; a request still awaiting approval holds nothing. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-availability.e2e-spec.ts::does not count requested, rejected or released reservations` |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::does not count requested, rejected or released reservations` |
 
 ### TC-S2-109
 
@@ -2340,7 +2504,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-availability.e2e-spec.ts::counts the peak in use, not the sum, across separate time slots` |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::counts the peak in use, not the sum, across separate time slots` |
 
 ### TC-S2-110
 
@@ -2361,7 +2525,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-availability.e2e-spec.ts::reports no free units for an item %s` |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::reports no free units for an item %s` |
 
 ### TC-S2-111
 
@@ -2382,7 +2546,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-availability.e2e-spec.ts::a request %s the free count (%s wanted): fully available %s, shortfall %s`<br>`test/equipment-availability.e2e-spec.ts::reports the whole request as the shortfall for damaged equipment` |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::a request %s the free count (%s wanted): fully available %s, shortfall %s`<br>Integration: `test/equipment-availability.e2e-spec.ts::reports the whole request as the shortfall for damaged equipment` |
 
 ### TC-S2-112
 
@@ -2403,7 +2567,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | The API checks one type per request; the availability page sends one request per equipment row (TC-S2-113, manual). |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-availability.e2e-spec.ts::answers each type for the same window with its own count and shortfall` |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::answers each type for the same window with its own count and shortfall` |
 
 ### TC-S2-113
 
@@ -2426,6 +2590,8 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Date of Execution |  |
 | Automated by | Manual |
 
+---
+
 ## Story 30: View equipment and technical requirements described for an event (Technical Support Staff)
 
 ### TC-S2-114
@@ -2447,7 +2613,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-requirements.e2e-spec.ts::shows the Organiser's equipment needs on their own`<br>`test/equipment-requirements.e2e-spec.ts::shows the Coordinator's requirement rows on their own`<br>`test/equipment-requirements.e2e-spec.ts::shows the technical support notes on their own`<br>`test/equipment-requirements.e2e-spec.ts::shows all three sources together` |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::shows the Organiser's equipment needs on their own`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows the Coordinator's requirement rows on their own`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows the technical support notes on their own`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows all three sources together` |
 
 ### TC-S2-115
 
@@ -2468,7 +2634,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | "Submitted" is read as any status except DRAFT, so rejected or cancelled events with requirements are listed too. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-requirements.e2e-spec.ts::lists exactly the non-draft events with at least one source`<br>`test/equipment-requirements.e2e-spec.ts::hides a draft from the requirements and details routes (404)` |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::lists exactly the non-draft events with at least one source`<br>Integration: `test/equipment-requirements.e2e-spec.ts::hides a draft from the requirements and details routes (404)` |
 
 ### TC-S2-116
 
@@ -2489,7 +2655,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-requirements.e2e-spec.ts::carries the requirement content in the list itself`<br>`test/equipment-requirements.e2e-spec.ts::shows the requirements, not other planning fields` |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::carries the requirement content in the list itself`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows the requirements, not other planning fields` |
 
 ### TC-S2-117
 
@@ -2510,7 +2676,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-requirements.e2e-spec.ts::says so for a submitted event with nothing recorded`<br>`test/equipment-requirements.e2e-spec.ts::treats text made only of spaces as nothing recorded` |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::says so for a submitted event with nothing recorded`<br>Integration: `test/equipment-requirements.e2e-spec.ts::treats text made only of spaces as nothing recorded` |
 
 ### TC-S2-118
 
@@ -2531,7 +2697,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-requirements.e2e-spec.ts::refuses %s on the list, requirements and details routes (403)`<br>`test/equipment-requirements.e2e-spec.ts::refuses a request without a token (401)` |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::refuses %s on the list, requirements and details routes (403)`<br>Integration: `test/equipment-requirements.e2e-spec.ts::refuses a request without a token (401)` |
 
 ### TC-S2-119
 
@@ -2552,7 +2718,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-requirements.e2e-spec.ts::returns the full event details`<br>`test/equipment-requirements.e2e-spec.ts::opens for the %s event`<br>`test/equipment-requirements.e2e-spec.ts::reports an unknown event as not found (404)`<br>`test/equipment-requirements.e2e-spec.ts::does not expose the requirement text or internal fields` |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::returns the full event details`<br>Integration: `test/equipment-requirements.e2e-spec.ts::opens for the %s event`<br>Integration: `test/equipment-requirements.e2e-spec.ts::reports an unknown event as not found (404)`<br>Integration: `test/equipment-requirements.e2e-spec.ts::does not expose the requirement text or internal fields` |
 
 ### TC-S2-120
 
@@ -2574,6 +2740,8 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Executed By |  |
 | Date of Execution |  |
 | Automated by | Manual |
+
+---
 
 ## Story 31: Reserve available equipment for an event (Technical Support Staff)
 
@@ -2617,7 +2785,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::commits the quantity over the event's own window` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::commits the quantity over the event's own window` |
 
 ### TC-S2-123
 
@@ -2638,7 +2806,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::refuses a %s event (409)` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::refuses a %s event (409)` |
 
 ### TC-S2-124
 
@@ -2659,7 +2827,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::reports an unknown event or item as not found (404)`<br>`test/equipment-reservations.e2e-spec.ts::rejects a quantity of %p (400)` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::reports an unknown event or item as not found (404)`<br>Integration: `test/equipment-reservations.e2e-spec.ts::rejects a quantity of %p (400)` |
 
 ### TC-S2-125
 
@@ -2680,7 +2848,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::refuses %s (403) and commits nothing`<br>`test/equipment-reservations.e2e-spec.ts::refuses a request without a token (401)` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::refuses %s (403) and commits nothing`<br>Integration: `test/equipment-reservations.e2e-spec.ts::refuses a request without a token (401)` |
 
 ### TC-S2-126
 
@@ -2701,7 +2869,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::is excluded from the very next availability check for an overlapping window`<br>`test/equipment-reservations.e2e-spec.ts::cannot be committed again to an overlapping event`<br>`test/equipment-reservations.e2e-spec.ts::does not lock non-overlapping periods, including back-to-back`<br>`test/equipment-reservations.e2e-spec.ts::locks only the item committed, not other items`<br>`test/equipment-reservations.e2e-spec.ts::counts the same event's earlier commitment too` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::is excluded from the very next availability check for an overlapping window`<br>Integration: `test/equipment-reservations.e2e-spec.ts::cannot be committed again to an overlapping event`<br>Integration: `test/equipment-reservations.e2e-spec.ts::does not lock non-overlapping periods, including back-to-back`<br>Integration: `test/equipment-reservations.e2e-spec.ts::locks only the item committed, not other items`<br>Integration: `test/equipment-reservations.e2e-spec.ts::counts the same event's earlier commitment too` |
 
 ### TC-S2-127
 
@@ -2722,7 +2890,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::lets exactly one of two simultaneous over-committing requests through` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::lets exactly one of two simultaneous over-committing requests through` |
 
 ### TC-S2-128
 
@@ -2743,7 +2911,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::rejects one unit more than is free, stating the counts`<br>`test/equipment-reservations.e2e-spec.ts::accepts exactly the free quantity (boundary)`<br>`test/equipment-reservations.e2e-spec.ts::rejects equipment under maintenance, saying so`<br>`test/equipment-reservations.e2e-spec.ts::creates nothing when rejected` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::rejects one unit more than is free, stating the counts`<br>Integration: `test/equipment-reservations.e2e-spec.ts::accepts exactly the free quantity (boundary)`<br>Integration: `test/equipment-reservations.e2e-spec.ts::rejects equipment under maintenance, saying so`<br>Integration: `test/equipment-reservations.e2e-spec.ts::creates nothing when rejected` |
 
 ### TC-S2-129
 
@@ -2764,7 +2932,9 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | This behaviour is not in Story 31's ACs; it is tested because the code does it. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::records a notification for the assigned Coordinator`<br>`test/equipment-reservations.e2e-spec.ts::notifies nobody when the commitment is rejected`<br>`test/equipment-reservations.e2e-spec.ts::still commits, notifying nobody, when the event has no Coordinator` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::records a notification for the assigned Coordinator`<br>Integration: `test/equipment-reservations.e2e-spec.ts::notifies nobody when the commitment is rejected`<br>Integration: `test/equipment-reservations.e2e-spec.ts::still commits, notifying nobody, when the event has no Coordinator` |
+
+---
 
 ## Story 32: Release equipment reservations for a cancelled event (Technical Support Staff)
 
@@ -2787,7 +2957,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | Code gap: no endpoint or screen cancels an event, so the test cancels through EventsService.setStatus(), the method any future cancel action must use (see TC-S2-135). |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::marks every reservation the event held as RELEASED, with a timestamp`<br>`test/equipment-reservations.e2e-spec.ts::releases a still-pending reservation too, leaving a rejected one alone` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::marks every reservation the event held as RELEASED, with a timestamp`<br>Integration: `test/equipment-reservations.e2e-spec.ts::releases a still-pending reservation too, leaving a rejected one alone` |
 
 ### TC-S2-131
 
@@ -2808,7 +2978,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::releases nothing when the event moves to any other status` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::releases nothing when the event moves to any other status` |
 
 ### TC-S2-132
 
@@ -2829,7 +2999,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::restores the units in the availability check for the same window`<br>`test/equipment-reservations.e2e-spec.ts::lets the released units be committed to an overlapping event` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::restores the units in the availability check for the same window`<br>Integration: `test/equipment-reservations.e2e-spec.ts::lets the released units be committed to an overlapping event` |
 
 ### TC-S2-133
 
@@ -2850,7 +3020,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::lists released reservations with the equipment and the cancelled event`<br>`test/equipment-reservations.e2e-spec.ts::is empty when nothing has been released`<br>`test/equipment-reservations.e2e-spec.ts::refuses %s (403)` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::lists released reservations with the equipment and the cancelled event`<br>Integration: `test/equipment-reservations.e2e-spec.ts::is empty when nothing has been released`<br>Integration: `test/equipment-reservations.e2e-spec.ts::refuses %s (403)` |
 
 ### TC-S2-134
 
@@ -2871,7 +3041,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/equipment-reservations.e2e-spec.ts::leaves other events' reservations of the same item held`<br>`test/equipment-reservations.e2e-spec.ts::does not re-release an already-released reservation`<br>`test/equipment-reservations.e2e-spec.ts::changes nothing on a second release of the same cancelled event` |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::leaves other events' reservations of the same item held`<br>Integration: `test/equipment-reservations.e2e-spec.ts::does not re-release an already-released reservation`<br>Integration: `test/equipment-reservations.e2e-spec.ts::changes nothing on a second release of the same cancelled event` |
 
 ### TC-S2-135
 
@@ -2894,6 +3064,8 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Date of Execution |  |
 | Automated by | None (nothing to automate yet) |
 
+---
+
 ## Story 33: Register for an event and provide required information (Attendee)
 
 ### TC-S2-136
@@ -2915,7 +3087,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-register.e2e-spec.ts::offers it for a confirmed event with registration enabled` |
+| Automated by | Integration: `test/registrations-register.e2e-spec.ts::offers it for a confirmed event with registration enabled` |
 
 ### TC-S2-137
 
@@ -2936,7 +3108,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-register.e2e-spec.ts::withholds it for an event %s, and refuses to register (409)`<br>`test/registrations-register.e2e-spec.ts::treats a draft event as not found (404)` |
+| Automated by | Integration: `test/registrations-register.e2e-spec.ts::withholds it for an event %s, and refuses to register (409)`<br>Integration: `test/registrations-register.e2e-spec.ts::treats a draft event as not found (404)` |
 
 ### TC-S2-138
 
@@ -2957,7 +3129,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-register.e2e-spec.ts::flags %s (400) and saves nothing`<br>`test/registrations-register.e2e-spec.ts::flags a missing event (400)`<br>`test/registrations-register.e2e-spec.ts::accepts a phone alone, stored without surrounding spaces` |
+| Automated by | Integration: `test/registrations-register.e2e-spec.ts::flags %s (400) and saves nothing`<br>Integration: `test/registrations-register.e2e-spec.ts::flags a missing event (400)`<br>Integration: `test/registrations-register.e2e-spec.ts::accepts a phone alone, stored without surrounding spaces` |
 
 ### TC-S2-139
 
@@ -2978,7 +3150,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | The confirmation shown on screen is covered by TC-S2-144 (manual). |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-register.e2e-spec.ts::saves the registration as REGISTERED and confirms it` |
+| Automated by | Integration: `test/registrations-register.e2e-spec.ts::saves the registration as REGISTERED and confirms it` |
 
 ### TC-S2-140
 
@@ -2999,7 +3171,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-register.e2e-spec.ts::refuses a second registration and withdraws the Register option`<br>`test/registrations-register.e2e-spec.ts::lets only one of two simultaneous submissions through` |
+| Automated by | Integration: `test/registrations-register.e2e-spec.ts::refuses a second registration and withdraws the Register option`<br>Integration: `test/registrations-register.e2e-spec.ts::lets only one of two simultaneous submissions through` |
 
 ### TC-S2-141
 
@@ -3020,7 +3192,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-register.e2e-spec.ts::refuses before it opens, showing the open and close times`<br>`test/registrations-register.e2e-spec.ts::refuses after it closes, showing the open and close times` |
+| Automated by | Integration: `test/registrations-register.e2e-spec.ts::refuses before it opens, showing the open and close times`<br>Integration: `test/registrations-register.e2e-spec.ts::refuses after it closes, showing the open and close times` |
 
 ### TC-S2-142
 
@@ -3041,7 +3213,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-register.e2e-spec.ts::refuses with "This event is full."`<br>`test/registrations-register.e2e-spec.ts::gives the last place to exactly one of two simultaneous Attendees` |
+| Automated by | Integration: `test/registrations-register.e2e-spec.ts::refuses with "This event is full."`<br>Integration: `test/registrations-register.e2e-spec.ts::gives the last place to exactly one of two simultaneous Attendees` |
 
 ### TC-S2-143
 
@@ -3062,7 +3234,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-register.e2e-spec.ts::refuses %s (403)`<br>`test/registrations-register.e2e-spec.ts::refuses a request without a token (401)` |
+| Automated by | Integration: `test/registrations-register.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/registrations-register.e2e-spec.ts::refuses a request without a token (401)` |
 
 ### TC-S2-144
 
@@ -3085,6 +3257,8 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Date of Execution |  |
 | Automated by | Manual |
 
+---
+
 ## Story 34: View my registration status (Attendee)
 
 ### TC-S2-145
@@ -3106,7 +3280,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-status.e2e-spec.ts::lists both registrations with their details and status` |
+| Automated by | Integration: `test/registrations-status.e2e-spec.ts::lists both registrations with their details and status` |
 
 ### TC-S2-146
 
@@ -3127,7 +3301,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-status.e2e-spec.ts::shows a renamed, retimed event as it is now`<br>`test/registrations-status.e2e-spec.ts::shows a venue once its booking is approved` |
+| Automated by | Integration: `test/registrations-status.e2e-spec.ts::shows a renamed, retimed event as it is now`<br>Integration: `test/registrations-status.e2e-spec.ts::shows a venue once its booking is approved` |
 
 ### TC-S2-147
 
@@ -3148,7 +3322,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-status.e2e-spec.ts::says "No Events Registered"` |
+| Automated by | Integration: `test/registrations-status.e2e-spec.ts::says "No Events Registered"` |
 
 ### TC-S2-148
 
@@ -3169,7 +3343,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-status.e2e-spec.ts::never lists another Attendee's registrations`<br>`test/registrations-status.e2e-spec.ts::denies opening another Attendee's registration (403)`<br>`test/registrations-status.e2e-spec.ts::opens my own registration`<br>`test/registrations-status.e2e-spec.ts::reports an unknown registration as not found (404)` |
+| Automated by | Integration: `test/registrations-status.e2e-spec.ts::never lists another Attendee's registrations`<br>Integration: `test/registrations-status.e2e-spec.ts::denies opening another Attendee's registration (403)`<br>Integration: `test/registrations-status.e2e-spec.ts::opens my own registration`<br>Integration: `test/registrations-status.e2e-spec.ts::reports an unknown registration as not found (404)` |
 
 ### TC-S2-149
 
@@ -3190,7 +3364,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-status.e2e-spec.ts::refuses %s (403)`<br>`test/registrations-status.e2e-spec.ts::refuses a request without a token (401)` |
+| Automated by | Integration: `test/registrations-status.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/registrations-status.e2e-spec.ts::refuses a request without a token (401)` |
 
 ### TC-S2-150
 
@@ -3213,6 +3387,8 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Date of Execution |  |
 | Automated by | Manual |
 
+---
+
 ## Story 35: Withdraw my registration (Attendee)
 
 ### TC-S2-151
@@ -3234,7 +3410,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-withdraw.e2e-spec.ts::offers withdrawal, showing the cutoff`<br>`test/registrations-withdraw.e2e-spec.ts::marks which registrations in "My Registrations" can be withdrawn` |
+| Automated by | Integration: `test/registrations-withdraw.e2e-spec.ts::offers withdrawal, showing the cutoff`<br>Integration: `test/registrations-withdraw.e2e-spec.ts::marks which registrations in "My Registrations" can be withdrawn` |
 
 ### TC-S2-152
 
@@ -3255,7 +3431,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | The prompt itself is on screen: TC-S2-158 (manual). |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-withdraw.e2e-spec.ts::refuses %s (400) and leaves the registration as it was` |
+| Automated by | Integration: `test/registrations-withdraw.e2e-spec.ts::refuses %s (400) and leaves the registration as it was` |
 
 ### TC-S2-153
 
@@ -3276,7 +3452,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-withdraw.e2e-spec.ts::changes the status to WITHDRAWN and records when`<br>`test/registrations-withdraw.e2e-spec.ts::lets only one of two simultaneous withdrawals through` |
+| Automated by | Integration: `test/registrations-withdraw.e2e-spec.ts::changes the status to WITHDRAWN and records when`<br>Integration: `test/registrations-withdraw.e2e-spec.ts::lets only one of two simultaneous withdrawals through` |
 
 ### TC-S2-154
 
@@ -3297,7 +3473,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-withdraw.e2e-spec.ts::frees the place at a full event for another Attendee` |
+| Automated by | Integration: `test/registrations-withdraw.e2e-spec.ts::frees the place at a full event for another Attendee` |
 
 ### TC-S2-155
 
@@ -3318,7 +3494,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-withdraw.e2e-spec.ts::withholds the option and shows the cutoff`<br>`test/registrations-withdraw.e2e-spec.ts::refuses a withdrawal after the cutoff (409)` |
+| Automated by | Integration: `test/registrations-withdraw.e2e-spec.ts::withholds the option and shows the cutoff`<br>Integration: `test/registrations-withdraw.e2e-spec.ts::refuses a withdrawal after the cutoff (409)` |
 
 ### TC-S2-156
 
@@ -3339,7 +3515,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | The story says re-registering follows "#34"; in the user-story document registering is Story 33. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-withdraw.e2e-spec.ts::offers no withdraw option, and refuses withdrawing again (409)`<br>`test/registrations-withdraw.e2e-spec.ts::lets the Attendee register again, re-activating the same registration` |
+| Automated by | Integration: `test/registrations-withdraw.e2e-spec.ts::offers no withdraw option, and refuses withdrawing again (409)`<br>Integration: `test/registrations-withdraw.e2e-spec.ts::lets the Attendee register again, re-activating the same registration` |
 
 ### TC-S2-157
 
@@ -3360,7 +3536,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/registrations-withdraw.e2e-spec.ts::refuses to withdraw another Attendee's registration (403)`<br>`test/registrations-withdraw.e2e-spec.ts::refuses %s (403)`<br>`test/registrations-withdraw.e2e-spec.ts::refuses a request without a token (401)` |
+| Automated by | Integration: `test/registrations-withdraw.e2e-spec.ts::refuses to withdraw another Attendee's registration (403)`<br>Integration: `test/registrations-withdraw.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/registrations-withdraw.e2e-spec.ts::refuses a request without a token (401)` |
 
 ### TC-S2-158
 
@@ -3383,6 +3559,8 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Date of Execution |  |
 | Automated by | Manual |
 
+---
+
 ## Story 36: Request an event change (Event Organiser)
 
 ### TC-S2-159
@@ -3404,7 +3582,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::shows the event's current values`<br>`test/events-change-request.e2e-spec.ts::offers the equipment catalogue to pick from` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::shows the event's current values`<br>Integration: `test/events-change-request.e2e-spec.ts::offers the equipment catalogue to pick from` |
 
 ### TC-S2-160
 
@@ -3425,7 +3603,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::refuses %s (400) and saves nothing` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %s (400) and saves nothing` |
 
 ### TC-S2-161
 
@@ -3446,7 +3624,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::refuses %s (400)` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %s (400)` |
 
 ### TC-S2-162
 
@@ -3467,7 +3645,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::refuses %s (400)`<br>`test/events-change-request.e2e-spec.ts::accepts a new date and time in the future` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %s (400)`<br>Integration: `test/events-change-request.e2e-spec.ts::accepts a new date and time in the future` |
 
 ### TC-S2-163
 
@@ -3488,7 +3666,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::refuses %p (400)` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %p (400)` |
 
 ### TC-S2-164
 
@@ -3509,7 +3687,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::saves a new list that changes a quantity and adds an item`<br>`test/events-change-request.e2e-spec.ts::saves a request to remove every item` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::saves a new list that changes a quantity and adds an item`<br>Integration: `test/events-change-request.e2e-spec.ts::saves a request to remove every item` |
 
 ### TC-S2-165
 
@@ -3530,7 +3708,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::refuses an item that is not in the catalogue (400)`<br>`test/events-change-request.e2e-spec.ts::refuses the same item twice (400)` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses an item that is not in the catalogue (400)`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses the same item twice (400)` |
 
 ### TC-S2-166
 
@@ -3551,7 +3729,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::refuses a quantity of %p (400)` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses a quantity of %p (400)` |
 
 ### TC-S2-167
 
@@ -3572,7 +3750,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::saves it as PENDING on the event, storing only what changes`<br>`test/events-change-request.e2e-spec.ts::refuses a second request while one is pending (409)`<br>`test/events-change-request.e2e-spec.ts::lets only one of two simultaneous requests through` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::saves it as PENDING on the event, storing only what changes`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses a second request while one is pending (409)`<br>Integration: `test/events-change-request.e2e-spec.ts::lets only one of two simultaneous requests through` |
 
 ### TC-S2-168
 
@@ -3593,7 +3771,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::keeps the event as it was and shows the request beside it` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::keeps the event as it was and shows the request beside it` |
 
 ### TC-S2-169
 
@@ -3614,7 +3792,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | Every status from Submitted to Confirmed (including Returned and Planning) is allowed, on the team's reading of "submitted or confirmed". |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::accepts a request for a confirmed event`<br>`test/events-change-request.e2e-spec.ts::refuses a %s event (409)` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::accepts a request for a confirmed event`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses a %s event (409)` |
 
 ### TC-S2-170
 
@@ -3635,7 +3813,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-request.e2e-spec.ts::hides another Organiser's event (404)`<br>`test/events-change-request.e2e-spec.ts::accepts the Organiser\`<br>`test/events-change-request.e2e-spec.ts::refuses %s (403)` |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::hides another Organiser's event (404)`<br>Integration: `test/events-change-request.e2e-spec.ts::accepts the Organiser\`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses %s (403)` |
 
 ### TC-S2-171
 
@@ -3658,6 +3836,8 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Date of Execution |  |
 | Automated by | Manual |
 
+---
+
 ## Story 37: Review change requests (Event Coordinator)
 
 ### TC-S2-172
@@ -3679,7 +3859,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-review.e2e-spec.ts::lists only my pending requests, oldest first`<br>`test/events-change-review.e2e-spec.ts::shows another Coordinator only theirs` |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::lists only my pending requests, oldest first`<br>Integration: `test/events-change-review.e2e-spec.ts::shows another Coordinator only theirs` |
 
 ### TC-S2-173
 
@@ -3700,7 +3880,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-review.e2e-spec.ts::shows current and proposed values, the reason and the requester`<br>`test/events-change-review.e2e-spec.ts::shows the new window a date change would give the event` |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::shows current and proposed values, the reason and the requester`<br>Integration: `test/events-change-review.e2e-spec.ts::shows the new window a date change would give the event` |
 
 ### TC-S2-174
 
@@ -3721,7 +3901,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-review.e2e-spec.ts::warns that 350 exceeds Main Hall (300)`<br>`test/events-change-review.e2e-spec.ts::raises no capacity warning when attendance is not changing` |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::warns that 350 exceeds Main Hall (300)`<br>Integration: `test/events-change-review.e2e-spec.ts::raises no capacity warning when attendance is not changing` |
 
 ### TC-S2-175
 
@@ -3742,7 +3922,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-review.e2e-spec.ts::refuses a rejection with %s (400)`<br>`test/events-change-review.e2e-spec.ts::rejects with the reason, leaving the event unchanged` |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::refuses a rejection with %s (400)`<br>Integration: `test/events-change-review.e2e-spec.ts::rejects with the reason, leaving the event unchanged` |
 
 ### TC-S2-176
 
@@ -3763,7 +3943,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-review.e2e-spec.ts::shows the rejection and reason on the Organiser\` |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::shows the rejection and reason on the Organiser\` |
 
 ### TC-S2-177
 
@@ -3784,7 +3964,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-review.e2e-spec.ts::applies a new attendance and records it in the history`<br>`test/events-change-review.e2e-spec.ts::applies new dates` |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::applies a new attendance and records it in the history`<br>Integration: `test/events-change-review.e2e-spec.ts::applies new dates` |
 
 ### TC-S2-178
 
@@ -3805,7 +3985,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-review.e2e-spec.ts::replaces the catalogue equipment, keeping notes and free-text lines` |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::replaces the catalogue equipment, keeping notes and free-text lines` |
 
 ### TC-S2-179
 
@@ -3826,7 +4006,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-review.e2e-spec.ts::refuses a second decision (409)`<br>`test/events-change-review.e2e-spec.ts::lets only one of a simultaneous approve and reject through` |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::refuses a second decision (409)`<br>Integration: `test/events-change-review.e2e-spec.ts::lets only one of a simultaneous approve and reject through` |
 
 ### TC-S2-180
 
@@ -3847,7 +4027,7 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
 | Date of Execution | 2026-10-18 |
-| Automated by | `test/events-change-review.e2e-spec.ts::hides another Coordinator's request (404)`<br>`test/events-change-review.e2e-spec.ts::reports an unknown request as not found (404)`<br>`test/events-change-review.e2e-spec.ts::refuses %s (403)` |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::hides another Coordinator's request (404)`<br>Integration: `test/events-change-review.e2e-spec.ts::reports an unknown request as not found (404)`<br>Integration: `test/events-change-review.e2e-spec.ts::refuses %s (403)` |
 
 ### TC-S2-181
 
@@ -3869,3 +4049,19 @@ Written test cases for the Sprint 2 user stories, traced from story → acceptan
 | Executed By |  |
 | Date of Execution |  |
 | Automated by | Manual |
+
+---
+
+## Changes since 18 Oct
+
+| Date | Change | Commit | Test cases affected |
+|---|---|---|---|
+| 2026-10-26 | **Regeneration, batch 1 (Story 16 to 19).** Every test commented with its test case, story/AC and a `Code:` line. The blocked-period and suitability AC-3 tests, which inserted rows in the test and had no test case, now load setup scripts (`tc-s2-182-setup.sql`, `tc-s2-30-setup.sql`); `tc-s2-10-setup.sql` dates a booking relative to today for the browser tests. New UI tests (`venue-calendar.test.tsx`, `coordinator-venues.test.tsx`, more in the availability calendar and suitability panel) and browser tests (`e2e/us16-us19-venues.spec.ts`). **Code change:** "Request this venue" opens the event's booking form with the venue chosen (US-19 AC-5). | this commit | TC-S2-10, 11, 17: Not Executed → Pass. TC-S2-30: Fail → Pass. New: TC-S2-182 to 186. All Story 16 to 19 cases re-run. |
+
+---
+
+## Gaps (no automated test yet)
+
+| Test case | Story/AC | What's missing |
+|---|---|---|
+| Story 20 to 37 | all | Re-checked in later batches of the regeneration |

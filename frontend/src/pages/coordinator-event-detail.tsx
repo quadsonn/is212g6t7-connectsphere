@@ -1,6 +1,6 @@
 import { AlertTriangle, ArrowLeft, CheckCircle2, Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +60,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function CoordinatorEventDetail() {
   const { id } = useParams<{ id: string }>();
+  // US-19/US-20: "Request this venue" on a venue's page arrives with ?venueId=.
+  const [searchParams] = useSearchParams();
   const { session } = useAuth();
   const { data: event, isPending, isError, error } = useAssignedRequest(id ?? '');
   const { approve, requestClarification, reject, returnForAmendment } = useReviewEvent();
@@ -515,7 +517,9 @@ export function CoordinatorEventDetail() {
                     message={apiErrorMessage(releaseBooking.error, 'Could not release this booking.')}
                   />
                 ) : null}
-                {canBook ? <BookingRequestForm event={event} /> : null}
+                {canBook ? (
+                  <BookingRequestForm event={event} initialVenueId={searchParams.get('venueId') ?? ''} />
+                ) : null}
               </CardContent>
             </Card>
           ) : null}

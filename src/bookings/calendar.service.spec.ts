@@ -54,6 +54,8 @@ describe('CalendarService (US-16)', () => {
     );
   });
 
+  // TC-S2-01, TC-S2-02 · US-16 AC-1 · unit: CalendarService.getCalendar() with Prisma mocked · fails
+  // if venues outside my management appear, or a booking or block gets the wrong kind
   describe('AC-1: my venues, each slot distinguished by status', () => {
     it('lists only published venues the caller manages', async () => {
       await service.getCalendar(staff, { from, to });
@@ -103,6 +105,8 @@ describe('CalendarService (US-16)', () => {
     });
   });
 
+  // TC-S2-04 · US-16 AC-2 · unit: getCalendar() · fails if entries outside the window are read, or a
+  // window over 42 days is accepted
   describe('AC-2: day, week and month windows', () => {
     it('accepts a six-week month window', async () => {
       await expect(
@@ -126,6 +130,8 @@ describe('CalendarService (US-16)', () => {
     });
   });
 
+  // TC-S2-05 · US-16 AC-3 · unit: getCalendar() · fails if the venue filter is dropped or widens
+  // past my venues
   describe('AC-3: filter to a single venue', () => {
     it('narrows to the chosen venue, still within the caller\'s own', async () => {
       await service.getCalendar(staff, { from, to, venueId: 'v1' });
@@ -138,6 +144,8 @@ describe('CalendarService (US-16)', () => {
     });
   });
 
+  // TC-S2-06 · US-16 AC-4 · unit: getCalendar() · fails if an entry lacks its event name, organiser,
+  // time or attendance
   describe('AC-4: a booked slot carries its event details', () => {
     it('includes event name, organiser, time and attendance', async () => {
       prisma.venueBooking.findMany.mockResolvedValue([
@@ -156,6 +164,8 @@ describe('CalendarService (US-16)', () => {
     });
   });
 
+  // TC-S2-08, TC-S2-09 · US-16 AC-6 · unit: createBlock()/removeBlock() · fails if a block is not
+  // stored, not limited to my venues, or hides the bookings it covers
   describe('AC-6: blocked-out periods', () => {
     const dto = { venueId: 'v1', start: at(8), end: at(18), reason: ' Maintenance ' };
 

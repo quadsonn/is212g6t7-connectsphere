@@ -215,10 +215,12 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-06-setup.sql` | one confirmed booking on Main Hall, with attendance and an organiser, so its slot's details can be checked | 06 |
 | `tc-s2-07-setup.sql` | one pending booking request on Main Hall, to be approved, reversed or rejected through the API during the test | 07 |
 | `tc-s2-09-setup.sql` | on Main Hall on 2 October, one confirmed booking and one pending request at different times, plus an approved event with no booking yet. The test then blocks out the whole day | 09 |
+| `tc-s2-10-setup.sql` | a confirmed booking on Main Hall **today** (10:00-12:00 Singapore time) and a blocked period on Seminar Room today, dated with `now()` because the Venue Staff calendar opens on today. The only Sprint 2 script whose dates move | 10, 11 (browser tests) |
 | `tc-s2-12-setup.sql` | one confirmed booking on Main Hall in March 2027 | 12 |
 | `tc-s2-13-setup.sql` | a heavily booked February 2027 on Main Hall, for the "loads within 2 seconds" check. Every day has three confirmed slots and three pending requests (168 bookings). Confirmed slots never overlap, since the database refuses overlapping APPROVED bookings (Story 23 constraint) | 13 |
 | `tc-s2-14-setup.sql` | on Main Hall in March 2027, a confirmed booking on the 10th and a pending request on the 12th, both for an event whose name and organiser the Coordinator's calendar must never reveal | 14 |
 | `tc-s2-15-setup.sql` | on Main Hall in March 2027, a pending request on the 12th and a rejected request on the 14th, and nothing confirmed | 15 |
+| `tc-s2-182-setup.sql` | four blocked-off periods in March 2027: part of a day, three whole days and the morning of 10 Mar on Main Hall, and one on Seminar Room. Their reason must never reach a Coordinator | 182, 183 |
 | `tc-s2-18-setup.sql` | two published venues and one draft that matches every filter | 18 |
 | `tc-s2-19-setup.sql` | venues around one slot, 10 Mar 2027 09:00-17:00 Singapore time (01:00-09:00 UTC) | 19 |
 | `tc-s2-20-setup.sql` | two venues either side of a minimum-capacity boundary | 20 |
@@ -229,6 +231,7 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-26-setup.sql` | a realistic catalogue for the "within 2 seconds" check: 300 venues (every 10th a draft) and 600 bookings around 10 Mar 2027 | 26 |
 | `tc-s2-28-setup.sql` | one venue and one event that fits it on every check, plus a draft venue | 28, 29, 30, 31, 32, 33 |
 | `tc-s2-29-setup.sql` | an event that fails capacity by one and needs an accessibility feature the venue lacks | 29 |
+| `tc-s2-30-setup.sql` | a venue with a projector and microphones; events needing facilities it does and doesn't have; and one event per equipment scenario (free, held by another event, its own reservation, only a pending request elsewhere, under maintenance, free text), each with its own catalogue item. Load after `tc-s2-28-setup.sql` | 30, 184 |
 | `tc-s2-31-setup.sql` | an event the venue clearly doesn't suit, so the suitability check flags it before a booking request is submitted | 31 |
 | `tc-s2-33-setup.sql` | events the requesting Coordinator must NOT be able to check: another Coordinator's, an unassigned one, and inactive ones | 33 |
 | `tc-s2-34-setup.sql` | an APPROVED event assigned to USR-004, with layout, accessibility and equipment requirements recorded, ready to have Main Hall requested for it | 34, 35, 36, 37, 38, 39, 40 |

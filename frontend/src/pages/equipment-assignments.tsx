@@ -2,11 +2,12 @@ import { Link } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { LinkButton } from '@/components/ui/link-button';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { useMyTechnicalSupportAssignments } from '@/features/equipment/hooks/use-equipment';
 import { apiErrorMessage } from '@/lib/api-client';
-import { formatDateRange, humanise } from '@/lib/utils';
+import { cn, formatDateRange, humanise, STRETCHED_LINK } from '@/lib/utils';
 import type { TechnicalSupportAssignment } from '@/types/api';
 
 /**
@@ -61,15 +62,23 @@ export function EquipmentAssignments() {
 
 function AssignmentRow({ assignment: a }: { assignment: TechnicalSupportAssignment }) {
   return (
-    <li className="space-y-2 px-5 py-4">
+    <li className="group relative space-y-2 px-5 py-4 transition-colors hover:bg-ink-50">
       <div className="flex flex-wrap items-center gap-2.5">
         <Link
           to={`/equipment/requirements/${a.eventId}`}
-          className="font-medium text-ink-900 hover:underline"
+          className="font-medium text-ink-900 group-hover:text-brand-700 group-hover:underline"
         >
           {a.name ?? 'Untitled event'}
         </Link>
         <EventStatusBadge status={a.status} />
+        <LinkButton
+          to={`/equipment/requirements/${a.eventId}`}
+          size="sm"
+          variant="secondary"
+          className={cn('ml-auto', STRETCHED_LINK)}
+        >
+          View details
+        </LinkButton>
       </div>
 
       <dl className="space-y-1 text-sm">

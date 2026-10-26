@@ -133,10 +133,12 @@ export function EquipmentCatalogue() {
                 {items.map((item) => (
                   <tr
                     key={item.id}
-                    className="cursor-pointer hover:bg-ink-50"
+                    className="group cursor-pointer transition-colors hover:bg-ink-50"
                     onClick={() => navigate(`/equipment/inventory/${item.id}`)}
                   >
-                    <td className="px-5 py-3.5 font-medium text-ink-900">{item.type}</td>
+                    <td className="px-5 py-3.5 font-medium text-ink-900 group-hover:text-brand-700 group-hover:underline">
+                      {item.type}
+                    </td>
                     <td className="px-5 py-3.5 text-ink-600">{item.description ?? '—'}</td>
                     <td className="px-5 py-3.5 tabular-nums text-ink-600">{item.totalQuantity}</td>
                     <td className="px-5 py-3.5 text-ink-600">{item.location ?? '—'}</td>

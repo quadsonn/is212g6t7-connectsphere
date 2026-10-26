@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckboxRow } from '@/components/ui/form';
+import { LinkButton } from '@/components/ui/link-button';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { useEventRequirementsList } from '@/features/equipment/hooks/use-equipment';
 import { apiErrorMessage } from '@/lib/api-client';
 import { FINISHED_EVENT_STATUSES } from '@/lib/status';
-import { cn, formatDateRange } from '@/lib/utils';
+import { cn, formatDateRange, STRETCHED_LINK } from '@/lib/utils';
 import type { EventRequirements } from '@/types/api';
 
 /** US-31 AC-1/AC-2 — a one-line preview of each source the event has. */
@@ -44,7 +44,6 @@ function requirementSummary(event: EventRequirements): { label: string; text: st
 export function EquipmentDashboard() {
   const [showFinished, setShowFinished] = useState(false);
   const { data: events, isPending, isError, error } = useEventRequirementsList(showFinished);
-  const navigate = useNavigate();
 
   return (
     <>
@@ -94,17 +93,21 @@ export function EquipmentDashboard() {
             {events.map((event) => {
               const finished = FINISHED_EVENT_STATUSES.includes(event.status);
               return (
-                <li key={event.eventId}>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/equipment/requirements/${event.eventId}`)}
-                    className={cn(
-                      'block w-full px-5 py-4 text-left hover:bg-ink-50',
-                      finished && 'bg-ink-50/60',
-                    )}
-                  >
+                <li
+                  key={event.eventId}
+                  className={cn(
+                    'group relative flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-ink-50',
+                    finished && 'bg-ink-50/60',
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2.5">
-                      <span className={cn('font-medium', finished ? 'text-ink-500' : 'text-ink-900')}>
+                      <span
+                        className={cn(
+                          'font-medium group-hover:text-brand-700 group-hover:underline',
+                          finished ? 'text-ink-500' : 'text-ink-900',
+                        )}
+                      >
                         {event.name ?? 'Untitled event'}
                       </span>
                       <EventStatusBadge status={event.status} />
@@ -124,7 +127,18 @@ export function EquipmentDashboard() {
                         </div>
                       ))}
                     </dl>
-                  </button>
+                  </div>
+
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <LinkButton
+                      to={`/equipment/requirements/${event.eventId}`}
+                      size="sm"
+                      variant="secondary"
+                      className={STRETCHED_LINK}
+                    >
+                      View details
+                    </LinkButton>
+                  </div>
                 </li>
               );
             })}

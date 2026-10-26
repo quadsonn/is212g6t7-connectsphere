@@ -115,6 +115,8 @@ describe('EquipmentReservationsService', () => {
     );
   });
 
+  // TC-S2-122, TC-S2-123, TC-S2-124 · US-31 AC-1 · unit: commit() with Prisma mocked · fails if the reservation is
+  // not over the event's window, the grant is skipped, or an unknown or not-live event is accepted
   describe('US-31 AC-1: commit an item and quantity to an event for its date and time', () => {
     it('creates a committed (APPROVED) reservation over the event’s own window', async () => {
       const result = await commit(4);
@@ -173,6 +175,8 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
+  // TC-S2-126, TC-S2-127 · US-31 AC-2 · unit: commit() locking · fails if the rows are not locked, or overlapping
+  // committed units are not counted
   describe('US-31 AC-2: the committed quantity is locked against overlapping commitments', () => {
     it('runs the transaction with room to wait for the row lock', async () => {
       await commit(1);
@@ -216,6 +220,8 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
+  // TC-S2-128 · US-31 AC-3 · unit: commit() and rejectionReason() · fails if an over-commit is accepted, or the
+  // reason lacks the counts
   describe('US-31 AC-3: a quantity already locked elsewhere is rejected with the reason', () => {
     it('rejects one unit above what is free, and says why', async () => {
       tx.equipmentReservation.findMany.mockResolvedValue([{ quantity: 4, start, end }]);
@@ -267,7 +273,9 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-31 AC-4: the assigned Coordinator is notified once the commitment is confirmed', () => {
+  // TC-S2-129 · US-31 (not in the ACs) · unit: commit() · fails if the Coordinator is not told, or told before
+  // the commitment is saved
+  describe("US-31, beyond the story's ACs: the assigned Coordinator is notified once the commitment is confirmed", () => {
     it('notifies the assigned Coordinator after the transaction commits', async () => {
       await commit(2);
 

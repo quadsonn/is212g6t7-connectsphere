@@ -62,6 +62,8 @@ describe('EquipmentRequirementsService (US-30)', () => {
     );
   });
 
+  // TC-S2-114, TC-S2-116 · US-30 AC-1, AC-2 · unit: the requirements view · fails if a source is dropped, or only
+  // its existence is shown
   describe('US-30 AC-1/AC-2: recorded requirements are shown, including what was requested', () => {
     it('Organiser text only — returned in full', () => {
       expect(toRequirementsView({ ...bare, equipmentNeeds: 'Six mics, two projectors.' })).toEqual({
@@ -135,6 +137,7 @@ describe('EquipmentRequirementsService (US-30)', () => {
     });
   });
 
+  // TC-S2-117 · US-30 AC-3 · unit: the requirements view · fails if an event with nothing recorded is not said so
   describe('US-30 AC-3: none of the three recorded is clearly indicated', () => {
     it.each([
       ['all null', null, null],
@@ -160,6 +163,8 @@ describe('EquipmentRequirementsService (US-30)', () => {
     });
   });
 
+  // TC-S2-115, TC-S2-118 · US-30 AC-4 · unit: the visibility rule and the list · fails if a draft, an event with
+  // nothing recorded, or (by default) a finished event is listed
   describe('US-30 AC-4: only submitted events with a requirement source; drafts hidden', () => {
     it('the visibility rule excludes drafts and needs at least one of the three sources', () => {
       const where = REQUIREMENTS_VISIBLE_WHERE as { status: { in: EventStatus[] }; OR: unknown[] };
@@ -267,6 +272,8 @@ describe('EquipmentRequirementsService (US-30)', () => {
     });
   });
 
+  // TC-S2-119 · US-30 AC-1 · unit: findDetailsForEvent() · fails if "View more details" opens a draft, or not a
+  // submitted event without requirements
   describe('US-30 AC-4: "View more details" opens any submitted event; drafts hidden', () => {
     const detailsRow = {
       id: 'event-1',

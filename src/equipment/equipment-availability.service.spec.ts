@@ -48,6 +48,8 @@ describe('EquipmentService checkAvailability (US-29)', () => {
     );
   });
 
+  // TC-S2-103, TC-S2-105 · US-29 AC-1 · unit: checkAvailability() with Prisma mocked · fails if the free count is
+  // wrong, the grant is skipped, or an unknown item is not a 404
   describe('US-29 AC-1: available units for a given date and time', () => {
     it('reports the free count for the window asked about', async () => {
       await expect(check(2)).resolves.toEqual({
@@ -83,6 +85,8 @@ describe('EquipmentService checkAvailability (US-29)', () => {
     });
   });
 
+  // TC-S2-106, TC-S2-108 · US-29 AC-2 · unit: checkAvailability() · fails if overlapping committed units are not
+  // subtracted
   describe('US-29 AC-2: equipment reserved for an overlapping event is excluded', () => {
     it('queries committed reservations of this item overlapping the window', async () => {
       await check(1);
@@ -108,6 +112,7 @@ describe('EquipmentService checkAvailability (US-29)', () => {
     });
   });
 
+  // TC-S2-110 · US-29 AC-3 · unit: checkAvailability() · fails if a non-operational item reports free units
   describe('US-29 AC-3: damaged or under-maintenance equipment is excluded', () => {
     it.each([EquipmentStatus.UNDER_MAINTENANCE, EquipmentStatus.OUT_OF_SERVICE])(
       'reports no free units for an item %s',
@@ -124,6 +129,7 @@ describe('EquipmentService checkAvailability (US-29)', () => {
     );
   });
 
+  // TC-S2-111 · US-29 AC-4 · unit: checkAvailability() · fails if the shortfall is wrong
   describe('US-29 AC-4: indicates when the requested quantity is not fully available', () => {
     beforeEach(() => {
       prisma.equipmentReservation.findMany.mockResolvedValue([{ quantity: 4, start, end }]);

@@ -189,7 +189,7 @@ describe('Story 31 reserve equipment / Story 32 release for a cancelled event (i
     });
   });
 
-  describe('access: Technical Support only', () => {
+  describe('US-31 access: Technical Support only', () => {
     // TC-S2-125 · US-31 · setup: base-users + tc-s2-122-setup · fails if another role could commit equipment
     // Code: the route is @Roles(TECHNICAL_SUPPORT_STAFF), so RolesGuard answers 403.
     it.each(OTHER_ROLES)('refuses %s (403) and commits nothing', async (who) => {
@@ -306,7 +306,7 @@ describe('Story 31 reserve equipment / Story 32 release for a cancelled event (i
     });
   });
 
-  describe("beyond the story's ACs: the Coordinator is notified of a commitment", () => {
+  describe("US-31, beyond the story's ACs: the Coordinator is notified of a commitment", () => {
     // TC-S2-129 · US-31 (extra) · setup: base-users + tc-s2-122-setup · fails if the event's Coordinator wasn't told about a commitment
     // Code: after a successful commit, an EQUIPMENT_RESERVATION_DECIDED notification goes to the assigned Coordinator.
     it('records a notification for the assigned Coordinator', async () => {

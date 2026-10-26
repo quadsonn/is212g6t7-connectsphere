@@ -372,6 +372,9 @@ describe('EventsAssignmentService', () => {
     });
   });
 
+  // US-56, also TC-S2-85 to 88 (Story 26 AC-2 to AC-4) · unit: reassign() with Prisma mocked · fails if
+  // more than the coordinator changes, the current one is accepted, either Coordinator is not notified,
+  // or the handover is not recorded
   describe('reassigning an event', () => {
     beforeEach(() => {
       access.assertEventAccess.mockResolvedValue(assigned());

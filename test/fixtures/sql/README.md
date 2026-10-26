@@ -25,7 +25,7 @@ Both helpers check that they are connected to a local `_test` database before wr
 | `tc-s1-46-setup.sql` | 1 request of USR-006's and 2 of USR-007's. Load after `tc-s1-22-setup`. | TC-S1-46 (US-05 AC-5) |
 | `tc-s1-54-setup.sql` | 1 SUBMITTED request with every detail filled in (layout, accessibility, equipment needs, registration), assigned to `USR-004` | TC-S1-54 (US-06 AC-6), TC-S1-84 to 86 and 94 (US-12) |
 | `tc-s1-84-setup.sql` | 3 of USR-006's requests: SUBMITTED and assigned with no optional details, SUBMITTED and unassigned, and an unassigned DRAFT | TC-S1-85, 86 (US-12), TC-S1-90 to 93 (US-10) |
-| `tc-s1-25-setup.sql` | The Event Coordinator Lead, `USR-012` / lead@example.com | TC-S1-25 (US-03 AC-2: a new submission reaches the Lead's unassigned queue) |
+| `tc-s1-25-setup.sql` | The Event Coordinator Lead, `USR-012` / lead@example.com | TC-S1-25 (US-03 AC-2: a new submission reaches the Lead's unassigned queue); TC-S2-83 to 88 (Story 26: the Lead reassigns) |
 | `tc-s1-67-setup.sql` | 2 CONFIRMED events (one per Organiser) and 1 draft, with "INTERNAL …" planning notes. Load after `tc-s1-22-setup`. | TC-S1-67 to 75 (US-02), integration and browser tests |
 | `tc-s1-96-setup.sql` | A second Venue Staff member, `USR-013` / venue.staff2@example.com, who manages no venues | TC-S1-96 to 111 (US-13 to US-15: drafts and edits are limited to their manager) |
 | `tc-s1-105-setup.sql` | 3 bookings on the base venues: upcoming APPROVED on Main Hall, finished on Seminar Room, REJECTED on Rooftop Terrace. Load after `base-venues.sql`. | TC-S1-105, 107 (US-14 AC-3) |
@@ -262,7 +262,7 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-74-setup.sql` | a projector and a requested reservation for the tc-s2-68 event, plus an unrelated event in planning | 74, 94 |
 | `tc-s2-76-setup.sql` | three recorded changes to the tc-s2-68 event, stored out of date order | 76 |
 | `tc-s2-77-setup.sql` | a request returned to its Organiser for changes | 77 |
-| `tc-s2-83-setup.sql` | an event in planning, assigned to USR-004, ready to be handed to another Coordinator | 83, 84, 85, 86, 87, 88 |
+| `tc-s2-83-setup.sql` | an event in planning, assigned to USR-004, ready to be handed to another Coordinator (by the Lead, from `tc-s1-25-setup.sql`) | 83, 84, 85, 86, 87, 88 |
 | `tc-s2-84-setup.sql` | a completed event, still assigned to USR-004 | 84 |
 | `tc-s2-94-setup.sql` | three more events in planning with nothing recorded, for Technical Support's list | 94 |
 | `tc-s2-95-setup.sql` | an event in planning that is open for registration, so an Attendee can view it | 95 |

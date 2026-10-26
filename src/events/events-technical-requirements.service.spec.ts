@@ -103,7 +103,9 @@ describe('EventsService technical requirements (US-27)', () => {
     );
   });
 
-  describe('AC-1: equipment type and quantity are saved', () => {
+  // TC-S2-89, TC-S2-90 · US-27 AC-1 · unit: setTechnicalRequirements() with Prisma mocked · fails if the list
+  // is not replaced, a duplicate type is accepted, or an unchanged list is rewritten
+  describe('US-27 AC-1: equipment type and quantity are saved', () => {
     it('replaces the equipment list', async () => {
       const result = await service.setTechnicalRequirements(coordinator, 'event-1', {
         equipment: [projectors, { equipmentType: ' Wireless mic ', quantity: 6, notes: 'lapel' }],
@@ -156,7 +158,9 @@ describe('EventsService technical requirements (US-27)', () => {
     });
   });
 
-  describe('US-36: lines can be linked to the equipment catalogue', () => {
+  // TC-S2-188 · US-27 AC-1 · unit: setTechnicalRequirements() · fails if a picked item loses its catalogue
+  // link or name, or an id not in the catalogue is accepted
+  describe('US-27 AC-1: lines can be linked to the equipment catalogue', () => {
     it('stores the catalogue link and names the line from the catalogue', async () => {
       await service.setTechnicalRequirements(coordinator, 'event-1', {
         equipment: [{ equipmentId: 'cat-projector', equipmentType: 'typed by hand', quantity: 2 }],
@@ -194,7 +198,9 @@ describe('EventsService technical requirements (US-27)', () => {
     });
   });
 
-  describe('AC-2: technical support needs are saved', () => {
+  // TC-S2-91 · US-27 AC-2 · unit: setTechnicalRequirements() · fails if the support description is not saved or
+  // cannot be cleared
+  describe('US-27 AC-2: technical support needs are saved', () => {
     it('saves the description', async () => {
       const result = await service.setTechnicalRequirements(coordinator, 'event-1', {
         technicalSupportNeeds: 'Hybrid setup with Zoom',
@@ -220,7 +226,9 @@ describe('EventsService technical requirements (US-27)', () => {
     });
   });
 
-  describe('planning only, assigned Coordinator only', () => {
+  // TC-S2-92 · US-27 AC-1, AC-2 · unit: assertInPlanning() and assertEventAccess() · fails if requirements can
+  // be recorded outside planning or by another Coordinator
+  describe('US-27 AC-1, AC-2: planning only, assigned Coordinator only', () => {
     it.each([EventStatus.SUBMITTED, EventStatus.APPROVED, EventStatus.CONFIRMED])(
       'refuses an event that is %s',
       async (status) => {
@@ -241,7 +249,9 @@ describe('EventsService technical requirements (US-27)', () => {
     });
   });
 
-  describe('history and review (US-25, US-24 AC-2)', () => {
+  // TC-S2-96 · US-27 AC-1, AC-2 (US-25, US-24 AC-2) · unit: recordChange() · fails if a requirements save
+  // leaves no history entry, or is not flagged when equipment is already reserved
+  describe('US-27 with US-25 and US-24 AC-2: history and review', () => {
     it('records the change, unflagged when nothing is reserved', async () => {
       await service.setTechnicalRequirements(coordinator, 'event-1', { equipment: [projectors] });
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, Search } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -136,7 +136,16 @@ export function EquipmentCatalogue() {
                     className="cursor-pointer hover:bg-ink-50"
                     onClick={() => navigate(`/equipment/inventory/${item.id}`)}
                   >
-                    <td className="px-5 py-3.5 font-medium text-ink-900">{item.type}</td>
+                    {/* AC-2: a real link, so an item can be opened from the keyboard too. */}
+                    <td className="px-5 py-3.5 font-medium text-ink-900">
+                      <Link
+                        to={`/equipment/inventory/${item.id}`}
+                        className="hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {item.type}
+                      </Link>
+                    </td>
                     <td className="px-5 py-3.5 text-ink-600">{item.description ?? '—'}</td>
                     <td className="px-5 py-3.5 tabular-nums text-ink-600">{item.totalQuantity}</td>
                     <td className="px-5 py-3.5 text-ink-600">{item.location ?? '—'}</td>

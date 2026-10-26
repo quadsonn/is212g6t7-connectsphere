@@ -2,7 +2,7 @@
 
 Written test cases for the Sprint 2 user stories (Story 16 to 37), traced from story → acceptance criterion → test case → automated test. Stories appear in the order of the Sprint 2 user-story document, and the `US-XX` labels in every test file use its numbers. App code comments and migration folder names still use older labels (see [sprint2-conventions.md](sprint2-conventions.md)).
 
-**Regeneration in progress (2026-10-26).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria, every test is commented with its test case, story/AC and the code it checks, and UI and browser tests are added. Done: **Story 16 to 23**. The rest follow in batches.
+**Regeneration in progress (2026-10-26).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria, every test is commented with its test case, story/AC and the code it checks, and UI and browser tests are added. Done: **Story 16 to 31**. The rest follow in batches.
 
 US-14 and US-15 were carried over from Sprint 1 and finished in Sprint 2. Their test cases stay in [sprint1-test-cases.md](sprint1-test-cases.md) (TC-S1-103 to 111); their results are reported with Sprint 2.
 
@@ -1694,19 +1694,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-68 |
 | Story/AC ref | Story 24 AC-1 |
 | Test Scenario | The assigned Coordinator's edits to an event in planning are saved |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Edit the programme and expected attendance (350).<br>2. (Reset) Edit only the attendance. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. Browser test also loads tc-s2-71-setup.sql. UI tests: API mocked. |
+| Test Steps | 1. Edit the programme and expected attendance (350).<br>2. (Reset) Edit only the attendance.<br>3. (UI) Change the programme and attendance on the edit form. |
 | Test Data | Event "Freshman Orientation 2030", PLANNING, 320 expected, "Two projectors" |
-| Expected Result | Both values are saved and returned; fields not sent (name, equipment) are unchanged; the status stays PLANNING. |
+| Expected Result | Both values are saved and returned; fields not sent (name, equipment) are unchanged; the status stays PLANNING. The form sends only the fields that changed, and Save is unavailable until something has. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::saves the programme and attendance to the event record`<br>Integration: `test/events-planning-history.e2e-spec.ts::leaves fields that were not sent untouched`<br>Integration: `test/events-planning-history.e2e-spec.ts::does not change the status` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::saves the programme and attendance to the event record`<br>Integration: `test/events-planning-history.e2e-spec.ts::leaves fields that were not sent untouched`<br>Integration: `test/events-planning-history.e2e-spec.ts::does not change the status`<br>Unit: `src/events/events-planning.service.spec.ts::EventsService planning edits and history (US-24, US-25) US-24 AC-1: edits are saved during planning`<br>UI: `frontend/src/features/events/components/planning-edit-form.test.tsx::sends only the programme and attendance the Coordinator changed`<br>E2E: `e2e/us24-us27-planning.spec.ts::an attendance change to an event with a confirmed booking is flagged, recorded, and seen by Venue Staff` |
 
 ### TC-S2-69
 
@@ -1715,19 +1715,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-69 |
 | Story/AC ref | Story 24 AC-1 |
 | Test Scenario | Invalid planning edits are refused |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Set the name to empty, then to null.<br>2. Set the end to 08:00, before the stored 09:00 start. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. UI tests: API mocked. |
+| Test Steps | 1. Set the name to empty, then to null.<br>2. Set the end to 08:00, before the stored 09:00 start.<br>3. (UI) Clear the name and save. |
 | Test Data | tc-s2-68 event |
-| Expected Result | Each is refused (400), naming the problem; nothing is saved. |
+| Expected Result | Each is refused (400), naming the problem; nothing is saved. On the form, the reason is shown at the field. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::rejects emptying a required field`<br>Integration: `test/events-planning-history.e2e-spec.ts::rejects an end before the stored start` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::rejects emptying a required field`<br>Integration: `test/events-planning-history.e2e-spec.ts::rejects an end before the stored start`<br>UI: `frontend/src/features/events/components/planning-edit-form.test.tsx::shows the refusal next to the field it is about` |
 
 ### TC-S2-70
 
@@ -1742,13 +1742,13 @@ All four use only the local test database (or none). None touches the shared Sup
 | Expected Result | Not in planning: refused (409). Other Coordinator: not found (404). Organiser: refused (403). Starting planning moves the approved event to PLANNING, after which it can be edited. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::refuses an event that is not in planning (409)`<br>Integration: `test/events-planning-history.e2e-spec.ts::hides the event from a Coordinator it is not assigned to (404)`<br>Integration: `test/events-planning-history.e2e-spec.ts::refuses the Organiser, even for their own event (403)`<br>Integration: `test/events-planning-history.e2e-spec.ts::moves an approved event into planning, after which it can be edited` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::refuses an event that is not in planning (409)`<br>Integration: `test/events-planning-history.e2e-spec.ts::hides the event from a Coordinator it is not assigned to (404)`<br>Integration: `test/events-planning-history.e2e-spec.ts::refuses the Organiser, even for their own event (403)`<br>Integration: `test/events-planning-history.e2e-spec.ts::moves an approved event into planning, after which it can be edited`<br>Unit: `src/events/events-planning.service.spec.ts::EventsService planning edits and history (US-24, US-25) starting planning` |
 
 ### TC-S2-71
 
@@ -1757,19 +1757,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-71 |
 | Story/AC ref | Story 24 AC-2 |
 | Test Scenario | A change affecting an already-confirmed venue booking is flagged for review |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql + tc-s2-71-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Change the expected attendance to 500.<br>2. Open the event's history. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql + tc-s2-71-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. UI tests: API mocked. |
+| Test Steps | 1. Change the expected attendance to 500.<br>2. Open the event's history.<br>3. (Browser) Make the same change on the event page and look at the message and the history. |
 | Test Data | tc-s2-68 event with an APPROVED booking on Main Hall |
-| Expected Result | The change is saved and flagged: requires review, affecting VENUE_BOOKING. The history entry carries the same flag. |
+| Expected Result | The change is saved and flagged: requires review, affecting VENUE_BOOKING. The history entry carries the same flag. On screen, the save says it was flagged for review because of the confirmed venue booking, and the history entry is marked "Requires review". |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | AC-2 does not say who reviews the flag or how it is cleared; neither is built. AC-2 also names "venue": the venue is not an event field, so it cannot change through a planning edit; it changes only through a new booking request (Story 20). |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::flags an attendance change when the venue booking is approved`<br>Integration: `test/events-planning-history.e2e-spec.ts::keeps the flag on the history entry` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::flags an attendance change when the venue booking is approved`<br>Integration: `test/events-planning-history.e2e-spec.ts::keeps the flag on the history entry`<br>Unit: `src/events/events-planning.service.spec.ts::EventsService planning edits and history (US-24, US-25) US-24 AC-2: changes to confirmed arrangements are flagged`<br>Unit: `src/events/event-change.rules.spec.ts::event change rules (US-24, US-25) affectedArrangements`<br>UI: `frontend/src/features/events/components/change-history.test.tsx::marks a flagged change and names the arrangement it affects`<br>E2E: `e2e/us24-us27-planning.spec.ts::an attendance change to an event with a confirmed booking is flagged, recorded, and seen by Venue Staff` |
 
 ### TC-S2-72
 
@@ -1784,13 +1784,13 @@ All four use only the local test database (or none). None touches the shared Sup
 | Expected Result | Flagged, affecting VENUE_BOOKING and EQUIPMENT_RESERVATION. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::flags a date change against both venue and equipment` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::flags a date change against both venue and equipment`<br>Unit: `src/events/event-change.rules.spec.ts::event change rules (US-24, US-25) affectedArrangements` |
 
 ### TC-S2-73
 
@@ -1805,13 +1805,13 @@ All four use only the local test database (or none). None touches the shared Sup
 | Expected Result | Neither change is flagged (requires review false, no arrangements listed). |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::treats the change as ordinary when the booking is only requested`<br>Integration: `test/events-planning-history.e2e-spec.ts::treats a programme change as ordinary even with confirmed arrangements` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::treats the change as ordinary when the booking is only requested`<br>Integration: `test/events-planning-history.e2e-spec.ts::treats a programme change as ordinary even with confirmed arrangements`<br>Unit: `src/events/event-change.rules.spec.ts::event change rules (US-24, US-25) affectedArrangements` |
 
 ### TC-S2-74
 
@@ -1821,18 +1821,23 @@ All four use only the local test database (or none). None touches the shared Sup
 | Story/AC ref | Story 24 AC-3 |
 | Test Scenario | Relevant users see the latest saved information, and only for events related to them |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql + tc-s2-71-setup.sql + tc-s2-74-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com; tech.support@example.com; coord.a@example.com. |
-| Test Steps | 1. Edit the event (attendance 500, equipment "Three projectors", programme).<br>2. Open it as Venue Staff, Technical Support and the Coordinator.<br>3. List events as Venue Staff; open an event with no booking as Venue Staff. |
+| Test Steps | 1. Edit the event (attendance 500, equipment "Three projectors", programme).<br>2. Open it as Venue Staff, Technical Support and the Coordinator.<br>3. List events as Venue Staff; open an event with no booking as Venue Staff.<br>4. (Browser) Venue Staff open the event after the Coordinator's edit. |
 | Test Data | tc-s2-71 (booking on Main Hall); tc-s2-74 (requested projector reservation; "Unrelated event") |
-| Expected Result | Each sees the updated values. Venue Staff's list holds only the booked event; an event with no booking on their venues is not found (404). |
+| Expected Result | Each sees the updated values. Venue Staff's list holds only the booked event; an event with no booking on their venues is not found (404). On screen, Venue Staff see "500 or more". |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::shows Venue Staff the updated event when it has a booking`<br>Integration: `test/events-planning-history.e2e-spec.ts::shows Technical Support the updated equipment needs`<br>Integration: `test/events-planning-history.e2e-spec.ts::lists only related events for Venue Staff`<br>Integration: `test/events-planning-history.e2e-spec.ts::hides an event with no booking from Venue Staff (404)`<br>Integration: `test/events-planning-history.e2e-spec.ts::shows the assigned Coordinator the update too` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::shows Venue Staff the updated event when it has a booking`<br>Integration: `test/events-planning-history.e2e-spec.ts::shows Technical Support the updated equipment needs`<br>Integration: `test/events-planning-history.e2e-spec.ts::lists only related events for Venue Staff`<br>Integration: `test/events-planning-history.e2e-spec.ts::hides an event with no booking from Venue Staff (404)`<br>Integration: `test/events-planning-history.e2e-spec.ts::shows the assigned Coordinator the update too`<br>E2E: `e2e/us24-us27-planning.spec.ts::an attendance change to an event with a confirmed booking is flagged, recorded, and seen by Venue Staff` |
+
+**US-24 AC ↔ code notes**
+
+- **AC-2:** the flag is shown when saving and kept in the history, but nobody is asked to review it and it cannot be cleared; the AC does not say who would.
+- **AC-2, "venue":** the venue is not an event field; it changes only through a new booking request (Story 20).
 
 ---
 
@@ -1845,19 +1850,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-75 |
 | Story/AC ref | Story 25 AC-1 |
 | Test Scenario | Changes made through the app are listed oldest first, and a save that changed nothing is not recorded |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Edit attendance (350), then programme, then attendance (400); open the history.<br>2. (Reset) Save attendance 320 (unchanged); open the history. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. UI tests: API mocked. |
+| Test Steps | 1. Edit attendance (350), then programme, then attendance (400); open the history.<br>2. (Reset) Save attendance 320 (unchanged); open the history.<br>3. (UI) Show a history of two entries. |
 | Test Data | tc-s2-68 event |
-| Expected Result | Three entries in the order made (attendance, programme, attendance), with times in order. The unchanged save records nothing. |
+| Expected Result | Three entries in the order made (attendance, programme, attendance), with times in order. The unchanged save records nothing. On screen, the entries appear in that order. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::lists changes oldest first`<br>Integration: `test/events-planning-history.e2e-spec.ts::does not record a save that changed nothing` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::lists changes oldest first`<br>Integration: `test/events-planning-history.e2e-spec.ts::does not record a save that changed nothing`<br>Unit: `src/events/events-planning.service.spec.ts::EventsService planning edits and history (US-24, US-25) US-25: history`<br>Unit: `src/events/event-change.rules.spec.ts::event change rules (US-24, US-25) diffEventFields`<br>UI: `frontend/src/features/events/components/change-history.test.tsx::lists the changes in order, each with what changed, from what, to what, by whom and when`<br>E2E: `e2e/us24-us27-planning.spec.ts::an attendance change to an event with a confirmed booking is flagged, recorded, and seen by Venue Staff` |
 
 ### TC-S2-76
 
@@ -1872,12 +1877,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Expected Result | Listed 1, 2, 3 Oct (CHG-001, -second, -third). |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-planning-history.e2e-spec.ts::sorts recorded changes by time, whatever order they were stored in` |
 
 ### TC-S2-77
@@ -1893,13 +1898,13 @@ All four use only the local test database (or none). None touches the shared Sup
 | Expected Result | One entry, made by the Organiser. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::includes an Organiser's amendments to a returned request` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::includes an Organiser's amendments to a returned request`<br>Unit: `src/events/events-planning.service.spec.ts::EventsService planning edits and history (US-24, US-25) US-25: history` |
 
 ### TC-S2-78
 
@@ -1914,12 +1919,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Expected Result | Other Coordinator: not found (404). Every other role: refused (403). |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-planning-history.e2e-spec.ts::is not available to a Coordinator who cannot see the event (404)`<br>Integration: `test/events-planning-history.e2e-spec.ts::is refused to %s (403)` |
 
 ### TC-S2-79
@@ -1929,19 +1934,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-79 |
 | Story/AC ref | Story 25 AC-2 |
 | Test Scenario | Each entry shows what changed, the previous and new values, who and when |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Change attendance to 350 and the end to 18:00 in one save; open the history. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. UI tests: API mocked. |
+| Test Steps | 1. Change attendance to 350 and the end to 18:00 in one save; open the history.<br>2. (UI) Show an entry changing attendance from 320 to 350. |
 | Test Data | tc-s2-68 event (320 expected, ends 17:00) |
-| Expected Result | One entry listing end 17:00 -> 18:00 and attendance 320 -> 350, made by Cody Coordinator (with email and role), with a valid time. |
+| Expected Result | One entry listing end 17:00 -> 18:00 and attendance 320 -> 350, made by Cody Coordinator (with email and role), with a valid time. On screen, each entry has a Field / Previous / New table, the person and their role, and the time. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::records every changed field with its previous and new value` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::records every changed field with its previous and new value`<br>Unit: `src/events/event-change.rules.spec.ts::event change rules (US-24, US-25) diffEventFields`<br>UI: `frontend/src/features/events/components/change-history.test.tsx::lists the changes in order, each with what changed, from what, to what, by whom and when`<br>E2E: `e2e/us24-us27-planning.spec.ts::an attendance change to an event with a confirmed booking is flagged, recorded, and seen by Venue Staff` |
 
 ### TC-S2-80
 
@@ -1950,19 +1955,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-80 |
 | Story/AC ref | Story 25 AC-3 |
 | Test Scenario | An event with no changes says so |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. Browser test also loads tc-s2-71-setup.sql. UI tests: API mocked. |
 | Test Steps | 1. Open the history of an unedited event. |
 | Test Data | tc-s2-68 event |
-| Expected Result | An empty list with the message "No changes have been recorded for this event since it was created." |
+| Expected Result | An empty list with the message "No changes have been recorded for this event since it was created." The page shows that message instead of a list. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::says so explicitly` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-planning-history.e2e-spec.ts::says so explicitly`<br>Unit: `src/events/events-planning.service.spec.ts::EventsService planning edits and history (US-24, US-25) US-25: history`<br>UI: `frontend/src/features/events/components/change-history.test.tsx::says that no changes have been recorded`<br>E2E: `e2e/us24-us27-planning.spec.ts::an attendance change to an event with a confirmed booking is flagged, recorded, and seen by Venue Staff` |
 
 ---
 
@@ -1973,42 +1978,42 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test case specification | |
 |---|---|
 | Test Case ID | TC-S2-83 |
-| Story/AC ref | Story 26 AC-1 |
-| Test Scenario | Requesting reassignment offers the other Coordinators to choose from |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as coord.a@example.com (Cody Coordinator). |
-| Test Steps | 1. Open the reassignment choices for "Freshman Orientation 2030". |
-| Test Data | Event in planning, assigned to Cody; base users (two Coordinators, one of every other role) |
-| Expected Result | Only Casey Coordinator is offered: not Cody, and no user without the Coordinator role. |
+| Story/AC ref | Story 26 AC-1 (per Week 7 Change 5) |
+| Test Scenario | Reassigning an event offers the other Coordinators to choose from |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as lead@example.com (the Event Coordinator Lead). UI tests: API mocked. |
+| Test Steps | 1. List the Coordinators the event can go to.<br>2. Find the event under its Coordinator in the Lead's assignments view.<br>3. (UI) Open Reassign on the event. |
+| Test Data | EVT-107 "Freshman Orientation 2030", PLANNING, assigned to Cody Coordinator; base users (two Coordinators, one of every other role) |
+| Expected Result | Only the two Coordinators are offered, no user without the Coordinator role. The event is listed under Cody. On screen, the choice offers Casey only (not the event's current Coordinator), and Confirm is unavailable until one is chosen. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | None. |
+| Remarks | Week 7 Change 5: the Event Coordinator Lead reassigns events. The Coordinator asks the Lead; the app has no "request reassignment" step for the Coordinator (see the Story 26 notes). |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-reassign.e2e-spec.ts::lists the other Coordinators only, not the requester` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::offers the Lead every Coordinator, and no one without the Coordinator role`<br>Integration: `test/events-reassign.e2e-spec.ts::shows the Lead the event under the Coordinator responsible for it`<br>UI: `frontend/src/pages/lead-assignments.test.tsx::offers every other Coordinator, and nothing is sent until one is chosen` |
 
 ### TC-S2-84
 
 | Test case specification | |
 |---|---|
 | Test Case ID | TC-S2-84 |
-| Story/AC ref | Story 26 AC-1 |
-| Test Scenario | Only the responsible Coordinator can request reassignment, and only while the event is active |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql + tc-s2-84-setup.sql on testDB (reset before test). Logged in as coord.b@example.com; organiser@example.com; venue.staff@example.com; coord.a@example.com. |
-| Test Steps | 1. As Casey (not responsible), open the choices and reassign.<br>2. As the Organiser and Venue Staff, do the same.<br>3. As Cody, reassign the COMPLETED event. |
-| Test Data | tc-s2-83 event; "Finished event" (COMPLETED, tc-s2-84) |
-| Expected Result | Casey, the Organiser and Venue Staff are refused (403) and the event keeps its Coordinator. The finished event is refused (409). |
+| Story/AC ref | Story 26 AC-1 (per Week 7 Change 5) |
+| Test Scenario | Only the Lead can reassign, and only while the event is active |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s2-83-setup.sql + tc-s2-84-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; coord.b@example.com; organiser, venue staff, tech support, attendee; lead@example.com. |
+| Test Steps | 1. As Cody (responsible), reassign the event, by the old Coordinator route and by the Lead's.<br>2. As Casey and each other role, reassign it.<br>3. As the Lead, reassign the COMPLETED event. |
+| Test Data | EVT-107; "Finished event" (COMPLETED, tc-s2-84) |
+| Expected Result | The old Coordinator route no longer exists (404); Cody, Casey and every other role are refused (403) and the event keeps its Coordinator. The finished event is refused (409). |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | AC-1 starts from "the Coordinator's availability has changed": the system has no record of availability, so any responsible Coordinator may ask. |
+| Remarks | AC-1 starts from "the Coordinator's availability has changed": the system keeps no record of availability, so the Lead may reassign any active event. Week 7 Change 5: the Event Coordinator Lead reassigns events. The Coordinator asks the Lead; the app has no "request reassignment" step for the Coordinator (see the Story 26 notes). |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-reassign.e2e-spec.ts::refuses a Coordinator who is not responsible for the event (403)`<br>Integration: `test/events-reassign.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/events-reassign.e2e-spec.ts::refuses a finished event (409)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::refuses the responsible Coordinator, who now asks the Lead (403)`<br>Integration: `test/events-reassign.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/events-reassign.e2e-spec.ts::refuses a finished event (409)` |
 
 ### TC-S2-85
 
@@ -2017,19 +2022,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-85 |
 | Story/AC ref | Story 26 AC-2 |
 | Test Scenario | Confirming the reassignment makes the new Coordinator the assigned one |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; coord.b@example.com. |
-| Test Steps | 1. As Cody, reassign the event to Casey.<br>2. Open the event in each Coordinator's assigned view. |
-| Test Data | tc-s2-83 event |
-| Expected Result | The event's Coordinator is Casey; its status is still PLANNING. Casey can open it; Cody can no longer (404). |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as lead@example.com; coord.a@example.com; coord.b@example.com. UI tests: API mocked. |
+| Test Steps | 1. As the Lead, reassign the event to Casey.<br>2. Open the event in each Coordinator's assigned view.<br>3. (Browser) Do it on the Coordinator assignments page; sign in as Casey. |
+| Test Data | EVT-107 |
+| Expected Result | The event's Coordinator is Casey; its status is still PLANNING. Casey can open it; Cody can no longer (404). On screen, the Lead is told the event moved from Cody to Casey, and it is in Casey's events. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-reassign.e2e-spec.ts::hands the event to the selected Coordinator`<br>Integration: `test/events-reassign.e2e-spec.ts::moves the event between the two Coordinators' queues` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::hands the event to the selected Coordinator`<br>Integration: `test/events-reassign.e2e-spec.ts::moves the event between the two Coordinators' views`<br>Unit: `src/events/events-assignment.service.spec.ts::EventsAssignmentService reassigning an event`<br>UI: `frontend/src/pages/lead-assignments.test.tsx::reassigns to the chosen Coordinator and confirms the move`<br>E2E: `e2e/us24-us27-planning.spec.ts::the Lead reassigns an event; the new Coordinator has it and its history, the previous one is told` |
 
 ### TC-S2-86
 
@@ -2038,19 +2043,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-86 |
 | Story/AC ref | Story 26 AC-2 |
 | Test Scenario | Only a valid, different Coordinator can be chosen |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Reassign to Cody himself, to the Organiser, to an unknown id, and with no Coordinator. |
-| Test Data | tc-s2-83 event |
-| Expected Result | Himself, the Organiser and no choice are refused (400); the unknown id is not found (404). The event stays with Cody. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as lead@example.com. |
+| Test Steps | 1. Reassign to Cody (who has it), to the Organiser, to an unknown id, and with no Coordinator. |
+| Test Data | EVT-107 |
+| Expected Result | Cody, the Organiser and no choice are refused (400); the unknown id is not found (404). The event stays with Cody. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-reassign.e2e-spec.ts::rejects reassigning to yourself (400)`<br>Integration: `test/events-reassign.e2e-spec.ts::rejects a user who is not a Coordinator (400)`<br>Integration: `test/events-reassign.e2e-spec.ts::rejects an unknown user (404)`<br>Integration: `test/events-reassign.e2e-spec.ts::requires a coordinatorId (400)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::rejects the current Coordinator (400)`<br>Integration: `test/events-reassign.e2e-spec.ts::rejects a user who is not a Coordinator (400)`<br>Integration: `test/events-reassign.e2e-spec.ts::rejects an unknown user (404)`<br>Integration: `test/events-reassign.e2e-spec.ts::requires a coordinatorId (400)`<br>Unit: `src/events/events-assignment.service.spec.ts::EventsAssignmentService reassigning an event` |
 
 ### TC-S2-87
 
@@ -2059,19 +2064,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-87 |
 | Story/AC ref | Story 26 AC-3 |
 | Test Scenario | The previous and new Coordinators are both notified |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; coord.b@example.com. |
-| Test Steps | 1. As Cody, reassign the event to Casey.<br>2. (Reset) As Casey, try to reassign it. |
-| Test Data | tc-s2-83 event |
-| Expected Result | One reassignment notification each for Cody and Casey. The refused attempt notifies nobody. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as lead@example.com; coord.a@example.com. UI tests: API mocked. |
+| Test Steps | 1. As the Lead, reassign the event to Casey.<br>2. (Reset) As Cody, try to reassign it; as the Lead, try Cody.<br>3. (Browser) Cody opens their notifications. |
+| Test Data | EVT-107 |
+| Expected Result | One reassignment notification each for Cody and Casey. The refused attempts notify nobody. Cody's notifications say the event was reassigned from them to Casey; the Lead is told both were notified. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | None. |
+| Remarks | The Organiser is told too (US-65, Sprint 4). |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-reassign.e2e-spec.ts::notifies the previous and the new Coordinator`<br>Integration: `test/events-reassign.e2e-spec.ts::notifies nobody when the reassignment is refused` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::notifies the previous and the new Coordinator`<br>Integration: `test/events-reassign.e2e-spec.ts::notifies nobody when the reassignment is refused`<br>Unit: `src/events/events-assignment.service.spec.ts::EventsAssignmentService reassigning an event`<br>UI: `frontend/src/pages/lead-assignments.test.tsx::reassigns to the chosen Coordinator and confirms the move`<br>E2E: `e2e/us24-us27-planning.spec.ts::the Lead reassigns an event; the new Coordinator has it and its history, the previous one is told` |
 
 ### TC-S2-88
 
@@ -2080,19 +2085,26 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-88 |
 | Story/AC ref | Story 26 AC-4 |
 | Test Scenario | The reassignment is recorded in the event's change history |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as coord.a@example.com; coord.b@example.com. |
-| Test Steps | 1. As Cody, reassign the event to Casey.<br>2. As Casey, open the event's history. |
-| Test Data | tc-s2-83 event |
-| Expected Result | One entry: Coordinator changed from Cody Coordinator to Casey Coordinator, made by Cody. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s2-83-setup.sql on testDB (reset before test). Logged in as lead@example.com; coord.b@example.com. UI tests: API mocked. |
+| Test Steps | 1. As the Lead, reassign the event to Casey.<br>2. As Casey, open the event's history. |
+| Test Data | EVT-107 |
+| Expected Result | One entry: Coordinator changed from Cody Coordinator to Casey Coordinator, made by the Lead. On screen, it reads as the Coordinator row, Cody to Casey. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-reassign.e2e-spec.ts::shows who handed it over, from whom, to whom` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-reassign.e2e-spec.ts::shows who handed it over, from whom, to whom`<br>Unit: `src/events/events-assignment.service.spec.ts::EventsAssignmentService reassigning an event`<br>UI: `frontend/src/features/events/components/change-history.test.tsx::shows a reassignment as the Coordinator changing from one to the other`<br>E2E: `e2e/us24-us27-planning.spec.ts::the Lead reassigns an event; the new Coordinator has it and its history, the previous one is told` |
+
+**US-26 AC ↔ code notes**
+
+- **Week 7 Change 5 (merged):** the Event Coordinator Lead now makes reassignments. On 18 Oct the responsible Coordinator reassigned the event themselves (`/events/:id/reassign`); that route was removed with US-56, and its tests (`test/events-reassign.e2e-spec.ts`) were deleted. The file is rewritten in this regeneration to test Story 26 through the Lead's endpoints, on the same setup scripts plus `tc-s1-25-setup.sql` (the Lead).
+- **AC-1, "when they request reassignment":** the app has no way for a Coordinator to ask for a reassignment; they ask the Lead outside the app. Flagged for the team rather than built, as adding a request step is a new feature.
+- **AC-1, "availability has changed":** availability is not recorded, so any active event can be reassigned.
+- **Leftover:** the Coordinator dashboard still reads a "reassigned" notice that nothing sends since Change 5 (`coordinator-dashboard.tsx`). Harmless; left for the page's owner.
 
 ---
 
@@ -2105,19 +2117,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-89 |
 | Story/AC ref | Story 27 AC-1 |
 | Test Scenario | Required equipment (type and quantity) is saved against the event |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Save 2 × Laser projector and 6 × Wireless microphone ("Lapel").<br>2. Save again with only 3 × Laser projector.<br>3. Save an empty list. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. UI tests: API mocked. |
+| Test Steps | 1. Save 2 × Laser projector and 6 × Wireless microphone ("Lapel").<br>2. Save again with only 3 × Laser projector.<br>3. Save an empty list.<br>4. (UI) Add a line not in the catalogue; reopen saved lines. |
 | Test Data | Event in planning (tc-s2-68) |
-| Expected Result | Both lines are saved with their quantities and notes. The second save replaces the list (one line, 3). The empty save clears it. |
+| Expected Result | Both lines are saved with their quantities and notes. The second save replaces the list (one line, 3). The empty save clears it. On the form, a line not in the catalogue can be typed, and saved lines reopen as they were. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::saves each line against the event`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::replaces the list on a later save`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::clears the list when sent empty` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::saves each line against the event`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::replaces the list on a later save`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::clears the list when sent empty`<br>Unit: `src/events/events-technical-requirements.service.spec.ts::EventsService technical requirements (US-27) US-27 AC-1: equipment type and quantity are saved`<br>UI: `frontend/src/features/events/components/technical-requirements.test.tsx::US-27 AC-1: a picked item is saved as that catalogue item`<br>UI: `frontend/src/features/events/components/technical-requirements.test.tsx::US-27 AC-1: Other shows a text box and saves a free-text line`<br>UI: `frontend/src/features/events/components/technical-requirements.test.tsx::US-27: saved lines reopen as they were and are sent back unchanged`<br>E2E: `e2e/us24-us27-planning.spec.ts::a Coordinator records equipment and support needs, and Technical Support see them` |
 
 ### TC-S2-90
 
@@ -2126,19 +2138,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-90 |
 | Story/AC ref | Story 27 AC-1 |
 | Test Scenario | Invalid equipment lines are refused |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Save a line with no type; with quantity 0; with quantity 1.5.<br>2. Save a line whose type is three spaces.<br>3. Save "Mic" and "mic" together. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. UI tests: API mocked. |
+| Test Steps | 1. Save a line with no type; with quantity 0; with quantity 1.5.<br>2. Save a line whose type is three spaces; one with spaces around "Laser projector".<br>3. Save "Mic" and "mic" together.<br>4. (UI) Leave an added row unchosen and save. |
 | Test Data | Event in planning (tc-s2-68) |
-| Expected Result | Each is refused (400) and nothing is saved; the duplicate is refused with a message to combine the quantities. |
+| Expected Result | Each invalid line is refused (400) and nothing is saved; the duplicate is refused with a message to combine the quantities. A type with spaces around it is saved trimmed. An unchosen row is not sent. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | The empty type, zero and fractional quantities and the duplicate are refused, but a type of three spaces is accepted (200) and saved as an empty type. |
-| Status | Fail |
-| Remarks | Bug: a type of only spaces is accepted and saved as an empty type, because EquipmentRequirementDto does not trim before checking. Captured with it.failing; fix by adding @Trim() above @IsNotEmpty(). |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | Was Fail on 18 Oct: a type of only spaces was saved as an empty type. Fixed since (EquipmentRequirementDto trims before checking), so the it.failing test is now an ordinary one. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::rejects %s (400) and saves nothing`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::rejects a type made only of spaces (400)`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::rejects the same type twice, whatever its case (400)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::rejects %s (400) and saves nothing`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::rejects a type made only of spaces (400)`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::saves a type with surrounding spaces, trimmed`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::rejects the same type twice, whatever its case (400)`<br>Unit: `src/events/events-technical-requirements.service.spec.ts::EventsService technical requirements (US-27) US-27 AC-1: equipment type and quantity are saved`<br>UI: `frontend/src/features/events/components/technical-requirements.test.tsx::US-27: a row left on "Choose from the catalogue…" is ignored` |
 
 ### TC-S2-91
 
@@ -2147,19 +2159,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-91 |
 | Story/AC ref | Story 27 AC-2 |
 | Test Scenario | The technical support needed is saved against the event |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Save "On-site AV technician; hybrid setup with Zoom". |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. UI tests: API mocked. |
+| Test Steps | 1. Save "On-site AV technician; hybrid setup with Zoom".<br>2. (UI) Type it in "Technical support needed" and save. |
 | Test Data | Event in planning (tc-s2-68) |
-| Expected Result | The description is saved on the event and returned. |
+| Expected Result | The description is saved on the event and returned. The form sends what was typed. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::saves the description against the event` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::saves the description against the event`<br>Unit: `src/events/events-technical-requirements.service.spec.ts::EventsService technical requirements (US-27) US-27 AC-2: technical support needs are saved`<br>UI: `frontend/src/features/events/components/technical-requirements.test.tsx::US-27 AC-2: sends the technical support needed`<br>E2E: `e2e/us24-us27-planning.spec.ts::a Coordinator records equipment and support needs, and Technical Support see them` |
 
 ### TC-S2-92
 
@@ -2174,13 +2186,13 @@ All four use only the local test database (or none). None touches the shared Sup
 | Expected Result | Not in planning: refused (409). Casey: not found (404). Technical Support and the Organiser: refused (403). Nothing is saved. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::refuses an event that is not in planning (409)`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::hides the event from a Coordinator it is not assigned to (404)`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::refuses %s (403)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::refuses an event that is not in planning (409)`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::hides the event from a Coordinator it is not assigned to (404)`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::refuses %s (403)`<br>Unit: `src/events/events-technical-requirements.service.spec.ts::EventsService technical requirements (US-27) US-27 AC-1, AC-2: planning only, assigned Coordinator only` |
 
 ### TC-S2-93
 
@@ -2189,19 +2201,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-93 |
 | Story/AC ref | Story 27 AC-3 |
 | Test Scenario | Technical Support (and the Coordinator) see the recorded requirements on the event |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech); coord.a@example.com. |
-| Test Steps | 1. As the Coordinator, record equipment and "Hybrid setup".<br>2. Open the event as Technical Support, then in the Coordinator's assigned view. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as tech.support@example.com; coord.a@example.com. UI tests: API mocked. |
+| Test Steps | 1. As the Coordinator, record equipment and "Hybrid setup".<br>2. Open the event as Technical Support, then in the Coordinator's assigned view.<br>3. (Browser) Record them on the event page; Technical Support open the event's requirements page. |
 | Test Data | Event in planning (tc-s2-68) |
-| Expected Result | Technical Support see the support needs and both equipment lines; the Coordinator's view lists both lines. |
+| Expected Result | Technical Support see the support needs and both equipment lines; the Coordinator's view lists both lines. On screen, both see the line and the support needs. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::shows them on the event`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::shows them to the Coordinator on the detail view` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::shows them on the event`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::shows them to the Coordinator on the detail view`<br>UI: `frontend/src/features/events/components/technical-requirements.test.tsx::US-27 AC-3: shows the recorded equipment and support needs`<br>E2E: `e2e/us24-us27-planning.spec.ts::a Coordinator records equipment and support needs, and Technical Support see them` |
 
 ### TC-S2-94
 
@@ -2210,18 +2222,18 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-94 |
 | Story/AC ref | Story 27 AC-3 |
 | Test Scenario | Events with recorded requirements appear in Technical Support's list |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql + tc-s2-94-setup.sql + tc-s2-74-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql + tc-s2-94-setup.sql + tc-s2-74-setup.sql on testDB (reset before test). Logged in as tech.support@example.com. |
 | Test Steps | 1. Record equipment on "With equipment" and support on "Support only".<br>2. List events as Technical Support.<br>3. (Reset with tc-s2-74) List again. |
 | Test Data | tc-s2-94: three planning events with nothing recorded; tc-s2-74: a requested reservation for the tc-s2-68 event |
 | Expected Result | The list holds exactly "With equipment" and "Support only" (not "Nothing recorded", nor the tc-s2-68 event with only the Organiser's notes). With tc-s2-74, the event with only a reservation is listed. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | The Organiser's free-text equipment notes alone do not put an event in this list; Story 30 covers those on its own page. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::lists an event once it has requirements, even with nothing reserved`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::still lists an event that only has a reservation` |
 
 ### TC-S2-95
@@ -2237,12 +2249,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Expected Result | The Attendee sees the event without any equipment or technical support fields. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::never shows them to an Attendee` |
 
 ### TC-S2-96
@@ -2258,13 +2270,40 @@ All four use only the local test database (or none). None touches the shared Sup
 | Expected Result | Two entries. The second shows equipment from "2 × Laser projector, 6 × Wireless microphone (Lapel)" to "3 × Laser projector", and support from empty to "Hybrid". |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
-| **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| **Test execution record** |  |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::records each save with the before and after` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::records each save with the before and after`<br>Unit: `src/events/events-technical-requirements.service.spec.ts::EventsService technical requirements (US-27) US-27 with US-25 and US-24 AC-2: history and review` |
+
+### TC-S2-188
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-188 |
+| Story/AC ref | Story 27 AC-1 |
+| Test Scenario | The Coordinator picks required equipment from the catalogue |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-68-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. The integration tests add one catalogue item in the test. UI tests: API mocked. |
+| Test Steps | 1. As the Coordinator, list the equipment catalogue; try as Technical Support and an Attendee.<br>2. Save a picked "Laser projector" (sent as "projector") and a free-text "Smoke machine".<br>3. (UI) Open the picker; pick an item and save. |
+| Test Data | Catalogue item "Laser projector" (AV store) |
+| Expected Result | The Coordinator gets the catalogue; the others are refused (403). The picked line is saved linked to the catalogue item, under its catalogue name; the free-text line has no link. On the form, every catalogue item is offered, then "Other (not in catalogue)…". |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** |  |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | New in this regeneration: these tests were labelled with the story but had no test case. The AC asks for type and quantity; picking from the catalogue was added in a later sprint and keeps free text as "Other". |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-technical-requirements.e2e-spec.ts::lets the Coordinator list the catalogue`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/events-technical-requirements.e2e-spec.ts::saves a picked item linked to the catalogue, under its catalogue name`<br>Unit: `src/events/events-technical-requirements.service.spec.ts::EventsService technical requirements (US-27) US-27 AC-1: lines can be linked to the equipment catalogue`<br>UI: `frontend/src/features/events/components/technical-requirements.test.tsx::US-27 AC-1: offers every catalogue item, then Other`<br>UI: `frontend/src/features/events/components/technical-requirements.test.tsx::US-27 AC-1: a picked item is saved as that catalogue item` |
+
+**US-27 AC ↔ code notes**
+
+- **AC-1 (fixed since 18 Oct):** a type of only spaces is refused (TC-S2-90, Fail → Pass). The two whitespace tests were renamed from "US-27 AC-1: …" labels to plain test names.
+- **AC-1, catalogue:** equipment is now picked from the catalogue, or typed as "Other" (TC-S2-188, new).
+- **Relabelled in this regeneration:** the catalogue-link unit tests were labelled US-36 (left over from the earlier renumbering); they are US-27.
 
 ---
 
@@ -2284,12 +2323,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::returns every item with its key details`<br>Integration: `test/equipment-browse.e2e-spec.ts::lists an item with no description or location, showing them as empty` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::returns every item with its key details`<br>Integration: `test/equipment-browse.e2e-spec.ts::lists an item with no description or location, showing them as empty`<br>Unit: `src/equipment/equipment-browse.service.spec.ts::EquipmentService browse (US-28) US-28 AC-1: the list carries the at-a-glance fields`<br>UI: `frontend/src/pages/equipment-catalogue.test.tsx::lists each item with its type, description, quantity and location`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support look up an item in the catalogue and open it` |
 
 ### TC-S2-98
 
@@ -2305,12 +2344,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/equipment-browse.e2e-spec.ts::refuses a request without a token (401)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/equipment-browse.e2e-spec.ts::refuses a request without a token (401)`<br>Unit: `src/equipment/equipment-browse.service.spec.ts::EquipmentService browse (US-28) US-28 AC-1: the list carries the at-a-glance fields`<br>Unit: `src/equipment/equipment.controller.spec.ts::EquipmentController access (US-28 to US-32, US-45) %s is restricted to TECHNICAL_SUPPORT_STAFF alone` |
 
 ### TC-S2-99
 
@@ -2326,12 +2365,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::includes the operational status`<br>Integration: `test/equipment-browse.e2e-spec.ts::refuses a Coordinator (403)`<br>Integration: `test/equipment-browse.e2e-spec.ts::reports an unknown item as not found (404)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::includes the operational status`<br>Integration: `test/equipment-browse.e2e-spec.ts::refuses a Coordinator (403)`<br>Integration: `test/equipment-browse.e2e-spec.ts::reports an unknown item as not found (404)`<br>Unit: `src/equipment/equipment-browse.service.spec.ts::EquipmentService browse (US-28) US-28 AC-2: one item’s full detail`<br>UI: `frontend/src/pages/equipment-catalogue.test.tsx::links each item to its details page`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support look up an item in the catalogue and open it` |
 
 ### TC-S2-100
 
@@ -2347,12 +2386,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::looks up by a case-insensitive part of the type`<br>Integration: `test/equipment-browse.e2e-spec.ts::returns an empty list when nothing matches`<br>Integration: `test/equipment-browse.e2e-spec.ts::sorts by type, A to Z`<br>Integration: `test/equipment-browse.e2e-spec.ts::sorts by total quantity`<br>Integration: `test/equipment-browse.e2e-spec.ts::rejects a sort field outside the fixed list (400)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::looks up by a case-insensitive part of the type`<br>Integration: `test/equipment-browse.e2e-spec.ts::returns an empty list when nothing matches`<br>Integration: `test/equipment-browse.e2e-spec.ts::sorts by type, A to Z`<br>Integration: `test/equipment-browse.e2e-spec.ts::sorts by total quantity`<br>Integration: `test/equipment-browse.e2e-spec.ts::rejects a sort field outside the fixed list (400)`<br>Unit: `src/equipment/equipment-browse.service.spec.ts::EquipmentService browse (US-28) US-28 AC-3: finding one item without scrolling`<br>UI: `frontend/src/pages/equipment-catalogue.test.tsx::looks up by type and sorts by any column, either way`<br>UI: `frontend/src/pages/equipment-catalogue.test.tsx::says so when nothing matches the lookup`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support look up an item in the catalogue and open it` |
 
 ### TC-S2-101
 
@@ -2368,12 +2407,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::shows a newly saved item on the next load, and is not cached`<br>Integration: `test/equipment-browse.e2e-spec.ts::shows a changed operational status when the item is reopened` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-browse.e2e-spec.ts::shows a newly saved item on the next load, and is not cached`<br>Integration: `test/equipment-browse.e2e-spec.ts::shows a changed operational status when the item is reopened`<br>Unit: `src/equipment/equipment-browse.service.spec.ts::EquipmentService browse (US-28) US-28 AC-4: no stale data` |
 
 ### TC-S2-102
 
@@ -2382,19 +2421,24 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-102 |
 | Story/AC ref | Story 28 AC-1, AC-2, AC-3 |
 | Test Scenario | Browse, look up, sort and open items in the catalogue |
-| Pre-conditions | Log in as tech.support@example.com on the running app. The catalogue has several items, at least one without a description or location. |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + tc-s2-97-setup.sql on testDB (reset before test). Logged in as tech.support@example.com. UI tests: API mocked. |
 | Test Steps | 1. Open Equipment catalogue.<br>2. Type part of an item's type in the lookup.<br>3. Sort by type, then by quantity.<br>4. Click an item. |
 | Test Data | Seed data on the running app |
 | Expected Result | Each row shows type, description, quantity and location at a glance. The lookup narrows the list as you type; each sort reorders it. Clicking an item opens its full details, including its operational status. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result |  |
-| Status | Not Executed |
-| Remarks | Manual: the AC is about the user interface. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | Manual |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Was manual; now automated by UI and browser tests. Each item now opens from a link as well as a row click (fixed in this regeneration; the row could only be clicked with a mouse). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support look up an item in the catalogue and open it`<br>UI: `frontend/src/pages/equipment-catalogue.test.tsx::lists each item with its type, description, quantity and location`<br>UI: `frontend/src/pages/equipment-catalogue.test.tsx::links each item to its details page`<br>UI: `frontend/src/pages/equipment-catalogue.test.tsx::looks up by type and sorts by any column, either way`<br>UI: `frontend/src/pages/equipment-catalogue.test.tsx::says so when nothing matches the lookup` |
+
+**US-28 AC ↔ code notes**
+
+- **AC-2 (fixed in this regeneration):** a catalogue row could only be opened with a mouse click; the item's type is now a link, so it opens from the keyboard too.
+- **Manual → automated:** TC-S2-102.
 
 ---
 
@@ -2414,12 +2458,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::returns the free count for the window` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::returns the free count for the window`<br>Unit: `src/equipment/equipment-availability.service.spec.ts::EquipmentService checkAvailability (US-29) US-29 AC-1: available units for a given date and time`<br>Unit: `src/equipment/equipment-availability.spec.ts::equipment availability rules (US-29) US-29 AC-1: available units are shown for a given date and time`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support check two types for one date and time, and see the shortfall` |
 
 ### TC-S2-104
 
@@ -2435,12 +2479,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/equipment-availability.e2e-spec.ts::refuses a request without a token (401)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::refuses %s (403)`<br>Integration: `test/equipment-availability.e2e-spec.ts::refuses a request without a token (401)`<br>Unit: `src/equipment/equipment.controller.spec.ts::EquipmentController access (US-28 to US-32, US-45) %s is restricted to TECHNICAL_SUPPORT_STAFF alone` |
 
 ### TC-S2-105
 
@@ -2456,12 +2500,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::rejects an end that is not after the start (400)`<br>Integration: `test/equipment-availability.e2e-spec.ts::rejects a missing or malformed date (400)`<br>Integration: `test/equipment-availability.e2e-spec.ts::rejects a quantity of %s (400)`<br>Integration: `test/equipment-availability.e2e-spec.ts::reports an unknown item as not found (404)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::rejects an end that is not after the start (400)`<br>Integration: `test/equipment-availability.e2e-spec.ts::rejects a missing or malformed date (400)`<br>Integration: `test/equipment-availability.e2e-spec.ts::rejects a quantity of %s (400)`<br>Integration: `test/equipment-availability.e2e-spec.ts::reports an unknown item as not found (404)`<br>Unit: `src/equipment/equipment-availability.service.spec.ts::EquipmentService checkAvailability (US-29) US-29 AC-1: available units for a given date and time`<br>UI: `frontend/src/pages/equipment-availability.test.tsx::refuses an end before the start, without asking the server` |
 
 ### TC-S2-106
 
@@ -2477,12 +2521,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::subtracts this item's units reserved at an overlapping time, and only those` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::subtracts this item's units reserved at an overlapping time, and only those`<br>Unit: `src/equipment/equipment-availability.service.spec.ts::EquipmentService checkAvailability (US-29) US-29 AC-2: equipment reserved for an overlapping event is excluded`<br>Unit: `src/equipment/equipment-availability.spec.ts::equipment availability rules (US-29) US-29 AC-2: equipment reserved for an overlapping event is excluded`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support check two types for one date and time, and see the shortfall` |
 
 ### TC-S2-107
 
@@ -2498,12 +2542,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::ignores reservations at other times, including back-to-back ones` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::ignores reservations at other times, including back-to-back ones`<br>Unit: `src/equipment/equipment-availability.spec.ts::equipment availability rules (US-29) US-29 AC-2: equipment reserved for an overlapping event is excluded` |
 
 ### TC-S2-108
 
@@ -2519,12 +2563,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | "Already reserved" is read as a confirmed (approved) reservation; a request still awaiting approval holds nothing. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::does not count requested, rejected or released reservations` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::does not count requested, rejected or released reservations`<br>Unit: `src/equipment/equipment-availability.spec.ts::equipment availability rules (US-29) US-29 AC-2: equipment reserved for an overlapping event is excluded` |
 
 ### TC-S2-109
 
@@ -2540,12 +2584,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::counts the peak in use, not the sum, across separate time slots` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::counts the peak in use, not the sum, across separate time slots`<br>Unit: `src/equipment/equipment-availability.spec.ts::equipment availability rules (US-29) US-29 AC-2: equipment reserved for an overlapping event is excluded` |
 
 ### TC-S2-110
 
@@ -2561,12 +2605,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::reports no free units for an item %s` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::reports no free units for an item %s`<br>Unit: `src/equipment/equipment-availability.service.spec.ts::EquipmentService checkAvailability (US-29) US-29 AC-3: damaged or under-maintenance equipment is excluded`<br>Unit: `src/equipment/equipment-availability.spec.ts::equipment availability rules (US-29) US-29 AC-3: damaged or under-maintenance equipment is excluded` |
 
 ### TC-S2-111
 
@@ -2582,12 +2626,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::a request %s the free count (%s wanted): fully available %s, shortfall %s`<br>Integration: `test/equipment-availability.e2e-spec.ts::reports the whole request as the shortfall for damaged equipment` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::a request %s the free count (%s wanted): fully available %s, shortfall %s`<br>Integration: `test/equipment-availability.e2e-spec.ts::reports the whole request as the shortfall for damaged equipment`<br>Unit: `src/equipment/equipment-availability.service.spec.ts::EquipmentService checkAvailability (US-29) US-29 AC-4: indicates when the requested quantity is not fully available`<br>Unit: `src/equipment/equipment-availability.spec.ts::equipment availability rules (US-29) US-29 AC-4: indicates when the requested quantity is not fully available`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support check two types for one date and time, and see the shortfall` |
 
 ### TC-S2-112
 
@@ -2603,12 +2647,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | The API checks one type per request; the availability page sends one request per equipment row (TC-S2-113, manual). |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::answers each type for the same window with its own count and shortfall` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-availability.e2e-spec.ts::answers each type for the same window with its own count and shortfall`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support check two types for one date and time, and see the shortfall` |
 
 ### TC-S2-113
 
@@ -2617,19 +2661,24 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-113 |
 | Story/AC ref | Story 29 AC-1, AC-4, AC-5 |
 | Test Scenario | Check several equipment types for one date and time |
-| Pre-conditions | Log in as tech.support@example.com. The catalogue has at least two operational items, one with some units reserved for an overlapping time. |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + tc-s2-103-setup.sql + tc-s2-106-setup.sql on testDB (reset before test). Logged in as tech.support@example.com. UI tests: API mocked. |
 | Test Steps | 1. Open Check availability.<br>2. Enter a date and start/end time.<br>3. Choose one item and a quantity; add a second row with another item and a quantity larger than is free.<br>4. Check availability. |
 | Test Data | Seed data on the running app |
 | Expected Result | Each row shows its own free count for that time. The row asking for more than is free shows the shortfall; the other shows it is fully available. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result |  |
-| Status | Not Executed |
-| Remarks | Manual: the AC is about the user interface. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | Manual |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Was manual; now automated by UI and browser tests. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support check two types for one date and time, and see the shortfall`<br>UI: `frontend/src/pages/equipment-availability.test.tsx::checks each type for the same window and shows each one’s free count and shortfall` |
+
+**US-29 AC ↔ code notes**
+
+- **AC-5:** the API checks one type per request; the page sends one per row, for the same date and time (TC-S2-112, TC-S2-113).
+- **Manual → automated:** TC-S2-113.
 
 ---
 
@@ -2649,12 +2698,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::shows the Organiser's equipment needs on their own`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows the Coordinator's requirement rows on their own`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows the technical support notes on their own`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows all three sources together` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::shows the Organiser's equipment needs on their own`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows the Coordinator's requirement rows on their own`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows the technical support notes on their own`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows all three sources together`<br>Unit: `src/equipment/equipment-requirements.service.spec.ts::EquipmentRequirementsService (US-30) US-30 AC-1/AC-2: recorded requirements are shown, including what was requested`<br>UI: `frontend/src/pages/equipment-event-requirements.test.tsx::shows each requirement source in full`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support see only events with requirements, and what each asks for` |
 
 ### TC-S2-115
 
@@ -2662,20 +2711,20 @@ All four use only the local test database (or none). None touches the shared Sup
 |---|---|
 | Test Case ID | TC-S2-115 |
 | Story/AC ref | Story 30 AC-1, AC-4 |
-| Test Scenario | The list holds only submitted events with at least one requirement; drafts are hidden |
+| Test Scenario | The list holds only submitted events with at least one requirement; drafts are hidden, and so are finished events unless asked for |
 | Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s2-114-setup.sql on testDB (reset before test). Logged in as tech.support@example.com (Toby Tech). |
 | Test Steps | 1. Open Event requirements (the list).<br>2. Open the draft's requirements and its details. |
 | Test Data | tc-s2-114 |
-| Expected Result | Exactly the four events with a source are listed: not "None Recorded" and not the draft. The draft cannot be opened (404). |
+| Expected Result | Exactly the four events with a source are listed: not "None Recorded" and not the draft. The draft cannot be opened (404). Rejected, cancelled and completed events are left off unless "Show finished events" is on, when they are listed with their status; they can still be opened directly. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | "Submitted" is read as any status except DRAFT, so rejected or cancelled events with requirements are listed too. |
+| Remarks | "Submitted" is read as any status except DRAFT. Since 18 Oct, finished events (rejected, cancelled, completed) are hidden from the list by default, as they need no equipment; the 18 Oct remark that they were listed no longer applies. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::lists exactly the non-draft events with at least one source`<br>Integration: `test/equipment-requirements.e2e-spec.ts::hides a draft from the requirements and details routes (404)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::lists exactly the non-draft events with at least one source`<br>Integration: `test/equipment-requirements.e2e-spec.ts::hides a draft from the requirements and details routes (404)`<br>Integration: `test/equipment-requirements.e2e-spec.ts::US-30 AC-4: a %s event is hidden by default`<br>Integration: `test/equipment-requirements.e2e-spec.ts::US-30 AC-4: a %s event is shown with its status when finished events are asked for`<br>Integration: `test/equipment-requirements.e2e-spec.ts::US-30 AC-4: active events are always shown`<br>Integration: `test/equipment-requirements.e2e-spec.ts::US-30 AC-4: a %s event still opens directly`<br>Unit: `src/equipment/equipment-requirements.service.spec.ts::EquipmentRequirementsService (US-30) US-30 AC-4: only submitted events with a requirement source; drafts hidden`<br>UI: `frontend/src/pages/equipment-dashboard.test.tsx::US-30 AC-4: asks for active events only, with the toggle off`<br>UI: `frontend/src/pages/equipment-dashboard.test.tsx::US-30 AC-4: active events are always shown, including Safety rejected`<br>UI: `frontend/src/pages/equipment-dashboard.test.tsx::US-30 AC-4: with the toggle on, %s is shown with its %s badge and marked finished`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support see only events with requirements, and what each asks for` |
 
 ### TC-S2-116
 
@@ -2691,12 +2740,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::carries the requirement content in the list itself`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows the requirements, not other planning fields` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::carries the requirement content in the list itself`<br>Integration: `test/equipment-requirements.e2e-spec.ts::shows the requirements, not other planning fields`<br>Unit: `src/equipment/equipment-requirements.service.spec.ts::EquipmentRequirementsService (US-30) US-30 AC-1/AC-2: recorded requirements are shown, including what was requested`<br>UI: `frontend/src/pages/equipment-dashboard.test.tsx::US-30 AC-2: lists what each source asked for` |
 
 ### TC-S2-117
 
@@ -2712,12 +2761,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::says so for a submitted event with nothing recorded`<br>Integration: `test/equipment-requirements.e2e-spec.ts::treats text made only of spaces as nothing recorded` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::says so for a submitted event with nothing recorded`<br>Integration: `test/equipment-requirements.e2e-spec.ts::treats text made only of spaces as nothing recorded`<br>Unit: `src/equipment/equipment-requirements.service.spec.ts::EquipmentRequirementsService (US-30) US-30 AC-3: none of the three recorded is clearly indicated`<br>UI: `frontend/src/pages/equipment-event-requirements.test.tsx::says plainly when nothing has been recorded`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support see only events with requirements, and what each asks for` |
 
 ### TC-S2-118
 
@@ -2733,12 +2782,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::refuses %s on the list, requirements and details routes (403)`<br>Integration: `test/equipment-requirements.e2e-spec.ts::refuses a request without a token (401)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::refuses %s on the list, requirements and details routes (403)`<br>Integration: `test/equipment-requirements.e2e-spec.ts::refuses a request without a token (401)`<br>Unit: `src/equipment/equipment-requirements.service.spec.ts::EquipmentRequirementsService (US-30) US-30 AC-4: only submitted events with a requirement source; drafts hidden`<br>Unit: `src/equipment/equipment.controller.spec.ts::EquipmentController access (US-28 to US-32, US-45) %s is restricted to TECHNICAL_SUPPORT_STAFF alone` |
 
 ### TC-S2-119
 
@@ -2754,12 +2803,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::returns the full event details`<br>Integration: `test/equipment-requirements.e2e-spec.ts::opens for the %s event`<br>Integration: `test/equipment-requirements.e2e-spec.ts::reports an unknown event as not found (404)`<br>Integration: `test/equipment-requirements.e2e-spec.ts::does not expose the requirement text or internal fields` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-requirements.e2e-spec.ts::returns the full event details`<br>Integration: `test/equipment-requirements.e2e-spec.ts::opens for the %s event`<br>Integration: `test/equipment-requirements.e2e-spec.ts::reports an unknown event as not found (404)`<br>Integration: `test/equipment-requirements.e2e-spec.ts::does not expose the requirement text or internal fields`<br>Unit: `src/equipment/equipment-requirements.service.spec.ts::EquipmentRequirementsService (US-30) US-30 AC-4: "View more details" opens any submitted event; drafts hidden` |
 
 ### TC-S2-120
 
@@ -2768,19 +2817,24 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-120 |
 | Story/AC ref | Story 30 AC-1, AC-2, AC-3, AC-4 |
 | Test Scenario | Browse event requirements and open one |
-| Pre-conditions | Log in as tech.support@example.com on the running app. There are submitted events with requirements, one with none, and a draft with requirements. |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + tc-s2-114-setup.sql on testDB (reset before test). Logged in as tech.support@example.com. UI tests: API mocked. |
 | Test Steps | 1. Open Event requirements.<br>2. Open an event, then "View more details".<br>3. Open an event with nothing recorded (from its link or another view). |
 | Test Data | Seed data on the running app |
 | Expected Result | The list shows only submitted events with requirements (no draft), each with what was requested. An event shows the Organiser's and the Coordinator's requirements; one with none clearly says nothing has been recorded. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result |  |
-| Status | Not Executed |
-| Remarks | Manual: the AC is about the user interface. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | Manual |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Was manual; now automated by UI and browser tests. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support see only events with requirements, and what each asks for`<br>UI: `frontend/src/pages/equipment-dashboard.test.tsx::US-30 AC-2: lists what each source asked for`<br>UI: `frontend/src/pages/equipment-dashboard.test.tsx::US-30 AC-3: says so when no event has requirements`<br>UI: `frontend/src/pages/equipment-event-requirements.test.tsx::shows each requirement source in full`<br>UI: `frontend/src/pages/equipment-event-requirements.test.tsx::says plainly when nothing has been recorded` |
+
+**US-30 AC ↔ code notes**
+
+- **AC-4 (changed since 18 Oct):** finished events are hidden from the list unless asked for (TC-S2-115).
+- **Manual → automated:** TC-S2-120.
 
 ---
 
@@ -2793,19 +2847,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-121 |
 | Story/AC ref | Story 31 AC-1, AC-3 |
 | Test Scenario | Commit equipment from an event and see a refusal's reason |
-| Pre-conditions | Log in as tech.support@example.com. An event in planning; an item with some units already committed to an overlapping event. |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + tc-s2-122-setup.sql on testDB (reset before test). Logged in as tech.support@example.com. UI tests: API mocked. |
 | Test Steps | 1. Open Event requirements and the event.<br>2. In "Commit equipment", choose an item and a quantity that is free; commit.<br>3. Commit more than is free. |
 | Test Data | Seed data on the running app |
 | Expected Result | The first commitment is confirmed on screen ("Committed N × …"). The second is refused with the reason shown, stating how many are free and how many are committed elsewhere. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result |  |
-| Status | Not Executed |
-| Remarks | Manual: the AC is about the user interface. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | Manual |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Was manual; now automated by UI and browser tests. The reason states the period as raw UTC timestamps; readable, but not in Singapore time like the rest of the page. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support commit equipment to an event, and an overlapping event cannot take the same units`<br>UI: `frontend/src/pages/equipment-event-requirements.test.tsx::commits the chosen item and quantity, and confirms it`<br>UI: `frontend/src/pages/equipment-event-requirements.test.tsx::shows the reason when the quantity is already committed elsewhere`<br>UI: `frontend/src/pages/equipment-event-requirements.test.tsx::offers no commit form for a cancelled event, and says why` |
 
 ### TC-S2-122
 
@@ -2821,12 +2875,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::commits the quantity over the event's own window` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::commits the quantity over the event's own window`<br>Unit: `src/equipment/equipment-reservations.service.spec.ts::EquipmentReservationsService US-31 AC-1: commit an item and quantity to an event for its date and time`<br>UI: `frontend/src/pages/equipment-event-requirements.test.tsx::commits the chosen item and quantity, and confirms it`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support commit equipment to an event, and an overlapping event cannot take the same units` |
 
 ### TC-S2-123
 
@@ -2842,12 +2896,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::refuses a %s event (409)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::refuses a %s event (409)`<br>Unit: `src/equipment/equipment-reservations.service.spec.ts::EquipmentReservationsService US-31 AC-1: commit an item and quantity to an event for its date and time`<br>UI: `frontend/src/pages/equipment-event-requirements.test.tsx::offers no commit form for a cancelled event, and says why` |
 
 ### TC-S2-124
 
@@ -2863,12 +2917,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::reports an unknown event or item as not found (404)`<br>Integration: `test/equipment-reservations.e2e-spec.ts::rejects a quantity of %p (400)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::reports an unknown event or item as not found (404)`<br>Integration: `test/equipment-reservations.e2e-spec.ts::rejects a quantity of %p (400)`<br>Unit: `src/equipment/equipment-reservations.service.spec.ts::EquipmentReservationsService US-31 AC-1: commit an item and quantity to an event for its date and time` |
 
 ### TC-S2-125
 
@@ -2884,12 +2938,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::refuses %s (403) and commits nothing`<br>Integration: `test/equipment-reservations.e2e-spec.ts::refuses a request without a token (401)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::refuses %s (403) and commits nothing`<br>Integration: `test/equipment-reservations.e2e-spec.ts::refuses a request without a token (401)`<br>Unit: `src/equipment/equipment.controller.spec.ts::EquipmentController access (US-28 to US-32, US-45) %s is restricted to TECHNICAL_SUPPORT_STAFF alone` |
 
 ### TC-S2-126
 
@@ -2905,12 +2959,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::is excluded from the very next availability check for an overlapping window`<br>Integration: `test/equipment-reservations.e2e-spec.ts::cannot be committed again to an overlapping event`<br>Integration: `test/equipment-reservations.e2e-spec.ts::does not lock non-overlapping periods, including back-to-back`<br>Integration: `test/equipment-reservations.e2e-spec.ts::locks only the item committed, not other items`<br>Integration: `test/equipment-reservations.e2e-spec.ts::counts the same event's earlier commitment too` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::is excluded from the very next availability check for an overlapping window`<br>Integration: `test/equipment-reservations.e2e-spec.ts::cannot be committed again to an overlapping event`<br>Integration: `test/equipment-reservations.e2e-spec.ts::does not lock non-overlapping periods, including back-to-back`<br>Integration: `test/equipment-reservations.e2e-spec.ts::locks only the item committed, not other items`<br>Integration: `test/equipment-reservations.e2e-spec.ts::counts the same event's earlier commitment too`<br>Unit: `src/equipment/equipment-reservations.service.spec.ts::EquipmentReservationsService US-31 AC-2: the committed quantity is locked against overlapping commitments`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support commit equipment to an event, and an overlapping event cannot take the same units` |
 
 ### TC-S2-127
 
@@ -2926,12 +2980,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::lets exactly one of two simultaneous over-committing requests through` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::lets exactly one of two simultaneous over-committing requests through`<br>Unit: `src/equipment/equipment-reservations.service.spec.ts::EquipmentReservationsService US-31 AC-2: the committed quantity is locked against overlapping commitments` |
 
 ### TC-S2-128
 
@@ -2947,12 +3001,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::rejects one unit more than is free, stating the counts`<br>Integration: `test/equipment-reservations.e2e-spec.ts::accepts exactly the free quantity (boundary)`<br>Integration: `test/equipment-reservations.e2e-spec.ts::rejects equipment under maintenance, saying so`<br>Integration: `test/equipment-reservations.e2e-spec.ts::creates nothing when rejected` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::rejects one unit more than is free, stating the counts`<br>Integration: `test/equipment-reservations.e2e-spec.ts::accepts exactly the free quantity (boundary)`<br>Integration: `test/equipment-reservations.e2e-spec.ts::rejects equipment under maintenance, saying so`<br>Integration: `test/equipment-reservations.e2e-spec.ts::creates nothing when rejected`<br>Unit: `src/equipment/equipment-reservations.service.spec.ts::EquipmentReservationsService US-31 AC-3: a quantity already locked elsewhere is rejected with the reason`<br>UI: `frontend/src/pages/equipment-event-requirements.test.tsx::shows the reason when the quantity is already committed elsewhere`<br>E2E: `e2e/us28-us31-equipment.spec.ts::Technical Support commit equipment to an event, and an overlapping event cannot take the same units` |
 
 ### TC-S2-129
 
@@ -2968,12 +3022,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | This behaviour is not in Story 31's ACs; it is tested because the code does it. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::records a notification for the assigned Coordinator`<br>Integration: `test/equipment-reservations.e2e-spec.ts::notifies nobody when the commitment is rejected`<br>Integration: `test/equipment-reservations.e2e-spec.ts::still commits, notifying nobody, when the event has no Coordinator` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/equipment-reservations.e2e-spec.ts::records a notification for the assigned Coordinator`<br>Integration: `test/equipment-reservations.e2e-spec.ts::notifies nobody when the commitment is rejected`<br>Integration: `test/equipment-reservations.e2e-spec.ts::still commits, notifying nobody, when the event has no Coordinator`<br>Unit: `src/equipment/equipment-reservations.service.spec.ts::EquipmentReservationsService US-31, beyond the story's ACs: the assigned Coordinator is notified once the commitment is confirmed` |
+
+**US-31 AC ↔ code notes**
+
+- **TC-S2-129:** the Coordinator's notice is not in the ACs; its tests' labels said "US-31 AC-4" and now say it is beyond the ACs.
+- **AC-3:** the refusal reason gives the period as raw UTC timestamps.
+- **Manual → automated:** TC-S2-121.
+- **Relabelled in this regeneration:** the equipment controller's access spec used app-code numbers (US-29 to US-33); it now uses US-28 to US-32.
 
 ---
 
@@ -4097,7 +4158,9 @@ All four use only the local test database (or none). None touches the shared Sup
 
 | Date | Change | Commit | Test cases affected |
 |---|---|---|---|
-| 2026-10-26 | **Regeneration, batch 2 (Story 20 to 23).** Every test commented with its test case, story/AC and a `Code:` line. The Story 20 AC-2 tests, which edited rows in the test and had no test case, now load `tc-s2-35-setup.sql`. Booking UI tests relabelled from app-code story numbers to the document's. New UI tests (`booking-request-form.test.tsx`, `venue-booking-queue.test.tsx`, decisions on the detail view) and browser tests (`e2e/us20-us23-bookings.spec.ts`). | this commit | TC-S2-49: Fail → Pass (fixed). TC-S2-66: N/A → Pass. TC-S2-67: Fail → Pass. TC-S2-81, 82: Not Executed → Pass. New: TC-S2-187. All Story 20 to 23 cases re-run. |
+| 2026-10-26 | **Regeneration, batch 4 (Story 28 to 31).** Every integration describe labelled with its story; unit describe blocks commented with their test cases; the equipment controller spec and the Coordinator-notice tests relabelled. New UI tests (`equipment-catalogue.test.tsx`, `equipment-availability.test.tsx`, `equipment-event-requirements.test.tsx`, more in `equipment-dashboard.test.tsx`) and browser tests (`e2e/us28-us31-equipment.spec.ts`). **Code change:** each catalogue item opens from a link (US-28 AC-2). | this commit | TC-S2-102, 113, 120, 121: Not Executed → Pass. TC-S2-115 updated for finished events. All Story 28 to 31 cases re-run. |
+| 2026-10-26 | **Regeneration, batch 3 (Story 24 to 27).** Every test commented with its test case, story/AC and a `Code:` line. Story 26 rewritten for Week 7 Change 5: `test/events-reassign.e2e-spec.ts` (deleted when the Lead took over reassignment) is rewritten to test the Lead's endpoints on setup scripts. Story 27 unit tests relabelled (US-36 → US-27). New UI tests (`planning-edit-form.test.tsx`, `change-history.test.tsx`, `lead-assignments.test.tsx`, more in `technical-requirements.test.tsx`) and browser tests (`e2e/us24-us27-planning.spec.ts`). | this commit | TC-S2-83 to 88 rewritten for the Lead (Change 5). TC-S2-90: Fail → Pass (fixed). New: TC-S2-188. All Story 24 to 27 cases re-run. |
+| 2026-10-26 | **Regeneration, batch 2 (Story 20 to 23).** Every test commented with its test case, story/AC and a `Code:` line. The Story 20 AC-2 tests, which edited rows in the test and had no test case, now load `tc-s2-35-setup.sql`. Booking UI tests relabelled from app-code story numbers to the document's. New UI tests (`booking-request-form.test.tsx`, `venue-booking-queue.test.tsx`, decisions on the detail view) and browser tests (`e2e/us20-us23-bookings.spec.ts`). | `284f89f` | TC-S2-49: Fail → Pass (fixed). TC-S2-66: N/A → Pass. TC-S2-67: Fail → Pass. TC-S2-81, 82: Not Executed → Pass. New: TC-S2-187. All Story 20 to 23 cases re-run. |
 | 2026-10-26 | **Regeneration, batch 1 (Story 16 to 19).** Every test commented with its test case, story/AC and a `Code:` line. The blocked-period and suitability AC-3 tests, which inserted rows in the test and had no test case, now load setup scripts (`tc-s2-182-setup.sql`, `tc-s2-30-setup.sql`); `tc-s2-10-setup.sql` dates a booking relative to today for the browser tests. New UI tests (`venue-calendar.test.tsx`, `coordinator-venues.test.tsx`, more in the availability calendar and suitability panel) and browser tests (`e2e/us16-us19-venues.spec.ts`). **Code change:** "Request this venue" opens the event's booking form with the venue chosen (US-19 AC-5). | `6eb73ea` | TC-S2-10, 11, 17: Not Executed → Pass. TC-S2-30: Fail → Pass. New: TC-S2-182 to 186. All Story 16 to 19 cases re-run. |
 
 ---
@@ -4106,4 +4169,4 @@ All four use only the local test database (or none). None touches the shared Sup
 
 | Test case | Story/AC | What's missing |
 |---|---|---|
-| Story 24 to 37 | all | Re-checked in later batches of the regeneration |
+| Story 32 to 37 | all | Re-checked in later batches of the regeneration |

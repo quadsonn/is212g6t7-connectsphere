@@ -1,6 +1,6 @@
 # Test results: Sprint 3 (US-38 to US-57)
 
-Generated 2026-10-26 21:53 on branch `sprint4-marilyn` at commit `6eb73ea` plus uncommitted changes. It is a snapshot of one run of every suite; regenerate it after the tests change.
+Generated 2026-10-26 23:12 on branch `sprint4-marilyn` at commit `284f89f` plus uncommitted changes. It is a snapshot of one run of every suite; regenerate it after the tests change.
 
 **How to read it.** *Expected* is every `expect(...)` check in the test's body, copied from the source. *Actual* is what happened when it ran: `Passed`, or the runner's failure message with the expected and received values. Each test is filed under the first user story it names (its comment, title, describe block or file).
 
@@ -37,8 +37,8 @@ Other sprints: [Sprint 1](TEST-RESULTS-SPRINT1.md) · [Sprint 2](TEST-RESULTS-SP
 | [US-52](#us-52) Be informed of an unavailable venue and request a replacement (Coordinator) | 9 | 48 | 9 | 0 | 66 | 0 |
 | [US-53](#us-53) Book multiple venues for a single event (Coordinator) | 7 | 16 | 8 | 0 | 31 | 0 |
 | [US-54](#us-54) Place a tentative venue hold with an expiry (Venue Staff) | 7 | 36 | 11 | 0 | 54 | 0 |
-| [US-55](#us-55) View the unassigned event queue and assign a Coordinator (Event Coordinator Lead) | 21 | 31 | 0 | 0 | 52 | 0 |
-| [US-56](#us-56) Reassign events and oversee all Coordinator assignments (Event Coordinator Lead) | 0 | 0 | 0 | 0 | 0 | 0 |
+| [US-55](#us-55) View the unassigned event queue and assign a Coordinator (Event Coordinator Lead) | 13 | 31 | 0 | 0 | 44 | 0 |
+| [US-56](#us-56) Reassign events and oversee all Coordinator assignments (Event Coordinator Lead) | 8 | 0 | 0 | 0 | 8 | 0 |
 | [US-57](#us-57) Conduct an Operational Safety Check on an event (Safety Officer) | 38 | 0 | 0 | 0 | 38 | 0 |
 
 ## Failures
@@ -1092,7 +1092,7 @@ None. Every test passed.
 
 **View the unassigned event queue and assign a Coordinator (Event Coordinator Lead)**
 
-<details><summary>✅ 52/52 passed</summary>
+<details><summary>✅ 44/44 passed</summary>
 
 | Type | File:line | Test | Expected | Actual | Status |
 |---|---|---|---|---|---|
@@ -1109,14 +1109,6 @@ None. Every test passed.
 | Unit | `src/events/events-assignment.service.spec.ts:309` | EventsAssignmentService › assigning a queued request › rejects an unknown target and a target who is not a Coordinator | await expect( service.assign(lead, 'event-1', { coordinatorId: 'nobody' }), ).rejects.toBeInstanceOf(NotFoundException);<br>await expect( service.assign(lead, 'event-1', { coordinatorId: lead.userId }), ).rejects.toBeInstanceOf(BadRequestException); | Passed: all 2 assertion(s) held | ✅ Pass |
 | Unit | `src/events/events-assignment.service.spec.ts:321` | EventsAssignmentService › the assignments view › counts active events per Coordinator, restricted to active statuses | expect(view.map((v) =&gt; v.activeCount)).toEqual([2, 0]);<br>expect(view[0].events[0]).toEqual({ id: 'e1', name: 'A', status: EventStatus.PLANNING, eventDate: new Date('2030-10-01'), });<br>expect(statuses).not.toContain(closed); | Passed: all 6 assertion(s) held | ✅ Pass |
 | Unit | `src/events/events-assignment.service.spec.ts:362` | EventsAssignmentService › the assignments view › filters to one Coordinator, and refuses an id that is not one | expect(prisma.user.findMany.mock.calls[0][0].where).toEqual({ role: Role.EVENT_COORDINATOR, id: fatima.id, });<br>await expect( service.listAssignments(lead, lead.userId), ).rejects.toBeInstanceOf(BadRequestException); | Passed: all 2 assertion(s) held | ✅ Pass |
-| Unit | `src/events/events-assignment.service.spec.ts:380` | EventsAssignmentService › reassigning an event › moves only the coordinator, guarded on the previous one, and records who/from/to | expect(prisma.eventRequest.update).toHaveBeenCalledWith({ where: { id: 'event-1', coordinatorId: marcus.id }, data: { coordinatorId: fatima.id }, });<br>expect(events.recordChange).toHaveBeenCalledWith( prisma, 'event-1', lead.userId, [{ field: 'coordinator', previous: 'Marcus', next: 'Fatima' }], [], );<br>expect(result.status).toBe(EventStatus.PLANNING); | Passed: all 3 assertion(s) held | ✅ Pass |
-| Unit | `src/events/events-assignment.service.spec.ts:399` | EventsAssignmentService › reassigning an event › notifies both the previous and the new Coordinator | expect(calls).toHaveLength(2);<br>expect(calls).toEqual( expect.arrayContaining([ expect.objectContaining({ recipientId: marcus.id, type: NotificationType.EVENT_REASSIGNED, }), expect.objectContaining({ recipientId: fatima.id, type: NotificationType.EVENT_REASSIGNED, }), ]), ); | Passed: all 2 assertion(s) held | ✅ Pass |
-| Unit | `src/events/events-assignment.service.spec.ts:431` | EventsAssignmentService › reassigning an event › blocks reassigning to the current Coordinator | await expect( service.reassign(lead, 'event-1', { coordinatorId: marcus.id }), ).rejects.toBeInstanceOf(BadRequestException);<br>expect(prisma.eventRequest.update).not.toHaveBeenCalled(); | Passed: all 2 assertion(s) held | ✅ Pass |
-| Unit | `src/events/events-assignment.service.spec.ts:438` | EventsAssignmentService › reassigning an event › blocks a COMPLETED event | await expect( service.reassign(lead, 'event-1', { coordinatorId: fatima.id }), ).rejects.toBeInstanceOf(ConflictException);<br>expect(prisma.eventRequest.update).not.toHaveBeenCalled(); | Passed: all 2 assertion(s) held | ✅ Pass |
-| Unit | `src/events/events-assignment.service.spec.ts:438` | EventsAssignmentService › reassigning an event › blocks a CANCELLED event | await expect( service.reassign(lead, 'event-1', { coordinatorId: fatima.id }), ).rejects.toBeInstanceOf(ConflictException);<br>expect(prisma.eventRequest.update).not.toHaveBeenCalled(); | Passed: all 2 assertion(s) held | ✅ Pass |
-| Unit | `src/events/events-assignment.service.spec.ts:438` | EventsAssignmentService › reassigning an event › blocks a REJECTED event | await expect( service.reassign(lead, 'event-1', { coordinatorId: fatima.id }), ).rejects.toBeInstanceOf(ConflictException);<br>expect(prisma.eventRequest.update).not.toHaveBeenCalled(); | Passed: all 2 assertion(s) held | ✅ Pass |
-| Unit | `src/events/events-assignment.service.spec.ts:450` | EventsAssignmentService › reassigning an event › points an unassigned request back to the queue | await expect( service.reassign(lead, 'event-1', { coordinatorId: fatima.id }), ).rejects.toBeInstanceOf(ConflictException); | Passed: all 1 assertion(s) held | ✅ Pass |
-| Unit | `src/events/events-assignment.service.spec.ts:458` | EventsAssignmentService › reassigning an event › does not notify or record when someone else reassigned first | await expect( service.reassign(lead, 'event-1', { coordinatorId: fatima.id }), ).rejects.toBeInstanceOf(ConflictException);<br>expect(events.recordChange).not.toHaveBeenCalled();<br>expect(notifications.notifySafely).not.toHaveBeenCalled(); | Passed: all 3 assertion(s) held | ✅ Pass |
 | Integration | `test/events-assignment.e2e-spec.ts:120` | Event Coordinator Lead: queue, assignment and reassignment (e2e) › a newly submitted request goes into the unassigned queue › is unassigned when the Organiser submits it | .expect(201);<br>expect(stored.coordinatorId).toBeNull();<br>expect(stored.status).toBe(EventStatus.SUBMITTED);<br>expect(stored.submittedAt).toBeInstanceOf(Date);<br>const list = await queue().expect(200);<br>expect(list.body.map((e: { id: string }) =&gt; e.id)).toEqual([res.body.id]); | Passed: all 4 assertion(s) held | ✅ Pass |
 | Integration | `test/events-assignment.e2e-spec.ts:146` | Event Coordinator Lead: queue, assignment and reassignment (e2e) › a newly submitted request goes into the unassigned queue › does not list drafts or already-assigned requests | const res = await queue().expect(200);<br>expect(res.body).toEqual([]); | Passed: all 1 assertion(s) held | ✅ Pass |
 | Integration | `test/events-assignment.e2e-spec.ts:157` | Event Coordinator Lead: queue, assignment and reassignment (e2e) › only the Lead can view the queue › refuses every other role, Coordinators included | await queue(who).expect(403);<br>await queued(event.id, who).expect(403);<br>await assign(event.id, ids.marcus, who).expect(403); | Passed | ✅ Pass |
@@ -1155,7 +1147,20 @@ None. Every test passed.
 
 **Reassign events and oversee all Coordinator assignments (Event Coordinator Lead)**
 
-No automated test names this story.
+<details><summary>✅ 8/8 passed</summary>
+
+| Type | File:line | Test | Expected | Actual | Status |
+|---|---|---|---|---|---|
+| Unit | `src/events/events-assignment.service.spec.ts:383` | EventsAssignmentService › reassigning an event › moves only the coordinator, guarded on the previous one, and records who/from/to | expect(prisma.eventRequest.update).toHaveBeenCalledWith({ where: { id: 'event-1', coordinatorId: marcus.id }, data: { coordinatorId: fatima.id }, });<br>expect(events.recordChange).toHaveBeenCalledWith( prisma, 'event-1', lead.userId, [{ field: 'coordinator', previous: 'Marcus', next: 'Fatima' }], [], );<br>expect(result.status).toBe(EventStatus.PLANNING); | Passed: all 3 assertion(s) held | ✅ Pass |
+| Unit | `src/events/events-assignment.service.spec.ts:402` | EventsAssignmentService › reassigning an event › notifies both the previous and the new Coordinator | expect(calls).toHaveLength(2);<br>expect(calls).toEqual( expect.arrayContaining([ expect.objectContaining({ recipientId: marcus.id, type: NotificationType.EVENT_REASSIGNED, }), expect.objectContaining({ recipientId: fatima.id, type: NotificationType.EVENT_REASSIGNED, }), ]), ); | Passed: all 2 assertion(s) held | ✅ Pass |
+| Unit | `src/events/events-assignment.service.spec.ts:434` | EventsAssignmentService › reassigning an event › blocks reassigning to the current Coordinator | await expect( service.reassign(lead, 'event-1', { coordinatorId: marcus.id }), ).rejects.toBeInstanceOf(BadRequestException);<br>expect(prisma.eventRequest.update).not.toHaveBeenCalled(); | Passed: all 2 assertion(s) held | ✅ Pass |
+| Unit | `src/events/events-assignment.service.spec.ts:441` | EventsAssignmentService › reassigning an event › blocks a COMPLETED event | await expect( service.reassign(lead, 'event-1', { coordinatorId: fatima.id }), ).rejects.toBeInstanceOf(ConflictException);<br>expect(prisma.eventRequest.update).not.toHaveBeenCalled(); | Passed: all 2 assertion(s) held | ✅ Pass |
+| Unit | `src/events/events-assignment.service.spec.ts:441` | EventsAssignmentService › reassigning an event › blocks a CANCELLED event | await expect( service.reassign(lead, 'event-1', { coordinatorId: fatima.id }), ).rejects.toBeInstanceOf(ConflictException);<br>expect(prisma.eventRequest.update).not.toHaveBeenCalled(); | Passed: all 2 assertion(s) held | ✅ Pass |
+| Unit | `src/events/events-assignment.service.spec.ts:441` | EventsAssignmentService › reassigning an event › blocks a REJECTED event | await expect( service.reassign(lead, 'event-1', { coordinatorId: fatima.id }), ).rejects.toBeInstanceOf(ConflictException);<br>expect(prisma.eventRequest.update).not.toHaveBeenCalled(); | Passed: all 2 assertion(s) held | ✅ Pass |
+| Unit | `src/events/events-assignment.service.spec.ts:453` | EventsAssignmentService › reassigning an event › points an unassigned request back to the queue | await expect( service.reassign(lead, 'event-1', { coordinatorId: fatima.id }), ).rejects.toBeInstanceOf(ConflictException); | Passed: all 1 assertion(s) held | ✅ Pass |
+| Unit | `src/events/events-assignment.service.spec.ts:461` | EventsAssignmentService › reassigning an event › does not notify or record when someone else reassigned first | await expect( service.reassign(lead, 'event-1', { coordinatorId: fatima.id }), ).rejects.toBeInstanceOf(ConflictException);<br>expect(events.recordChange).not.toHaveBeenCalled();<br>expect(notifications.notifySafely).not.toHaveBeenCalled(); | Passed: all 3 assertion(s) held | ✅ Pass |
+
+</details>
 
 ## US-57
 

@@ -1,17 +1,17 @@
 # Test results
 
-Generated 2026-10-26 23:12 on branch `sprint4-marilyn` at commit `284f89f` plus uncommitted changes. It is a snapshot of one run of every suite; regenerate it after the tests change.
+Generated 2026-10-27 00:41 on branch `sprint4-marilyn` at commit `98fb770` plus uncommitted changes. It is a snapshot of one run of every suite; regenerate it after the tests change.
 
 One file per sprint; each lists every test for that sprint's stories with its expected checks and actual result.
 
 | Sprint | Stories | File | Tests | Passed | Failed |
 |---|---|---|---|---|---|
 | Sprint 1 | US-01 to US-13 | [TEST-RESULTS-SPRINT1.md](TEST-RESULTS-SPRINT1.md) | 681 | 681 | 0 |
-| Sprint 2 | US-14 to US-37 | [TEST-RESULTS-SPRINT2.md](TEST-RESULTS-SPRINT2.md) | 1654 | 1654 | 0 |
+| Sprint 2 | US-14 to US-37 | [TEST-RESULTS-SPRINT2.md](TEST-RESULTS-SPRINT2.md) | 1679 | 1679 | 0 |
 | Sprint 3 | US-38 to US-57 | [TEST-RESULTS-SPRINT3.md](TEST-RESULTS-SPRINT3.md) | 946 | 946 | 0 |
 | Sprint 4 | US-58 to US-67 | [TEST-RESULTS-SPRINT4.md](TEST-RESULTS-SPRINT4.md) | 209 | 209 | 0 |
-| Not tied to a story | — | below | 124 | 124 | 0 |
-| **All** | | | **3614** | **3614** | **0** |
+| Not tied to a story | — | below | 118 | 118 | 0 |
+| **All** | | | **3633** | **3633** | **0** |
 
 Sprint boundaries: Sprint 1 is US-01 to 13; Sprint 2 is US-14 to 37 (US-14 and 15 were carried over from Sprint 1 and finished in Sprint 2); Sprint 3 is the stories already on `Sprint3-MAIN` (US-38 to 57), Sprint 4 the rest (US-58 to 67).
 
@@ -20,10 +20,10 @@ Sprint boundaries: Sprint 1 is US-01 to 13; Sprint 2 is US-14 to 37 (US-14 and 1
 | Type | What it runs | Tests | Passed | Failed | Other |
 |---|---|---|---|---|---|
 | **Unit** | One service, rule or DTO on its own (`src/**/*.spec.ts`), database mocked. `npm test` | 1873 | 1873 | 0 | 0 |
-| **Integration** | The real Nest app and the local `connectsphere_test` database over HTTP (`test/*.e2e-spec.ts`); also the functional tests. `npm run test:e2e` | 1348 | 1348 | 0 | 0 |
-| **UI** | React screens with React Testing Library and Vitest (`frontend/src/**/*.test.tsx`), API mocked. `npm --prefix frontend test` | 356 | 356 | 0 | 0 |
-| **E2E** | Playwright drives Chromium through the real app, API and test database (`e2e/*.spec.ts`). `npm run test:browser` | 37 | 37 | 0 | 0 |
-| **Total** | | **3614** | **3614** | **0** | **0** |
+| **Integration** | The real Nest app and the local `connectsphere_test` database over HTTP (`test/*.e2e-spec.ts`); also the functional tests. `npm run test:e2e` | 1350 | 1350 | 0 | 0 |
+| **UI** | React screens with React Testing Library and Vitest (`frontend/src/**/*.test.tsx`), API mocked. `npm --prefix frontend test` | 370 | 370 | 0 | 0 |
+| **E2E** | Playwright drives Chromium through the real app, API and test database (`e2e/*.spec.ts`). `npm run test:browser` | 40 | 40 | 0 | 0 |
+| **Total** | | **3633** | **3633** | **0** | **0** |
 
 ## Failures
 
@@ -108,12 +108,6 @@ Infrastructure and shared tests (app wiring, IDs, guards, helpers) that name no 
 | Unit | `src/prisma/readable-id.spec.ts:54` | readable IDs › ordering by ID number, which text order gets wrong past 999 › puts REQ-999 before REQ-1000 | expect(['REQ-1000', 'REQ-999', 'REQ-010'].sort(compareReadableIds)).toEqual([ 'REQ-010', 'REQ-999', 'REQ-1000', ]); | Passed: all 1 assertion(s) held | ✅ Pass |
 | Unit | `src/prisma/readable-id.spec.ts:62` | readable IDs › ordering by ID number, which text order gets wrong past 999 › falls back to text order for anything that is not a readable ID | expect(compareReadableIds('b', 'a')).toBeGreaterThan(0);<br>expect(compareReadableIds('REQ-001', 'VEN-001')).toBeLessThan(0); | Passed: all 2 assertion(s) held | ✅ Pass |
 | Unit | `src/prisma/readable-id.spec.ts:67` | readable IDs › ordering by ID number, which text order gets wrong past 999 › lists rows oldest first, and one save’s rows by ID number | expect(inEntryOrder(rows).map((r) =&gt; r.id)).toEqual(['REQ-999', 'REQ-1000', 'REQ-1001']); | Passed: all 1 assertion(s) held | ✅ Pass |
-| Unit | `src/registrations/registrations.controller.spec.ts:12` | RegistrationsController › has routes to check | expect(routes.sort()).toEqual( ['findMine', 'findOne', 'getOptions', 'register', 'withdraw'].sort(), ); | Passed: all 1 assertion(s) held | ✅ Pass |
-| Unit | `src/registrations/registrations.controller.spec.ts:18` | RegistrationsController › findMine is restricted to Attendees | expect(Reflect.getMetadata(ROLES_KEY, handler)).toEqual([Role.ATTENDEE]); | Passed: all 1 assertion(s) held | ✅ Pass |
-| Unit | `src/registrations/registrations.controller.spec.ts:18` | RegistrationsController › getOptions is restricted to Attendees | expect(Reflect.getMetadata(ROLES_KEY, handler)).toEqual([Role.ATTENDEE]); | Passed: all 1 assertion(s) held | ✅ Pass |
-| Unit | `src/registrations/registrations.controller.spec.ts:18` | RegistrationsController › register is restricted to Attendees | expect(Reflect.getMetadata(ROLES_KEY, handler)).toEqual([Role.ATTENDEE]); | Passed: all 1 assertion(s) held | ✅ Pass |
-| Unit | `src/registrations/registrations.controller.spec.ts:18` | RegistrationsController › findOne is restricted to Attendees | expect(Reflect.getMetadata(ROLES_KEY, handler)).toEqual([Role.ATTENDEE]); | Passed: all 1 assertion(s) held | ✅ Pass |
-| Unit | `src/registrations/registrations.controller.spec.ts:18` | RegistrationsController › withdraw is restricted to Attendees | expect(Reflect.getMetadata(ROLES_KEY, handler)).toEqual([Role.ATTENDEE]); | Passed: all 1 assertion(s) held | ✅ Pass |
 | UI | `frontend/src/components/attendance-select.test.tsx:11` | AttendanceSelect: expected attendance as a range › Given no value, Then it asks for a range first, then lists every range | expect(options()).toEqual([ 'Select a range', 'Fewer than 10', '10 – 49', '50 – 99', '100 – 199', '200 – 499', '500 or more', ]); | Passed | ✅ Pass |
 | UI | `frontend/src/components/attendance-select.test.tsx:25` | AttendanceSelect: expected attendance as a range › Given a stored range, Then that range is selected | expect(screen.getByRole('combobox')).toHaveDisplayValue('100 – 199'); | Passed | ✅ Pass |
 | UI | `frontend/src/components/attendance-select.test.tsx:31` | AttendanceSelect: expected attendance as a range › Given an older number that is not a range, Then it is kept as its own selected option | expect(screen.getByRole('combobox')).toHaveValue('120');<br>expect(options()[0]).toBe('120');<br>expect(options()).not.toContain('Select a range'); | Passed | ✅ Pass |

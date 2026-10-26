@@ -300,6 +300,8 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
+  // TC-S2-130, TC-S2-131, TC-S2-134 · US-32 AC-1, AC-4 · unit: releaseForCancelledEvent() · fails if a held
+  // reservation is missed, another event's is touched, or a released one is released again
   describe('US-32 AC-1/AC-4: releasing a cancelled event’s reservations', () => {
     it('releases only that event’s still-held reservations, stamping when', async () => {
       const count = await service.releaseForCancelledEvent(
@@ -361,6 +363,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
+  // TC-S2-133 · US-32 AC-3 · unit: findReleased() · fails if the list lacks the equipment or the cancelled event
   describe('US-32 AC-3: which reservations were released, for which event', () => {
     it('lists RELEASED reservations with their event and equipment, newest first', async () => {
       await service.findReleased(tech);

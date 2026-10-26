@@ -52,7 +52,8 @@ test.describe('US-16 to US-19: finding and checking a venue (browser)', () => {
     // AC-1, AC-6: the blocked period is shown, and opens as blocked, not as a booking.
     await page.getByRole('button', { name: /Maintenance/ }).first().click();
     await expect(page.getByRole('heading', { name: 'Blocked out' })).toBeVisible();
-    await expect(page.getByText('Vera Venue')).toBeVisible();
+    // Scoped to the page: the entry's hover tooltip also names who blocked it.
+    await expect(page.getByRole('main').getByText('Vera Venue')).toBeVisible();
   });
 
   // TC-S2-11 · US-16 AC-7 · setup: base-users + base-venues + tc-s2-10-setup · fails if the calendar could not be used on a phone-sized screen

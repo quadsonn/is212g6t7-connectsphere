@@ -119,7 +119,7 @@ describe('Story 33 register for an event (integration)', () => {
     await given('base-users', 'tc-s2-136-setup');
   });
 
-  describe('AC-1: the Register option is only for confirmed events with registration enabled', () => {
+  describe('US-33 AC-1: the Register option is only for confirmed events with registration enabled', () => {
     // TC-S2-136 · US-33 AC-1 · setup: base-users + tc-s2-136-setup · fails if a confirmed event open for registration didn't offer the Register option
     // Code: evaluateRegistration() passes every rule, so canRegister is true; the window is returned too.
     it('offers it for a confirmed event with registration enabled', async () => {
@@ -173,7 +173,7 @@ describe('Story 33 register for an event (integration)', () => {
     });
   });
 
-  describe('AC-2: required fields are captured; missing or invalid ones block submission', () => {
+  describe('US-33 AC-2: required fields are captured; missing or invalid ones block submission', () => {
     // TC-S2-138 · US-33 AC-2 · setup: base-users + tc-s2-136-setup · fails if a registration without a valid phone number went through, or a field wasn't named
     // Code: RegisterDto trims the phone, then requires it and checks its format; each failure is a 400 naming the field.
     it.each([
@@ -206,7 +206,7 @@ describe('Story 33 register for an event (integration)', () => {
     });
   });
 
-  describe('AC-3: a successful registration is saved as Registered, with a confirmation', () => {
+  describe('US-33 AC-3: a successful registration is saved as Registered, with a confirmation', () => {
     // TC-S2-139 · US-33 AC-3 · setup: base-users + tc-s2-136-setup · fails if the registration wasn't saved as Registered with its details, or no confirmation was produced
     // Code: register() saves a REGISTERED row, returns it with the event, and sends REGISTRATION_CONFIRMED to the Attendee.
     it('saves the registration as REGISTERED and confirms it', async () => {
@@ -231,7 +231,7 @@ describe('Story 33 register for an event (integration)', () => {
     });
   });
 
-  describe('AC-4/AC-5: one active registration per event, and no second attempt once confirmed', () => {
+  describe('US-33 AC-4/AC-5: one active registration per event, and no second attempt once confirmed', () => {
     // TC-S2-140 · US-33 AC-4, AC-5 · setup: base-users + tc-s2-136-setup · fails if an Attendee could register twice for the same event, or still saw the Register option
     // Code: register() finds the caller's REGISTERED row and answers 409; getOptions() sets alreadyRegistered and hides the option.
     it('refuses a second registration and withdraws the Register option', async () => {
@@ -259,7 +259,7 @@ describe('Story 33 register for an event (integration)', () => {
     });
   });
 
-  describe("AC-6: registration only between the event's open and close times", () => {
+  describe("US-33 AC-6: registration only between the event's open and close times", () => {
     // TC-S2-141 · US-33 AC-6 · setup: base-users + tc-s2-136-setup + tc-s2-137-setup · fails if registering worked before the window opened, or the open/close times weren't shown
     // Code: before opensAt, evaluateRegistration() blocks NOT_YET_OPEN with both times in the reason.
     it('refuses before it opens, showing the open and close times', async () => {
@@ -289,7 +289,7 @@ describe('Story 33 register for an event (integration)', () => {
     });
   });
 
-  describe('AC-7: a full event rejects the registration with a "full" message', () => {
+  describe('US-33 AC-7: a full event rejects the registration with a "full" message', () => {
     // TC-S2-142 · US-33 AC-7 · setup: base-users + tc-s2-136-setup + tc-s2-142-setup · fails if an Attendee could register for an event at capacity, or wasn't told it was full
     // Code: when REGISTERED rows reach expectedAttendance, evaluateRegistration() blocks FULL ("This event is full.").
     it('refuses with "This event is full."', async () => {
@@ -322,7 +322,7 @@ describe('Story 33 register for an event (integration)', () => {
     });
   });
 
-  describe('access: Attendees only', () => {
+  describe('US-33 access: Attendees only', () => {
     // TC-S2-143 · US-33 · setup: base-users + tc-s2-136-setup · fails if a staff member or Organiser could register for an event
     // Code: every registration route is @Roles(ATTENDEE), so RolesGuard answers 403.
     it.each(['organiser', 'coordinator', 'tech', 'venueStaff'] as const)('refuses %s (403)', async (who) => {

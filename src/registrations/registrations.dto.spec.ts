@@ -16,6 +16,7 @@ const errorsFor = async <T extends object>(
 
 /** US-33 AC-2 and US-35 AC-2 — the boundary validation. */
 describe('registration DTOs', () => {
+  // TC-S2-138 · US-33 AC-2 · unit: RegisterDto · fails if a missing or invalid field gets past validation
   describe('RegisterDto (US-33 AC-2)', () => {
     const valid = { eventId: 'event-1', phone: '+65 9123 4567' };
 
@@ -129,6 +130,7 @@ describe('registration DTOs', () => {
     });
   });
 
+  // TC-S2-152 · US-35 AC-2 · unit: WithdrawDto · fails if a withdrawal without confirm: true gets past validation
   describe('WithdrawDto (US-35 AC-2)', () => {
     it('accepts an explicit confirmation', async () => {
       expect(await errorsFor(WithdrawDto, { confirm: true })).toEqual([]);

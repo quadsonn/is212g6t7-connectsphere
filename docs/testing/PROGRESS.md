@@ -242,6 +242,13 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - All 9 Story 40 test cases Pass. AC-6 ("within 1 minute") rests on the notice being written in the action's transaction plus the bell's 60-second poll.
 - One notifications test (US-41 AC-5) is tagged TC-S3-67 for Story 41.
 
+## 2026-10-27: Sprint 3, Story 41 (TC-S3-63 to 69)
+
+- **Converted** `test/bookings-suggestions.e2e-spec.ts` (29 tests, 36 runs) to the shared pattern. All 80 assertion statements and every test/describe name are unchanged (diffed). Each test now carries its TC comment and a `Code:` line.
+- 11 new scripts (`tc-s3-63` to `tc-s3-68b`). To stay lean, the tests that only check "offered or not" share one catalogue script (`tc-s3-64`); only the exact-ranking and "nothing offered" tests need their own. Venue names (`mainHall`, `eastHall`, …) are kept because assertions quote them.
+- Runs: 36/36 ×3 (about 2.6 s) on `localhost` / `connectsphere_test`; Story 41 UI tests (Vitest) 16/16.
+- All 7 Story 41 test cases Pass; no AC ↔ code mismatch.
+
 ## Open
 - **TC IDs:** done for US-07/08/09, US-03/04/05/06 and US-01 (TC-S1-01 to 62). The remaining stories get theirs as each group is written.
 - **Integration files still to convert:** `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`.

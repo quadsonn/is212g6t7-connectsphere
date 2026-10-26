@@ -2,7 +2,7 @@
 
 Written test cases for the Sprint 3 user stories (Story 38 onwards), traced from story → acceptance criterion → test case → automated test. Stories and ACs use the numbers in the Sprint 3 user-story document; in the code, Sprint 3 labels match those numbers (`US-40` is Story 40). ACs are numbered in the order the card lists them.
 
-**In progress.** Done: **Story 38 to 40**. Stories 41 and 42 follow.
+**In progress.** Done: **Story 38 to 41**. Story 42 follows.
 
 ## How to read this file
 
@@ -579,4 +579,158 @@ All four use only the local test database (or none). None touches the shared Sup
 **Story 40 AC ↔ code notes**
 - **AC-1 (holds):** TC-S3-57 calls the hold notifier directly; the hold workflow itself is Story 54.
 - **AC-6:** met by writing the notice in the action's own transaction plus a 60-second poll on the page.
+
+---
+
+## Story 41 Suggest an Alternative Venue (Venue Staff)
+
+### TC-S3-63
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-63 |
+| Story/AC ref | Story 41 AC-1 |
+| Test Scenario | When rejecting a request, Venue Staff can attach one or more alternative venues |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-63-setup.sql (+ tc-s3-63c-setup.sql: westHall; + tc-s3-63b-setup.sql: the booking already APPROVED) on testDB (reset before test). The Showcase (`EVT-196`, 80 people, theatre, step-free, 1 Oct 2030 09:00–12:00 UTC) has a REQUESTED booking of mainHall (`BKG-082`), managed by venue.staff@example.com (Vera); eastHall (100, step-free, theatre) is free. Logged in as venue.staff@example.com. |
+| Test Steps | 1. Vera rejects with eastHall and westHall attached.<br>2. Vera rejects with none.<br>3. Vera sends a repeated venue, a non-list, or 11 venues.<br>4. Vera reverses an approved booking to rejected with eastHall; then tries alternatives on a reversal to approved.<br>5. Another venue's staff, a Coordinator and Technical Support try. |
+| Test Data | eastHall, westHall; reason "Main Hall is closed for repairs." |
+| Expected Result | The rejection is saved with the venues attached, in order. Alternatives are optional. Invalid lists, an approval with alternatives, and other users are refused, and nothing is saved. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | Status REJECTED with suggestions [eastHall, westHall] (IDs `BSG-…`, consecutive). No alternatives: saved with `[]`. Bad lists: 400, still REQUESTED. Reversal to rejected carried eastHall; reversal to approved with alternatives: 400. Another venue's staff 404; Coordinator and Technical Support 403; no suggestion saved. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::records the rejection with the venues attached`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::still rejects without alternatives, as before`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::refuses the same venue twice, a non-list, and too many`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::can be attached when a reversal rejects an approved booking, but not to an approval`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is refused to %s (%i)`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-1/AC-3: sends picked candidates and a manually chosen venue with the rejection` |
+
+### TC-S3-64
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-64 |
+| Story/AC ref | Story 41 AC-2 |
+| Test Scenario | The system proposes candidate venues ranked by how well they match; each is free for the time (including setup and turnaround) and meets capacity and accessibility |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-63-setup.sql + tc-s3-64-setup.sql (a catalogue of fitting and unfitting venues), or + tc-s3-64b/64c/64d-setup.sql, on testDB (reset before test). The Showcase (`EVT-196`, 80 people, theatre, step-free, 1 Oct 2030 09:00–12:00 UTC) has a REQUESTED booking of mainHall (`BKG-082`), managed by venue.staff@example.com (Vera); eastHall (100, step-free, theatre) is free. |
+| Test Steps | 1. Vera opens the alternatives for `BKG-082`.<br>2. Repeat with Main Hall itself fitting (64b), eastHall booked until 09:00 (64c), and no venue big enough (64d).<br>3. Another venue's staff, a Coordinator and the Organiser try. |
+| Test Data | Catalogue in tc-s3-64-setup.sql |
+| Expected Result | Candidates are only free, big-enough, step-free venues, best match first. Too small, not step-free, booked, blocked, turning around, unpublished and the requested venue are not proposed. Back-to-back counts as free. With nothing big enough, nothing is offered. Others cannot see the list. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | Candidates were [eastHall, pendingHall, bigHall, flatHall]; eastHall first with spare capacity 20 and layout MET. Main Hall never appeared; eastHall booked until 09:00 still appeared; venues too small or within turnaround were in neither list; with none big enough both lists were empty. Others got 404/403. |
+| Status | Pass |
+| Remarks | A venue with only a pending request overlapping counts as free (pendingHall). |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::proposes only free venues that meet capacity and accessibility, best match first`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::never proposes the venue the request asked for`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::allows a booking ending exactly when the slot starts (back-to-back)`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the list excludes venues too small for the expected attendance`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the list excludes venues that are not free, including within setup or turnaround time`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-4: nothing is offered when no free venue is big enough`<br>Unit: `src/bookings/booking-alternatives.spec.ts::US-41 alternative venue ranking US-41 AC-2: a candidate meets the capacity and accessibility requirements`<br>Unit: `src/bookings/booking-alternatives.spec.ts::US-41 alternative venue ranking US-41 AC-2: candidates are ranked by how well they match`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-2: shows the ranked candidates, best match first` |
+
+### TC-S3-65
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-65 |
+| Story/AC ref | Story 41 AC-3 |
+| Test Scenario | Venue Staff pick from the candidates or choose another venue manually |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-63-setup.sql + tc-s3-64-setup.sql on testDB (reset before test). The Showcase (`EVT-196`, 80 people, theatre, step-free, 1 Oct 2030 09:00–12:00 UTC) has a REQUESTED booking of mainHall (`BKG-082`), managed by venue.staff@example.com (Vera); eastHall (100, step-free, theatre) is free. Logged in as venue.staff@example.com. |
+| Test Steps | 1. Vera sees stairsHall (free, big enough, not step-free) offered for a manual choice, not as a candidate.<br>2. Vera rejects with eastHall and stairsHall.<br>3. Vera tries an unknown venue, an unpublished one, and Main Hall itself. |
+| Test Data | eastHall, stairsHall; `no-such-venue`; draftHall; mainHall |
+| Expected Result | A free venue outside the candidates can be chosen manually. Unknown, unpublished and the requested venue are refused. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | stairsHall was in `others`, not `candidates`; the rejection saved [eastHall, stairsHall]. Unknown: 400 "suggested venue not found: no-such-venue"; draft: 400; Main Hall: 400 "the venue this request asked for cannot be suggested as its alternative". |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::accepts a free venue that was not among the candidates`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::refuses an unknown or unpublished venue, or the requested venue itself`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-1/AC-3: sends picked candidates and a manually chosen venue with the rejection` |
+
+### TC-S3-66
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-66 |
+| Story/AC ref | Story 41 AC-4 |
+| Test Scenario | Venues that aren't free for the slot (or too small) can't be suggested, even through the API |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-63-setup.sql + tc-s3-66-setup.sql (eastHall APPROVED for another event 10:00–11:00), tc-s3-66b-setup.sql (eastHall blocked 08:00–10:00), tc-s3-66c-setup.sql (only a pending request), or tc-s3-64-setup.sql, on testDB (reset before test). The Showcase (`EVT-196`, 80 people, theatre, step-free, 1 Oct 2030 09:00–12:00 UTC) has a REQUESTED booking of mainHall (`BKG-082`), managed by venue.staff@example.com (Vera); eastHall (100, step-free, theatre) is free. Logged in as venue.staff@example.com. |
+| Test Steps | 1. Vera rejects suggesting eastHall while it is booked, then while blocked.<br>2. With only a pending request on eastHall.<br>3. Suggesting turnaroundHall or alumniLounge (40 seats), on a rejection and on a reversal. |
+| Test Data | eastHall; turnaroundHall; alumniLounge |
+| Expected Result | A busy or too-small venue is refused, and the whole rejection is refused with nothing saved. A pending request does not make a venue busy. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | Booked or blocked: 409 "eastHall is not free for the requested time, so it cannot be suggested"; request still REQUESTED, no decision or suggestion saved. Pending only: 200. turnaroundHall: 409. alumniLounge: 409 `CAPACITY_EXCEEDED`, on a rejection and on a reversal. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::refuses a venue held by %s, and records nothing`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::allows a venue with only a pending request overlapping — it is not booked`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the list excludes venues that are not free, including within setup or turnaround time`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the server refuses an under-capacity venue even when the page is bypassed, and records nothing`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the same check applies when a reversal (US-52) suggests venues`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-4: shows the server refusing a venue that is not free` |
+
+### TC-S3-67
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-67 |
+| Story/AC ref | Story 41 AC-5 |
+| Test Scenario | The Coordinator sees the suggestions on the rejected request, along with the reason |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-63-setup.sql on testDB (reset before test); for the inbox, Run test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s3-59-setup.sql + tc-s3-67-setup.sql. The Showcase (`EVT-196`, 80 people, theatre, step-free, 1 Oct 2030 09:00–12:00 UTC) has a REQUESTED booking of mainHall (`BKG-082`), managed by venue.staff@example.com (Vera); eastHall (100, step-free, theatre) is free. Logged in as venue.staff@example.com, then coord.a@example.com (Cody) and coord.b@example.com. |
+| Test Steps | 1. Vera rejects with eastHall, reason "Main Hall is closed for repairs.".<br>2. Cody opens the request and his notifications.<br>3. Casey (another Coordinator) opens the request. |
+| Test Data | eastHall; reasons as above |
+| Expected Result | Cody sees the reason and the suggested venue on the request, and his notification names them. Another Coordinator cannot see the request. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | The request showed REJECTED, the reason, and eastHall (name, location, capacity, not yet accepted). The notice read "The booking of mainHall for "Showcase" was rejected. Reason: Closed for repairs. Alternative venues suggested: eastHall."; the inbox split out the reason with the alternatives. Casey got 404. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::shows the reason and the suggested venues on the request`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::names the suggestions in the rejection notification`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is not shown to another Coordinator`<br>Integration: `test/notifications.e2e-spec.ts::US-41: the Coordinator sees a rejection with its suggested alternatives`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-5: shows the suggestions with the rejection reason` |
+
+### TC-S3-68
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-68 |
+| Story/AC ref | Story 41 AC-6 |
+| Test Scenario | Accepting a suggestion creates a new booking request for that venue, pre-filled with the original details |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-63-setup.sql (+ tc-s3-66-setup.sql or tc-s3-68b-setup.sql loaded after the rejection) on testDB (reset before test). The Showcase (`EVT-196`, 80 people, theatre, step-free, 1 Oct 2030 09:00–12:00 UTC) has a REQUESTED booking of mainHall (`BKG-082`), managed by venue.staff@example.com (Vera); eastHall (100, step-free, theatre) is free. Logged in as venue.staff@example.com, then coord.a@example.com. |
+| Test Steps | 1. Vera rejects suggesting eastHall.<br>2. Cody accepts it.<br>3. Cody accepts it again.<br>4. Variants: eastHall booked meanwhile; the original reversed to approved; eastHall cut to 50 seats; another request or Coordinator; Venue Staff, Organiser, Technical Support. |
+| Test Data | eastHall |
+| Expected Result | A new REQUESTED booking for eastHall with the original time, attendance and requirements; the original stays rejected and the suggestion records the new request. It can be accepted once, only on a rejected request, only by its Coordinator, and only if the venue is still free and big enough. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | 201: REQUESTED eastHall, 09:00–12:00, 80, requested by Cody, THEATRE, "Stage at the front.", STEP_FREE_ACCESS, "Two wheelchair users.", "Two projectors."; original REJECTED; suggestion linked. Again: 409 "this suggestion has already been accepted". Booked meanwhile: 409. After reversal: 409. Too small: 409 `CAPACITY_EXCEEDED`. Wrong request or Coordinator: 404. Other roles: 403. |
+| Status | Pass |
+| Remarks | The details come from the original booking request, not the event's later edits. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::creates a pending request for the suggested venue with the original time, attendance and requirements`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::cannot accept the same suggestion twice`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::goes through the normal request checks: refused if the venue was booked meanwhile`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is refused once a reversal has approved the original`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::404s for a suggestion of another request, or another Coordinator`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is refused to %s (403)`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-1/AC-2: refuses accepting a suggestion whose venue no longer holds the attendance`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-6: accepting creates a request and opens it` |
+
+### TC-S3-69
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-69 |
+| Story/AC ref | Story 41 AC-7 |
+| Test Scenario | Suggestions are recorded in the request's history |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-63-setup.sql + tc-s3-63c-setup.sql on testDB (reset before test). The Showcase (`EVT-196`, 80 people, theatre, step-free, 1 Oct 2030 09:00–12:00 UTC) has a REQUESTED booking of mainHall (`BKG-082`), managed by venue.staff@example.com (Vera); eastHall (100, step-free, theatre) is free. Logged in as venue.staff@example.com. |
+| Test Steps | 1. Vera rejects suggesting eastHall.<br>2. She reverses to approved.<br>3. She reverses to rejected suggesting westHall.<br>4. She opens the request's history. |
+| Test Data | eastHall, then westHall |
+| Expected Result | Each decision is listed oldest first with its own suggestions and who decided. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | History: [REJECTED "Closed." [eastHall]], [APPROVED "Reopened." []], [REJECTED "Closed again." [westHall]], decided by Vera. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::keeps each decision with its own suggestions, oldest first`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-7: the history lists the suggestions with their decision` |
+
+**Story 41 AC ↔ code notes**
+- No mismatches. The file also holds the Capacity tests (a venue must hold the expected attendance); they are cited under AC-2, AC-4 and AC-6, where the AC asks for capacity.
 

@@ -320,6 +320,17 @@ Named after the first Sprint 3 test case that needs them; a second script for th
 | `tc-s3-61-setup.sql` | Five notices for Vera, "m1" (newest) to "m5" (`NTF-015` to `NTF-019`) | 61 |
 | `tc-s3-61b-setup.sql` | Two notices for Olivia and one for Cody, an hour apart (`NTF-020` to `NTF-022`). After `tc-s3-59`. | 60, 61 |
 | `tc-s3-67-setup.sql` | Cody's notice of a rejected booking with a suggested alternative (`NTF-023`). After `tc-s3-59`. | 67 |
+| `tc-s3-63-setup.sql` | Story 41 base, loaded alone after `base-users` (no `base-venues`): Olly (`USR-018`, a second Venue Staff member), mainHall (`VEN-041`, 200, managed by Vera) and eastHall (`VEN-042`, 100, step-free, theatre, Olly's), the "Showcase" (`EVT-196`) and its REQUESTED mainHall booking `BKG-082` | Every test in `bookings-suggestions` (63 to 69) |
+| `tc-s3-63b-setup.sql` | Updates `BKG-082` to APPROVED. After `tc-s3-63`. | 63, 66 |
+| `tc-s3-63c-setup.sql` | westHall (`VEN-043`, 150, step-free). After `tc-s3-63`. | 63, 69 |
+| `tc-s3-64-setup.sql` | A venue catalogue (`VEN-044` to `VEN-055`) where only bigHall, flatHall and pendingHall also fit; other events' bookings (`EVT-197` to `EVT-199`, `BKG-083` to `BKG-085`) and a block (`BLK-005`). After `tc-s3-63`. | 64, 65, 66 |
+| `tc-s3-64b-setup.sql` | Makes mainHall step-free with a theatre layout. After `tc-s3-63`. | 64 |
+| `tc-s3-64c-setup.sql` | eastHall booked 07:00–09:00 for another event (`EVT-200`, `BKG-086`). After `tc-s3-63`. | 64 |
+| `tc-s3-64d-setup.sql` | eastHall cut to 40; seminarRoom (`VEN-056`, 60). After `tc-s3-63`. | 64 |
+| `tc-s3-66-setup.sql` | eastHall APPROVED for another event 10:00–11:00 (`EVT-201`, `BKG-087`). After `tc-s3-63`. | 66, 68 |
+| `tc-s3-66b-setup.sql` | eastHall blocked 08:00–10:00 (`BLK-006`). After `tc-s3-63`. | 66 |
+| `tc-s3-66c-setup.sql` | A REQUESTED booking of eastHall for another event (`EVT-202`, `BKG-088`). After `tc-s3-63`. | 66 |
+| `tc-s3-68b-setup.sql` | eastHall cut to 50 (loaded after the rejection). After `tc-s3-63`. | 68 |
 
 Extra users added by Sprint 3 scripts (same password as the base users):
 
@@ -329,3 +340,4 @@ Extra users added by Sprint 3 scripts (same password as the base users):
 | `USR-015` | walt@example.com | Walt Withdrawn | ATTENDEE (`tc-s3-38-setup.sql`) |
 | `USR-016` | sam.staff@example.com | Sam Staff | VENUE_STAFF (`tc-s3-54-setup.sql`) |
 | `USR-017` | safety@example.com | Sophie Safety | SAFETY_OFFICER (`tc-s3-59-setup.sql`) |
+| `USR-018` | other.staff@example.com | Olly Other | VENUE_STAFF (`tc-s3-63-setup.sql`) |

@@ -10,11 +10,14 @@ vi.mock('../api/venues.api', () => ({ venuesApi: { availability: vi.fn(), occupa
 
 const api = vi.mocked(venuesApi);
 
-/** Every month the calendar asks for: the 20th booked, the 21st tentative, the rest free. */
+/**
+ * Every month the calendar asks for: the 20th booked, the 21st tentative, the
+ * 22nd blocked, the rest free.
+ */
 const monthOf = (month: string) =>
   Array.from({ length: 28 }, (_, i) => {
     const date = `${month}-${String(i + 1).padStart(2, '0')}`;
-    const status = i === 19 ? 'booked' : i === 20 ? 'tentative' : 'free';
+    const status = i === 19 ? 'booked' : i === 20 ? 'tentative' : i === 21 ? 'blocked' : 'free';
     return { date, status } as const;
   });
 
@@ -83,6 +86,36 @@ describe('US-50 AC-3: setup and turnaround shown separately on the availability 
     await screen.findAllByRole('button', { name: /Booked/ });
     expect(screen.queryAllByRole('button', { name: /Free/ })).toHaveLength(0);
     expect(api.occupancy).not.toHaveBeenCalled();
-    expect(screen.getByText(/Select a tentative or booked day/)).toBeInTheDocument();
+    expect(screen.getByText(/Select a tentative, booked or blocked day/)).toBeInTheDocument();
+  });
+});
+
+describe('US-17 AC-1: blocked-off periods on the availability calendar', () => {
+  it('Given a blocked day, Then it is labelled Blocked and the legend explains it', async () => {
+    renderCalendar();
+
+    expect(await screen.findAllByRole('button', { name: /: Blocked/ })).not.toHaveLength(0);
+    expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('Blocked')).toBeInTheDocument();
+  });
+
+  it('Given a blocked day is selected, Then its blocked hours are listed, with nothing about why', async () => {
+    // 09:00–13:00 Singapore time.
+    api.occupancy.mockResolvedValue([
+      {
+        status: 'blocked',
+        segments: [{ kind: 'BLOCKED', start: '2030-10-22T01:00:00.000Z', end: '2030-10-22T05:00:00.000Z' }],
+      },
+    ]);
+    renderCalendar();
+    const user = userEvent.setup();
+
+    const [blocked] = await screen.findAllByRole('button', { name: /: Blocked/ });
+    await user.click(blocked);
+
+    const times = await screen.findByRole('list', { name: 'Blocked times' });
+    expect(within(times).getByRole('listitem').textContent?.replace(/ \(.*?\)/g, '')).toBe(
+      'Blocked 09:00–13:00',
+    );
+    expect(screen.getByText('Not available to book', { selector: 'p' })).toBeInTheDocument();
   });
 });

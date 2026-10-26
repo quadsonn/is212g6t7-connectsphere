@@ -158,6 +158,8 @@ export interface EventRequest {
   layoutNotes: string | null;
   accessibilityRequirements: AccessibilityFeature[];
   accessibilityNotes: string | null;
+  /** US-19 AC-3: from the venues' Facility list; empty means none recorded. */
+  requiredFacilities: Facility[];
   equipmentNeeds: string | null;
   /** US-28 AC-2: technical support the Coordinator has asked for. */
   technicalSupportNeeds: string | null;
@@ -205,7 +207,13 @@ export interface ConfirmationReadiness {
 
 /** PATCH /events/:id/technical-requirements. Omit a key to leave it as is. */
 export interface TechnicalRequirementsPayload {
-  equipment?: { equipmentType: string; quantity: number; notes?: string | null }[];
+  equipment?: {
+    /** #27: the catalogue item picked, or absent for an "Other" free-text line. */
+    equipmentId?: string;
+    equipmentType: string;
+    quantity: number;
+    notes?: string | null;
+  }[];
   technicalSupportNeeds?: string | null;
 }
 
@@ -215,6 +223,15 @@ export interface ClarificationMessage {
   body: string;
   createdAt: string;
   author: { id: string; name: string; email: string; role: Role };
+  /** US-58 AC4: the request details this response updated; null otherwise. */
+  change?: { changes: FieldChange[] } | null;
+}
+
+/** POST /events/:id/clarifications/responses (US-09, US-58). */
+export interface RespondClarificationPayload {
+  response: string;
+  /** US-58 AC3: only the details that changed, as for an edit. */
+  changes?: EventRequestPayload;
 }
 
 /** Payload for POST /events (submit) and POST /events/drafts (save). */
@@ -230,6 +247,7 @@ export interface EventRequestPayload {
   layoutNotes?: string;
   accessibilityRequirements?: AccessibilityFeature[];
   accessibilityNotes?: string;
+  requiredFacilities?: Facility[];
   equipmentNeeds?: string;
   registrationEnabled?: boolean;
 }
@@ -260,9 +278,13 @@ export interface FieldChange {
   /** 'coordinator' records a reassignment (US-27 AC-4), by name. */
   field:
     | keyof PlanningUpdatePayload
+    // US-19 AC-3: set by the Organiser, not in the planning edit.
+    | 'requiredFacilities'
     | 'coordinator'
     | 'equipmentRequirements'
     | 'technicalSupportNeeds'
+    // US-61: the assigned Technical Support member, by name.
+    | 'technicalSupport'
     // US-48 AC-7: what an approved change request rebooked.
     | 'venueBookings'
     | 'equipmentReservations'
@@ -311,6 +333,24 @@ export interface OrganiserRequestView extends EventRequest {
   pendingChangeRequest?: ChangeRequest | null;
   /** US-38 AC-5: the latest decided request, so a rejection's reason shows. */
   latestChangeDecision?: ChangeRequest | null;
+  /**
+   * Upcoming equipment the event requested or reserved that is no longer
+   * available (the item was taken out of service). An indicator only — it says
+   * attention is needed, with no action attached; empty when all is well.
+   */
+  unavailableEquipment?: UnavailableEquipment[];
+}
+
+/** One requested/reserved item whose equipment is now unavailable. */
+export interface UnavailableEquipment {
+  reservationId: string;
+  equipmentId: string;
+  equipmentType: string;
+  equipmentStatus: EquipmentStatus;
+  reservationStatus: ReservationStatus;
+  quantity: number;
+  start: string;
+  end: string;
 }
 
 /** CLOSED (US-43): withdrawn without a decision because the event was cancelled. */
@@ -564,6 +604,8 @@ export interface PublicEventView {
   status: EventStatus;
   registrationEnabled: boolean;
   coordinator: ContactSummary | null;
+  /** US-10 — the confirmed venue, or null until a booking is approved. */
+  venue: { id: string; name: string | null; location: string | null } | null;
 }
 
 /** Venue catalogue. Endpoint not built yet — served by a mock service. */
@@ -630,7 +672,8 @@ export interface VenueUpdateWarning {
 }
 
 /** US-17 — one day of a venue's availability calendar. */
-export type DayStatus = 'free' | 'tentative' | 'booked';
+/** US-17 AC-1: 'blocked' is a period Venue Staff closed; never why or by whom. */
+export type DayStatus = 'free' | 'tentative' | 'booked' | 'blocked';
 
 /**
  * GET /venues/:id/availability returns an array of these and nothing else —
@@ -647,7 +690,8 @@ export interface DayAvailability {
  * before it, the event time, or the turnaround time after it.
  */
 export interface OccupancySegment {
-  kind: 'SETUP' | 'EVENT' | 'TURNAROUND';
+  /** US-17 AC-1: BLOCKED is a whole blocked-off period. */
+  kind: 'SETUP' | 'EVENT' | 'TURNAROUND' | 'BLOCKED';
   start: string;
   end: string;
 }
@@ -680,8 +724,10 @@ export type SuitabilityCheckStatus = 'MET' | 'UNMET' | 'NOT_REQUIRED' | 'NOT_REC
 
 /**
  * GET /venues/:id/suitability?eventId= — advisory flags for one venue against
- * one event. `facilities` and `equipment` are null until those checks exist;
- * `notChecked` says why, so the UI never implies they passed.
+ * one event. US-19 AC-3: `facilities` compares the event's required
+ * facilities with the venue's; `equipment` counts free units of each line
+ * over the event's dates and is not part of `overall` (it is the same at
+ * every venue). `notChecked` names equipment lines that could not be counted.
  */
 export interface VenueSuitability {
   overall: 'SUITABLE' | 'NOT_SUITABLE' | 'INCOMPLETE';
@@ -696,8 +742,20 @@ export interface VenueSuitability {
     items: { requirement: AccessibilityFeature; met: boolean }[];
   };
   layout: { status: SuitabilityCheckStatus; requirement: RoomLayout | null };
-  facilities: { requirement: Facility; met: boolean }[] | null;
-  equipment: { item: string; available: boolean }[] | null;
+  facilities: {
+    status: SuitabilityCheckStatus;
+    items: { requirement: Facility; met: boolean }[];
+  };
+  equipment: {
+    status: SuitabilityCheckStatus;
+    /** availableQuantity and available are null for a line not in the catalogue. */
+    items: {
+      item: string;
+      requestedQuantity: number;
+      availableQuantity: number | null;
+      available: boolean | null;
+    }[];
+  };
   notChecked: { check: 'facilities' | 'equipment'; reason: string }[];
 }
 
@@ -1045,6 +1103,14 @@ export interface VenueBooking {
   accessibilityRequirements: AccessibilityFeature[];
   accessibilityNotes: string | null;
   equipmentNeeds: string | null;
+  /**
+   * Story 20 AC-2: the event's technical requirements, copied the same way.
+   * equipmentRequirements is null only on requests made before this copy
+   * existed; then none of the three was recorded on the request.
+   */
+  requiredFacilities: Facility[];
+  equipmentRequirements: { equipmentType: string; quantity: number; notes: string | null }[] | null;
+  technicalSupportNeeds: string | null;
   createdAt: string;
   updatedAt: string;
   venue: { id: string; name: string | null; location: string | null; capacity: number | null };
@@ -1523,4 +1589,46 @@ export interface InboxNotification {
 export interface NotificationsPageQuery {
   limit?: number;
   cursor?: string;
+}
+
+/** US-61 — another event a Technical Support member is already assigned to. */
+export interface StaffAssignmentConflict {
+  eventId: string;
+  name: string | null;
+  start: string;
+  end: string;
+}
+
+/** US-61 — one Technical Support member on the assignment screen. */
+export interface TechnicalSupportStaffOption extends ContactSummary {
+  /** AC-2/AC-4: free for the event's date and time. */
+  available: boolean;
+  /** AC-2: the overlapping events that make them unavailable. */
+  conflicts: StaffAssignmentConflict[];
+}
+
+/** US-61 — GET /events/:id/technical-support. */
+export interface TechnicalSupportAssignmentView {
+  eventId: string;
+  requiresTechnicalSupport: boolean;
+  assignable: boolean;
+  assignee: ContactSummary | null;
+  staff: TechnicalSupportStaffOption[];
+  /** AC-4: nobody can be assigned; `message` says so. */
+  noneAvailable: boolean;
+  message: string | null;
+}
+
+/** US-61 AC-3 — a venue on one of the member's assigned events. */
+export interface AssignmentVenue {
+  bookingId: string;
+  venueName: string | null;
+  status: BookingStatus;
+  start: string;
+  end: string;
+}
+
+/** US-61 AC-3 — GET /technical-support/assignments: one assigned event. */
+export interface TechnicalSupportAssignment extends EventRequirements {
+  venues: AssignmentVenue[];
 }

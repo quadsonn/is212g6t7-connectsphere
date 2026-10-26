@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { AccessibilityFeature, RoomLayout } from '@prisma/client';
+import { AccessibilityFeature, Facility, RoomLayout } from '@prisma/client';
 import {
   ArrayUnique,
   IsArray,
@@ -14,6 +14,7 @@ import {
 } from 'class-validator';
 
 import { IsAfterField } from '../../common/validators/is-after.validator';
+import { Trim } from '../../common/validators/trim.transform';
 
 /**
  * US-04 — the payload for saving or editing a draft (AC-1, AC-2).
@@ -35,21 +36,25 @@ import { IsAfterField } from '../../common/validators/is-after.validator';
  */
 export class DraftEventRequestDto {
   @IsOptional()
+  @Trim()
   @IsString()
   @MaxLength(200)
   name?: string;
 
   @IsOptional()
+  @Trim()
   @IsString()
   @MaxLength(2000)
   purpose?: string;
 
   @IsOptional()
+  @Trim()
   @IsString()
   @MaxLength(5000)
   description?: string;
 
   @IsOptional()
+  @Trim()
   @IsString()
   @MaxLength(100)
   category?: string;
@@ -90,6 +95,7 @@ export class DraftEventRequestDto {
   preferredLayout?: RoomLayout;
 
   @IsOptional()
+  @Trim()
   @IsString()
   @MaxLength(2000)
   layoutNotes?: string;
@@ -104,11 +110,26 @@ export class DraftEventRequestDto {
   accessibilityRequirements?: AccessibilityFeature[];
 
   @IsOptional()
+  @Trim()
   @IsString()
   @MaxLength(2000)
   accessibilityNotes?: string;
 
+  /**
+   * US-19 AC-3 — facilities the event needs, from the list venues use
+   * (US-18). Empty or absent means none.
+   */
   @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsEnum(Facility, {
+    each: true,
+    message: `requiredFacilities must contain only: ${Object.values(Facility).join(', ')}`,
+  })
+  requiredFacilities?: Facility[];
+
+  @IsOptional()
+  @Trim()
   @IsString()
   @MaxLength(2000)
   equipmentNeeds?: string;

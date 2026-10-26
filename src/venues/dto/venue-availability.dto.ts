@@ -42,10 +42,11 @@ export class DayAvailabilityDto {
 /**
  * US-50 AC-3 — one part of what a booking occupies: its setup time, the event
  * time itself, or its turnaround time. Shown separately on the calendar.
+ * US-17 AC-1: BLOCKED is a whole blocked-off period, with nothing around it.
  */
 export class OccupancySegmentDto {
   @Expose()
-  kind!: 'SETUP' | 'EVENT' | 'TURNAROUND';
+  kind!: 'SETUP' | 'EVENT' | 'TURNAROUND' | 'BLOCKED';
 
   @Expose()
   start!: Date;
@@ -56,8 +57,9 @@ export class OccupancySegmentDto {
 
 /**
  * US-50 AC-3 — one booking's occupancy of the venue, anonymous like the rest
- * of US-17: when, and whether tentative or booked — never which event. Only
- * @Expose'd properties leave the server.
+ * of US-17: when, and whether tentative or booked — never which event. A
+ * blocked-off period comes as status "blocked", never with its reason or
+ * author. Only @Expose'd properties leave the server.
  */
 export class VenueOccupancyDto {
   @Expose()

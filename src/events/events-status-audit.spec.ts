@@ -1,5 +1,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative as relativePath } from 'node:path';
+
+/** Posix-style relative path, so comparisons work the same on Windows. */
+const relative = (from: string, to: string) => relativePath(from, to).replace(/\\/g, '/');
 
 /**
  * US-11 — the guard rail.
@@ -71,9 +74,9 @@ describe('status write audit (US-11)', () => {
     expect(offenders).toEqual([ALLOWED_VENUE_FILE]);
   });
 
-  it('writes EquipmentReservation.status in exactly one file (US-32/US-33)', () => {
-    // A commitment is created APPROVED (US-32) and leaves that status only by
-    // release on cancellation (US-33) — both in the reservations service.
+  it('writes EquipmentReservation.status in exactly one file (US-31/US-32)', () => {
+    // A commitment is created APPROVED (US-31) and leaves that status only by
+    // release on cancellation (US-32) — both in the reservations service.
     const offenders = files.flatMap((file) => {
       const matches =
         readFileSync(file, 'utf8').match(statusWriteOn('equipmentReservation')) ?? [];

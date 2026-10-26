@@ -1,255 +1,332 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { BookingStatus, EventStatus, PrismaClient, Role, VenueStatus } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
-/** US-16 e2e — Venue Availability Calendar. */
-describe('US-16 venue availability calendar (e2e)', () => {
+/**
+ * Story 16 — Venue Availability Calendar. Integration tests,
+ * one describe per acceptance criterion.
+ *
+ * Pre-condition for every test: reset the testDB, then run
+ * test/fixtures/sql/base-users.sql and base-venues.sql; each test then loads
+ * the tc-s2 script(s) its test case names (docs/testing/sprint2-test-cases.md).
+ */
+describe('Story 16 venue availability calendar (integration)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
   const PASSWORD = 'correct-horse-battery-staple';
-  const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
 
-  const as = (who: string) => `Bearer ${tokens[who]}`;
+  /** Fixed users: base-users.sql, plus USR-011 from tc-s2-01-setup.sql. */
+  const USERS = {
+    staff: 'venue.staff@example.com',
+    staffB: 'venue.staff.b@example.com',
+    coordinator: 'coord.a@example.com',
+  } as const;
+  const tokens: Record<string, string> = {};
+
+  /** Fixed venues: base-venues.sql, plus VEN-003 from tc-s2-01-setup.sql. */
+  const VENUE = {
+    hall: 'VEN-002',
+    room: 'VEN-038',
+    other: 'VEN-003',
+  } as const;
+
+  const as = (who: keyof typeof USERS) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
   const at = (day: number, hour: number) =>
     `2030-10-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:00:00.000Z`;
   const week = { from: at(1, 0), to: at(8, 0) };
-  const calendar = (query: Record<string, string> = {}, who = 'staff') =>
+  const calendar = (query: Record<string, string> = {}, who: keyof typeof USERS = 'staff') =>
     http().get('/calendar').query({ ...week, ...query }).set('Authorization', as(who));
+  const block = (body: Record<string, string>, who: keyof typeof USERS = 'staff') =>
+    http().post('/calendar/blocks').set('Authorization', as(who)).send(body);
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-  };
-
-  const seedVenue = (name: string, managedById: string, status: VenueStatus = VenueStatus.PUBLISHED) =>
-    prisma.venue.create({
-      data: { name, location: 'Campus', capacity: 200, facilities: [], accessibilityFeatures: [], status, managedById },
-    });
-
-  const seedEvent = (name = 'Showcase') =>
-    prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinator,
-        name,
-        purpose: 'p',
-        description: 'd',
-        category: 'c',
-        proposedStart: new Date(at(2, 9)),
-        proposedEnd: new Date(at(2, 12)),
-        expectedAttendance: 80,
-        status: EventStatus.APPROVED,
-      },
-    });
-
-  const seedBooking = async (venueId: string, name: string, status: BookingStatus, day = 2) => {
-    const event = await seedEvent(name);
-    return prisma.venueBooking.create({
-      data: {
-        eventId: event.id,
-        venueId,
-        start: new Date(at(day, 9)),
-        end: new Date(at(day, 12)),
-        status,
-        expectedAttendance: 80,
-        requestedById: ids.coordinator,
-      },
-    });
+  /** Loads a test case's setup script(s) on top of base-users and base-venues. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    configureApp(app);
+    // 127.0.0.1 explicitly, as in the converted Sprint 1 specs: avoids the
+    // intermittent "socket hang up" seen with init() alone.
+    await app.listen(0, '127.0.0.1');
+
     prisma = new PrismaClient();
+
+    // Log each user in once. IDs are fixed, so the tokens stay valid after
+    // every reset.
+    await resetDb(prisma);
+    await given('base-users', 'tc-s2-01-setup');
+    for (const [key, email] of Object.entries(USERS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
+    // Leave the testDB empty, so files not yet converted to resetDb (which
+    // delete only the tables they know) never trip over rows this file made.
+    await resetDb(prisma);
     await prisma.$disconnect();
     await app.close();
   });
 
   beforeEach(async () => {
-    await prisma.notification.deleteMany();
-    await prisma.bookingDecision.deleteMany();
-    await prisma.venueBlock.deleteMany();
-    await prisma.venueBooking.deleteMany();
-    await prisma.venue.deleteMany();
-    await prisma.clarificationMessage.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('staff', 'staff@example.com', Role.VENUE_STAFF);
-    await seedUser('otherStaff', 'other.staff@example.com', Role.VENUE_STAFF);
-
-    ids.hall = (await seedVenue('Main Hall', ids.staff)).id;
-    ids.room = (await seedVenue('Seminar Room', ids.staff)).id;
-    ids.draft = (await seedVenue('Draft Venue', ids.staff, VenueStatus.DRAFT)).id;
-    ids.foreign = (await seedVenue('Other Venue', ids.otherStaff)).id;
+    await resetDb(prisma);
+    await given('base-users', 'base-venues');
   });
 
   describe('AC-1: my venues, slots distinguished by status', () => {
-    it('shows my published venues and tentative, confirmed and blocked slots', async () => {
-      await seedBooking(ids.hall, 'Pending talk', BookingStatus.REQUESTED, 2);
-      await seedBooking(ids.hall, 'Confirmed gala', BookingStatus.APPROVED, 3);
-      await seedBooking(ids.hall, 'Rejected one', BookingStatus.REJECTED, 4);
-      await seedBooking(ids.foreign, 'Not mine', BookingStatus.APPROVED, 2);
-      await prisma.venueBlock.create({
-        data: { venueId: ids.room, start: new Date(at(5, 0)), end: new Date(at(6, 0)), reason: 'Holiday', createdById: ids.staff },
-      });
+    // TC-S2-01 · setup: base-users + base-venues + tc-s2-01-setup · fails if a draft or another staff member's venue appeared on my calendar
+    it('lists only the published venues I manage', async () => {
+      await given('tc-s2-01-setup');
 
-      const res = await calendar();
+      const res = await calendar().expect(200);
 
-      expect(res.status).toBe(200);
-      expect(res.body.venues.map((v: { name: string }) => v.name)).toEqual(['Main Hall', 'Seminar Room']);
-      expect(res.body.entries.map((e: { kind: string; eventName: string | null; reason: string | null }) => [e.kind, e.eventName ?? e.reason]))
-        .toEqual([
-          // US-54: TENTATIVE now means a live hold; a pending request is PENDING.
-          ['PENDING', 'Pending talk'],
-          ['CONFIRMED', 'Confirmed gala'],
-          ['BLOCKED', 'Holiday'],
-        ]);
+      expect(res.body.venues.map((v: { name: string }) => v.name)).toEqual([
+        'Main Hall',
+        'Rooftop Terrace',
+        'Seminar Room',
+      ]);
     });
 
+    // TC-S2-02 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-02-setup · fails if a status were mislabelled, a rejected request shown, or another staff member's booking leaked in
+    it('marks pending as pending, approved as confirmed and blocks as blocked', async () => {
+      await given('tc-s2-01-setup', 'tc-s2-02-setup');
+
+      const res = await calendar().expect(200);
+
+      expect(
+        res.body.entries.map((e: { kind: string; eventName: string | null; reason: string | null }) => [
+          e.kind,
+          e.eventName ?? e.reason,
+        ]),
+      ).toEqual([
+        // US-54: TENTATIVE now means a live hold; a pending request is PENDING.
+        ['PENDING', 'Pending talk'],
+        ['CONFIRMED', 'Confirmed gala'],
+        ['BLOCKED', 'Holiday'],
+      ]);
+    });
+
+    // TC-S2-03 · setup: base-users + base-venues · fails if a role other than Venue Staff could read the calendar
     it('is denied to a Coordinator (403)', async () => {
-      expect((await calendar({}, 'coordinator')).status).toBe(403);
+      await calendar({}, 'coordinator').expect(403);
     });
   });
 
   describe('AC-2: day/week/month windows', () => {
+    // TC-S2-04 · setup: base-users + base-venues + tc-s2-04-setup · fails if the week window included a booking from outside it
     it('only returns entries in the requested window', async () => {
-      await seedBooking(ids.hall, 'In window', BookingStatus.APPROVED, 2);
-      await seedBooking(ids.hall, 'Next week', BookingStatus.APPROVED, 20);
+      await given('tc-s2-04-setup');
 
-      const res = await calendar();
+      const res = await calendar().expect(200);
 
-      expect(res.body.entries.map((e: { eventName: string }) => e.eventName)).toEqual(['In window']);
+      expect(res.body.entries.map((e: { eventName: string }) => e.eventName)).toEqual(['Day two']);
     });
 
+    // TC-S2-04 · setup: base-users + base-venues + tc-s2-04-setup · fails if the server refused the one-day or six-week window the Day and Month views request
+    it('accepts the exact windows the Day, Week and Month views ask for', async () => {
+      await given('tc-s2-04-setup');
+
+      // Day: one day. Month: padded to whole weeks, up to 42 days.
+      const day = await calendar({ from: at(2, 0), to: at(3, 0) }).expect(200);
+      const month = await calendar({ from: at(1, 0), to: '2030-11-12T00:00:00.000Z' }).expect(200);
+
+      expect(day.body.entries.map((e: { eventName: string }) => e.eventName)).toEqual(['Day two']);
+      expect(month.body.entries.map((e: { eventName: string }) => e.eventName)).toEqual([
+        'Day two',
+        'Next week',
+      ]);
+    });
+
+    // TC-S2-04 · setup: base-users + base-venues + tc-s2-04-setup · fails if a day view showed a booking from a different day
+    it('excludes an entry from a day it does not touch', async () => {
+      await given('tc-s2-04-setup');
+
+      const res = await calendar({ from: at(3, 0), to: at(4, 0) }).expect(200);
+
+      expect(res.body.entries).toEqual([]);
+    });
+
+    // TC-S2-04 · setup: base-users + base-venues · fails if an oversized or backwards window were accepted
     it('rejects a window over six weeks, or one that ends before it starts (400)', async () => {
-      expect((await calendar({ to: '2030-12-31T00:00:00.000Z' })).status).toBe(400);
-      expect((await calendar({ to: at(1, 0), from: at(5, 0) })).status).toBe(400);
+      await calendar({ to: '2030-12-31T00:00:00.000Z' }).expect(400);
+      await calendar({ to: at(1, 0), from: at(5, 0) }).expect(400);
     });
   });
 
   describe('AC-3: filter to one venue', () => {
+    // TC-S2-05 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-05-setup · fails if the venue filter let another venue's bookings through
     it('narrows the venues and entries to the chosen venue', async () => {
-      await seedBooking(ids.hall, 'Hall event', BookingStatus.APPROVED, 2);
-      await seedBooking(ids.room, 'Room event', BookingStatus.APPROVED, 2);
+      await given('tc-s2-01-setup', 'tc-s2-05-setup');
 
-      const res = await calendar({ venueId: ids.room });
+      const res = await calendar({ venueId: VENUE.room }).expect(200);
 
-      expect(res.body.venues.map((v: { id: string }) => v.id)).toEqual([ids.room]);
+      expect(res.body.venues.map((v: { id: string }) => v.id)).toEqual([VENUE.room]);
       expect(res.body.entries.map((e: { eventName: string }) => e.eventName)).toEqual(['Room event']);
     });
 
+    // TC-S2-05 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-05-setup · fails if filtering by another staff member's venue exposed its bookings
     it('returns nothing for a venue I do not manage', async () => {
-      await seedBooking(ids.foreign, 'Not mine', BookingStatus.APPROVED, 2);
+      await given('tc-s2-01-setup', 'tc-s2-05-setup');
 
-      const res = await calendar({ venueId: ids.foreign });
+      const res = await calendar({ venueId: VENUE.other }).expect(200);
 
       expect(res.body).toEqual({ venues: [], entries: [] });
     });
   });
 
   describe('AC-4: a booked slot carries its details', () => {
+    // TC-S2-06 · setup: base-users + base-venues + tc-s2-06-setup · fails if a slot lacked its event name, organiser, time or attendance
     it('includes event name, organiser, time and attendance', async () => {
-      const booking = await seedBooking(ids.hall, 'Gala', BookingStatus.APPROVED, 2);
+      await given('tc-s2-06-setup');
 
-      const [entry] = (await calendar()).body.entries;
+      const [entry] = (await calendar().expect(200)).body.entries;
 
       expect(entry).toMatchObject({
-        id: booking.id,
+        id: 'BKG-010',
         eventName: 'Gala',
-        organiserName: 'organiser',
+        organiserName: 'Olivia Organiser',
         start: at(2, 9),
         end: at(2, 12),
         expectedAttendance: 80,
       });
     });
+
+    // TC-S2-06 · setup: base-users + base-venues + tc-s2-06-setup · fails if the id a calendar slot carries did not open that booking
+    it('opens the full booking for that slot (the click-through)', async () => {
+      // The UI loads the booking by the id the calendar entry carries.
+      await given('tc-s2-06-setup');
+      const [entry] = (await calendar().expect(200)).body.entries;
+
+      const res = await http().get(`/bookings/${entry.id}`).set('Authorization', as('staff')).expect(200);
+
+      expect(res.body).toMatchObject({
+        id: 'BKG-010',
+        expectedAttendance: 80,
+        event: { name: 'Gala', organiser: { name: 'Olivia Organiser' } },
+        venue: { id: VENUE.hall },
+      });
+    });
   });
 
   describe('AC-5: reflects changes on refresh', () => {
+    // TC-S2-07 · setup: base-users + base-venues + tc-s2-07-setup · fails if an approval did not show as confirmed on the next read, or the response could be cached
     it('shows a booking as confirmed on the next read after it is approved', async () => {
-      const booking = await seedBooking(ids.hall, 'Talk', BookingStatus.REQUESTED, 2);
-      expect((await calendar()).body.entries[0].kind).toBe('PENDING');
+      await given('tc-s2-07-setup');
+      expect((await calendar().expect(200)).body.entries[0].kind).toBe('PENDING');
 
-      await http().post(`/bookings/${booking.id}/approve`).set('Authorization', as('staff')).send({});
+      await http().post('/bookings/BKG-011/approve').set('Authorization', as('staff')).send({}).expect(200);
 
-      const res = await calendar();
+      const res = await calendar().expect(200);
       expect(res.body.entries[0].kind).toBe('CONFIRMED');
       expect(res.headers['cache-control']).toBe('no-store');
+    });
+
+    // TC-S2-07 · setup: base-users + base-venues + tc-s2-07-setup · fails if a withdrawn (reversed) booking still occupied the calendar
+    it('drops a booking from the calendar on the next read after it is cancelled', async () => {
+      // A reversal to rejected is how a confirmed booking is withdrawn (Story 22 AC-6).
+      await given('tc-s2-07-setup');
+      await http().post('/bookings/BKG-011/approve').set('Authorization', as('staff')).send({}).expect(200);
+      expect((await calendar().expect(200)).body.entries).toHaveLength(1);
+
+      await http()
+        .post('/bookings/BKG-011/reverse')
+        .set('Authorization', as('staff'))
+        .send({ reason: 'Event called off' })
+        .expect(200);
+
+      expect((await calendar().expect(200)).body.entries).toEqual([]);
+    });
+
+    // TC-S2-07 · setup: base-users + base-venues + tc-s2-07-setup · fails if a rejected request lingered as tentatively held
+    it('shows a rejected request as gone, not tentative', async () => {
+      await given('tc-s2-07-setup');
+
+      await http()
+        .post('/bookings/BKG-011/reject')
+        .set('Authorization', as('staff'))
+        .send({ reason: 'Venue unavailable' })
+        .expect(200);
+
+      expect((await calendar().expect(200)).body.entries).toEqual([]);
     });
   });
 
   describe('AC-6: blocked-out periods', () => {
-    const block = (body: Record<string, string>, who = 'staff') =>
-      http().post('/calendar/blocks').set('Authorization', as(who)).send(body);
-
+    // TC-S2-08 · setup: base-users + base-venues · fails if a new block did not appear as BLOCKED with its reason and author
     it('blocks out time, which then appears as BLOCKED', async () => {
-      const res = await block({ venueId: ids.hall, start: at(3, 0), end: at(4, 0), reason: 'Maintenance' });
+      await block({ venueId: VENUE.hall, start: at(3, 0), end: at(4, 0), reason: 'Maintenance' }).expect(201);
 
-      expect(res.status).toBe(201);
-      const [entry] = (await calendar()).body.entries;
-      expect(entry).toMatchObject({ kind: 'BLOCKED', reason: 'Maintenance', createdByName: 'staff' });
+      const [entry] = (await calendar().expect(200)).body.entries;
+      expect(entry).toMatchObject({ kind: 'BLOCKED', reason: 'Maintenance', createdByName: 'Vera Venue' });
     });
 
+    // TC-S2-08 · setup: base-users + base-venues · fails if a block without a reason, or ending before it starts, were saved
     it('requires a reason and an end after the start (400)', async () => {
-      expect((await block({ venueId: ids.hall, start: at(3, 0), end: at(4, 0), reason: '' })).status).toBe(400);
-      expect((await block({ venueId: ids.hall, start: at(4, 0), end: at(3, 0), reason: 'x' })).status).toBe(400);
+      await block({ venueId: VENUE.hall, start: at(3, 0), end: at(4, 0), reason: '' }).expect(400);
+      await block({ venueId: VENUE.hall, start: at(4, 0), end: at(3, 0), reason: 'x' }).expect(400);
     });
 
+    // TC-S2-08 · setup: base-users + base-venues + tc-s2-01-setup · fails if staff could block another's venue, or a Coordinator could block at all
     it('refuses a venue I do not manage (404) and a Coordinator (403)', async () => {
-      expect((await block({ venueId: ids.foreign, start: at(3, 0), end: at(4, 0), reason: 'x' })).status).toBe(404);
-      expect((await block({ venueId: ids.hall, start: at(3, 0), end: at(4, 0), reason: 'x' }, 'coordinator')).status).toBe(403);
+      await given('tc-s2-01-setup');
+
+      await block({ venueId: VENUE.other, start: at(3, 0), end: at(4, 0), reason: 'x' }).expect(404);
+      await block({ venueId: VENUE.hall, start: at(3, 0), end: at(4, 0), reason: 'x' }, 'coordinator').expect(403);
     });
 
+    // TC-S2-08 · setup: base-users + base-venues + tc-s2-01-setup · fails if a block could not be removed by its manager, or could be by someone else
+    it('removes a block', async () => {
+      await given('tc-s2-01-setup');
+      const created = await block({ venueId: VENUE.hall, start: at(3, 0), end: at(4, 0), reason: 'Maintenance' }).expect(201);
+
+      await http().delete(`/calendar/blocks/${created.body.id}`).set('Authorization', as('staffB')).expect(404);
+      await http().delete(`/calendar/blocks/${created.body.id}`).set('Authorization', as('staff')).expect(204);
+      expect((await calendar().expect(200)).body.entries).toEqual([]);
+    });
+
+    // TC-S2-09 · setup: base-users + base-venues + tc-s2-09-setup · fails if blocking time over a confirmed booking did not report that booking
     it('reports existing bookings inside the new block', async () => {
-      const booking = await seedBooking(ids.hall, 'Gala', BookingStatus.APPROVED, 2);
+      await given('tc-s2-09-setup');
 
-      const res = await block({ venueId: ids.hall, start: at(2, 0), end: at(3, 0), reason: 'Leak' });
+      const res = await block({ venueId: VENUE.hall, start: at(2, 0), end: at(3, 0), reason: 'Leak' }).expect(201);
 
-      expect(res.body.overlappingBookings).toEqual([expect.objectContaining({ bookingId: booking.id })]);
+      expect(res.body.overlappingBookings).toEqual(
+        expect.arrayContaining([expect.objectContaining({ bookingId: 'BKG-012' })]),
+      );
     });
 
+    // TC-S2-09 · setup: base-users + base-venues + tc-s2-09-setup · fails if a request or an approval could land inside a blocked period
     it('stops a Coordinator requesting, and staff approving, inside a block', async () => {
-      const pending = await seedBooking(ids.hall, 'Pending', BookingStatus.REQUESTED, 2);
-      await block({ venueId: ids.hall, start: at(2, 0), end: at(3, 0), reason: 'Maintenance' });
+      await given('tc-s2-09-setup');
+      await block({ venueId: VENUE.hall, start: at(2, 0), end: at(3, 0), reason: 'Maintenance' }).expect(201);
 
-      const approve = await http().post(`/bookings/${pending.id}/approve`).set('Authorization', as('staff')).send({});
-      expect(approve.status).toBe(409);
+      const approve = await http()
+        .post('/bookings/BKG-013/approve')
+        .set('Authorization', as('staff'))
+        .send({})
+        .expect(409);
       expect(approve.body.conflicts).toEqual([expect.objectContaining({ kind: 'BLOCK', reason: 'Maintenance' })]);
 
-      const event = await seedEvent('New one');
-      const requestRes = await http()
+      await http()
         .post('/bookings')
         .set('Authorization', as('coordinator'))
-        .send({ eventId: event.id, venueId: ids.hall, start: at(2, 13), end: at(2, 15), expectedAttendance: 50 });
-      expect(requestRes.status).toBe(409);
-    });
-
-    it('removes a block', async () => {
-      const created = await block({ venueId: ids.hall, start: at(3, 0), end: at(4, 0), reason: 'Maintenance' });
-
-      expect((await http().delete(`/calendar/blocks/${created.body.id}`).set('Authorization', as('otherStaff'))).status).toBe(404);
-      expect((await http().delete(`/calendar/blocks/${created.body.id}`).set('Authorization', as('staff'))).status).toBe(204);
-      expect((await calendar()).body.entries).toEqual([]);
+        .send({ eventId: 'EVT-025', venueId: VENUE.hall, start: at(2, 16), end: at(2, 18), expectedAttendance: 50 })
+        .expect(409);
     });
   });
 });

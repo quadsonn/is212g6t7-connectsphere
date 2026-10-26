@@ -31,7 +31,16 @@
     "prisma:seed:us40": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us40.ts",
     "prisma:seed:us42": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us42.ts",
     "prisma:seed:us44": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us44.ts",
-    "venues:vocabulary-review": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/review-venue-vocabulary.ts"
+    "prisma:seed:us58": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us58.ts",
+    "prisma:seed:us64": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us64.ts",
+    "prisma:seed:us65": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us65.ts",
+    "prisma:seed:us61": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us61.ts",
+    "prisma:seed:us66": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us66.ts",
+    "prisma:seed:notices": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-registration-notices.ts",
+    "prisma:seed:equip-unavailable": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-equipment-unavailable.ts",
+    "notices:trigger": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} scripts/trigger-registration-notices.ts",
+    "venues:vocabulary-review": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/review-venue-vocabulary.ts",
+    "check:equip-unavailable": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} scripts/check-equipment-unavailable.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

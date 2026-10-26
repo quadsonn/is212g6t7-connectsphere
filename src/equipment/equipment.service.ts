@@ -2,14 +2,17 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ReservationStatus } from '@prisma/client';
 
+import { EquipmentNotifier } from './equipment-notifier';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
+import { inEntryOrder } from '../prisma/readable-id';
 import { BrowseEquipmentDto, EquipmentSortField, SortOrder } from './dto/browse-equipment.dto';
 import { ChangeEquipmentStatusDto } from './dto/change-equipment-status.dto';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
@@ -23,6 +26,7 @@ import {
   statusChangeError,
   upcomingReservationsWhere,
 } from './equipment-status';
+import { EquipmentStatusNotifier } from './equipment-status-notifier';
 
 /**
  * US-29 AC-1 — the four fields a catalogue row shows at a glance.
@@ -113,6 +117,9 @@ export class EquipmentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessControlService,
+    // US-60: tells the other Technical Support members once a change commits.
+    @Optional() private readonly statusNotifier?: EquipmentStatusNotifier,
+    @Optional() private readonly equipmentNotifier?: EquipmentNotifier,
   ) {}
 
   /**
@@ -235,6 +242,9 @@ export class EquipmentService {
    *
    * Existing reservations are left as they are — the story asks for a warning,
    * not for them to be released.
+   *
+   * US-60: once the change has committed, every other Technical Support member
+   * is told (EquipmentStatusNotifier), best-effort.
    */
   async changeStatus(
     user: AuthenticatedUser,
@@ -243,7 +253,7 @@ export class EquipmentService {
   ): Promise<StatusChangeResult> {
     this.access.requireScope(user, Resource.EQUIPMENT, Action.UPDATE);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<{ id: string }[]>`
         SELECT "id" FROM "Equipment" WHERE "id" = ${equipmentId} FOR UPDATE`;
 
@@ -251,9 +261,9 @@ export class EquipmentService {
         throw new NotFoundException('equipment not found');
       }
 
-      const { operationalStatus: from } = await tx.equipment.findUniqueOrThrow({
+      const { operationalStatus: from, type } = await tx.equipment.findUniqueOrThrow({
         where: { id: equipmentId },
-        select: { operationalStatus: true },
+        select: { operationalStatus: true, type: true },
       });
 
       const error = statusChangeError(from, dto.status);
@@ -295,10 +305,37 @@ export class EquipmentService {
           })
         : [];
 
+      // US — AC-1: tell the Coordinator of each affected event, once per event.
+      // "Committed" is APPROVED only; a merely requested reservation is left
+      // out. In the same transaction, so the notice exists iff the change did.
+      const committedEvents = affectedReservations
+        .filter((r) => r.status === ReservationStatus.APPROVED)
+        .map((r) => ({
+          id: r.event.id,
+          name: r.event.name,
+          coordinatorId: r.event.coordinator?.id ?? null,
+        }));
+      if (committedEvents.length > 0) {
+        await this.equipmentNotifier?.unavailable(
+          tx,
+          { type, status: dto.status, reason: dto.reason },
+          committedEvents,
+        );
+      }
+
       const equipment = await this.findDetail(tx, { id: equipmentId });
 
       return { equipment: equipment!, affectedReservations };
     }, STATUS_TRANSACTION_OPTIONS);
+
+    await this.statusNotifier?.statusChanged({
+      equipmentId,
+      toStatus: dto.status,
+      reason: dto.reason,
+      actorId: user.userId,
+    });
+
+    return result;
   }
 
   /** The detail fields plus the latest status change, flattened. */
@@ -375,5 +412,63 @@ export class EquipmentService {
       start: window.start,
       end: window.end,
     };
+  }
+
+  /**
+   * US-19 AC-3 — for each equipment line an event asks for (US-28), how many
+   * units are free over the event's dates, by US-30's rules. Read-only, like
+   * checkAvailability: nothing is reserved.
+   *
+   * The event's own APPROVED reservations are not counted against it: units
+   * already reserved for this event are its own, not a shortfall. A line not
+   * linked to the catalogue, or an event without dates, cannot be counted and
+   * comes back with availableQuantity null.
+   *
+   * Access is the caller's job: this is called only after the caller's own
+   * check on the event (VenuesService.getSuitability).
+   */
+  async freeUnitsForEventRequirements(
+    eventId: string,
+    window: { start: Date; end: Date } | null,
+  ): Promise<{ item: string; requestedQuantity: number; availableQuantity: number | null }[]> {
+    const lines = inEntryOrder(
+      await this.prisma.equipmentRequirement.findMany({
+        where: { eventId },
+        select: {
+          id: true,
+          createdAt: true,
+          equipmentType: true,
+          quantity: true,
+          equipment: {
+            select: { id: true, type: true, totalQuantity: true, operationalStatus: true },
+          },
+        },
+      }),
+    );
+
+    const linkedIds = [
+      ...new Set(lines.flatMap((line) => (line.equipment ? [line.equipment.id] : []))),
+    ];
+    const held =
+      window && linkedIds.length > 0
+        ? await this.prisma.equipmentReservation.findMany({
+            where: { ...holdingReservationsWhere(linkedIds, window), eventId: { not: eventId } },
+            select: { equipmentId: true, quantity: true, start: true, end: true },
+          })
+        : [];
+
+    return lines.map((line) => ({
+      item: line.equipmentType,
+      requestedQuantity: line.quantity,
+      availableQuantity:
+        window && line.equipment
+          ? computeItemAvailability({
+              equipment: line.equipment,
+              requestedQuantity: line.quantity,
+              reservations: held.filter((r) => r.equipmentId === line.equipment!.id),
+              window,
+            }).availableQuantity
+          : null,
+    }));
   }
 }

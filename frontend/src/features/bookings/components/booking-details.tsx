@@ -1,7 +1,8 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatDateRange, humanise } from '@/lib/utils';
-import { ACCESSIBILITY_FEATURE_LABELS, type VenueBooking } from '@/types/api';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
+import { formatDateRange, formatDateTime, humanise } from '@/lib/utils';
+import { ACCESSIBILITY_FEATURE_LABELS, FACILITY_LABELS, type VenueBooking } from '@/types/api';
 import { BookingDecisionHistory } from './booking-decision-history';
 import { BookingStatusBadge } from './booking-status-badge';
 
@@ -19,6 +20,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
  * view and the Venue Staff review view, so both sides see the same record.
  */
 export function BookingDetails({ booking }: { booking: VenueBooking }) {
+  // Story 20 AC-2: a request made before the technical copy existed has none.
+  const technicalRecorded = booking.equipmentRequirements != null;
+  const NOT_RECORDED = 'Not recorded on this request';
+
   return (
     <div className="space-y-4">
       <Card>
@@ -35,12 +40,12 @@ export function BookingDetails({ booking }: { booking: VenueBooking }) {
           </Field>
           <Field label="Date and time">{formatDateRange(booking.start, booking.end)}</Field>
           <Field label="Expected attendance">
-            {booking.expectedAttendance ?? '—'}
+            {attendanceBandLabel(booking.expectedAttendance)}
             {booking.venue.capacity ? (
               <span className="text-ink-500"> (venue capacity {booking.venue.capacity})</span>
             ) : null}
           </Field>
-          <Field label="Submitted">{new Date(booking.createdAt).toLocaleString()}</Field>
+          <Field label="Submitted">{formatDateTime(booking.createdAt)}</Field>
           {booking.decisionReason ? (
             <div className="sm:col-span-2">
               <Field label="Decision reason">{booking.decisionReason}</Field>
@@ -60,7 +65,7 @@ export function BookingDetails({ booking }: { booking: VenueBooking }) {
           {booking.status === 'RELEASED' && booking.releasedAt ? (
             <div className="sm:col-span-2">
               <Field label="Released">
-                {new Date(booking.releasedAt).toLocaleString()} — a replacement booking was
+                {formatDateTime(booking.releasedAt)} — a replacement booking was
                 confirmed. This record is kept for reference.
               </Field>
             </div>
@@ -125,7 +130,37 @@ export function BookingDetails({ booking }: { booking: VenueBooking }) {
             </Field>
           </div>
           <Field label="Accessibility notes">{booking.accessibilityNotes ?? '—'}</Field>
-          <Field label="Equipment / technical">{booking.equipmentNeeds ?? 'None recorded'}</Field>
+          <Field label="Equipment notes">{booking.equipmentNeeds ?? 'None recorded'}</Field>
+
+          {/* Story 20 AC-2: the technical requirements, as submitted. */}
+          <div className="sm:col-span-2">
+            <Field label="Equipment requested">
+              {!technicalRecorded ? (
+                NOT_RECORDED
+              ) : booking.equipmentRequirements!.length > 0 ? (
+                <ul aria-label="Equipment requested" className="list-disc pl-5">
+                  {booking.equipmentRequirements!.map((line, i) => (
+                    <li key={i}>
+                      {line.quantity} × {line.equipmentType}
+                      {line.notes ? ` (${line.notes})` : ''}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                'None recorded'
+              )}
+            </Field>
+          </div>
+          <Field label="Technical support">
+            {!technicalRecorded ? NOT_RECORDED : (booking.technicalSupportNeeds ?? 'None recorded')}
+          </Field>
+          <Field label="Required facilities">
+            {!technicalRecorded
+              ? NOT_RECORDED
+              : booking.requiredFacilities.length > 0
+                ? booking.requiredFacilities.map((f) => FACILITY_LABELS[f]).join(', ')
+                : 'None recorded'}
+          </Field>
         </CardContent>
       </Card>
 

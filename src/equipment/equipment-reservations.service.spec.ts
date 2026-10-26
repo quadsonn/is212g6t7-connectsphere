@@ -16,12 +16,13 @@ import { Scope } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { EquipmentNotifier } from './equipment-notifier';
 import {
   EquipmentReservationsService,
   rejectionReason,
 } from './equipment-reservations.service';
 
-/** US-32 (commit) and US-33 (release) — service rules, with Prisma mocked. */
+/** US-31 (commit) and US-32 (release) — service rules, with Prisma mocked. */
 describe('EquipmentReservationsService', () => {
   const tech: AuthenticatedUser = {
     userId: 'tech-1',
@@ -55,6 +56,7 @@ describe('EquipmentReservationsService', () => {
       findMany: jest.Mock;
       create: jest.Mock;
       updateMany: jest.Mock;
+      count: jest.Mock;
     };
   };
   let prisma: {
@@ -63,6 +65,7 @@ describe('EquipmentReservationsService', () => {
   };
   let access: { requireScope: jest.Mock };
   let notifications: { notifySafely: jest.Mock };
+  let equipmentNotifier: { released: jest.Mock; unavailable: jest.Mock };
   let service: EquipmentReservationsService;
 
   const commit = (quantity: number) =>
@@ -88,6 +91,7 @@ describe('EquipmentReservationsService', () => {
           }),
         ),
         updateMany: jest.fn().mockResolvedValue({ count: 2 }),
+        count: jest.fn().mockResolvedValue(0),
       },
     };
     prisma = {
@@ -96,15 +100,22 @@ describe('EquipmentReservationsService', () => {
     };
     access = { requireScope: jest.fn().mockReturnValue(Scope.ANY) };
     notifications = { notifySafely: jest.fn().mockResolvedValue(undefined) };
+    equipmentNotifier = {
+      released: jest.fn().mockResolvedValue(undefined),
+      unavailable: jest.fn().mockResolvedValue(undefined),
+    };
 
     service = new EquipmentReservationsService(
       prisma as unknown as PrismaService,
       access as unknown as AccessControlService,
       notifications as unknown as NotificationsService,
+      undefined,
+      undefined,
+      equipmentNotifier as unknown as EquipmentNotifier,
     );
   });
 
-  describe('US-32 AC-1: commit an item and quantity to an event for its date and time', () => {
+  describe('US-31 AC-1: commit an item and quantity to an event for its date and time', () => {
     it('creates a committed (APPROVED) reservation over the event’s own window', async () => {
       const result = await commit(4);
 
@@ -162,7 +173,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-32 AC-2: the committed quantity is locked against overlapping commitments', () => {
+  describe('US-31 AC-2: the committed quantity is locked against overlapping commitments', () => {
     it('runs the transaction with room to wait for the row lock', async () => {
       await commit(1);
 
@@ -181,7 +192,7 @@ describe('EquipmentReservationsService', () => {
       expect(tx.$queryRaw.mock.calls[1][1]).toBe('eq-mic');
     });
 
-    it('counts committed reservations overlapping the event’s window, via the shared US-30 query', async () => {
+    it('counts committed reservations overlapping the event’s window, via the shared US-29 query', async () => {
       await commit(1);
 
       expect(tx.equipmentReservation.findMany).toHaveBeenCalledWith({
@@ -205,7 +216,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-32 AC-3: a quantity already locked elsewhere is rejected with the reason', () => {
+  describe('US-31 AC-3: a quantity already locked elsewhere is rejected with the reason', () => {
     it('rejects one unit above what is free, and says why', async () => {
       tx.equipmentReservation.findMany.mockResolvedValue([{ quantity: 4, start, end }]);
 
@@ -256,7 +267,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-32 AC-4: the assigned Coordinator is notified once the commitment is confirmed', () => {
+  describe('US-31 AC-4: the assigned Coordinator is notified once the commitment is confirmed', () => {
     it('notifies the assigned Coordinator after the transaction commits', async () => {
       await commit(2);
 
@@ -281,7 +292,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-33 AC-1/AC-4: releasing a cancelled event’s reservations', () => {
+  describe('US-32 AC-1/AC-4: releasing a cancelled event’s reservations', () => {
     it('releases only that event’s still-held reservations, stamping when', async () => {
       const count = await service.releaseForCancelledEvent(
         'event-1',
@@ -296,6 +307,30 @@ describe('EquipmentReservationsService', () => {
         },
         data: { status: ReservationStatus.RELEASED, releasedAt: expect.any(Date) },
       });
+    });
+
+    it('AC-2: notifies the Coordinator when a committed reservation is released', async () => {
+      tx.equipmentReservation.count.mockResolvedValue(1); // one APPROVED reservation
+      tx.eventRequest.findUnique.mockResolvedValue({
+        status: EventStatus.CANCELLED,
+        name: 'Gala',
+        coordinatorId: 'USR-c1',
+      });
+
+      await service.releaseForCancelledEvent('event-1', tx as never);
+
+      expect(equipmentNotifier.released).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ id: 'event-1', coordinatorId: 'USR-c1', status: EventStatus.CANCELLED }),
+      );
+    });
+
+    it('AC-2: does not notify when nothing committed was released', async () => {
+      tx.equipmentReservation.count.mockResolvedValue(0); // only requested, if any
+
+      await service.releaseForCancelledEvent('event-1', tx as never);
+
+      expect(equipmentNotifier.released).not.toHaveBeenCalled();
     });
 
     it('never matches an already-released reservation, so a repeat release is a no-op', async () => {
@@ -318,7 +353,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-33 AC-3: which reservations were released, for which event', () => {
+  describe('US-32 AC-3: which reservations were released, for which event', () => {
     it('lists RELEASED reservations with their event and equipment, newest first', async () => {
       await service.findReleased(tech);
 
@@ -330,6 +365,65 @@ describe('EquipmentReservationsService', () => {
         select: { id: true, name: true, status: true },
       });
       expect(query.select.releasedAt).toBe(true);
+    });
+  });
+
+  describe('equipment-unavailable indicator (findUnavailableForEvent)', () => {
+    it('maps affected reservations to the indicator shape', async () => {
+      const start = new Date('2030-11-01T09:00:00Z');
+      const end = new Date('2030-11-01T17:00:00Z');
+      prisma.equipmentReservation.findMany.mockResolvedValue([
+        {
+          id: 'RSV-1',
+          quantity: 2,
+          start,
+          end,
+          status: ReservationStatus.APPROVED,
+          equipment: {
+            id: 'EQP-1',
+            type: 'Laser projector',
+            operationalStatus: EquipmentStatus.OUT_OF_SERVICE,
+          },
+        },
+      ]);
+
+      const result = await service.findUnavailableForEvent(
+        'EVT-1',
+        new Date('2030-10-01T00:00:00Z'),
+      );
+
+      expect(result).toEqual([
+        {
+          reservationId: 'RSV-1',
+          equipmentId: 'EQP-1',
+          equipmentType: 'Laser projector',
+          equipmentStatus: EquipmentStatus.OUT_OF_SERVICE,
+          reservationStatus: ReservationStatus.APPROVED,
+          quantity: 2,
+          start,
+          end,
+        },
+      ]);
+    });
+
+    it('is empty when nothing is affected', async () => {
+      prisma.equipmentReservation.findMany.mockResolvedValue([]);
+      await expect(service.findUnavailableForEvent('EVT-1')).resolves.toEqual([]);
+    });
+
+    it('queries only upcoming requested/approved reservations of non-operational items', async () => {
+      const now = new Date('2030-10-01T00:00:00Z');
+      await service.findUnavailableForEvent('EVT-1', now);
+
+      const { where } = prisma.equipmentReservation.findMany.mock.calls[0][0];
+      expect(where.eventId).toBe('EVT-1');
+      expect(where.status).toEqual({
+        in: [ReservationStatus.REQUESTED, ReservationStatus.APPROVED],
+      });
+      expect(where.end).toEqual({ gt: now });
+      expect(where.equipment).toEqual({
+        operationalStatus: { not: EquipmentStatus.OPERATIONAL },
+      });
     });
   });
 });

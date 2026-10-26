@@ -4,8 +4,8 @@ import { validate, ValidationError } from 'class-validator';
 
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 
-/** US-37 — boundary validation of the change request payload. */
-describe('CreateChangeRequestDto (US-37)', () => {
+/** US-36 — boundary validation of the change request payload. */
+describe('CreateChangeRequestDto (US-36)', () => {
   const collect = (list: ValidationError[]): string[] =>
     list.flatMap((error) => [
       ...Object.values(error.constraints ?? {}),

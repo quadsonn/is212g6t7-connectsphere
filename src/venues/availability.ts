@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { BookingStatus } from '@prisma/client';
 
 import { VenueBookingSlot } from '../bookings/booking-impact';
-import { NO_BUFFERS, occupiedWindow } from '../bookings/venue-occupancy';
+import { NO_BUFFERS, occupiedWindow, TimeWindow } from '../bookings/venue-occupancy';
 
 /**
  * US-17 — a venue's availability calendar, reduced to one status per day.
@@ -11,11 +11,16 @@ import { NO_BUFFERS, occupiedWindow } from '../bookings/venue-occupancy';
  * "now", which is what lets the aggregation be unit-tested exhaustively.
  */
 
-/** AC-3/AC-4 — what a Coordinator may learn about one day, and nothing more. */
+/**
+ * AC-1/AC-3/AC-4 — what a Coordinator may learn about one day, and nothing
+ * more. BLOCKED is a period Venue Staff closed (US-16): that it is closed, not
+ * why or by whom.
+ */
 export enum DayStatus {
   FREE = 'free',
   TENTATIVE = 'tentative',
   BOOKED = 'booked',
+  BLOCKED = 'blocked',
 }
 
 /** A calendar day, as an ISO date string ("2026-10-03") in venue time. */
@@ -55,6 +60,8 @@ const RANK: Record<DayStatus, number> = {
   [DayStatus.FREE]: 0,
   [DayStatus.TENTATIVE]: 1,
   [DayStatus.BOOKED]: 2,
+  // A closed venue cannot be requested at all, so a block says the most.
+  [DayStatus.BLOCKED]: 3,
 };
 
 /** The venue-time calendar day an instant falls on. */
@@ -155,12 +162,12 @@ function statusFor(booking: VenueBookingSlot): DayStatus {
 }
 
 /**
- * AC-3/AC-4 — one status per day in the range.
+ * AC-1/AC-3/AC-4 — one status per day in the range.
  *
  * A booking touches every day from the one it starts on to the one containing
  * its last instant. End is exclusive, so a booking ending exactly at midnight
  * does not touch the following day. Booked outranks tentative, which outranks
- * free.
+ * free. AC-1: a day any block touches is blocked, which outranks the rest.
  *
  * US-50 AC-1: "starts" and "ends" are the booking's occupied window — its
  * setup time before and turnaround time after — so a turnaround running past
@@ -169,22 +176,17 @@ function statusFor(booking: VenueBookingSlot): DayStatus {
 export function aggregateAvailability(
   range: DayRange,
   bookings: VenueBookingSlot[],
+  blocks: TimeWindow[] = [],
 ): DayAvailability[] {
   const days = new Map<DayKey, DayStatus>();
   for (let day = range.from; day <= range.to; day = addDays(day, 1)) {
     days.set(day, DayStatus.FREE);
   }
 
-  for (const booking of bookings) {
-    const status = statusFor(booking);
-    if (status === DayStatus.FREE) continue;
-
-    const occupied = occupiedWindow(booking, booking.buffers ?? NO_BUFFERS);
-    const first = dayKeyOf(occupied.start);
-    const lastInstant = Math.max(
-      occupied.start.getTime(),
-      occupied.end.getTime() - 1,
-    );
+  /** Raises every in-range day the window touches to at least `status`. */
+  const mark = (window: TimeWindow, status: DayStatus) => {
+    const first = dayKeyOf(window.start);
+    const lastInstant = Math.max(window.start.getTime(), window.end.getTime() - 1);
     const last = dayKeyOf(new Date(lastInstant));
 
     const from = first > range.from ? first : range.from;
@@ -195,6 +197,17 @@ export function aggregateAvailability(
         days.set(day, status);
       }
     }
+  };
+
+  for (const booking of bookings) {
+    const status = statusFor(booking);
+    if (status === DayStatus.FREE) continue;
+    mark(occupiedWindow(booking, booking.buffers ?? NO_BUFFERS), status);
+  }
+
+  // A block is the closure itself: no setup or turnaround around it.
+  for (const block of blocks) {
+    mark(block, DayStatus.BLOCKED);
   }
 
   return [...days].map(([date, status]) => ({ date, status }));

@@ -15,7 +15,6 @@ import {
   rangeTitle,
   shiftAnchor,
   sortBookedFirst,
-  venueLetter,
   visibleRange,
 } from '@/features/calendar/calendar-utils';
 import { HoldForm } from '@/features/bookings/components/hold-form';
@@ -52,6 +51,7 @@ export function VenueCalendar() {
   // US-54: placing a tentative hold, from the same page as blocking time.
   const [holding, setHolding] = useState(false);
   const [filters, setFilters] = useState<CalendarFilters>(NO_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [weekPage, setWeekPage] = useState(1);
   const detailRef = useRef<HTMLDivElement>(null);
 
@@ -67,8 +67,7 @@ export function VenueCalendar() {
   const venueName = (id: string) => allVenues.find((v) => v.id === id)?.name ?? null;
 
   // AC-3 and the shop-style filters, applied to every view.
-  const counts = facetCounts(allVenues, allEntries, days);
-  const letters = [...new Set(allVenues.map(venueLetter))].sort();
+  const counts = facetCounts(allEntries);
   const { venues, entries, showAvailable } = applyFilters(allVenues, allEntries, days, filters);
 
   // Week grid pages. Sorted before slicing, so booked venues lead page 1.
@@ -215,12 +214,14 @@ export function VenueCalendar() {
           ) : null}
 
           {data && allVenues.length > 0 ? (
-            <div className="lg:grid lg:grid-cols-[14rem_minmax(0,1fr)]">
+            // Closed, the filter panel becomes a bar above the calendar, which takes the full width.
+            <div className={cn(filtersOpen && 'lg:grid lg:grid-cols-[14rem_minmax(0,1fr)]')}>
               <FilterPanel
                 filters={filters}
                 counts={counts}
-                letters={letters}
                 venues={allVenues}
+                open={filtersOpen}
+                onOpenChange={setFiltersOpen}
                 onChange={(next) => {
                   setFilters(next);
                   setWeekPage(1);

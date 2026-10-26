@@ -11,8 +11,8 @@ import { QueueSortField, QueueView } from './dto/booking-queue-query.dto';
 import { HoldNotifier } from './hold-notifier';
 import { VenueActivityNotifier } from './venue-activity-notifier';
 
-/** US-22 — Venue Booking Request Queue. */
-describe('BookingsService findQueue (US-22)', () => {
+/** US-21 — Venue Booking Request Queue. */
+describe('BookingsService findQueue (US-21)', () => {
   let prisma: { venueBooking: { findMany: jest.Mock } };
   let access: { requireScope: jest.Mock };
   let service: BookingsService;

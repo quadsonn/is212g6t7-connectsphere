@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
+  TechnicalSupportAssignmentView,
   CancelEventPayload,
   CancellationResult,
   CatalogueOption,
@@ -18,6 +19,7 @@ import type {
   PlanningUpdatePayload,
   PublicEventView,
   RelatedEventView,
+  RespondClarificationPayload,
   TechnicalRequirementsPayload,
   RejectUnfulfillablePayload,
   UnfulfillableRejection,
@@ -28,6 +30,7 @@ export const eventKeys = {
   all: ['events'] as const,
   mine: ['events', 'mine'] as const,
   detail: (id: string) => ['events', id] as const,
+  publicDetail: (id: string) => ['events', 'public', id] as const,
   assigned: ['events', 'assigned'] as const,
   assignedDetail: (id: string) => ['events', 'assigned', id] as const,
   history: (id: string) => ['events', id, 'history'] as const,
@@ -37,7 +40,37 @@ export const eventKeys = {
   pendingChangeRequests: ['events', 'change-requests', 'pending'] as const,
   changeRequestReview: (id: string) => ['events', 'change-requests', id] as const,
   relatedDetail: (id: string) => ['events', 'related', id] as const,
+  technicalSupport: (id: string) => ['events', id, 'technical-support'] as const,
 };
+
+/** US-61 — the event's Technical Support assignee and every member's availability. */
+export function useTechnicalSupportAssignment(id: string) {
+  return useQuery<TechnicalSupportAssignmentView>({
+    queryKey: eventKeys.technicalSupport(id),
+    queryFn: () => eventsApi.getTechnicalSupport(id),
+    enabled: Boolean(id),
+    staleTime: 0,
+  });
+}
+
+/**
+ * US-61 — assign, change or remove the member (staffId null removes).
+ * Refreshes every event query: the availability and the history both change.
+ */
+export function useSetTechnicalSupport(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation<TechnicalSupportAssignmentView, unknown, string | null>({
+    mutationFn: (staffId) =>
+      staffId ? eventsApi.assignTechnicalSupport(id, staffId) : eventsApi.unassignTechnicalSupport(id),
+    onSuccess: (view) => {
+      queryClient.setQueryData(eventKeys.technicalSupport(id), view);
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    },
+    // AC-2/AC-4: a refusal may mean someone else just took the member, so
+    // reload who is free.
+    onError: () => void queryClient.invalidateQueries({ queryKey: eventKeys.technicalSupport(id) }),
+  });
+}
 
 /**
  * The caller's events, scoped by the server. Organiser and Coordinator both
@@ -189,8 +222,8 @@ export function useRespondToClarification() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, response }: { id: string; response: string }) =>
-      eventsApi.respondToClarification(id, response),
+    mutationFn: ({ id, ...body }: { id: string } & RespondClarificationPayload) =>
+      eventsApi.respondToClarification(id, body),
     onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: eventKeys.all });
       void queryClient.invalidateQueries({ queryKey: eventKeys.mine });
@@ -204,6 +237,19 @@ export function usePublicEvents() {
   return useQuery<PublicEventView[]>({
     queryKey: eventKeys.all,
     queryFn: eventsApi.listPublic,
+  });
+}
+
+/**
+ * US-02 — one event in the Attendee's public view, for the event detail
+ * screen. A separate key from the Organiser/Coordinator detail reads so the
+ * projected shape is never served to, or from, a full-record cache entry.
+ */
+export function usePublicEvent(id: string | undefined) {
+  return useQuery<PublicEventView>({
+    queryKey: eventKeys.publicDetail(id ?? ''),
+    queryFn: () => eventsApi.getPublicById(id!),
+    enabled: Boolean(id),
   });
 }
 

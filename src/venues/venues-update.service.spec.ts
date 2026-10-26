@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
+import { EquipmentService } from '../equipment/equipment.service';
 
 /** US-14 — updating an existing venue. */
 describe('VenuesService update (US-14)', () => {
@@ -71,6 +72,7 @@ describe('VenuesService update (US-14)', () => {
       { uploadVenueImage: jest.fn() } as unknown as SupabaseStorageService,
       {} as unknown as EventsService,
       {} as unknown as BookingReviewService,
+      {} as unknown as EquipmentService,
     );
   });
 
@@ -258,7 +260,12 @@ describe('VenuesService update (US-14)', () => {
 
       await expect(
         service.updateDraft(staff, 'venue-1', { name: null } as VenueDraftDto),
-      ).resolves.toBeDefined();
+      ).resolves.toMatchObject({ name: null, warnings: [] });
+      // The blank is persisted as null (not refused, as it would be once published).
+      expect(prisma.venue.update).toHaveBeenCalledWith({
+        where: { id: 'venue-1' },
+        data: { name: null },
+      });
     });
 
     it('still allows a genuine edit of a published venue', async () => {

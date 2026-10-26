@@ -3,9 +3,12 @@ import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Field, Textarea } from '@/components/ui/form';
+import { Field, Select, Textarea } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useSetTechnicalRequirements } from '@/features/events/hooks/use-events';
+import {
+  useEquipmentCatalogueOptions,
+  useSetTechnicalRequirements,
+} from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
 import type { EquipmentRequirement, EventChangeEntry, EventRequest } from '@/types/api';
 import { ARRANGEMENT_LABELS } from '../lib/change-format';
@@ -88,8 +91,14 @@ export function TechnicalRequirementsView({
   );
 }
 
+/** The dropdown's "Other" choice: a free-text line, not from the catalogue. */
+const OTHER = '__other__';
+
 interface Row {
   key: number;
+  /** A catalogue item's id, OTHER, or '' while nothing is chosen. */
+  choice: string;
+  /** The free-text type when choice is OTHER; the saved name for a catalogue line. */
   equipmentType: string;
   quantity: string;
   notes: string;
@@ -98,6 +107,7 @@ interface Row {
 let nextKey = 0;
 const toRow = (r?: EquipmentRequirement): Row => ({
   key: nextKey++,
+  choice: r ? (r.equipmentId ?? OTHER) : '',
   equipmentType: r?.equipmentType ?? '',
   quantity: r ? String(r.quantity) : '1',
   notes: r?.notes ?? '',
@@ -115,20 +125,39 @@ function TechnicalRequirementsForm({
   const [rows, setRows] = useState<Row[]>(() => (event.equipmentRequirements ?? []).map(toRow));
   const [support, setSupport] = useState(event.technicalSupportNeeds ?? '');
   const save = useSetTechnicalRequirements(event.id);
+  const catalogue = useEquipmentCatalogueOptions();
+  const items = catalogue.data ?? [];
+
+  // A saved line whose item is no longer listed still shows as chosen, so the
+  // form never hides what the event has now.
+  const unlisted = new Map(
+    rows
+      .filter((row) => row.choice !== '' && row.choice !== OTHER && !items.some((item) => item.id === row.choice))
+      .map((row) => [row.choice, row.equipmentType]),
+  );
 
   const setRow = (key: number, patch: Partial<Row>) =>
     setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
 
   // Blank rows are ignored rather than rejected: "Add item" then changing
   // your mind should not block the save.
-  const filled = rows.filter((row) => row.equipmentType.trim() !== '');
+  const filled = rows.filter((row) =>
+    row.choice === OTHER ? row.equipmentType.trim() !== '' : row.choice !== '',
+  );
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     save.mutate(
       {
         equipment: filled.map((row) => ({
-          equipmentType: row.equipmentType.trim(),
+          // The server names a catalogue line after its item; the type sent
+          // here only has to be non-empty.
+          ...(row.choice === OTHER
+            ? { equipmentType: row.equipmentType.trim() }
+            : {
+                equipmentId: row.choice,
+                equipmentType: items.find((item) => item.id === row.choice)?.type ?? row.equipmentType,
+              }),
           quantity: Number(row.quantity),
           notes: row.notes.trim() || null,
         })),
@@ -143,18 +172,48 @@ function TechnicalRequirementsForm({
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium text-ink-800">Required equipment</legend>
 
+        {catalogue.isError ? (
+          <p className="text-sm text-red-700">
+            {apiErrorMessage(catalogue.error, 'Could not load the equipment catalogue.')}
+          </p>
+        ) : null}
+
         {rows.length === 0 ? (
           <p className="text-sm text-ink-500">No equipment listed yet.</p>
         ) : null}
 
         {rows.map((row, index) => (
           <div key={row.key} className="grid grid-cols-[1fr_5.5rem] gap-2 sm:grid-cols-[2fr_6rem_2fr_auto]">
-            <Input
-              aria-label={`Equipment type, row ${index + 1}`}
-              placeholder="e.g. Laser projector"
-              value={row.equipmentType}
-              onChange={(e) => setRow(row.key, { equipmentType: e.target.value })}
-            />
+            <div className="space-y-2">
+              <Select
+                aria-label={`Equipment item, row ${index + 1}`}
+                value={row.choice}
+                onChange={(e) => setRow(row.key, { choice: e.target.value })}
+                disabled={catalogue.isPending}
+              >
+                <option value="">Choose from the catalogue…</option>
+                {items.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.type}
+                    {item.location ? ` — ${item.location}` : ''}
+                  </option>
+                ))}
+                {[...unlisted].map(([id, type]) => (
+                  <option key={id} value={id}>
+                    {type}
+                  </option>
+                ))}
+                <option value={OTHER}>Other (not in catalogue)…</option>
+              </Select>
+              {row.choice === OTHER ? (
+                <Input
+                  aria-label={`Equipment type, row ${index + 1}`}
+                  placeholder="e.g. Laser projector"
+                  value={row.equipmentType}
+                  onChange={(e) => setRow(row.key, { equipmentType: e.target.value })}
+                />
+              ) : null}
+            </div>
             <Input
               aria-label={`Quantity, row ${index + 1}`}
               type="number"

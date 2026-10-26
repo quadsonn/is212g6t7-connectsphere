@@ -10,6 +10,7 @@ import {
   Users,
   MapPin,
   Repeat2,
+  UserCheck,
   Wrench,
   Ticket,
 } from 'lucide-react';
@@ -49,6 +50,8 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   TECHNICAL_SUPPORT_STAFF: [
     { label: 'Event requirements', to: '/equipment', icon: ClipboardList },
+    // US-61 AC-3: events this member is assigned to support.
+    { label: 'My assignments', to: '/equipment/assignments', icon: UserCheck },
     { label: 'Equipment catalogue', to: '/equipment/inventory', icon: Wrench },
     { label: 'Check availability', to: '/equipment/availability', icon: CalendarClock },
     { label: 'Released reservations', to: '/equipment/released', icon: CalendarX },

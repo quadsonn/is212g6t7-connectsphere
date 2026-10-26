@@ -9,7 +9,10 @@ import {
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
-import { TECHNICAL_SUPPORT_VISIBLE_STATUSES } from '../events/event-status.machine';
+import {
+  FINISHED_EVENT_STATUSES,
+  TECHNICAL_SUPPORT_VISIBLE_STATUSES,
+} from '../events/event-status.machine';
 import { PrismaService } from '../prisma/prisma.service';
 import { inEntryOrder } from '../prisma/readable-id';
 
@@ -82,7 +85,8 @@ const COORDINATOR_REQUIREMENTS_ORDER: Prisma.EquipmentRequirementOrderByWithRela
   { id: 'asc' },
 ];
 
-const EVENT_SELECT = {
+// Exported for US-61's assignment list, which shows the same requirements.
+export const EVENT_SELECT = {
   id: true,
   name: true,
   description: true,
@@ -97,7 +101,7 @@ const EVENT_SELECT = {
   },
 } as const satisfies Prisma.EventRequestSelect;
 
-type SelectedEvent = Prisma.EventRequestGetPayload<{ select: typeof EVENT_SELECT }>;
+export type SelectedEvent = Prisma.EventRequestGetPayload<{ select: typeof EVENT_SELECT }>;
 
 const DETAILS_SELECT = {
   id: true,
@@ -197,9 +201,14 @@ export class EquipmentRequirementsService {
    * US-31 AC-4 — submitted (non-draft) events with at least one requirement
    * source, soonest first. A draft never appears, and neither does an event
    * with nothing recorded in any of the three sources.
+   *
+   * #30 AC-4: events that will not go ahead (FINISHED_EVENT_STATUSES) are left
+   * out unless includeFinished is set. Filtered here, like hasRequirements,
+   * so the query keeps the one REQUIREMENTS_VISIBLE_WHERE rule.
    */
   async findEventsWithRequirements(
     user: AuthenticatedUser,
+    { includeFinished = false }: { includeFinished?: boolean } = {},
   ): Promise<EventRequirementsView[]> {
     this.access.requireScope(user, Resource.EQUIPMENT, Action.READ);
 
@@ -209,7 +218,10 @@ export class EquipmentRequirementsService {
       select: EVENT_SELECT,
     });
 
-    return events.map(toRequirementsView).filter((view) => view.hasRequirements);
+    return events
+      .map(toRequirementsView)
+      .filter((view) => view.hasRequirements)
+      .filter((view) => includeFinished || !FINISHED_EVENT_STATUSES.includes(view.status));
   }
 
   /**

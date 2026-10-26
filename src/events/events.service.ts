@@ -27,14 +27,20 @@ import {
   AccessControlService,
   EventWithCoordinator,
   PublicEventView,
+  PUBLIC_VENUE_INCLUDE,
 } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
-import { EquipmentReservationsService } from '../equipment/equipment-reservations.service';
+import { TechnicalSupportNotifier } from '../equipment/technical-support-notifier';
+import {
+  EquipmentReservationsService,
+  UnavailableReservation,
+} from '../equipment/equipment-reservations.service';
 import { AttendeeChangeNotifier } from '../notifications/attendee-change-notifier.service';
 import { scheduleChangesFrom } from '../notifications/event-schedule-change';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EventsRequestNotifier } from './events-request-notifier.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AskClarificationDto } from './dto/ask-clarification.dto';
 import { CreateEventRequestDto } from './dto/create-event-request.dto';
@@ -50,6 +56,7 @@ import {
   diffEventFields,
   FieldChange,
   sameValue,
+  TRACKED_FIELD_LABELS,
 } from './event-change.rules';
 import {
   buildStatusView,
@@ -114,6 +121,8 @@ export const CLARIFICATION_THREAD_INCLUDE = {
     orderBy: { createdAt: 'asc' },
     include: {
       author: { select: { id: true, name: true, email: true, role: true } },
+      // US-58 AC4: the details a response updated, old -> new; null otherwise.
+      change: { select: { changes: true } },
     },
   },
 } as const;
@@ -159,6 +168,12 @@ export type OrganiserRequestView = EventRequest & {
    * reason is visible to the Organiser.
    */
   latestChangeDecision?: PendingChangeRequest | null;
+  /**
+   * Upcoming equipment the event requested or reserved that is no longer
+   * available (the item was taken out of service). An indicator that something
+   * needs attention; empty when all is well. Set on single-event reads only.
+   */
+  unavailableEquipment?: UnavailableReservation[];
 };
 
 /** US-37 — a change request with its equipment resolved to catalogue names. */
@@ -234,6 +249,7 @@ type DraftFields = Partial<
     | 'layoutNotes'
     | 'accessibilityRequirements'
     | 'accessibilityNotes'
+    | 'requiredFacilities'
     | 'equipmentNeeds'
     | 'registrationEnabled'
   >
@@ -251,6 +267,10 @@ export class EventsService {
     @Optional() private readonly arrangements?: ArrangementsRegistry,
     // Tells registered Attendees when a date or time change is applied.
     @Optional() private readonly attendeeChanges?: AttendeeChangeNotifier,
+    // US-66 AC-3: tells Technical Support of a new or changed equipment request.
+    @Optional() private readonly technicalSupport?: TechnicalSupportNotifier,
+    // Tells Coordinator Leads when a request is submitted or resubmitted.
+    @Optional() private readonly requestNotifier?: EventsRequestNotifier,
   ) {}
 
   /**
@@ -267,7 +287,7 @@ export class EventsService {
   ): Promise<EventRequest> {
     this.access.requireScope(user, Resource.EVENT, Action.CREATE);
 
-    return this.prisma.$transaction(async (tx) => {
+    const submitted = await this.prisma.$transaction(async (tx) => {
       const draft = await tx.eventRequest.create({
         data: {
           organiserId: user.userId,
@@ -283,6 +303,7 @@ export class EventsService {
           layoutNotes: dto.layoutNotes ?? null,
           accessibilityRequirements: dto.accessibilityRequirements ?? [],
           accessibilityNotes: dto.accessibilityNotes ?? null,
+          requiredFacilities: dto.requiredFacilities ?? [],
           equipmentNeeds: dto.equipmentNeeds ?? null,
           registrationEnabled: dto.registrationEnabled ?? false,
           // status intentionally omitted — DRAFT is the schema default, and
@@ -292,6 +313,10 @@ export class EventsService {
 
       return this.setStatus(draft, EventStatus.SUBMITTED, tx);
     });
+
+    // AC-1: tell the Coordinator Leads, after the submission has committed.
+    await this.requestNotifier?.submitted(submitted);
+    return submitted;
   }
 
   /**
@@ -348,19 +373,34 @@ export class EventsService {
       });
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.eventRequest.update({
-        where: { id: event.id },
-        data: fields,
-      });
+    return this.prisma.$transaction(
+      async (tx) => (await this.applyEdits(tx, event, user.userId, fields)).updated,
+    );
+  }
 
-      const changes = diffEventFields(event, fields);
-      if (changes.length > 0) {
-        await this.recordChange(tx, event.id, user.userId, changes, []);
-      }
-
-      return updated;
+  /**
+   * The Organiser's edit of a submitted request: write the fields, and record
+   * what actually changed in the event's history (US-26). Shared by
+   * updateDraft() and a clarification response (US-58), so both write and
+   * record edits the same way. Returns the history entry's id, or null when
+   * nothing changed.
+   */
+  private async applyEdits(
+    tx: Prisma.TransactionClient,
+    event: EventRequest,
+    userId: string,
+    fields: DraftFields,
+  ): Promise<{ updated: EventRequest; changeId: string | null }> {
+    const updated = await tx.eventRequest.update({
+      where: { id: event.id },
+      data: fields,
     });
+
+    const changes = diffEventFields(event, fields);
+    const entry =
+      changes.length > 0 ? await this.recordChange(tx, event.id, userId, changes, []) : null;
+
+    return { updated, changeId: entry?.id ?? null };
   }
 
   /**
@@ -380,7 +420,10 @@ export class EventsService {
     this.assertIsEditable(event);
     await this.assertReadyForSubmission(event);
 
-    return this.setStatus(event, EventStatus.SUBMITTED);
+    const submitted = await this.setStatus(event, EventStatus.SUBMITTED);
+    // AC-1: a first submission or a resubmission both reach the Leads here.
+    await this.requestNotifier?.submitted(submitted);
+    return submitted;
   }
 
   /**
@@ -441,6 +484,7 @@ export class EventsService {
       'layoutNotes',
       'accessibilityRequirements',
       'accessibilityNotes',
+      'requiredFacilities',
       'equipmentNeeds',
       'registrationEnabled',
     ] as const) {
@@ -496,6 +540,10 @@ export class EventsService {
         expectedAttendance: true,
         accessibilityRequirements: true,
         preferredLayout: true,
+        // US-19 AC-3.
+        requiredFacilities: true,
+        proposedStart: true,
+        proposedEnd: true,
       },
     });
 
@@ -532,7 +580,10 @@ export class EventsService {
 
     // US-28: the requirements in the order they were listed.
     const inOrder = { ...event, equipmentRequirements: inEntryOrder(event.equipmentRequirements) };
-    return this.toOrganiserView(inOrder);
+    return {
+      ...this.toOrganiserView(inOrder),
+      unavailableEquipment: await this.equipmentReservations.findUnavailableForEvent(id),
+    };
   }
 
   /**
@@ -560,6 +611,8 @@ export class EventsService {
     this.assertIsAssignedTo(user, event);
 
     const approved = await this.prisma.$transaction(async (tx) => {
+      await this.claimForDecision(event, tx);
+
       // Non-status housekeeping first, so setStatus stays the sole writer of
       // the status column.
       await tx.eventRequest.update({
@@ -602,6 +655,8 @@ export class EventsService {
     this.assertIsAssignedTo(user, event);
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.claimForDecision(event, tx);
+
       await tx.clarificationMessage.create({
         data: { eventId: event.id, authorId: user.userId, body: dto.question },
       });
@@ -633,6 +688,14 @@ export class EventsService {
    * The answer joins the same thread, so a multi-round exchange accumulates in
    * one place. The request returns to UNDER_REVIEW: the answer is now the
    * Coordinator's to consider.
+   *
+   * US-58 AC3/AC4 — the answer may update the request's details too, written
+   * and recorded exactly as an edit (applyEdits), and the response links to
+   * that history entry so the thread shows the changes beside it. The request
+   * is already submitted, so the result must still pass the submission rules:
+   * a cleared required field or a start in the past is a 400, not a database
+   * error. Everything happens in one transaction, under a row lock: of two
+   * answers sent at once, the second finds the request already answered.
    */
   async respondToClarification(
     user: AuthenticatedUser,
@@ -640,33 +703,63 @@ export class EventsService {
     dto: RespondClarificationDto,
   ): Promise<OrganiserRequestView> {
     const event = await this.access.assertEventAccess(user, id, Action.CLARIFY);
+    const fields = dto.changes ? this.draftFields(dto.changes) : {};
 
-    if (event.status !== EventStatus.AWAITING_CLARIFICATION) {
-      throw new ConflictException(
-        `there is no outstanding clarification on this request (status ${event.status})`,
-      );
-    }
+    const { updated, changes } = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id" FROM "EventRequest" WHERE "id" = ${event.id} FOR UPDATE`;
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+      // Re-read under the lock: another answer may have landed while waiting.
+      const current = await tx.eventRequest.findUniqueOrThrow({
+        where: { id: event.id },
+      });
+
+      if (current.status !== EventStatus.AWAITING_CLARIFICATION) {
+        throw new ConflictException(
+          `there is no outstanding clarification on this request (status ${current.status})`,
+        );
+      }
+
+      const changes = diffEventFields(current, fields);
+      let changeId: string | null = null;
+      if (changes.length > 0) {
+        // Checked before anything is written.
+        await this.assertReadyForSubmission({ ...current, ...fields } as EventRequest);
+        ({ changeId } = await this.applyEdits(tx, current, user.userId, fields));
+      }
+
       await tx.clarificationMessage.create({
-        data: { eventId: event.id, authorId: user.userId, body: dto.response },
+        data: {
+          eventId: event.id,
+          authorId: user.userId,
+          body: dto.response,
+          ...(changeId ? { changeId } : {}),
+        },
       });
 
       // The question has been answered; nothing is outstanding.
-      await tx.eventRequest.update({
+      const answered = await tx.eventRequest.update({
         where: { id: event.id },
         data: { clarificationRequest: null },
       });
 
-      return this.setStatus(event, EventStatus.UNDER_REVIEW, tx);
+      return {
+        updated: await this.setStatus(answered, EventStatus.UNDER_REVIEW, tx),
+        changes,
+      };
     });
 
-    // AC-4 direction 2: the Coordinator is notified of the response.
-    if (event.coordinatorId) {
+    // AC-4 direction 2: the Coordinator is notified of the response, and
+    // (US-58) of which details it updated.
+    if (updated.coordinatorId) {
+      const edited =
+        changes.length > 0
+          ? ` and updated: ${changes.map((c) => TRACKED_FIELD_LABELS[c.field]).join(', ')}`
+          : '';
       await this.notifications.notifySafely({
-        recipientId: event.coordinatorId,
+        recipientId: updated.coordinatorId,
         type: NotificationType.CLARIFICATION_ANSWERED,
-        message: `The organiser has responded on "${event.name ?? 'an event request'}".`,
+        message: `The organiser has responded on "${updated.name ?? 'an event request'}"${edited}.`,
         relatedEventId: event.id,
       });
     }
@@ -749,6 +842,8 @@ export class EventsService {
     }
 
     const decided = await this.prisma.$transaction(async (tx) => {
+      await this.claimForDecision(event, tx);
+
       await tx.eventRequest.update({
         where: { id: event.id },
         data: reasonFields,
@@ -794,6 +889,40 @@ export class EventsService {
       message: `Your event request "${name}" was ${outcome}.${suffix}`,
       relatedEventId: event.id,
     });
+  }
+
+
+  /**
+   * Audit gap #2 — two review decisions on the same request must not both
+   * succeed.
+   *
+   * Each decision checks the transition against the status it read before its
+   * transaction began, so two decisions racing from SUBMITTED would both pass
+   * and both write. This is the first statement of the decision's
+   * transaction: it row-locks the request only while it still holds that
+   * status. A concurrent decision blocks here until the winner commits, then
+   * finds the status changed and is refused. Throwing rolls back the loser's
+   * transaction, so its reason, question and history are never saved.
+   *
+   * Audit gap #3: the Organiser's clarification response uses the same claim,
+   * so two simultaneous responses store one answer and notify once.
+   *
+   * Nothing is written here; setStatus() remains the only writer of status.
+   */
+  private async claimForDecision(
+    event: EventRequest,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id" FROM "EventRequest"
+      WHERE "id" = ${event.id} AND "status" = ${event.status}::"EventStatus"
+      FOR UPDATE`;
+
+    if (locked.length === 0) {
+      throw new ConflictException(
+        'this request has just been updated by someone else; reload it and try again',
+      );
+    }
   }
 
   /**
@@ -895,9 +1024,10 @@ export class EventsService {
       await this.confirmedArrangements(event.id),
     );
 
-    // Only the fields that actually changed are written.
+    // Only the fields that actually changed are written. A change can only
+    // name a field the DTO has (requiredFacilities is the Organiser's, US-20).
     const data = Object.fromEntries(
-      changes.map(({ field }) => [field, dto[field]]),
+      changes.map(({ field }) => [field, dto[field as keyof UpdatePlanningDto]]),
     ) as Prisma.EventRequestUpdateInput;
 
     const change = await this.prisma.$transaction(async (tx) => {
@@ -1032,6 +1162,11 @@ export class EventsService {
 
     // The equipment asked for may now be more or less than what is reserved.
     await this.arrangements?.notifyChanged(event.id);
+
+    // US-66 AC-3: the equipment request is submitted (or changed) — to the
+    // whole Technical Support pool until someone is assigned (US-61), then
+    // to the assignee only. After commit and best-effort.
+    await this.technicalSupport?.requirementsChanged(event.id);
 
     return { ...(await this.findAssignedRequest(user, id)), change };
   }
@@ -1347,6 +1482,7 @@ export class EventsService {
       ...this.toOrganiserView(inOrder),
       pendingChangeRequest: await this.findPendingChangeRequest(id),
       latestChangeDecision: await this.findLatestChangeDecision(id),
+      unavailableEquipment: await this.equipmentReservations.findUnavailableForEvent(id),
     };
   }
 
@@ -1392,7 +1528,12 @@ export class EventsService {
     const events = await this.prisma.eventRequest.findMany({
       where: this.access.scopedEventFilter(user),
       orderBy: { createdAt: 'desc' },
-      include: COORDINATOR_SELECT,
+      // Attendees also get the confirmed venue (US-10 "where"); other roles
+      // reach bookings through the bookings module, so their shape is unchanged.
+      include:
+        user.role === Role.ATTENDEE
+          ? { ...COORDINATOR_SELECT, ...PUBLIC_VENUE_INCLUDE }
+          : COORDINATOR_SELECT,
     });
 
     const visible =
@@ -1464,7 +1605,24 @@ export class EventsService {
       }),
     );
 
-    const withRequirements = { ...event, equipmentRequirements };
+    // US-10 — an Attendee opening one event also sees its confirmed venue.
+    // Loaded only for them: assertEventAccess resolves the coordinator, not
+    // bookings, and other roles do not receive the public projection here.
+    const venueBookings =
+      user.role === Role.ATTENDEE
+        ? await this.prisma.venueBooking.findMany({
+            where: { eventId: event.id, status: BookingStatus.APPROVED },
+            orderBy: { start: 'asc' },
+            take: 1,
+            select: { venue: { select: { id: true, name: true, location: true } } },
+          })
+        : undefined;
+
+    const withRequirements = {
+      ...event,
+      equipmentRequirements,
+      ...(venueBookings ? { venueBookings } : {}),
+    };
     const projected = this.access.projectEvent(user, withRequirements);
 
     // US-37: the Organiser sees their pending change request beside the

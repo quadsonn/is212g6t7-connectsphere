@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Lock } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/states';
@@ -39,6 +39,9 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
  * each booking's setup time, event time and turnaround time, shown
  * separately. That data is as anonymous as the day status: times and
  * tentative/booked, never an event.
+ *
+ * AC-1: blocked-off periods are shown too, as "Blocked" days and, once
+ * selected, the blocked hours. Never the reason or who blocked it.
  */
 export function VenueAvailabilityCalendar({ venueId }: { venueId: string }) {
   const today = todayInVenueTime();
@@ -92,7 +95,8 @@ export function VenueAvailabilityCalendar({ venueId }: { venueId: string }) {
         <DayOccupancy venueId={venueId} day={selectedDay} />
       ) : (
         <p className="mt-4 text-xs text-ink-500">
-          Select a tentative or booked day to see its times, including setup and turnaround.
+          Select a tentative, booked or blocked day to see its times, including setup and
+          turnaround.
         </p>
       )}
     </div>
@@ -109,7 +113,15 @@ const SEGMENT_STYLES: Record<OccupancySegment['kind'], { label: string; classNam
     label: 'Turnaround',
     className: 'border border-dashed border-ink-400 bg-ink-50 text-ink-700',
   },
+  BLOCKED: { label: 'Blocked', className: 'bg-rose-100 text-rose-900' },
 };
+
+/** The marker a day carries beside its number, so statuses survive greyscale. */
+function StatusIcon({ status, className }: { status: DayStatus; className: string }) {
+  if (status === 'tentative') return <Clock className={className} aria-hidden="true" />;
+  if (status === 'blocked') return <Lock className={className} aria-hidden="true" />;
+  return null;
+}
 
 const SINGAPORE_TIME = new Intl.DateTimeFormat('en-SG', {
   timeZone: 'Asia/Singapore',
@@ -147,9 +159,16 @@ function DayOccupancy({ venueId, day }: { venueId: string; day: string }) {
           {data.map((booking, i) => (
             <li key={i} className="space-y-1.5">
               <p className="text-xs font-medium text-ink-700">
-                {DAY_STATUS_STYLES[booking.status].label}
+                {booking.status === 'blocked'
+                  ? 'Not available to book'
+                  : DAY_STATUS_STYLES[booking.status].label}
               </p>
-              <ol className="flex flex-wrap gap-1.5" aria-label="Setup, event and turnaround times">
+              <ol
+                className="flex flex-wrap gap-1.5"
+                aria-label={
+                  booking.status === 'blocked' ? 'Blocked times' : 'Setup, event and turnaround times'
+                }
+              >
                 {booking.segments.map((segment) => (
                   <li
                     key={segment.kind}
@@ -180,7 +199,11 @@ function Legend() {
             )}
             aria-hidden="true"
           >
-            {status === 'tentative' ? <Clock className="size-3" /> : '8'}
+            {status === 'tentative' || status === 'blocked' ? (
+              <StatusIcon status={status} className="size-3" />
+            ) : (
+              '8'
+            )}
           </span>
           {DAY_STATUS_STYLES[status].label}
         </li>
@@ -311,9 +334,7 @@ function DayCell({
         <span className="text-xs font-medium tabular-nums" aria-hidden="true">
           {Number(day.slice(8))}
         </span>
-        {status === 'tentative' ? (
-          <Clock className="absolute right-1 top-1 size-2.5" aria-hidden="true" />
-        ) : null}
+        <StatusIcon status={status} className="absolute right-1 top-1 size-2.5" />
         <span className="sr-only">
           {formatDay(day)}: {style.label}
           {isPast ? ' (past)' : ''}

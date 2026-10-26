@@ -1,49 +1,60 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventStatus, NotificationType, PrismaClient, Role } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
-/** US-09 e2e — clarification thread and audit trail. */
+/**
+ * US-09 e2e — clarification thread and audit trail.
+ *
+ * Pre-condition for every test: reset the testDB, then run
+ * test/fixtures/sql/base-users.sql; each test then loads the tc-s1 script its
+ * test case names (see docs/testing/sprint1-test-cases.md).
+ */
 describe('US-09 clarification thread (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
   const PASSWORD = 'correct-horse-battery-staple';
+
+  /** Fixed rows from base-users.sql. */
+  const USERS = {
+    organiser: { id: 'USR-006', email: 'organiser@example.com' },
+    coordinatorA: { id: 'USR-004', email: 'coord.a@example.com' },
+    coordinatorB: { id: 'USR-005', email: 'coord.b@example.com' },
+  } as const;
+  const ids = Object.fromEntries(
+    Object.entries(USERS).map(([key, user]) => [key, user.id]),
+  ) as Record<string, string>;
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-  };
+  /** Fixed rows from the tc-s1 setup scripts (see test/fixtures/sql/README.md). */
+  const EVENT = {
+    submitted: { id: 'EVT-146' },
+    submitted2: { id: 'EVT-147' },
+    draft: { id: 'EVT-004' },
+    underReview: { id: 'EVT-151' },
+    underReview2: { id: 'EVT-152' },
+    approved: { id: 'EVT-001' },
+    rejected: { id: 'EVT-009' },
+    returned: { id: 'EVT-012' },
+    cancelled: { id: 'EVT-003' },
+    withQuestion: { id: 'EVT-154' },
+    stale: { id: 'EVT-133' },
+    unassigned: { id: 'EVT-150' },
+  } as const;
 
-  const seedEvent = async (overrides: Record<string, unknown> = {}) =>
-    prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinatorA,
-        name: 'Freshman Orientation 2030',
-        purpose: 'Welcome new students',
-        description: 'Full-day programme',
-        category: 'Student engagement',
-        proposedStart: new Date('2030-10-01T09:00:00Z'),
-        proposedEnd: new Date('2030-10-01T17:00:00Z'),
-        expectedAttendance: 320,
-        status: EventStatus.SUBMITTED,
-        ...overrides,
-      },
-    });
+  /** Loads a test case's setup script(s) on top of base-users. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
+  };
 
   const ask = (eventId: string, question: string, who = 'coordinatorA') =>
     http()
@@ -63,10 +74,25 @@ describe('US-09 clarification thread (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    // Same global setup as main.ts (pipes, UnauthorizedFilter, CORS).
+    configureApp(app);
+    // Bound to 127.0.0.1 explicitly: with init() alone, or a dual-stack [::]
+    // listener, the OS can hand out a port another local process already holds
+    // on 127.0.0.1, and Supertest then talks to that process (hangs, or
+    // "Parse Error: Expected HTTP/").
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Log each base user in once, through the real endpoint. JWTs are
+    // stateless and the users are re-created with the same IDs after every
+    // reset, so these tokens stay valid for every test in the file.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    for (const [key, { email }] of Object.entries(USERS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
@@ -75,21 +101,29 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.notification.deleteMany();
-    await prisma.clarificationMessage.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('otherOrganiser', 'other@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinatorA', 'coord.a@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('coordinatorB', 'coord.b@example.com', Role.EVENT_COORDINATOR);
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
   });
 
   describe('AC-1: a text field is available for the question', () => {
+    // TC-S1-18 · setup: base-users + tc-s1-01-setup · fails if a whitespace-only question is accepted (regression for audit gap #1)
+    it('rejects a whitespace-only question', async () => {
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
+
+      const res = await ask(event.id, '   ').expect(400);
+
+      expect((res.body.message as string[]).join(' | ')).toMatch(/a question is required/);
+      expect(await prisma.clarificationMessage.count()).toBe(0);
+      const stored = await prisma.eventRequest.findUniqueOrThrow({ where: { id: event.id } });
+      expect(stored.status).toBe(EventStatus.SUBMITTED);
+      expect(stored.clarificationRequest).toBeNull();
+    });
+
+    // TC-S1-16 · setup: base-users + tc-s1-01-setup · fails if a free-text question was refused or not stored
     it('accepts a free-text question', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       const res = await ask(event.id, 'Can you confirm the expected attendance?').expect(201);
 
@@ -98,8 +132,10 @@ describe('US-09 clarification thread (e2e)', () => {
       );
     });
 
+    // TC-S1-17 · setup: base-users + tc-s1-01-setup · fails if an empty question was accepted
     it('requires the question to be non-empty', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       const res = await ask(event.id, '').expect(400);
       expect((res.body.message as string[]).join(' | ')).toMatch(
@@ -107,8 +143,10 @@ describe('US-09 clarification thread (e2e)', () => {
       );
     });
 
+    // TC-S1-17 · setup: base-users + tc-s1-01-setup · fails if a request with no question was accepted
     it('rejects a missing question entirely', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/clarifications`)
@@ -119,8 +157,10 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   describe('AC-2: the question is tied to its event request', () => {
+    // TC-S1-16 · setup: base-users + tc-s1-01-setup · fails if the question was not tied to its event request
     it('stores the message against the event', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await ask(event.id, 'Which venue did you have in mind?').expect(201);
 
@@ -133,8 +173,9 @@ describe('US-09 clarification thread (e2e)', () => {
     });
 
     it('keeps threads on separate events apart', async () => {
-      const a = await seedEvent({ name: 'Event A' });
-      const b = await seedEvent({ name: 'Event B' });
+      await given('tc-s1-02-setup');
+      const a = EVENT.submitted;
+      const b = EVENT.submitted2;
 
       await ask(a.id, 'Question about A').expect(201);
       await ask(b.id, 'Question about B').expect(201);
@@ -148,8 +189,10 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   describe('AC-3: status becomes AWAITING_CLARIFICATION for both parties', () => {
+    // TC-S1-19 · setup: base-users + tc-s1-01-setup · fails if asking did not move the request to AWAITING_CLARIFICATION
     it('updates the stored status', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await ask(event.id, 'Q?').expect(201);
 
@@ -159,8 +202,10 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(stored.status).toBe(EventStatus.AWAITING_CLARIFICATION);
     });
 
+    // TC-S1-19 · setup: base-users + tc-s1-01-setup · fails if the Organiser could not see that clarification is needed
     it('is visible to the Organiser', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Can you confirm the attendance?').expect(201);
 
       const res = await http()
@@ -173,8 +218,10 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(res.body.clarificationRequest).toMatch(/attendance/);
     });
 
+    // TC-S1-19 · setup: base-users + tc-s1-01-setup · fails if the Coordinator view showed a stale status
     it('is visible to the Coordinator', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Q?').expect(201);
 
       const res = await http()
@@ -186,7 +233,8 @@ describe('US-09 clarification thread (e2e)', () => {
     });
 
     it('refuses to ask on a DRAFT', async () => {
-      const event = await seedEvent({ status: EventStatus.DRAFT });
+      await given('tc-s1-02-setup');
+      const event = EVENT.draft;
 
       await ask(event.id, 'Q?').expect(409);
     });
@@ -194,7 +242,8 @@ describe('US-09 clarification thread (e2e)', () => {
 
   describe('AC-4: the other party is notified', () => {
     it('notifies the Organiser when a question is asked', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await ask(event.id, 'Q?').expect(201);
 
@@ -206,8 +255,10 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(notes[0].relatedEventId).toBe(event.id);
     });
 
+    // TC-S1-20 · setup: base-users + tc-s1-01-setup · fails if no notification was recorded for the Coordinator
     it('notifies the Coordinator when the Organiser responds', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Q?').expect(201);
 
       await respond(event.id, 'We expect 320 attendees').expect(201);
@@ -221,7 +272,8 @@ describe('US-09 clarification thread (e2e)', () => {
     });
 
     it('records notifications unread, for a future feed to consume', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Q?').expect(201);
 
       const note = await prisma.notification.findFirstOrThrow({
@@ -234,7 +286,8 @@ describe('US-09 clarification thread (e2e)', () => {
 
   describe('the response path', () => {
     it('returns the request to UNDER_REVIEW', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Q?').expect(201);
 
       await respond(event.id, 'Answer').expect(201);
@@ -247,29 +300,85 @@ describe('US-09 clarification thread (e2e)', () => {
     });
 
     it('refuses a response when nothing was asked', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await respond(event.id, 'Unprompted').expect(409);
     });
 
+    // TC-S1-22 · setup: base-users + tc-s1-01-setup + tc-s1-22-setup · fails if an Organiser could answer on someone else's request
     it('refuses a response from another Organiser', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup', 'tc-s1-22-setup');
+      const event = EVENT.submitted;
+      const login = await http()
+        .post('/auth/login')
+        .send({ email: 'other@example.com', password: PASSWORD })
+        .expect(200);
+      tokens.otherOrganiser = login.body.accessToken;
       await ask(event.id, 'Q?').expect(201);
 
       await respond(event.id, 'Not mine', 'otherOrganiser').expect(404);
     });
 
     it('refuses an empty response', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Q?').expect(201);
 
       await respond(event.id, '').expect(400);
     });
+
+    // TC-S1-63 · setup: base-users + tc-s1-01-setup (fresh before each of 20 iterations) · fails if two simultaneous responses to one question both succeed
+    // Regression test for audit gap #3 (fixed in the same commit as this test was switched to it(...))
+    it('accepts exactly one of two simultaneous responses to the same question', async () => {
+      const ITERATIONS = 20;
+      const violations: string[] = [];
+
+      for (let i = 1; i <= ITERATIONS; i++) {
+        await resetDb(prisma);
+        await loadSql(prisma, 'base-users');
+        await given('tc-s1-01-setup');
+        const event = EVENT.submitted;
+        await ask(event.id, 'Which room layout do you need?').expect(201);
+
+        const [first, second] = await Promise.all([
+          respond(event.id, 'Theatre style'),
+          respond(event.id, 'Boardroom style'),
+        ]);
+        const stored = await prisma.eventRequest.findUniqueOrThrow({ where: { id: event.id } });
+        const answers = await prisma.clarificationMessage.count({
+          where: { eventId: event.id, authorId: ids.organiser },
+        });
+        const notified = await prisma.notification.count({
+          where: {
+            recipientId: ids.coordinatorA,
+            type: NotificationType.CLARIFICATION_ANSWERED,
+          },
+        });
+
+        const statuses = [first.status, second.status].sort();
+        if (
+          statuses[0] !== 201 ||
+          statuses[1] !== 409 ||
+          stored.status !== EventStatus.UNDER_REVIEW ||
+          answers !== 1 ||
+          notified !== 1
+        ) {
+          violations.push(
+            `iteration ${i}: responses ${first.status}/${second.status}, stored ${stored.status}, answers ${answers}, notifications ${notified}`,
+          );
+        }
+      }
+
+      expect(violations).toEqual([]);
+    });
   });
 
   describe('AC-5: a timestamped audit trail with sender and time', () => {
+    // TC-S1-21 · setup: base-users + tc-s1-01-setup · fails if a question or answer was missing from the trail
     it('shows the full exchange to the Organiser', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Q1: how many attendees?').expect(201);
       await respond(event.id, 'A1: 320').expect(201);
       await ask(event.id, 'Q2: any accessibility needs?').expect(201);
@@ -289,8 +398,10 @@ describe('US-09 clarification thread (e2e)', () => {
       ]);
     });
 
+    // TC-S1-21 · setup: base-users + tc-s1-01-setup · fails if the Coordinator saw a different trail
     it('shows the same exchange to the Coordinator', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Q1').expect(201);
       await respond(event.id, 'A1').expect(201);
 
@@ -302,8 +413,10 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(res.body.clarifications).toHaveLength(2);
     });
 
+    // TC-S1-21 · setup: base-users + tc-s1-01-setup · fails if an entry lost its sender
     it('identifies the sender of each entry', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Q1').expect(201);
       await respond(event.id, 'A1').expect(201);
 
@@ -324,8 +437,10 @@ describe('US-09 clarification thread (e2e)', () => {
       });
     });
 
+    // TC-S1-21 · setup: base-users + tc-s1-01-setup · fails if entries were untimestamped or out of order
     it('timestamps every entry, in chronological order', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Q1').expect(201);
       await respond(event.id, 'A1').expect(201);
       await ask(event.id, 'Q2').expect(201);
@@ -344,7 +459,8 @@ describe('US-09 clarification thread (e2e)', () => {
     });
 
     it('is append-only — an answered question stays in the trail', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Q1').expect(201);
       await respond(event.id, 'A1').expect(201);
 
@@ -363,14 +479,17 @@ describe('US-09 clarification thread (e2e)', () => {
   });
 
   describe('permissions', () => {
+    // TC-S1-22 · setup: base-users + tc-s1-01-setup + tc-s1-22-setup · fails if an unassigned Coordinator could ask a question
     it('refuses a Coordinator who is not assigned', async () => {
-      const event = await seedEvent({ coordinatorId: ids.coordinatorA });
+      await given('tc-s1-01-setup', 'tc-s1-22-setup');
+      const event = EVENT.submitted;
 
       await ask(event.id, 'Q?', 'coordinatorB').expect(404);
     });
 
     it('refuses an Organiser trying to ask', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/clarifications`)
@@ -380,7 +499,8 @@ describe('US-09 clarification thread (e2e)', () => {
     });
 
     it('refuses a Coordinator trying to respond', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
       await ask(event.id, 'Q?').expect(201);
 
       await http()
@@ -391,12 +511,203 @@ describe('US-09 clarification thread (e2e)', () => {
     });
 
     it('refuses unauthenticated callers', async () => {
-      const event = await seedEvent();
+      await given('tc-s1-01-setup');
+      const event = EVENT.submitted;
 
       await http()
         .post(`/events/${event.id}/clarifications`)
         .send({ question: 'Q?' })
         .expect(401);
+    });
+  });
+
+  // The US-58 tests have no test case ID yet (none in docs/testing for them).
+  // Each starts from tc-s1-01-setup's submitted request (EVT-146, 320 expected).
+  describe('US-58: responding with updated details', () => {
+    const respondWith = (
+      eventId: string,
+      body: { response: string; changes?: Record<string, unknown> },
+      who = 'organiser',
+    ) =>
+      http()
+        .post(`/events/${eventId}/clarifications/responses`)
+        .set('Authorization', as(who))
+        .send(body);
+
+    /** tc-s1-01-setup's SUBMITTED request, as stored. */
+    const submittedEvent = async () => {
+      await given('tc-s1-01-setup');
+      return prisma.eventRequest.findUniqueOrThrow({ where: { id: EVENT.submitted.id } });
+    };
+
+    const awaitingEvent = async () => {
+      const event = await submittedEvent();
+      await ask(event.id, 'How many will attend, and how will they leave?').expect(201);
+      return event;
+    };
+
+    const stored = (eventId: string) =>
+      prisma.eventRequest.findUniqueOrThrow({ where: { id: eventId } });
+
+    const thread = async (eventId: string) =>
+      (await http().get(`/events/mine/${eventId}`).set('Authorization', as('organiser')).expect(200))
+        .body.clarifications;
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('AC1: Given a question was asked, Then the request shows as awaiting clarification with the question', async () => {
+      const event = await awaitingEvent();
+
+      const res = await http().get(`/events/mine/${event.id}`).set('Authorization', as('organiser')).expect(200);
+
+      expect(res.body.status).toBe('AWAITING_CLARIFICATION');
+      expect(res.body.clarificationRequest).toBe('How many will attend, and how will they leave?');
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('AC3/AC4/AC5: Given changes, When the Organiser responds, Then they are saved, shown old -> new on the response, and the request returns for review', async () => {
+      const event = await awaitingEvent();
+
+      await respondWith(event.id, {
+        response: 'About 400, and we added a second exit.',
+        changes: { expectedAttendance: 400, layoutNotes: 'Second exit at the rear' },
+      }).expect(201);
+
+      const after = await stored(event.id);
+      expect(after.expectedAttendance).toBe(400);
+      expect(after.layoutNotes).toBe('Second exit at the rear');
+      expect(after.status).toBe(EventStatus.UNDER_REVIEW);
+
+      const [question, answer] = await thread(event.id);
+      expect(question.change).toBeNull();
+      expect(answer.body).toBe('About 400, and we added a second exit.');
+      expect(answer.change.changes).toEqual([
+        { field: 'expectedAttendance', previous: 320, next: 400 },
+        { field: 'layoutNotes', previous: null, next: 'Second exit at the rear' },
+      ]);
+
+      // The same edit is in the event's history, once.
+      expect(await prisma.eventChange.count({ where: { eventId: event.id } })).toBe(1);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('AC4: the Coordinator sees the response and its changes in the thread too', async () => {
+      const event = await awaitingEvent();
+      await respondWith(event.id, { response: 'About 400.', changes: { expectedAttendance: 400 } }).expect(201);
+
+      const res = await http()
+        .get(`/events/assigned/${event.id}`)
+        .set('Authorization', as('coordinatorA'))
+        .expect(200);
+
+      expect(res.body.clarifications[1].change.changes).toEqual([
+        { field: 'expectedAttendance', previous: 320, next: 400 },
+      ]);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given a field update that fails validation, Then 400, nothing is saved, and the status does not change', async () => {
+      const event = await awaitingEvent();
+
+      await respondWith(event.id, {
+        response: 'New times.',
+        changes: { proposedStart: '2030-10-01T17:00:00Z', proposedEnd: '2030-10-01T09:00:00Z' },
+      }).expect(400);
+
+      const after = await stored(event.id);
+      expect(after.proposedStart).toEqual(event.proposedStart);
+      expect(after.status).toBe(EventStatus.AWAITING_CLARIFICATION);
+      expect(await thread(event.id)).toHaveLength(1);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given a change that clears a required field, Then 400 rather than a server error, and nothing is saved', async () => {
+      const event = await awaitingEvent();
+
+      const res = await respondWith(event.id, { response: 'No name.', changes: { name: null } }).expect(400);
+
+      expect(JSON.stringify(res.body.message)).toMatch(/name/i);
+      const after = await stored(event.id);
+      expect(after.name).toBe(event.name);
+      expect(after.status).toBe(EventStatus.AWAITING_CLARIFICATION);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup + tc-s1-22-setup
+    it('Given another Organiser’s event, When they respond with changes, Then 404 and nothing is saved', async () => {
+      const event = await awaitingEvent();
+      // tc-s1-22-setup: a second Organiser, unrelated to the request.
+      await given('tc-s1-22-setup');
+      const login = await http()
+        .post('/auth/login')
+        .send({ email: 'other@example.com', password: PASSWORD })
+        .expect(200);
+      tokens.otherOrganiser = login.body.accessToken;
+
+      await respondWith(event.id, { response: 'Mine now.', changes: { expectedAttendance: 5 } }, 'otherOrganiser').expect(404);
+
+      expect((await stored(event.id)).expectedAttendance).toBe(320);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given the request is not awaiting clarification, When the Organiser responds with changes, Then 409 and nothing is saved', async () => {
+      const event = await submittedEvent();
+
+      await respondWith(event.id, { response: 'Unprompted.', changes: { expectedAttendance: 400 } }).expect(409);
+
+      expect((await stored(event.id)).expectedAttendance).toBe(320);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('AC6: Given a whitespace-only response, Then 400 and nothing changes', async () => {
+      const event = await awaitingEvent();
+
+      await respondWith(event.id, { response: '   ', changes: { expectedAttendance: 400 } }).expect(400);
+
+      const after = await stored(event.id);
+      expect(after.expectedAttendance).toBe(320);
+      expect(after.status).toBe(EventStatus.AWAITING_CLARIFICATION);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given two responses at once, Then exactly one is accepted', async () => {
+      const event = await awaitingEvent();
+
+      const results = await Promise.all([
+        respondWith(event.id, { response: 'First.', changes: { expectedAttendance: 400 } }),
+        respondWith(event.id, { response: 'Second.', changes: { expectedAttendance: 500 } }),
+      ]);
+
+      expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+      expect(await thread(event.id)).toHaveLength(2);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given a second round, Then each response keeps its own changes', async () => {
+      const event = await awaitingEvent();
+      await respondWith(event.id, { response: 'About 400.', changes: { expectedAttendance: 400 } }).expect(201);
+      await ask(event.id, 'And the layout?').expect(201);
+      await respondWith(event.id, { response: 'Banquet.', changes: { preferredLayout: 'BANQUET' } }).expect(201);
+
+      const entries = await thread(event.id);
+      expect(entries.map((e: { change: { changes: { field: string }[] } | null }) => e.change?.changes.map((c) => c.field) ?? null)).toEqual([
+        null,
+        ['expectedAttendance'],
+        null,
+        ['preferredLayout'],
+      ]);
+    });
+
+    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    it('Given changes, Then the Coordinator’s notification names the updated details', async () => {
+      const event = await awaitingEvent();
+
+      await respondWith(event.id, { response: 'About 400.', changes: { expectedAttendance: 400 } }).expect(201);
+
+      const note = await prisma.notification.findFirstOrThrow({
+        where: { relatedEventId: event.id, type: NotificationType.CLARIFICATION_ANSWERED },
+      });
+      expect(note.message).toBe(
+        `The organiser has responded on "${event.name}" and updated: expected attendance.`,
+      );
     });
   });
 });

@@ -79,6 +79,18 @@ export function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+/** "9", "11:15" — 24-hour, no leading zero, minutes only when not on the hour. */
+function compactTime(iso: string): string {
+  const d = new Date(iso);
+  const minutes = d.getMinutes();
+  return minutes === 0 ? String(d.getHours()) : `${d.getHours()}:${String(minutes).padStart(2, '0')}`;
+}
+
+/** The week grid's short range, short enough never to be cut off: "9–10", "11:15–12:30". */
+export function compactTimeRange(start: string, end: string): string {
+  return `${compactTime(start)}–${compactTime(end)}`;
+}
+
 /**
  * AC-1 — the status vocabulary, defined once. Colour never carries the meaning
  * alone: each kind also has its own border style and label, so the calendar
@@ -118,8 +130,8 @@ export const ENTRY_STYLES: Record<CalendarEntryKind, { label: string; className:
 export { NEEDS_REVIEW_LABEL } from '@/features/bookings/needs-review';
 export const NEEDS_REVIEW_CLASS = 'ring-2 ring-red-500 ring-offset-1';
 
-/** "Available" — the absence of an entry. */
-export const AVAILABLE_CLASS = 'bg-emerald-50/60 text-emerald-800';
+/** "Available" — the absence of an entry: a neutral, very faint fill. */
+export const AVAILABLE_CLASS = 'bg-ink-50 text-ink-500';
 
 // ---------------------------------------------------------------------------
 // Venue ordering and week filters
@@ -144,12 +156,6 @@ export function sortBookedFirst<V extends Venue>(venues: V[], entries: CalendarE
   });
 }
 
-/** The letter a venue files under in the week filter; '#' for anything else. */
-export function venueLetter(venue: Venue): string {
-  const first = (venue.name ?? '').trim().charAt(0).toUpperCase();
-  return /[A-Z]/.test(first) ? first : '#';
-}
-
 /** The availability facet: the three entry kinds, plus free time. */
 export type AvailabilityFacet = CalendarEntryKind | 'AVAILABLE';
 
@@ -166,26 +172,30 @@ export const AVAILABILITY_FACETS: { value: AvailabilityFacet; label: string }[] 
  * OR-ed; across groups they are AND-ed; an empty group means "any".
  *
  * AC-3 ("a single venue or all venues") is the Venue group: tick one venue,
- * or none for all of them. Ticking letters narrows the venue list too.
+ * or none for all of them. The search box narrows the venues too.
  */
 export interface CalendarFilters {
   availability: Set<AvailabilityFacet>;
-  letters: Set<string>;
+  search: string;
   venues: Set<string>;
 }
 
 export const NO_FILTERS = (): CalendarFilters => ({
   availability: new Set(),
-  letters: new Set(),
+  search: '',
   venues: new Set(),
 });
 
-/** Venues that pass the letter and venue groups. */
+/** True when a venue's name contains the search text, ignoring case. */
+export function venueMatchesSearch(venue: Venue, search: string): boolean {
+  const needle = search.trim().toLowerCase();
+  return needle === '' || (venue.name ?? '').toLowerCase().includes(needle);
+}
+
+/** Venues that pass the search box and the venue group. */
 export function venuesMatching<V extends Venue>(venues: V[], filters: CalendarFilters): V[] {
   return venues.filter(
-    (v) =>
-      (filters.letters.size === 0 || filters.letters.has(venueLetter(v))) &&
-      (filters.venues.size === 0 || filters.venues.has(v.id)),
+    (v) => venueMatchesSearch(v, filters.search) && (filters.venues.size === 0 || filters.venues.has(v.id)),
   );
 }
 
@@ -220,18 +230,15 @@ export function applyFilters<V extends Venue>(
   return { venues: shown, entries: kept.filter((e) => ids.has(e.venueId)), showAvailable };
 }
 
-/** Counts shown beside each checkbox, like a shop's filter panel. */
-export function facetCounts(
-  venues: Venue[],
-  entries: CalendarEntry[],
-  days: Date[],
-): {
-  availability: Record<AvailabilityFacet, number>;
-  letters: Record<string, number>;
+/**
+ * Counts shown beside each checkbox, like a shop's filter panel. Available has
+ * no count: free time isn't a number of things, so any count would mislead.
+ */
+export function facetCounts(entries: CalendarEntry[]): {
+  availability: Record<CalendarEntryKind, number>;
   venues: Record<string, number>;
 } {
-  const availability: Record<AvailabilityFacet, number> = {
-    AVAILABLE: 0,
+  const availability: Record<CalendarEntryKind, number> = {
     PENDING: 0,
     TENTATIVE: 0,
     CONFIRMED: 0,
@@ -242,17 +249,7 @@ export function facetCounts(
     availability[e.kind] += 1;
     perVenue[e.venueId] = (perVenue[e.venueId] ?? 0) + 1;
   }
-  // Available counts free venue-days: one per venue per day with nothing on it.
-  for (const v of venues) {
-    for (const d of days) {
-      if (!entriesOn(entries, d).some((e) => e.venueId === v.id)) availability.AVAILABLE += 1;
-    }
-  }
-
-  const letters: Record<string, number> = {};
-  for (const v of venues) letters[venueLetter(v)] = (letters[venueLetter(v)] ?? 0) + 1;
-
-  return { availability, letters, venues: perVenue };
+  return { availability, venues: perVenue };
 }
 
 /**

@@ -8,7 +8,11 @@ import {
   useMarkNotifications,
   useNotifications,
 } from '@/features/notifications/hooks/use-notifications';
-import { notificationTitle } from '@/features/notifications/notification-title';
+import {
+  notificationDetail,
+  notificationTitle,
+  reasonLabel,
+} from '@/features/notifications/notification-title';
 import { apiErrorMessage } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 
@@ -86,18 +90,18 @@ export function NotificationsPage() {
                         !n.read && 'font-semibold',
                       )}
                     >
-                      {notificationTitle(n.type) ?? n.summary}
+                      {notificationTitle(n.type)}
                     </Link>
                   ) : (
                     <p className={cn('text-ink-900', !n.read && 'font-semibold')}>
-                      {notificationTitle(n.type) ?? n.summary}
+                      {notificationTitle(n.type)}
                     </p>
                   )}
-                  {/* Titled types: the title says what happened, this the detail. */}
-                  {notificationTitle(n.type) ? <p className="text-ink-700">{n.summary}</p> : null}
+                  {/* The title says what happened, this the detail. */}
+                  <p className="text-ink-700">{notificationDetail(n.summary)}</p>
                   {n.reason ? (
                     <p className="text-ink-700">
-                      <span className="font-medium">Reason:</span> {n.reason}
+                      <span className="font-medium">{reasonLabel(n.type)}:</span> {n.reason}
                     </p>
                   ) : null}
                   <p className="text-xs text-ink-500">

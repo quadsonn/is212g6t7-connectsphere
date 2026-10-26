@@ -8,7 +8,7 @@ import { Field, Select } from '@/components/ui/form';
 import { ErrorState } from '@/components/ui/states';
 import { apiErrorMessage, fieldErrors } from '@/lib/api-client';
 import { todayInVenueTime } from '@/lib/calendar';
-import { FULL_DAY_TIME_SLOTS } from '@/lib/date-time';
+import { FULL_DAY_TIME_SLOTS, localStringToInstant } from '@/lib/date-time';
 import { formatDateRange } from '@/lib/utils';
 import type { BookingConflictErrorBody, BookingRequestResult, CalendarView } from '@/types/api';
 import { useHoldableEvents, useHolds } from '../hooks/use-bookings';
@@ -40,7 +40,14 @@ export function HoldForm({ venues, onDone }: { venues: CalendarView['venues']; o
       ? (place.error.response.data.conflicts ?? [])
       : [];
 
-  const problems = holdProblems({ start, end, expiresAt, eventStart: event?.proposedStart ?? null });
+  // Compare as instants (the pickers hold Singapore wall-clock; the event's
+  // start is a UTC instant), so the client check matches the server's.
+  const problems = holdProblems({
+    start: toIso(start),
+    end: toIso(end),
+    expiresAt: toIso(expiresAt),
+    eventStart: event?.proposedStart ?? null,
+  });
   const complete = Boolean(venueId && eventId && start && end && expiresAt) && problems.length === 0;
 
   function submit(e: React.FormEvent) {
@@ -182,11 +189,9 @@ export function HoldForm({ venues, onDone }: { venues: CalendarView['venues']; o
   );
 }
 
-/** "yyyy-mm-ddThh:mm" (a datetime-local value) -> ISO, or '' if incomplete. */
+/** "yyyy-mm-ddThh:mm" (read as Singapore time) -> UTC instant, or '' if incomplete. */
 function toIso(local: string): string {
-  if (!local) return '';
-  const d = new Date(local);
-  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+  return localStringToInstant(local);
 }
 
 const HOLD_FIELDS = ['venueId', 'eventId', 'start', 'end', 'expiresAt'] as const;

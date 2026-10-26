@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { VenueSearchDto } from './dto/venue-search.dto';
 import { VenuesService } from './venues.service';
+import { EquipmentService } from '../equipment/equipment.service';
 
 /**
  * US-18 — how a search becomes a query. With Prisma mocked, these pin the
@@ -54,6 +55,7 @@ describe('US-18 VenuesService.search', () => {
       {} as unknown as SupabaseStorageService,
       {} as unknown as EventsService,
       {} as unknown as BookingReviewService,
+      {} as unknown as EquipmentService,
     );
   });
 

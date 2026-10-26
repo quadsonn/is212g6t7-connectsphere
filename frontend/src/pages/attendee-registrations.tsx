@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +32,11 @@ export function AttendeeRegistrations() {
 
   const all = data?.registrations ?? [];
   const withdrawnCount = all.filter((r) => r.status !== 'REGISTERED').length;
-  const activeCount = all.length - withdrawnCount;
+  // US-34: a registration on a cancelled event is not a place the attendee
+  // holds, so it is left out of the registered count.
+  const activeCount = all.filter(
+    (r) => r.status === 'REGISTERED' && r.event.status !== 'CANCELLED',
+  ).length;
   const registrations = showWithdrawn ? all : all.filter((r) => r.status === 'REGISTERED');
 
   return (
@@ -97,15 +102,45 @@ export function AttendeeRegistrations() {
               const active = registration.status === 'REGISTERED';
               const confirming = confirmingId === registration.id;
               const { withdrawal, event } = registration;
+              // US-02 AC-7: an Attendee may only open a CONFIRMED event. A past
+              // (COMPLETED) or cancelled event's detail page 404s, so it is not
+              // linked — the row still shows the registration, just not a
+              // dead-end link into it.
+              const openable = event.status === 'CONFIRMED';
+              // US-34: a cancelled event's registration stays listed, marked
+              // as cancelled, with nothing on it to act on — no withdraw, no
+              // link. The server refuses a withdrawal too.
+              const cancelled = event.status === 'CANCELLED';
 
               return (
-                <li key={registration.id} className="px-5 py-4">
+                <li
+                  key={registration.id}
+                  className={cn(
+                    'relative px-5 py-4',
+                    openable && 'transition-colors hover:bg-ink-50',
+                  )}
+                >
                   <div className="flex flex-wrap items-start gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="font-medium text-ink-900">
-                          {event.name ?? 'Untitled event'}
-                        </span>
+                        {openable ? (
+                          // Stretched link: a click anywhere on the card opens
+                          // the event. Suppressed while confirming a withdrawal.
+                          <Link
+                            to={`/events/${event.id}`}
+                            className={cn(
+                              'font-medium text-ink-900 hover:text-brand-700 hover:underline',
+                              !confirming &&
+                                'after:absolute after:inset-0 after:content-[""] focus-visible:outline-none focus-visible:after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-brand-600',
+                            )}
+                          >
+                            {event.name ?? 'Untitled event'}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-ink-900">
+                            {event.name ?? 'Untitled event'}
+                          </span>
+                        )}
                         <Badge
                           srPrefix="Registration"
                           className={cn(
@@ -116,17 +151,26 @@ export function AttendeeRegistrations() {
                         >
                           {active ? 'Registered' : 'Withdrawn'}
                         </Badge>
+                        {cancelled ? (
+                          <Badge className="bg-red-50 text-red-800 ring-red-200">
+                            Event cancelled
+                          </Badge>
+                        ) : null}
                       </div>
                       <p className="mt-1 text-xs text-ink-500">
                         {formatDateRange(event.start, event.end)}
                       </p>
-                      <p className="mt-1 text-xs text-ink-500">
-                        {event.venue
-                          ? `${event.venue.name ?? 'Venue'}${
-                              event.venue.location ? `, ${event.venue.location}` : ''
-                            }`
-                          : 'Venue to be confirmed'}
-                      </p>
+                      {/* A cancelled event's booking is released, so it has no
+                          venue to show; the badge above says why. */}
+                      {cancelled ? null : (
+                        <p className="mt-1 text-xs text-ink-500">
+                          {event.venue
+                            ? `${event.venue.name ?? 'Venue'}${
+                                event.venue.location ? `, ${event.venue.location}` : ''
+                              }`
+                            : 'Venue to be confirmed'}
+                        </p>
+                      )}
                       <p className="mt-1 text-xs text-ink-500">
                         {active
                           ? `Registered ${formatDate(registration.registeredAt)}`
@@ -134,15 +178,16 @@ export function AttendeeRegistrations() {
                             ? `Withdrawn ${formatDate(registration.withdrawnAt)}`
                             : 'Withdrawn'}
                       </p>
-                      {active && withdrawal.withdrawalCutoffAt ? (
+                      {active && withdrawal.canWithdraw && withdrawal.withdrawalCutoffAt ? (
                         <p className="mt-1 text-xs text-ink-500">
                           You can withdraw until {formatDate(withdrawal.withdrawalCutoffAt)}.
                         </p>
                       ) : null}
                     </div>
 
-                    {active && !confirming ? (
-                      <div className="shrink-0 text-right">
+                    {/* Above the stretched link, so Withdraw stays clickable. */}
+                    {active && !cancelled && !confirming ? (
+                      <div className="relative z-10 shrink-0 text-right">
                         <Button
                           size="sm"
                           variant="secondary"
@@ -154,17 +199,21 @@ export function AttendeeRegistrations() {
                         >
                           Withdraw
                         </Button>
-                        {!withdrawal.canWithdraw && withdrawal.reason ? (
+                        {!withdrawal.canWithdraw ? (
                           <p className="mt-1.5 max-w-xs text-xs text-ink-500">
-                            {withdrawal.reason}
+                            {withdrawal.withdrawalCutoffAt
+                              ? `The deadline to withdraw was ${formatDate(
+                                  withdrawal.withdrawalCutoffAt,
+                                )}.`
+                              : withdrawal.reason}
                           </p>
                         ) : null}
                       </div>
                     ) : null}
                   </div>
 
-                  {confirming ? (
-                    <div className="mt-3 space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
+                  {confirming && !cancelled ? (
+                    <div className="relative z-10 mt-3 space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
                       <p className="text-sm text-red-900">
                         Withdraw from <strong>{event.name ?? 'this event'}</strong>? Your place
                         will be released for other attendees.

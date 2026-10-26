@@ -5,13 +5,23 @@ import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 
 /**
- * US-24 — migration 20261005140014_us24_no_overlapping_approved_bookings.
+ * US-23 (Story 23) — migration 20261005140014_us24_no_overlapping_approved_bookings
+ * (the folder keeps the old US-24 label; migration folders are never renamed).
+ *
+ * The code under test: the migration adds the VenueBooking_no_overlapping_approved
+ * EXCLUDE constraint, the database backstop for AC-5. Before adding it, it
+ * looks for existing APPROVED bookings that already overlap (or end before
+ * they start) and, if it finds any, stops with a list of them instead of
+ * failing halfway or silently changing data.
  *
  * Runs the real migration file against old-shaped rows in a throwaway schema
  * of the test database, so the public schema (already migrated) is untouched.
  * `prisma db execute` runs it, as the migration is a multi-statement script.
+ *
+ * Pre-condition (TC-S2-65): none from test/fixtures/sql. Each test builds its
+ * own rows in the throwaway schema and drops it afterwards.
  */
-describe('US-24 no-overlapping-approved migration', () => {
+describe('US-23 no-overlapping-approved migration', () => {
   const SCHEMA = 'us24_migration_test';
   const MIGRATION = join(
     __dirname,
@@ -97,7 +107,9 @@ describe('US-24 no-overlapping-approved migration', () => {
     rmSync(workDir, { recursive: true, force: true });
   });
 
-  it('US-24: adds the constraint when existing data is clean (back-to-back and pending overlaps are fine)', async () => {
+  // TC-S2-65 · US-23 AC-5 · setup: own schema (clean rows) · fails if the migration refused clean data, or lost rows
+  // Code: with no clashing APPROVED rows the migration adds the constraint and leaves every row in place.
+  it('US-23: adds the constraint when existing data is clean (back-to-back and pending overlaps are fine)', async () => {
     const error = run([
       ['a', 'v1', '09:00', '12:00', 'APPROVED'],
       ['b', 'v1', '12:00', '15:00', 'APPROVED'], // back-to-back
@@ -111,7 +123,9 @@ describe('US-24 no-overlapping-approved migration', () => {
     expect(await rowCount()).toBe(5);
   }, 60_000);
 
-  it('US-24: stops and lists existing overlapping APPROVED bookings, changing nothing', async () => {
+  // TC-S2-65 · US-23 AC-5 · setup: own schema (two clashing pairs) · fails if the migration ran over existing double bookings, or didn't name them
+  // Code: the migration's pre-check RAISEs an error naming each clashing pair, so nothing is changed.
+  it('US-23: stops and lists existing overlapping APPROVED bookings, changing nothing', async () => {
     const error = run([
       ['keep-1', 'v1', '09:00', '12:00', 'APPROVED'],
       ['clash-1', 'v1', '11:00', '13:00', 'APPROVED'],
@@ -128,7 +142,9 @@ describe('US-24 no-overlapping-approved migration', () => {
     expect(await rowCount()).toBe(5);
   }, 60_000);
 
-  it('US-24: also reports APPROVED bookings whose end is before their start', async () => {
+  // TC-S2-65 · US-23 AC-5 · setup: own schema (a backwards row) · fails if an APPROVED booking ending before it starts slipped past the check
+  // Code: tsrange() would error on such a row, so the pre-check reports it separately.
+  it('US-23: also reports APPROVED bookings whose end is before their start', async () => {
     const error = run([['backwards', 'v1', '12:00', '09:00', 'APPROVED']]);
 
     expect(error).toMatch(/ending before they start/);

@@ -9,8 +9,8 @@ import {
   ReservationSlot,
 } from './equipment-availability';
 
-/** US-30 — the pure availability rules (shared with US-32's commit). */
-describe('equipment availability rules (US-30)', () => {
+/** US-29 — the pure availability rules (shared with US-31's commit). */
+describe('equipment availability rules (US-29)', () => {
   const at = (hhmm: string) => new Date(`2026-11-02T${hhmm}:00.000Z`);
   const window = { start: at('09:00'), end: at('17:00') };
   const slot = (quantity: number, from: string, to: string): ReservationSlot => ({
@@ -32,7 +32,7 @@ describe('equipment availability rules (US-30)', () => {
     equipment = mic,
   ) => computeItemAvailability({ equipment, requestedQuantity, reservations, window });
 
-  describe('US-30 AC-1: available units are shown for a given date and time', () => {
+  describe('US-29 AC-1: available units are shown for a given date and time', () => {
     it('is the total when nothing is committed', () => {
       expect(check(1)).toEqual({
         equipmentId: 'eq-mic',
@@ -57,7 +57,7 @@ describe('equipment availability rules (US-30)', () => {
     });
   });
 
-  describe('US-30 AC-2: equipment reserved for an overlapping event is excluded', () => {
+  describe('US-29 AC-2: equipment reserved for an overlapping event is excluded', () => {
     describe('overlaps()', () => {
       it.each([
         ['inside the window', '10:00', '12:00', true],
@@ -133,7 +133,7 @@ describe('equipment availability rules (US-30)', () => {
     });
   });
 
-  describe('US-30 AC-3: damaged or under-maintenance equipment is excluded', () => {
+  describe('US-29 AC-3: damaged or under-maintenance equipment is excluded', () => {
     it.each([
       [EquipmentStatus.OPERATIONAL, true],
       [EquipmentStatus.UNDER_MAINTENANCE, false],
@@ -155,7 +155,7 @@ describe('equipment availability rules (US-30)', () => {
     );
   });
 
-  describe('US-30 AC-4: indicates when the requested quantity is not fully available', () => {
+  describe('US-29 AC-4: indicates when the requested quantity is not fully available', () => {
     const committed = [slot(10, '10:00', '12:00')]; // leaves 14 free
 
     it.each([

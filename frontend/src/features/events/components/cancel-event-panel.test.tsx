@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CancellationResult, OrganiserRequestView } from '@/types/api';
@@ -8,6 +9,7 @@ import { eventsApi } from '../api/events.api';
 import { CancelEventPanel } from './cancel-event-panel';
 
 vi.mock('../api/events.api', () => ({ eventsApi: { cancel: vi.fn() } }));
+vi.mock('sonner', () => ({ toast: { success: vi.fn() } }));
 
 const api = vi.mocked(eventsApi);
 
@@ -44,7 +46,11 @@ describe('US-43 cancel event panel', () => {
   });
 
   it('AC-2: confirming sends the trimmed reason with confirm: true, then closes', async () => {
-    api.cancel.mockResolvedValue({} as CancellationResult);
+    api.cancel.mockResolvedValue({
+      released: { venueBookings: 0, equipmentReservations: 0 },
+      closedChangeRequests: 0,
+      notified: 0,
+    } as CancellationResult);
     const onClose = renderPanel();
 
     await userEvent.type(screen.getByLabelText(/Reason for cancelling/), '  Speaker withdrew  ');
@@ -52,6 +58,49 @@ describe('US-43 cancel event panel', () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.cancel).toHaveBeenCalledWith('e1', { reason: 'Speaker withdrew', confirm: true });
+  });
+
+  it('US-65 AC2: Given the server cancels it, Then a toast confirms what was released', async () => {
+    api.cancel.mockResolvedValue({
+      released: { venueBookings: 1, equipmentReservations: 2 },
+      closedChangeRequests: 0,
+      notified: 2,
+    } as CancellationResult);
+    renderPanel();
+
+    await userEvent.type(screen.getByLabelText(/Reason for cancelling/), 'Speaker withdrew');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm cancellation' }));
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Event cancelled. 1 venue booking and 2 equipment reservations were released.',
+      ),
+    );
+  });
+
+  it('US-65: Given nothing was held, Then the toast says so', async () => {
+    api.cancel.mockResolvedValue({
+      released: { venueBookings: 0, equipmentReservations: 0 },
+      closedChangeRequests: 0,
+      notified: 0,
+    } as CancellationResult);
+    renderPanel();
+
+    await userEvent.type(screen.getByLabelText(/Reason for cancelling/), 'Speaker withdrew');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm cancellation' }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Event cancelled.'));
+  });
+
+  it('US-65: Given the server refuses, Then no success toast is shown', async () => {
+    api.cancel.mockRejectedValue(new Error('a completed event cannot be cancelled'));
+    renderPanel();
+
+    await userEvent.type(screen.getByLabelText(/Reason for cancelling/), 'Speaker withdrew');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm cancellation' }));
+
+    await screen.findByRole('alert');
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it('keeping the event sends nothing', async () => {

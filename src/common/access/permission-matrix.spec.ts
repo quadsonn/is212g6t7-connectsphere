@@ -75,7 +75,7 @@ describe('Permission matrix (US-02)', () => {
       expect(permissionScope(Role.TECHNICAL_SUPPORT_STAFF, Resource.RESERVATION, Action.DECIDE)).toBe(Scope.ANY);
     });
 
-    it('lets Technical Support commit equipment to an event (US-32)', () => {
+    it('lets Technical Support commit equipment to an event (US-31)', () => {
       expect(permissionScope(Role.TECHNICAL_SUPPORT_STAFF, Resource.RESERVATION, Action.CREATE)).toBe(Scope.ANY);
     });
 
@@ -144,7 +144,7 @@ describe('Permission matrix (US-02)', () => {
           Role.EVENT_ORGANISER,
           Role.EVENT_COORDINATOR,
           Role.ATTENDEE,
-          // US-25 AC-3, at RELATED scope only.
+          // US-24 AC-3, at RELATED scope only.
           Role.VENUE_STAFF,
           Role.TECHNICAL_SUPPORT_STAFF,
         ]),
@@ -296,7 +296,7 @@ describe('Permission matrix (US-02)', () => {
     });
 
     it('gives no other role sight of an assigned event’s full detail', () => {
-      // US-25 AC-3 opened RELATED reads to staff; ASSIGNED stays Coordinator-only.
+      // US-24 AC-3 opened RELATED reads to staff; ASSIGNED stays Coordinator-only.
       expect(permissionScope(Role.VENUE_STAFF, Resource.EVENT, Action.READ)).toBe(Scope.RELATED);
       expect(permissionScope(Role.TECHNICAL_SUPPORT_STAFF, Resource.EVENT, Action.READ)).toBe(Scope.RELATED);
       expect(permissionScope(Role.ATTENDEE, Resource.EVENT, Action.READ)).toBe(Scope.PUBLIC);
@@ -467,7 +467,7 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
-  describe('US-25 rows', () => {
+  describe('US-24 rows', () => {
     it('lets Venue Staff and Technical Support read related events only', () => {
       for (const role of [Role.VENUE_STAFF, Role.TECHNICAL_SUPPORT_STAFF]) {
         expect(permissionScope(role, Resource.EVENT, Action.READ)).toBe(Scope.RELATED);

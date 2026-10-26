@@ -11,6 +11,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { Trim } from '../../common/validators/trim.transform';
 
 /** US-28 AC-1 — one line of required equipment: type and quantity. */
 export class EquipmentRequirementDto {
@@ -24,6 +25,9 @@ export class EquipmentRequirementDto {
   @IsNotEmpty()
   equipmentId?: string;
 
+  // #27 AC-1: trimmed first, so a type of only spaces is refused, not saved
+  // as an empty type.
+  @Trim()
   @IsString()
   @IsNotEmpty({ message: 'equipmentType is required' })
   @MaxLength(100)

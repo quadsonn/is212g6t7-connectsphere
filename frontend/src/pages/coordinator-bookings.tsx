@@ -6,6 +6,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { BookingStatusBadge } from '@/features/bookings/components/booking-status-badge';
 import { useMyBookingRequests } from '@/features/bookings/hooks/use-bookings';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { formatDate, formatDateRange } from '@/lib/utils';
 
@@ -54,7 +55,7 @@ export function CoordinatorBookings() {
                     {booking.venue.name} · {formatDateRange(booking.start, booking.end)}
                   </p>
                   <p className="text-xs text-ink-500">
-                    {booking.expectedAttendance ?? '—'} expected · requested{' '}
+                    {attendanceBandLabel(booking.expectedAttendance)} expected · requested{' '}
                     {formatDate(booking.createdAt)}
                   </p>
                   {booking.decisionReason ? (

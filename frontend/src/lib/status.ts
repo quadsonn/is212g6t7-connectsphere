@@ -149,14 +149,24 @@ export const CHANGEABLE_EVENT_STATUSES: EventStatus[] = [
 export const CANCELLABLE_EVENT_STATUSES: EventStatus[] = CHANGEABLE_EVENT_STATUSES;
 
 /**
+ * #30 AC-4 — events that will not go ahead, which Technical Support's list
+ * hides unless "Show finished events" is on. Mirrors FINISHED_EVENT_STATUSES
+ * in the backend (events/event-status.machine.ts), which does the filtering;
+ * this only marks the rows when they are shown.
+ */
+export const FINISHED_EVENT_STATUSES: EventStatus[] = ['REJECTED', 'CANCELLED', 'COMPLETED'];
+
+/**
  * US-17 — availability calendar days. Each also carries an icon and label in
- * the calendar itself, so the three states survive greyscale.
+ * the calendar itself, so the four states survive greyscale.
  */
 export const DAY_STATUS_STYLES: Record<DayStatus, StatusStyle> = {
   free: { label: 'Free', className: 'bg-ink-50 text-ink-800' },
   tentative: { label: 'Tentatively held', className: 'bg-amber-100 text-amber-900' },
   // Struck through as well as shaded, so "booked" survives greyscale.
   booked: { label: 'Booked', className: 'bg-ink-200 text-ink-500 line-through' },
+  // US-17 AC-1: closed by Venue Staff. Marked with a lock icon as well.
+  blocked: { label: 'Blocked', className: 'bg-rose-100 text-rose-900' },
 };
 
 /**

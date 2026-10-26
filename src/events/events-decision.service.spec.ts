@@ -18,6 +18,7 @@ import { BookingsService } from '../bookings/bookings.service';
 describe('EventsService reject / return (US-08)', () => {
   let prisma: {
     eventRequest: { update: jest.Mock; findUniqueOrThrow: jest.Mock; findMany: jest.Mock };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let access: {
@@ -74,6 +75,8 @@ describe('EventsService reject / return (US-08)', () => {
         ),
         findMany: jest.fn().mockResolvedValue([]),
       },
+      // claimForDecision: the request still holds the status it was read with.
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'event-1' }]),
       $transaction: jest.fn((cb) => cb(prisma)),
     };
     access = {

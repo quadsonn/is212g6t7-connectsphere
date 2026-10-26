@@ -13,6 +13,7 @@ import {
   useAssignRequest,
   useQueuedRequest,
 } from '@/features/assignments/hooks/use-assignments';
+import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { formatDateRange, formatDateTime } from '@/lib/utils';
 
@@ -71,7 +72,7 @@ export function LeadQueuedRequest() {
                 <Detail label="Preferred date and time">
                   {formatDateRange(request.proposedStart, request.proposedEnd)}
                 </Detail>
-                <Detail label="Expected attendance">{request.expectedAttendance}</Detail>
+                <Detail label="Expected attendance">{attendanceBandLabel(request.expectedAttendance)}</Detail>
                 <Detail label="Preferred layout">
                   {request.preferredLayout
                     ? `${request.preferredLayout}${request.layoutNotes ? ` — ${request.layoutNotes}` : ''}`

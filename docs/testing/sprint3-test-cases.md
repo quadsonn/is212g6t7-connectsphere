@@ -2,7 +2,7 @@
 
 Written test cases for the Sprint 3 user stories (Story 38 onwards), traced from story → acceptance criterion → test case → automated test. Stories and ACs use the numbers in the Sprint 3 user-story document; in the code, Sprint 3 labels match those numbers (`US-40` is Story 40). ACs are numbered in the order the card lists them.
 
-**In progress.** Done: **Story 38 to 41**. Story 42 follows.
+Done: **Story 38 to 42** (TC-S3-38 to 74).
 
 ## How to read this file
 
@@ -548,12 +548,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-27 |
 | **Test execution record** | |
-| Actual Result | Pages were [m1, m2], [m3, m4], [m5]; a limit of 0 or 101 gave 400. Olivia saw the 12:00 then the 10:00 notice; Cody only his. Stored reasons and links were shown for each story's notice. |
+| Actual Result | Pages were [m1, m2], [m3, m4], [m5]; a limit of 0 or 101 gave 400; another user's notification as the cursor gave 404. Olivia saw the 12:00 then the 10:00 notice; Cody only his. Stored reasons and links were shown for each story's notice. |
 | Status | Pass |
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: newest first, paginated with a cursor`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: rejects a limit outside 1–100`<br>Integration: `test/notifications.e2e-spec.ts::lists only the caller’s, newest first`<br>Integration: `test/notifications.e2e-spec.ts::shows the notification, its reason, the event and a link to it`<br>Integration: `test/notifications.e2e-spec.ts::US-47 AC-6: shows the unfulfillable rejection with its reason and comment`<br>Integration: `test/notifications.e2e-spec.ts::US-48 AC-9: shows the change request outcome with the reason` |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: newest first, paginated with a cursor`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: rejects a limit outside 1–100`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: refuses another user's notification as the paging cursor (404)`<br>Integration: `test/notifications.e2e-spec.ts::lists only the caller’s, newest first`<br>Integration: `test/notifications.e2e-spec.ts::shows the notification, its reason, the event and a link to it`<br>Integration: `test/notifications.e2e-spec.ts::US-47 AC-6: shows the unfulfillable rejection with its reason and comment`<br>Integration: `test/notifications.e2e-spec.ts::US-48 AC-9: shows the change request outcome with the reason` |
 
 ### TC-S3-62
 
@@ -696,19 +696,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S3-68 |
 | Story/AC ref | Story 41 AC-6 |
 | Test Scenario | Accepting a suggestion creates a new booking request for that venue, pre-filled with the original details |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-63-setup.sql (+ tc-s3-66-setup.sql or tc-s3-68b-setup.sql loaded after the rejection) on testDB (reset before test). The Showcase (`EVT-196`, 80 people, theatre, step-free, 1 Oct 2030 09:00–12:00 UTC) has a REQUESTED booking of mainHall (`BKG-082`), managed by venue.staff@example.com (Vera); eastHall (100, step-free, theatre) is free. Logged in as venue.staff@example.com, then coord.a@example.com. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-63-setup.sql (+ tc-s3-66-setup.sql or tc-s3-68b-setup.sql loaded after the rejection, or tc-s3-68c-setup.sql) on testDB (reset before test). The Showcase (`EVT-196`, 80 people, theatre, step-free, 1 Oct 2030 09:00–12:00 UTC) has a REQUESTED booking of mainHall (`BKG-082`), managed by venue.staff@example.com (Vera); eastHall (100, step-free, theatre) is free. Logged in as venue.staff@example.com, then coord.a@example.com. |
 | Test Steps | 1. Vera rejects suggesting eastHall.<br>2. Cody accepts it.<br>3. Cody accepts it again.<br>4. Variants: eastHall booked meanwhile; the original reversed to approved; eastHall cut to 50 seats; another request or Coordinator; Venue Staff, Organiser, Technical Support. |
 | Test Data | eastHall |
 | Expected Result | A new REQUESTED booking for eastHall with the original time, attendance and requirements; the original stays rejected and the suggestion records the new request. It can be accepted once, only on a rejected request, only by its Coordinator, and only if the venue is still free and big enough. |
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-27 |
 | **Test execution record** | |
-| Actual Result | 201: REQUESTED eastHall, 09:00–12:00, 80, requested by Cody, THEATRE, "Stage at the front.", STEP_FREE_ACCESS, "Two wheelchair users.", "Two projectors."; original REJECTED; suggestion linked. Again: 409 "this suggestion has already been accepted". Booked meanwhile: 409. After reversal: 409. Too small: 409 `CAPACITY_EXCEEDED`. Wrong request or Coordinator: 404. Other roles: 403. |
+| Actual Result | 201: REQUESTED eastHall, 09:00–12:00, 80, requested by Cody, THEATRE, "Stage at the front.", STEP_FREE_ACCESS, "Two wheelchair users.", "Two projectors."; original REJECTED; suggestion linked. Again: 409 "this suggestion has already been accepted". Booked meanwhile: 409. After reversal: 409. Too small: 409 `CAPACITY_EXCEEDED`. Slot already started, or no attendance recorded: 409, nothing created. Wrong request or Coordinator: 404. Other roles: 403. |
 | Status | Pass |
 | Remarks | The details come from the original booking request, not the event's later edits. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::creates a pending request for the suggested venue with the original time, attendance and requirements`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::cannot accept the same suggestion twice`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::goes through the normal request checks: refused if the venue was booked meanwhile`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is refused once a reversal has approved the original`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::404s for a suggestion of another request, or another Coordinator`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is refused to %s (403)`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-1/AC-2: refuses accepting a suggestion whose venue no longer holds the attendance`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-6: accepting creates a request and opens it` |
+| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::creates a pending request for the suggested venue with the original time, attendance and requirements`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::cannot accept the same suggestion twice`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::goes through the normal request checks: refused if the venue was booked meanwhile`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is refused once a reversal has approved the original`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::refuses to accept the suggestion on %s (409), and creates nothing`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::404s for a suggestion of another request, or another Coordinator`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is refused to %s (403)`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-1/AC-2: refuses accepting a suggestion whose venue no longer holds the attendance`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-6: accepting creates a request and opens it` |
 
 ### TC-S3-69
 
@@ -733,4 +733,117 @@ All four use only the local test database (or none). None touches the shared Sup
 
 **Story 41 AC ↔ code notes**
 - No mismatches. The file also holds the Capacity tests (a venue must hold the expected attendance); they are cited under AC-2, AC-4 and AC-6, where the AC asks for capacity.
+
+---
+
+## Story 42 Confirm Event When Arrangements Are Ready (Event Coordinator)
+
+### TC-S3-70
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-70 |
+| Story/AC ref | Story 42 AC-1 |
+| Test Scenario | Confirm is only possible when every venue booking is approved and all required equipment is reserved, or none was recorded |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-70-setup.sql plus, per case, tc-s3-70b-setup.sql (Hall A approved) with tc-s3-70c/70d/70e/70f-setup.sql or tc-s3-71d-setup.sql, on testDB (reset before test). "Graduation showcase" (`EVT-203`) is in PLANNING, 1 Nov 2030 10:00–14:00 UTC, assigned to coord.a@example.com (Cody). Logged in as coord.a@example.com. |
+| Test Steps | 1. Read the readiness: Hall A approved and Room 2 pending; Hall A and Room 2 approved (Annex rejected) with no equipment; projectors only requested; projectors reserved and a free-text item ticked.<br>2. Try to confirm while not ready.<br>3. Have Venue Staff reverse Hall A while Confirm is in progress. |
+| Test Data | Hall A, Room 2, Annex; 2 × Projector; "Stage lighting rig" |
+| Expected Result | Ready only when every live venue booking is approved and every required item is reserved (or ticked, for free text). Otherwise Confirm is unavailable and the server refuses it. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | Pending Room 2: not ready. Both approved, no equipment: `ready: true`, the rejected Annex ignored. Projectors only requested: "Projector not reserved (0 of 2)". Reserved and ticked: ready. Confirm when not ready: 409 with the checklist, status unchanged, no notification. Reversal during Confirm: 409 "No venue booked". The button is disabled until ready (UI). |
+| Status | Pass |
+| Remarks | A reservation still REQUESTED does not count as reserved. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-1: two venues with one pending is not ready`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-1: every booking APPROVED and no equipment is ready`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: only a REQUESTED reservation does not satisfy the line`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a fully reserved line and a ticked free-text line are ready`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-1/AC-2: an event that is not ready gets 409 with the checklist`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a booking reverted while Confirm waits for the venue lock is caught by the re-check`<br>Unit: `src/events/confirmation-readiness.rules.spec.ts::US-42 confirmation readiness rules venue bookings`<br>Unit: `src/events/confirmation-readiness.rules.spec.ts::US-42 confirmation readiness rules equipment`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42 AC-1/AC-2: Confirm is disabled and the outstanding items are listed`<br>E2E: `e2e/us42-confirm.spec.ts::Confirm stays disabled and the checklist names what is missing` |
+
+### TC-S3-71
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-71 |
+| Story/AC ref | Story 42 AC-2 |
+| Test Scenario | If anything is outstanding, the Coordinator sees a checklist of what is missing |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-70-setup.sql plus, per case, tc-s3-71/71b/71c/71d/71e-setup.sql (with tc-s3-70b-setup.sql where a venue must be approved), on testDB (reset before test). "Graduation showcase" (`EVT-203`) is in PLANNING, 1 Nov 2030 10:00–14:00 UTC, assigned to coord.a@example.com (Cody). Logged in as coord.a@example.com. |
+| Test Steps | 1. Read the checklist with no venue; Hall A pending; Room 2 flagged for review; 1 of 2 projectors reserved; a free-text item unticked.<br>2. Tick the free-text item, then undo; tick a catalogue item; tick another event's item; edit the requirements leaving the ticked item unchanged. |
+| Test Data | As listed |
+| Expected Result | Each missing arrangement is named, e.g. "Venue booking still pending" or "Projector not reserved". Free-text items can be ticked by hand (who and when recorded) and unticked. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | "No venue booked"; "Venue booking at Hall A still pending"; "Venue booking at Room 2 needs conflict review"; "Projector not reserved (1 of 2)"; "Stage lighting rig - needs manual check". Ticking recorded Cody and a time; undo cleared both. A catalogue item: 400; another event's: 404. The tick survived an unchanged edit; the new item was unticked. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: no venue booked`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: one REQUESTED booking is still pending`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: an APPROVED booking flagged for review needs conflict review`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: a linked line under-reserved reads 1 of 2`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: an unticked free-text line needs a manual check`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: ticking records who and when; undo clears it`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a catalogue-linked line cannot be ticked (400)`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a line from another event is not found`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a tick survives an edit that leaves the line unchanged`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-1/AC-2: an event that is not ready gets 409 with the checklist`<br>Unit: `src/events/confirmation-readiness.rules.spec.ts::US-42 confirmation readiness rules US-42 AC-2: lists every outstanding item at once, venues first`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42: ticking a free-text line marks it as checked by hand`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42: unticking undoes the check`<br>E2E: `e2e/us42-confirm.spec.ts::Confirm stays disabled and the checklist names what is missing` |
+
+### TC-S3-72
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-72 |
+| Story/AC ref | Story 42 AC-3 |
+| Test Scenario | Only the Coordinator assigned to the event can confirm it |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-70-setup.sql (+ tc-s3-70b-setup.sql or tc-s3-71d-setup.sql) on testDB (reset before test). "Graduation showcase" (`EVT-203`) is in PLANNING, 1 Nov 2030 10:00–14:00 UTC, assigned to coord.a@example.com (Cody). Logged in as coord.b@example.com (Casey, not assigned) and organiser@example.com. |
+| Test Steps | 1. Casey and the Organiser read the readiness.<br>2. They try to tick a free-text item.<br>3. They try to confirm. |
+| Test Data | — |
+| Expected Result | Both are refused and nothing changes. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | Casey got 404 (she cannot see the event) and the Organiser 403, for readiness, ticking and confirming; the event stayed in PLANNING. |
+| Status | Pass |
+| Remarks | Denied = 404 by design for a Coordinator who may not see the event. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-confirm.e2e-spec.ts::US-42: readiness is for the assigned Coordinator only`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a Coordinator not assigned to the event cannot see it (404); its Organiser gets 403`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-3: a Coordinator not assigned to the event cannot confirm it (404: they cannot see it)`<br>Unit: `src/events/event-confirmation.service.spec.ts::US-42 EventConfirmationService` |
+
+### TC-S3-73
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-73 |
+| Story/AC ref | Story 42 AC-4 |
+| Test Scenario | On confirmation the status changes, with the time and who confirmed recorded |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-70-setup.sql + tc-s3-70b-setup.sql (+ tc-s3-73b-setup.sql: AWAITING_ARRANGEMENTS, or tc-s3-73c-setup.sql: APPROVED) on testDB (reset before test). "Graduation showcase" (`EVT-203`) is in PLANNING, 1 Nov 2030 10:00–14:00 UTC, assigned to coord.a@example.com (Cody). Logged in as coord.a@example.com. |
+| Test Steps | 1. Cody confirms the ready event (from AWAITING_ARRANGEMENTS, and from PLANNING).<br>2. He confirms again.<br>3. He tries an event that is only APPROVED. |
+| Test Data | — |
+| Expected Result | The event is confirmed, with who and when recorded. It cannot be confirmed twice, or before planning. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | 200: status AWAITING_SAFETY_CHECK, `arrangementsConfirmedById` = Cody, `arrangementsConfirmedAt` set. Second confirm: 409. APPROVED event: 409, unchanged. |
+| Status | Pass |
+| Remarks | **AC ↔ code (Week 7 Change 6):** the AC says the status becomes Confirmed; the code moves the event to AWAITING_SAFETY_CHECK, because Change 6 (Story 57) puts the Safety Officer's check between arrangements and Confirmed. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-4: a ready event moves to AWAITING_SAFETY_CHECK with who and when`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: confirming works from PLANNING too`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: an event that is not in planning cannot be confirmed (409)`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: confirming twice is refused the second time (409)`<br>Unit: `src/events/event-confirmation.service.spec.ts::US-42 EventsService.setStatus records who confirmed`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42 AC-4: when ready, Confirm asks first, then confirms and shows a toast`<br>E2E: `e2e/us42-confirm.spec.ts::a ready event is confirmed, and the Organiser sees it` |
+
+### TC-S3-74
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-74 |
+| Story/AC ref | Story 42 AC-5 |
+| Test Scenario | The Organiser can see that the event is confirmed |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-70-setup.sql + tc-s3-70b-setup.sql on testDB (reset before test). "Graduation showcase" (`EVT-203`) is in PLANNING, 1 Nov 2030 10:00–14:00 UTC, assigned to coord.a@example.com (Cody). Logged in as coord.a@example.com, then organiser@example.com. |
+| Test Steps | 1. Cody confirms.<br>2. The Organiser checks her notifications and opens her event. |
+| Test Data | — |
+| Expected Result | The Organiser is told, and her event shows it is confirmed. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | One `EVENT_STATUS_CHANGED` to the Organiser containing "Arrangements confirmed - awaiting safety review"; her view showed AWAITING_SAFETY_CHECK with `arrangementsConfirmedAt` set. The UI label reads "Arrangements confirmed - awaiting safety review". |
+| Status | Pass |
+| Remarks | |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-5: the Organiser is notified and sees the new status`<br>Unit: `src/events/event-confirmation.service.spec.ts::US-42 EventConfirmationService`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42 AC-5: the Organiser-facing label for the new status`<br>E2E: `e2e/us42-confirm.spec.ts::a ready event is confirmed, and the Organiser sees it` |
+
+**Story 42 AC ↔ code notes**
+- **AC-4 (Week 7 Change 6):** confirming moves the event to AWAITING_SAFETY_CHECK rather than Confirmed; the Safety Officer's approval (Story 57) comes before Confirmed.
+- **AC-1:** a reservation still awaiting approval does not count as reserved.
 

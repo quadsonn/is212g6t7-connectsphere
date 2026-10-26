@@ -510,6 +510,20 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       expect(res.body.message).toBe('suggestions can only be accepted on a rejected request');
     });
 
+    // TC-S3-68 · US-41 AC-6 · setup: base-users + tc-s3-63-setup + tc-s3-68c-setup · fails if a suggestion can be accepted for a slot that has started, or for a request with no attendance to copy
+    // Code: BookingSuggestionsService.accept guards before creating the new request
+    it.each([
+      ['BKG-095', 'BSG-001', 'the requested time has already started; submit a new request instead'],
+      ['BKG-096', 'BSG-002', 'the original request has no expected attendance; submit a new request instead'],
+    ])('refuses to accept the suggestion on %s (409), and creates nothing', async (bookingId, suggestionId, message) => {
+      await given('tc-s3-68c-setup');
+
+      const res = await accept(bookingId, suggestionId).expect(409);
+
+      expect(res.body.message).toBe(message);
+      expect(await prisma.venueBooking.count({ where: { venueId: ids.eastHall } })).toBe(0);
+    });
+
     // TC-S3-68 · US-41 AC-6 · setup: base-users + tc-s3-63-setup · fails if a suggestion can be accepted through another request or by another Coordinator
     // Code: BookingSuggestionsService.accept scoping
     it('404s for a suggestion of another request, or another Coordinator', async () => {

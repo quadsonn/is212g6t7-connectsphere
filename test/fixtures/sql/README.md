@@ -331,6 +331,20 @@ Named after the first Sprint 3 test case that needs them; a second script for th
 | `tc-s3-66b-setup.sql` | eastHall blocked 08:00–10:00 (`BLK-006`). After `tc-s3-63`. | 66 |
 | `tc-s3-66c-setup.sql` | A REQUESTED booking of eastHall for another event (`EVT-202`, `BKG-088`). After `tc-s3-63`. | 66 |
 | `tc-s3-68b-setup.sql` | eastHall cut to 50 (loaded after the rejection). After `tc-s3-63`. | 68 |
+| `tc-s3-68c-setup.sql` | Two rejected Showcase requests with a suggestion each: one whose slot has started (`BKG-095`), one with no attendance (`BKG-096`); decisions `BDC-003`/`BDC-004`, suggestions `BSG-001`/`BSG-002`. After `tc-s3-63`. | 68 |
+| `tc-s3-70-setup.sql` | Story 42 base: "Graduation showcase" (`EVT-203`) in PLANNING, 1 Nov 2030 10:00–14:00 UTC; Hall A, Room 2, Annex (`VEN-057` to `VEN-059`); Projector (`EQP-013`, 10) | Every test in `events-confirm` and `e2e/us42-confirm.spec.ts` (70 to 74) |
+| `tc-s3-70b-setup.sql` | Hall A APPROVED (`BKG-089`). After `tc-s3-70`. | 70, 71, 72, 73, 74 |
+| `tc-s3-70c-setup.sql` | Room 2 REQUESTED (`BKG-092`). After `tc-s3-70b`. | 70 |
+| `tc-s3-70d-setup.sql` | Room 2 APPROVED (`BKG-093`), Annex REJECTED (`BKG-094`). After `tc-s3-70b`. | 70 |
+| `tc-s3-70e-setup.sql` | 2 × Projector needed (`REQ-010`), 2 only REQUESTED (`RSV-017`). After `tc-s3-70b`. | 70 |
+| `tc-s3-70f-setup.sql` | 2 × Projector needed (`REQ-012`), 2 APPROVED (`RSV-018`). After `tc-s3-70b`. | 70 |
+| `tc-s3-71-setup.sql` | Hall A only REQUESTED (`BKG-090`). After `tc-s3-70`. | 71 |
+| `tc-s3-71b-setup.sql` | Room 2 APPROVED but flagged for review (`BKG-091`). After `tc-s3-70`. | 71 |
+| `tc-s3-71c-setup.sql` | 2 × Projector needed (`REQ-009`), 1 APPROVED (`RSV-016`). After `tc-s3-70`. | 71 |
+| `tc-s3-71d-setup.sql` | A free-text line, "Stage lighting rig" (`REQ-011`). After `tc-s3-70`. | 70, 71, 72 |
+| `tc-s3-71e-setup.sql` | A second event (`EVT-204`) with its own free-text line (`REQ-013`). After `tc-s3-70`. | 71 |
+| `tc-s3-73b-setup.sql` | Updates `EVT-203` to AWAITING_ARRANGEMENTS. After `tc-s3-70`. | 73 |
+| `tc-s3-73c-setup.sql` | Updates `EVT-203` to APPROVED. After `tc-s3-70`. | 73 |
 
 Extra users added by Sprint 3 scripts (same password as the base users):
 

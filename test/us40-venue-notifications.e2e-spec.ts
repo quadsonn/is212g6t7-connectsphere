@@ -282,6 +282,14 @@ describe('US-40 venue activity notifications (e2e)', () => {
       expect(last.map((n: { message: string }) => n.message)).toEqual(['m5']);
     });
 
+    // TC-S3-61 · US-40 AC-5 · setup: base-users + base-venues + tc-s3-54-setup + tc-s3-60-setup · fails if someone else's notification can be used as a paging cursor
+    // Code: NotificationsInboxService.list checks the cursor is the caller's own
+    it("US-40: refuses another user's notification as the paging cursor (404)", async () => {
+      await given('tc-s3-60-setup'); // NTF-010 is staffB's
+
+      await inbox('staffA', '?limit=2&cursor=NTF-010').expect(404);
+    });
+
     // TC-S3-61 · US-40 AC-5 · setup: base-users + base-venues + tc-s3-54-setup · fails if a page size outside 1-100 is accepted
     // Code: ListNotificationsDto limit @Min(1) @Max(100)
     it('US-40: rejects a limit outside 1–100', async () => {

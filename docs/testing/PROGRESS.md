@@ -249,8 +249,15 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - Runs: 36/36 ×3 (about 2.6 s) on `localhost` / `connectsphere_test`; Story 41 UI tests (Vitest) 16/16.
 - All 7 Story 41 test cases Pass; no AC ↔ code mismatch.
 
+## 2026-10-27: Sprint 3, Story 42 (TC-S3-70 to 74) and coverage
+
+- **Converted** `test/events-confirm.e2e-spec.ts` (23 tests): all 72 assertion statements and every name unchanged; each test tagged with its TC and `Code:` line. 13 small scripts (`tc-s3-70` to `tc-s3-73c`). 23/23 ×3 (about 2.1–2.5 s) on `localhost` / `connectsphere_test`. Confirm card UI tests 6/6.
+- **Browser test:** `e2e/us42-confirm.spec.ts` (2 tests: Confirm disabled with the checklist; a ready event confirmed and seen by the Organiser). After `npm install` (lockfile unchanged) and `npx playwright install chromium`, it passed 3 runs against `connectsphere_test` on localhost (about 10 s).
+- All 5 Story 42 test cases Pass. AC-4: confirming moves to AWAITING_SAFETY_CHECK (Week 7 Change 6), noted.
+- **Coverage** ([coverage-s3.md](coverage-s3.md)): Story 38–42 files combined 97.7% statements / 80.2% branches. Both TEST gaps then got their tests (Story 41 accept refused for a started slot or no attendance, `tc-s3-68c-setup.sql`; Story 40 another user's cursor): combined now 98.6% / 82.1%. The rest is DEFERRED (Story 45/52/54/57) or EXCLUDE.
+
 ## Open
-- **TC IDs:** done for US-07/08/09, US-03/04/05/06 and US-01 (TC-S1-01 to 62). The remaining stories get theirs as each group is written.
+- **TC IDs:** Sprint 1 TC-S1-01 to 62; Sprint 3 TC-S3-38 to 74. The remaining stories get theirs as each group is written.
 - **Integration files still to convert:** `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`.
 - **AC-5 window reading:** confirm fixed versus sliding with the team/customer.
 - **G1 (whitespace accepted):** fixed in `93316fa`. TC-S1-18 and TC-S1-27 tests were added in Step 3.

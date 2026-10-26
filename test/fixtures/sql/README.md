@@ -235,6 +235,7 @@ Added for the Sprint 2 test cases ([docs/testing/sprint2-test-cases.md](../../do
 | `tc-s2-31-setup.sql` | an event the venue clearly doesn't suit, so the suitability check flags it before a booking request is submitted | 31 |
 | `tc-s2-33-setup.sql` | events the requesting Coordinator must NOT be able to check: another Coordinator's, an unassigned one, and inactive ones | 33 |
 | `tc-s2-34-setup.sql` | an APPROVED event assigned to USR-004, with layout, accessibility and equipment requirements recorded, ready to have Main Hall requested for it | 34, 35, 36, 37, 38, 39, 40 |
+| `tc-s2-35-setup.sql` | a copy of Orientation with equipment lines (one from the catalogue, one free text), technical support and required facilities; and a request made before requests carried them. Load after `tc-s2-34-setup.sql` | 35 |
 | `tc-s2-36-setup.sql` | a CONFIRMED booking on Main Hall overlapping the 09:00-12:00 slot | 36 |
 | `tc-s2-37-setup.sql` | a CONFIRMED booking on Main Hall starting exactly when the 09:00-12:00 slot ends | 37 |
 | `tc-s2-38-setup.sql` | a PENDING request on Main Hall overlapping the 09:00-12:00 slot | 38 |

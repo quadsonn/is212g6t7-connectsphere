@@ -62,6 +62,8 @@ beforeEach(() => {
 });
 
 describe('US-22 AC-2: a reason of only spaces is not a reason', () => {
+  // TC-S2-49 · US-22 AC-2 · fails if a reason of only spaces could be submitted
+  // Code: Submit decision stays disabled while the trimmed reason is empty.
   it('US-22 AC-2: whitespace-only reject reason refused', async () => {
     renderPanel(booking());
     const user = userEvent.setup();
@@ -75,6 +77,8 @@ describe('US-22 AC-2: a reason of only spaces is not a reason', () => {
     expect(api.reject).not.toHaveBeenCalled();
   });
 
+  // TC-S2-49 · US-22 AC-2 · fails if a real reason was refused, or sent with its surrounding spaces
+  // Code: reject is called with text.trim().
   it('US-22 AC-2: a normal reject reason is sent, trimmed', async () => {
     api.reject.mockResolvedValue(booking({ status: 'REJECTED' }));
     renderPanel(booking());
@@ -88,6 +92,8 @@ describe('US-22 AC-2: a reason of only spaces is not a reason', () => {
     await waitFor(() => expect(api.reject).toHaveBeenCalledWith('b1', 'Under maintenance', []));
   });
 
+  // TC-S2-53 · US-22 AC-2, AC-6 · fails if a reversal could be submitted with a reason of only spaces
+  // Code: the reversal's Submit stays disabled while the trimmed reason is empty.
   it('US-22 AC-2: whitespace-only reverse reason refused', async () => {
     renderPanel(booking({ status: 'APPROVED' }));
     const user = userEvent.setup();
@@ -101,6 +107,8 @@ describe('US-22 AC-2: a reason of only spaces is not a reason', () => {
     expect(api.reverse).not.toHaveBeenCalled();
   });
 
+  // TC-S2-53 · US-22 AC-6 · fails if a reversal reason was not sent, trimmed
+  // Code: reverse is called with text.trim().
   it('US-22 AC-2: a normal reverse reason is sent, trimmed', async () => {
     api.reverse.mockResolvedValue(booking({ status: 'REJECTED' }));
     renderPanel(booking({ status: 'APPROVED' }));

@@ -2,7 +2,7 @@
 
 Written test cases for the Sprint 2 user stories (Story 16 to 37), traced from story → acceptance criterion → test case → automated test. Stories appear in the order of the Sprint 2 user-story document, and the `US-XX` labels in every test file use its numbers. App code comments and migration folder names still use older labels (see [sprint2-conventions.md](sprint2-conventions.md)).
 
-**Regeneration in progress (2026-10-26).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria, every test is commented with its test case, story/AC and the code it checks, and UI and browser tests are added. Done: **Story 16 to 19**. The rest follow in batches.
+**Regeneration in progress (2026-10-26).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria, every test is commented with its test case, story/AC and the code it checks, and UI and browser tests are added. Done: **Story 16 to 23**. The rest follow in batches.
 
 US-14 and US-15 were carried over from Sprint 1 and finished in Sprint 2. Their test cases stay in [sprint1-test-cases.md](sprint1-test-cases.md) (TC-S1-103 to 111); their results are reported with Sprint 2.
 
@@ -888,12 +888,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-request.e2e-spec.ts::rejects a request missing them, flagging each field`<br>Integration: `test/bookings-request.e2e-spec.ts::refuses %s (400) and creates nothing` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::rejects a request missing them, flagging each field`<br>Integration: `test/bookings-request.e2e-spec.ts::refuses %s (400) and creates nothing`<br>Unit: `src/bookings/bookings-request.service.spec.ts::BookingsService createRequest (US-20) AC-1: date, start/end time and expected attendance are required`<br>UI: `frontend/src/features/bookings/components/booking-request-form.test.tsx::keeps Submit disabled until the venue, date, times and attendance are all filled in` |
 
 ### TC-S2-35
 
@@ -902,19 +902,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-35 |
 | Story/AC ref | Story 20 AC-2, AC-3 |
 | Test Scenario | The event's requirements are attached and the request is pending |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-34-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. |
-| Test Steps | 1. Request Main Hall for "Orientation", 1 Oct 2030 09:00-12:00 UTC, 120 expected. |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-34-setup.sql (+ tc-s2-35-setup.sql for steps 2-4) on testDB (reset before test). Logged in as coord.a@example.com, then venue.staff@example.com. |
+| Test Steps | 1. Request Main Hall for Orientation (`POST /bookings`).<br>2. Request it for "Orientation (technical)", which has equipment lines, technical support and required facilities, then open the request as Venue Staff.<br>3. Clear that event's requirements and open the request again.<br>4. Open BKG-001, a request made before requests carried them. |
 | Test Data | Orientation: theatre, hearing loop ("Two hearing aid users"), "2 wireless mics" |
-| Expected Result | Created (201) as REQUESTED (pending), carrying the layout, accessibility needs, notes and equipment, with no warnings. |
+| Expected Result | The request is pending and carries the layout, accessibility needs and notes, and equipment notes. It also carries every equipment line, the technical support needed and the required facilities, which Venue Staff see on the request without opening the event, and which stay as submitted when the event changes. With none recorded the list is empty; on an older request it reads as not recorded. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | Code gap (AC-2): the structured equipment list and "technical support needed" (Story 27) are not attached; only the free-text equipment notes are. |
+| Remarks | The code gap noted on 18 Oct (the structured equipment list and technical support were not attached) is closed: they are copied onto the request when it is made. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-request.e2e-spec.ts::creates a REQUESTED booking carrying the event requirements` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::creates a REQUESTED booking carrying the event requirements`<br>Integration: `test/bookings-request.e2e-spec.ts::Given equipment lines, technical support and facilities, When submitted, Then all are attached`<br>Integration: `test/bookings-request.e2e-spec.ts::Given the venue manager opens the request, Then they see them without opening the event`<br>Integration: `test/bookings-request.e2e-spec.ts::Given the event changes after submission, Then the request keeps what was submitted`<br>Integration: `test/bookings-request.e2e-spec.ts::Given none recorded, Then the request carries an empty list, not "not recorded"`<br>Integration: `test/bookings-request.e2e-spec.ts::Given a request made before these were attached, Then its list reads as not recorded (null)`<br>Unit: `src/bookings/bookings-request.service.spec.ts::BookingsService createRequest (US-20) AC-2: event requirements are attached to the request`<br>Unit: `src/bookings/bookings-request.service.spec.ts::BookingsService createRequest (US-20) AC-3: a new request is pending, not confirmed`<br>UI: `frontend/src/features/bookings/components/booking-details.test.tsx::Given the request carries equipment lines, Then each is listed with its quantity and notes`<br>UI: `frontend/src/features/bookings/components/booking-details.test.tsx::Then the technical support, required facilities and free-text notes are shown`<br>UI: `frontend/src/features/bookings/components/booking-details.test.tsx::Given none were recorded, Then each says so`<br>UI: `frontend/src/features/bookings/components/booking-details.test.tsx::Given a request made before these were attached, Then it says they were not recorded on it` |
 
 ### TC-S2-36
 
@@ -930,12 +930,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-request.e2e-spec.ts::returns 409 naming the conflicting booking, and creates nothing` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::returns 409 naming the conflicting booking, and creates nothing`<br>Unit: `src/bookings/bookings-request.service.spec.ts::BookingsService createRequest (US-20) AC-4: overlap with a confirmed booking blocks submission`<br>UI: `frontend/src/features/bookings/components/booking-request-form.test.tsx::shows which confirmed booking blocks the request` |
 
 ### TC-S2-37
 
@@ -951,12 +951,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-request.e2e-spec.ts::allows a back-to-back slot that only touches the confirmed one` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::allows a back-to-back slot that only touches the confirmed one`<br>Unit: `src/bookings/bookings-request.service.spec.ts::BookingsService createRequest (US-20) AC-4: overlap with a confirmed booking blocks submission` |
 
 ### TC-S2-38
 
@@ -972,12 +972,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-request.e2e-spec.ts::creates the request and warns about the pending one`<br>Integration: `test/bookings-request.e2e-spec.ts::names the conflicting request by event and time range` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::creates the request and warns about the pending one`<br>Integration: `test/bookings-request.e2e-spec.ts::names the conflicting request by event and time range`<br>Unit: `src/bookings/bookings-request.service.spec.ts::BookingsService createRequest (US-20) AC-5: overlap with only a pending request is allowed with a warning`<br>UI: `frontend/src/features/bookings/components/booking-request-form.test.tsx::confirms the request, warns about the overlapping pending one, and links to my requests` |
 
 ### TC-S2-39
 
@@ -993,12 +993,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
-| Remarks | None. |
+| Remarks | The confirmation on screen, and the link to the Coordinator's requests, are covered by the UI test and TC-S2-187. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-request.e2e-spec.ts::lists it under GET /bookings/mine for the requester only` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::lists it under GET /bookings/mine for the requester only`<br>UI: `frontend/src/features/bookings/components/booking-request-form.test.tsx::confirms the request, warns about the overlapping pending one, and links to my requests` |
 
 ### TC-S2-40
 
@@ -1014,12 +1014,17 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-request.e2e-spec.ts::denies an Organiser (403)`<br>Integration: `test/bookings-request.e2e-spec.ts::hides an event assigned to another Coordinator (404)`<br>Integration: `test/bookings-request.e2e-spec.ts::refuses an event that has not been approved yet (409)`<br>Integration: `test/bookings-request.e2e-spec.ts::shows full detail to the requester, the event's Organiser and the venue's manager only` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-request.e2e-spec.ts::denies an Organiser (403)`<br>Integration: `test/bookings-request.e2e-spec.ts::hides an event assigned to another Coordinator (404)`<br>Integration: `test/bookings-request.e2e-spec.ts::refuses an event that has not been approved yet (409)`<br>Integration: `test/bookings-request.e2e-spec.ts::shows full detail to the requester, the event's Organiser and the venue's manager only`<br>Unit: `src/bookings/bookings-request.service.spec.ts::BookingsService createRequest (US-20) authorisation and preconditions`<br>Unit: `src/bookings/bookings-request.service.spec.ts::BookingsService createRequest (US-20) viewing one request in full` |
+
+**US-20 AC ↔ code notes**
+
+- **AC-2 (resolved since 18 Oct):** the event's equipment lines, technical support and required facilities are now attached to the request (TC-S2-35).
+- **Capacity (Sprint 3 change):** a request for more people than the venue holds is refused (CAPACITY_EXCEEDED). Not a Story 20 AC; its tests in `bookings-request.e2e-spec.ts` are labelled as the Sprint 3 change.
 
 ---
 
@@ -1039,12 +1044,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::excludes other staff's venues and decided requests`<br>Integration: `test/bookings-queue.e2e-spec.ts::is denied to a Coordinator (403)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::excludes other staff's venues and decided requests`<br>Integration: `test/bookings-queue.e2e-spec.ts::is denied to a Coordinator (403)`<br>Unit: `src/bookings/bookings-queue.service.spec.ts::BookingsService findQueue (US-21) AC-1: pending requests for venues I manage` |
 
 ### TC-S2-42
 
@@ -1060,12 +1065,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::carries event, venue, times, attendance, requester and organiser` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::carries event, venue, times, attendance, requester and organiser`<br>Unit: `src/bookings/bookings-queue.service.spec.ts::BookingsService findQueue (US-21) AC-2: each entry carries what is needed to review it`<br>UI: `frontend/src/features/bookings/components/queue-row.test.tsx::US-21: the meta line is short, and times drop "local"` |
 
 ### TC-S2-43
 
@@ -1081,12 +1086,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::sorts by event date, soonest first, by default`<br>Integration: `test/bookings-queue.e2e-spec.ts::sorts by event date, latest first, when asked`<br>Integration: `test/bookings-queue.e2e-spec.ts::sorts by submission date when asked`<br>Integration: `test/bookings-queue.e2e-spec.ts::rejects an unknown sort field (400)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::sorts by event date, soonest first, by default`<br>Integration: `test/bookings-queue.e2e-spec.ts::sorts by event date, latest first, when asked`<br>Integration: `test/bookings-queue.e2e-spec.ts::sorts by submission date when asked`<br>Integration: `test/bookings-queue.e2e-spec.ts::rejects an unknown sort field (400)`<br>Unit: `src/bookings/bookings-queue.service.spec.ts::BookingsService findQueue (US-21) AC-3: sorting`<br>UI: `frontend/src/pages/venue-booking-queue.test.tsx::sorts by submission date when chosen` |
 
 ### TC-S2-44
 
@@ -1102,12 +1107,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::filters by venue`<br>Integration: `test/bookings-queue.e2e-spec.ts::filters by date range`<br>Integration: `test/bookings-queue.e2e-spec.ts::filters the decided view by status` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::filters by venue`<br>Integration: `test/bookings-queue.e2e-spec.ts::filters by date range`<br>Integration: `test/bookings-queue.e2e-spec.ts::filters the decided view by status`<br>Unit: `src/bookings/bookings-queue.service.spec.ts::BookingsService findQueue (US-21) AC-4: filtering`<br>UI: `frontend/src/pages/venue-booking-queue.test.tsx::filters by one of my venues, and never offers another manager’s` |
 
 ### TC-S2-45
 
@@ -1123,12 +1128,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | Threshold: 7 days, per the team's comment on the story. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::puts requests under a week away at the top, flagged`<br>Integration: `test/bookings-queue.e2e-spec.ts::still flags a request whose event has started, with a negative day count` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::puts requests under a week away at the top, flagged`<br>Integration: `test/bookings-queue.e2e-spec.ts::still flags a request whose event has started, with a negative day count`<br>Unit: `src/bookings/bookings-queue.service.spec.ts::BookingsService findQueue (US-21) AC-5: requests nearing their event date are flagged and prioritised`<br>UI: `frontend/src/pages/venue-booking-queue.test.tsx::groups requests due this week above the later ones`<br>UI: `frontend/src/features/bookings/components/queue-row.test.tsx::US-21 AC-5: an event at %s is %s ("%s")`<br>UI: `frontend/src/features/bookings/components/queue-row.test.tsx::US-21 AC-5: more than a week away gets no indicator at all`<br>UI: `frontend/src/features/bookings/components/queue-row.test.tsx::US-21 AC-5: 9am tomorrow is "tomorrow" even at 11pm, though under 24 hours away`<br>UI: `frontend/src/features/bookings/components/queue-row.test.tsx::US-21 AC-5: red and amber rows get a thin left bar and a badge; upcoming is muted text with no bar` |
 
 ### TC-S2-46
 
@@ -1144,12 +1149,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::GET /bookings/:id returns it with its requirements` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::GET /bookings/:id returns it with its requirements`<br>UI: `frontend/src/features/bookings/components/queue-row.test.tsx::US-21: the whole row is one link to the details page, with no "View details" button`<br>UI: `frontend/src/features/bookings/components/queue-row.test.tsx::US-21: the row opens from the keyboard` |
 
 ### TC-S2-47
 
@@ -1165,12 +1170,16 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::moves a request out of Pending as soon as it is approved or rejected`<br>Integration: `test/bookings-queue.e2e-spec.ts::shows approved and rejected requests only under view=decided` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-queue.e2e-spec.ts::moves a request out of Pending as soon as it is approved or rejected`<br>Integration: `test/bookings-queue.e2e-spec.ts::shows approved and rejected requests only under view=decided`<br>Unit: `src/bookings/bookings-queue.service.spec.ts::BookingsService findQueue (US-21) AC-7: decided requests leave the pending view`<br>UI: `frontend/src/pages/venue-booking-queue.test.tsx::switches to the Decided view, with a status filter` |
+
+**US-21 AC ↔ code notes**
+
+- **Relabelled in this regeneration:** the queue's UI tests used the app-code label (US-22); they now use Story 21.
 
 ---
 
@@ -1190,12 +1199,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | AC-1 itself (approve and reject are on the request detail view) is about the screen: TC-S2-81 (manual). |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::is refused for another staff member's venue (404) and for a Coordinator (403)` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::is refused for another staff member's venue (404) and for a Coordinator (403)`<br>Unit: `src/bookings/bookings-decision.service.spec.ts::BookingsService decisions (US-22) AC-1: actions act on a request the staff member can open` |
 
 ### TC-S2-49
 
@@ -1211,12 +1220,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | The empty reason is refused and a real reason is saved, but a reason of three spaces is accepted (200) and saved as an empty reason. |
-| Status | Fail |
-| Remarks | Bug: a reason of only spaces is accepted and saved as an empty reason, because RejectBookingDto (and ReverseBookingDto) do not trim before checking. Captured with it.failing; fix by adding @Trim() above @IsNotEmpty(), as the Sprint 1 DTOs do. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
+| Status | Pass |
+| Remarks | The bug noted on 18 Oct (a reason of only spaces was accepted) is fixed: RejectBookingDto and ReverseBookingDto now trim with @Trim() before checking. The `it.failing` test that captured it was replaced by regular regression tests. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::refuses a rejection without a reason, and changes nothing`<br>Integration: `test/bookings-decision.e2e-spec.ts::refuses a reason made only of spaces`<br>Integration: `test/bookings-decision.e2e-spec.ts::rejects with a reason` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::refuses a rejection without a reason, and changes nothing`<br>Integration: `test/bookings-decision.e2e-spec.ts::rejects with a reason`<br>Integration: `test/bookings-decision.e2e-spec.ts::US-22 AC-2: whitespace-only reject reason refused`<br>Integration: `test/bookings-decision.e2e-spec.ts::US-22 AC-2: a normal reason is still saved, trimmed`<br>Unit: `src/bookings/bookings-decision.service.spec.ts::BookingsService decisions (US-22) AC-2: rejecting requires a reason`<br>UI: `frontend/src/features/bookings/components/booking-decision-reasons.test.tsx::US-22 AC-2: whitespace-only reject reason refused`<br>UI: `frontend/src/features/bookings/components/booking-decision-reasons.test.tsx::US-22 AC-2: a normal reject reason is sent, trimmed` |
 
 ### TC-S2-50
 
@@ -1232,12 +1241,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::approves with no body at all`<br>Integration: `test/bookings-decision.e2e-spec.ts::approves with a note` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::approves with no body at all`<br>Integration: `test/bookings-decision.e2e-spec.ts::approves with a note`<br>Unit: `src/bookings/bookings-decision.service.spec.ts::BookingsService decisions (US-22) AC-3: approving allows an optional note` |
 
 ### TC-S2-51
 
@@ -1253,12 +1262,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::returns a decision history entry naming the staff member` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::returns a decision history entry naming the staff member`<br>Unit: `src/bookings/bookings-decision.service.spec.ts::BookingsService decisions (US-22) AC-4: the decision is timestamped and attributed` |
 
 ### TC-S2-52
 
@@ -1274,12 +1283,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::shows it to both on GET /bookings/events/:eventId, and notifies both`<br>Integration: `test/bookings-decision.e2e-spec.ts::hides it from an unrelated Organiser` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::shows it to both on GET /bookings/events/:eventId, and notifies both`<br>Integration: `test/bookings-decision.e2e-spec.ts::hides it from an unrelated Organiser`<br>Unit: `src/bookings/bookings-decision.service.spec.ts::BookingsService decisions (US-22) AC-5: the Coordinator and Organiser are told` |
 
 ### TC-S2-53
 
@@ -1295,12 +1304,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::keeps the original decision and appends the reversal`<br>Integration: `test/bookings-decision.e2e-spec.ts::requires a reason to reverse`<br>Integration: `test/bookings-decision.e2e-spec.ts::refuses to reverse a request that has not been decided (409)`<br>Integration: `test/bookings-decision.e2e-spec.ts::re-checks the slot when a rejection is reversed into an approval` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::keeps the original decision and appends the reversal`<br>Integration: `test/bookings-decision.e2e-spec.ts::requires a reason to reverse`<br>Integration: `test/bookings-decision.e2e-spec.ts::refuses to reverse a request that has not been decided (409)`<br>Integration: `test/bookings-decision.e2e-spec.ts::re-checks the slot when a rejection is reversed into an approval`<br>Unit: `src/bookings/bookings-decision.service.spec.ts::BookingsService decisions (US-22) AC-6: a reversal is a new recorded action`<br>Integration: `test/bookings-decision.e2e-spec.ts::US-22 AC-2: whitespace-only reverse reason refused`<br>Integration: `test/bookings-decision.e2e-spec.ts::US-22 AC-2: a normal reverse reason is still saved`<br>UI: `frontend/src/features/bookings/components/booking-decision-reasons.test.tsx::US-22 AC-2: whitespace-only reverse reason refused`<br>UI: `frontend/src/features/bookings/components/booking-decision-reasons.test.tsx::US-22 AC-2: a normal reverse reason is sent, trimmed` |
 
 ### TC-S2-54
 
@@ -1316,12 +1325,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | The "action is disabled/hidden" part of AC-7 is about the screen: TC-S2-81 (manual). |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::refuses a second approve or reject (409) and records nothing more`<br>Integration: `test/bookings-decision.e2e-spec.ts::lets only one of two simultaneous approvals through` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::refuses a second approve or reject (409) and records nothing more`<br>Integration: `test/bookings-decision.e2e-spec.ts::lets only one of two simultaneous approvals through`<br>Unit: `src/bookings/bookings-decision.service.spec.ts::BookingsService decisions (US-22) AC-7: the same request cannot be decided twice` |
 
 ### TC-S2-55
 
@@ -1337,12 +1346,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::refuses to approve a second, overlapping request` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-decision.e2e-spec.ts::refuses to approve a second, overlapping request`<br>Unit: `src/bookings/bookings-decision.service.spec.ts::BookingsService decisions (US-22) approval keeps the venue free of double-commitment` |
 
 ### TC-S2-81
 
@@ -1351,19 +1360,44 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-81 |
 | Story/AC ref | Story 22 AC-1, AC-2, AC-7 |
 | Test Scenario | Approve and reject from the request detail view; the actions disappear once decided |
-| Pre-conditions | Log in as venue.staff@example.com on the running app. A pending booking request exists on a venue you manage, with no confirmed booking overlapping it. |
-| Test Steps | 1. Open Booking requests and click the pending request.<br>2. In the Decision panel, choose Reject and try to submit without a reason.<br>3. Enter a reason and submit.<br>4. Look at the Decision panel again. |
-| Test Data | Seed data on the running app |
-| Expected Result | The detail view shows Approve and Reject. Reject cannot be submitted until a reason is entered. After the decision, Approve and Reject are gone; only the recorded decision and "Reverse this decision" are shown. |
+| Pre-conditions | UI tests: API mocked. Browser test (TC-S2-187): run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-34-setup.sql + tc-s2-38-setup.sql on testDB (reset before test). |
+| Test Steps | 1. Open a pending request's detail page.<br>2. Choose Reject: check Submit is disabled, enter a reason and submit.<br>3. (Another request) Choose Approve and submit without a note.<br>4. Open a decided request. |
+| Test Data | A pending request on Main Hall; reason "Venue closed for repairs" |
+| Expected Result | Approve and Reject are offered on the detail page. Reject can't be submitted until it has a reason; Approve needs no note. Once decided, Approve and Reject are no longer offered, only the recorded decision (and a reversal). |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result |  |
-| Status | Not Executed |
-| Remarks | Manual: the AC is about the user interface. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | Manual |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Was manual; now automated by UI tests and the browser journey TC-S2-187. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | UI: `frontend/src/features/bookings/components/booking-decision-panel.test.tsx::needs a reason before a rejection can be submitted`<br>UI: `frontend/src/features/bookings/components/booking-decision-panel.test.tsx::approves without a note, the note being optional`<br>UI: `frontend/src/features/bookings/components/booking-decision-panel.test.tsx::offers no Approve or Reject once the request is decided`<br>E2E: `e2e/us20-us23-bookings.spec.ts::a request travels from the Coordinator to Venue Staff and back with its decision` |
+
+### TC-S2-187
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S2-187 |
+| Story/AC ref | Story 20 AC-1, AC-5, AC-6; Story 21 AC-1, AC-6, AC-7; Story 22 AC-1, AC-2, AC-5, AC-7; Story 23 AC-3 (UI) |
+| Test Scenario | On screen, a booking request goes from the Coordinator to Venue Staff, is decided, and the Coordinator sees the decision |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-34-setup.sql + tc-s2-38-setup.sql on testDB (reset before test). Logged in as coord.a@example.com, then venue.staff@example.com, then coord.a again. |
+| Test Steps | 1. The Coordinator requests Main Hall for Orientation and opens their venue requests.<br>2. Venue Staff open the request from the pending queue.<br>3. They choose Reject, give a reason and submit.<br>4. They check the Pending and Decided views.<br>5. The Coordinator opens the request. |
+| Test Data | `EVT-102` Orientation; `BKG-030` Hackathon, pending, overlapping; reason "Main Hall is closed that morning" |
+| Expected Result | The request is submitted with a warning naming Hackathon and appears in the Coordinator's requests. Venue Staff see it in Pending with its requirements and the pending overlap as a warning. Reject needs a reason; once decided, Approve and Reject are gone and it moves to Decided. The Coordinator sees the rejection and its reason. |
+| Created By | Marilyn Ong |
+| Date of Creation | 2026-10-26 |
+| **Test execution record** | |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | None. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us20-us23-bookings.spec.ts::a request travels from the Coordinator to Venue Staff and back with its decision` |
+
+**US-22 AC ↔ code notes**
+
+- **AC-2 (fixed since 18 Oct):** a reason of only spaces is refused (TC-S2-49, Fail → Pass).
 
 ---
 
@@ -1383,12 +1417,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::a confirmed booking that %s: conflict = %s`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::names the event and time range of each conflict` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::a confirmed booking that %s: conflict = %s`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::names the event and time range of each conflict`<br>Unit: `src/bookings/booking-conflicts.spec.ts::US-23 overlapping booking detection classifyConflicts` |
 
 ### TC-S2-57
 
@@ -1404,12 +1438,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::lists confirmed overlaps as hard and pending ones as soft, ignoring rejected ones and itself`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::reports a pending-only overlap as soft, without a hard conflict` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::lists confirmed overlaps as hard and pending ones as soft, ignoring rejected ones and itself`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::reports a pending-only overlap as soft, without a hard conflict`<br>Unit: `src/bookings/booking-conflicts.spec.ts::US-23 overlapping booking detection classifyConflicts` |
 
 ### TC-S2-58
 
@@ -1425,11 +1459,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::lists an overlapping block, and marks the request as hard-conflicting` |
 
 ### TC-S2-59
@@ -1446,11 +1480,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::reports nothing` |
 
 ### TC-S2-60
@@ -1467,11 +1501,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::hides the booking from another Venue Staff member (404)`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::refuses a Coordinator (403)` |
 
 ### TC-S2-61
@@ -1488,11 +1522,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | AC-5 also says "or reassign": there is no way to move the conflicting booking to another time or venue; it can only be reversed. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::refuses approval with 409 and leaves the request pending`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::allows approval once the conflicting booking has been reversed` |
 
 ### TC-S2-62
@@ -1509,11 +1543,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::approves with a warning naming the pending request` |
 
 ### TC-S2-63
@@ -1530,11 +1564,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::catches a conflict that appeared after the page loaded` |
 
 ### TC-S2-64
@@ -1551,12 +1585,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::lets exactly one of two simultaneous overlapping approvals through`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::is backed by the database: a direct write of an overlapping APPROVED booking fails`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::still allows back-to-back APPROVED bookings and overlapping pending ones` |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/bookings-conflicts.e2e-spec.ts::lets exactly one of two simultaneous overlapping approvals through`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::is backed by the database: a direct write of an overlapping APPROVED booking fails`<br>Integration: `test/bookings-conflicts.e2e-spec.ts::still allows back-to-back APPROVED bookings and overlapping pending ones`<br>Unit: `src/bookings/booking-conflicts.spec.ts::US-23 overlapping booking detection database backstop (SQLSTATE 23P01)` |
 
 ### TC-S2-65
 
@@ -1572,11 +1606,11 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-26. |
 | Status | Pass |
 | Remarks | The migration folder keeps the old label (us24); migration folders are never renamed. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
+| Date of Execution | 2026-10-26 |
 | Automated by | Integration: `test/booking-overlap-migration.e2e-spec.ts::US-23: adds the constraint when existing data is clean (back-to-back and pending overlaps are fine)`<br>Integration: `test/booking-overlap-migration.e2e-spec.ts::US-23: stops and lists existing overlapping APPROVED bookings, changing nothing`<br>Integration: `test/booking-overlap-migration.e2e-spec.ts::US-23: also reports APPROVED bookings whose end is before their start` |
 
 ### TC-S2-66
@@ -1586,19 +1620,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-66 |
 | Story/AC ref | Story 23 AC-6 |
 | Test Scenario | Overlap detection accounts for buffer/setup time between events, if configured for the venue |
-| Pre-conditions | Not applicable: the behaviour this AC describes does not exist yet. |
-| Test Steps | 1. — |
-| Test Data | — |
-| Expected Result | With a buffer configured, a booking starting within the buffer after another ends is flagged as a conflict. |
+| Pre-conditions | The cited tests create their own rows (Sprint 3/4 test files, not yet on setup scripts). Main Hall has 30 minutes' setup and 45 minutes' turnaround, and a confirmed booking 10:00-12:00. |
+| Test Steps | 1. Request a slot overlapping only the booking's turnaround (12:00-12:45), then only its setup (09:30-10:00).<br>2. Request one whose occupied time only touches the booking's.<br>3. Approve a pending request that clashes once buffers count.<br>4. Open the conflicts as Venue Staff. |
+| Test Data | Setup 30 min, turnaround 45 min (the customer's example) |
+| Expected Result | Steps 1 and 3 are refused as conflicts; step 2 is allowed; Venue Staff see the buffer clash as a hard conflict. A venue with no buffers set behaves as before. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Venues have no buffer setting; bookings are compared on their exact times and back-to-back bookings are allowed (TC-S2-56). |
-| Status | N/A |
-| Remarks | Superseded: per the comment in BookingsService.conflictsFor(), the customer clarified buffer time is not needed. Confirm this is recorded with the customer. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | None (nothing to automate yet) |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Was N/A on 18 Oct (the customer had said buffers were not needed). Sprint 4 added them (US-49 sets a venue's setup and turnaround; US-50 counts them in every overlap check), so this AC is now met and tested. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/venues-buffers.e2e-spec.ts::refuses a request that only overlaps the existing booking's turnaround (12:00–12:45)`<br>Integration: `test/venues-buffers.e2e-spec.ts::refuses a request that only overlaps the existing booking's setup (09:30–10:00)`<br>Integration: `test/venues-buffers.e2e-spec.ts::accepts a request whose occupied window only touches the existing one`<br>Integration: `test/venues-buffers.e2e-spec.ts::refuses to approve a pending request that clashes once buffers count`<br>Integration: `test/venues-buffers.e2e-spec.ts::reports the buffer clash to Venue Staff as a hard conflict`<br>Integration: `test/venues-buffers.e2e-spec.ts::allows back-to-back bookings at a venue with no buffers` |
 
 ### TC-S2-67
 
@@ -1607,19 +1641,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-67 |
 | Story/AC ref | Story 23 AC-7 |
 | Test Scenario | If the requested time is edited, the overlap check re-runs against the new time before proceeding |
-| Pre-conditions | Not applicable: the behaviour this AC describes does not exist yet. |
-| Test Steps | 1. — |
-| Test Data | — |
-| Expected Result | After a request's time is edited, the conflicts shown and the approval check use the new time. |
+| Pre-conditions | The cited tests create their own rows (Sprint 3/4 test files, not yet on setup scripts). An approved event with a confirmed Main Hall booking, and a pending change request moving it to a new time. |
+| Test Steps | 1. Open the change request (the check runs at the new time).<br>2. Book Main Hall at the new time for another event after the request was opened, then approve it.<br>3. Approve a clash-free change and look at the event's bookings. |
+| Test Data | A change request moving the event's date and time |
+| Expected Result | The check reports a clash at the new time; approval re-checks and is refused (409) while the clash exists; a clash-free approval moves the booking to the new time as a new pending request, which Venue Staff approve with the overlap check run again. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | A booking request's time cannot be edited, so there is no edit to re-check. The check itself is recomputed on every call and every approval (TC-S2-63), so an edit flow would get it automatically. |
-| Status | Fail |
-| Remarks | Code gap: no way to edit a booking request's time. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | None (nothing to automate yet) |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Was Fail (no way to edit a request's time). A booking's time now changes only when its event's time changes through an approved change request (Story 37, with Sprint 3's US-48 check), and the overlap check runs at the new time before anything is confirmed. There is still no way to edit one request's time on its own. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | Integration: `test/events-change-request-check.e2e-spec.ts::reports a clash with another event’s booking at the new time`<br>Integration: `test/events-change-request-check.e2e-spec.ts::reports a clash that exists only through setup or turnaround time`<br>Integration: `test/events-change-request-check.e2e-spec.ts::stale page: a booking taken after the request was opened refuses the approval with 409`<br>Integration: `test/events-change-request-check.e2e-spec.ts::moves everything to the new details, keeps the originals linked, and records it` |
 
 ### TC-S2-82
 
@@ -1628,19 +1662,26 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-82 |
 | Story/AC ref | Story 23 AC-1, AC-2, AC-3, AC-4, AC-5 |
 | Test Scenario | See hard and soft conflicts while reviewing a request |
-| Pre-conditions | Log in as venue.staff@example.com. On a venue you manage: a pending request A; a confirmed booking overlapping A; another pending request overlapping A. |
-| Test Steps | 1. Open Booking requests and click request A.<br>2. Read the conflicts shown above the decision buttons.<br>3. Try to approve A. |
-| Test Data | Seed data on the running app |
-| Expected Result | Conflicts are listed while reviewing: the confirmed booking as a hard conflict and the pending request as a soft conflict/warning, visibly different, each with its event name and time range. Approve is unavailable because of the hard conflict; Reject is still available. |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-48-setup.sql + tc-s2-61-setup.sql on testDB (reset before test). Logged in as venue.staff@example.com. UI tests: API mocked. |
+| Test Steps | 1. Open the pending Showcase request, which a confirmed booking overlaps.<br>2. (UI) Open requests with only a pending overlap, and with none; approve one after a conflict appears. |
+| Test Data | `BKG-031` Showcase, pending, 09:00-12:00; `BKG-048` "Confirmed", approved, 11:00-13:00 |
+| Expected Result | The confirmed overlap is named, Approve is unavailable and Reject stays available. A pending overlap is a warning only. Approval re-checks first and stops if a hard conflict has appeared. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result |  |
-| Status | Not Executed |
-| Remarks | Manual: the AC is about the user interface. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | Manual |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Was manual; now automated by UI and browser tests. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-26 |
+| Automated by | E2E: `e2e/us20-us23-bookings.spec.ts::a request overlapping a confirmed booking shows the clash and cannot be approved`<br>UI: `frontend/src/features/bookings/components/booking-decision-panel.test.tsx::US-23: a hard conflict disables Approve, says why, and leaves Reject available`<br>UI: `frontend/src/features/bookings/components/booking-decision-panel.test.tsx::US-23: a soft conflict is a warning only and never disables Approve`<br>UI: `frontend/src/features/bookings/components/booking-decision-panel.test.tsx::US-23 AC-5: re-checks just before approving, and stops if a hard conflict appeared`<br>UI: `frontend/src/features/bookings/components/booking-decision-panel.test.tsx::US-23: a 409 from approval refreshes the conflicts and explains what changed`<br>UI: `frontend/src/features/bookings/components/booking-decision-panel.test.tsx::US-23: approves normally when nothing is in the way` |
+
+**US-23 AC ↔ code notes**
+
+- **AC-6 (now in scope):** buffer time was set aside on 18 Oct; Sprint 4 added it, and overlap checks count it (TC-S2-66, N/A → Pass).
+- **AC-7:** a request's time changes only through an approved event change, which re-runs the check at the new time (TC-S2-67, Fail → Pass). There is no separate "edit this request's time".
+- **AC-5, "or reassign":** a conflicting booking can be reversed, not moved to another time or venue.
+- **Relabelled in this regeneration:** the decision panel's UI tests used the app-code label (US-24); they now use Story 23.
 
 ---
 
@@ -4056,7 +4097,8 @@ All four use only the local test database (or none). None touches the shared Sup
 
 | Date | Change | Commit | Test cases affected |
 |---|---|---|---|
-| 2026-10-26 | **Regeneration, batch 1 (Story 16 to 19).** Every test commented with its test case, story/AC and a `Code:` line. The blocked-period and suitability AC-3 tests, which inserted rows in the test and had no test case, now load setup scripts (`tc-s2-182-setup.sql`, `tc-s2-30-setup.sql`); `tc-s2-10-setup.sql` dates a booking relative to today for the browser tests. New UI tests (`venue-calendar.test.tsx`, `coordinator-venues.test.tsx`, more in the availability calendar and suitability panel) and browser tests (`e2e/us16-us19-venues.spec.ts`). **Code change:** "Request this venue" opens the event's booking form with the venue chosen (US-19 AC-5). | this commit | TC-S2-10, 11, 17: Not Executed → Pass. TC-S2-30: Fail → Pass. New: TC-S2-182 to 186. All Story 16 to 19 cases re-run. |
+| 2026-10-26 | **Regeneration, batch 2 (Story 20 to 23).** Every test commented with its test case, story/AC and a `Code:` line. The Story 20 AC-2 tests, which edited rows in the test and had no test case, now load `tc-s2-35-setup.sql`. Booking UI tests relabelled from app-code story numbers to the document's. New UI tests (`booking-request-form.test.tsx`, `venue-booking-queue.test.tsx`, decisions on the detail view) and browser tests (`e2e/us20-us23-bookings.spec.ts`). | this commit | TC-S2-49: Fail → Pass (fixed). TC-S2-66: N/A → Pass. TC-S2-67: Fail → Pass. TC-S2-81, 82: Not Executed → Pass. New: TC-S2-187. All Story 20 to 23 cases re-run. |
+| 2026-10-26 | **Regeneration, batch 1 (Story 16 to 19).** Every test commented with its test case, story/AC and a `Code:` line. The blocked-period and suitability AC-3 tests, which inserted rows in the test and had no test case, now load setup scripts (`tc-s2-182-setup.sql`, `tc-s2-30-setup.sql`); `tc-s2-10-setup.sql` dates a booking relative to today for the browser tests. New UI tests (`venue-calendar.test.tsx`, `coordinator-venues.test.tsx`, more in the availability calendar and suitability panel) and browser tests (`e2e/us16-us19-venues.spec.ts`). **Code change:** "Request this venue" opens the event's booking form with the venue chosen (US-19 AC-5). | `6eb73ea` | TC-S2-10, 11, 17: Not Executed → Pass. TC-S2-30: Fail → Pass. New: TC-S2-182 to 186. All Story 16 to 19 cases re-run. |
 
 ---
 
@@ -4064,4 +4106,4 @@ All four use only the local test database (or none). None touches the shared Sup
 
 | Test case | Story/AC | What's missing |
 |---|---|---|
-| Story 20 to 37 | all | Re-checked in later batches of the regeneration |
+| Story 24 to 37 | all | Re-checked in later batches of the regeneration |

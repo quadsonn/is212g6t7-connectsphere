@@ -26,6 +26,8 @@ import { RequirementsListQueryDto } from './dto/requirements-list-query.dto';
 import { EquipmentRequirementsService } from './equipment-requirements.service';
 import { EquipmentReservationsService } from './equipment-reservations.service';
 import { EquipmentService } from './equipment.service';
+import { EquipmentSubstitutionsService } from './equipment-substitutions.service';
+import { SuggestSubstitutionDto } from './dto/substitution-choice.dto';
 
 /**
  * US-29 to US-33, US-45 — Technical Support's equipment features.
@@ -47,6 +49,7 @@ export class EquipmentController {
     private readonly equipmentService: EquipmentService,
     private readonly requirementsService: EquipmentRequirementsService,
     private readonly reservationsService: EquipmentReservationsService,
+    private readonly substitutionsService: EquipmentSubstitutionsService,
   ) {}
 
   /** US-29 AC-1/AC-3 — the catalogue. */
@@ -121,6 +124,37 @@ export class EquipmentController {
   @Header('Cache-Control', 'no-store')
   findReleased(@CurrentUser() user: AuthenticatedUser) {
     return this.reservationsService.findReleased(user);
+  }
+
+  /**
+   * The items that could replace this reservation's equipment: in service, not
+   * the item itself, with the reservation's full quantity free. Fills the
+   * "alternative" dropdown.
+   */
+  @Get('reservations/:reservationId/alternatives')
+  @Roles(Role.TECHNICAL_SUPPORT_STAFF)
+  @Header('Cache-Control', 'no-store')
+  findAlternatives(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('reservationId') reservationId: string,
+  ) {
+    return this.substitutionsService.candidatesFor(user, reservationId);
+  }
+
+  /**
+   * Answer for a reservation after the status change - the item was already
+   * out of service. 201 with the substitution; 409 when the reservation does
+   * not need one or already has one.
+   */
+  @Post('reservations/:reservationId/substitution')
+  @Roles(Role.TECHNICAL_SUPPORT_STAFF)
+  @HttpCode(HttpStatus.CREATED)
+  suggestSubstitution(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('reservationId') reservationId: string,
+    @Body() dto: SuggestSubstitutionDto,
+  ) {
+    return this.substitutionsService.suggest(user, reservationId, dto);
   }
 
   /** US-29 AC-2 — one item's full detail, including operational status. */

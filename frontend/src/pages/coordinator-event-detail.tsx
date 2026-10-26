@@ -411,7 +411,7 @@ export function CoordinatorEventDetail() {
               )}
             </CardContent>
           </Card>
-          <EquipmentUnavailableNotice items={event.unavailableEquipment} />
+          <EquipmentUnavailableNotice items={event.unavailableEquipment} canDecide={isAssignedToMe} />
 
           <TechnicalRequirementsCard event={event} editable={inPlanning && isAssignedToMe} />
 

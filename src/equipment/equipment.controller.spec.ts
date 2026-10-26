@@ -23,12 +23,14 @@ describe('EquipmentController access (US-29–US-33, US-45)', () => {
         'checkAvailability',
         'commit',
         'findAll',
+        'findAlternatives',
         'findEventDetails',
         'findOne',
         'findReleased',
         'findRequirements',
         'findRequirementsForEvent',
         'findUpcomingReservations',
+        'suggestSubstitution',
       ].sort(),
     );
   });
@@ -38,12 +40,14 @@ describe('EquipmentController access (US-29–US-33, US-45)', () => {
     'checkAvailability',
     'commit',
     'findAll',
+    'findAlternatives',
     'findEventDetails',
     'findOne',
     'findReleased',
     'findRequirements',
     'findRequirementsForEvent',
     'findUpcomingReservations',
+    'suggestSubstitution',
   ])('%s is restricted to TECHNICAL_SUPPORT_STAFF alone', (name) => {
     const handler = proto[name] as object;
 

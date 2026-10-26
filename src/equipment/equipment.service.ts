@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { Prisma, ReservationStatus } from '@prisma/client';
 
-import { EquipmentNotifier } from './equipment-notifier';
+import { EquipmentNotifier, NotifiableEvent } from './equipment-notifier';
+import { EquipmentSubstitutionsService } from './equipment-substitutions.service';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
@@ -120,6 +121,8 @@ export class EquipmentService {
     // US-60: tells the other Technical Support members once a change commits.
     @Optional() private readonly statusNotifier?: EquipmentStatusNotifier,
     @Optional() private readonly equipmentNotifier?: EquipmentNotifier,
+    // Replacement proposals for reservations on CONFIRMED events.
+    @Optional() private readonly substitutions?: EquipmentSubstitutionsService,
   ) {}
 
   /**
@@ -305,21 +308,45 @@ export class EquipmentService {
           })
         : [];
 
+      // Back in service: whatever was proposed for it is moot (voided before
+      // a new outage asks again).
+      if (!affectsReservations(dto.status)) {
+        await this.substitutions?.voidForRestoredItem(tx, equipmentId);
+      }
+
+      // Every reservation on a CONFIRMED event needs a replacement or "no
+      // valid alternative"; earlier-stage events need nothing. Throws, rolling
+      // this whole change back, when one is missing or does not hold.
+      const recorded =
+        (await this.substitutions?.recordForStatusChange(
+          tx,
+          user.userId,
+          { id: equipmentId },
+          affectedReservations,
+          dto.substitutions ?? [],
+        )) ?? [];
+
       // US — AC-1: tell the Coordinator of each affected event, once per event.
       // "Committed" is APPROVED only; a merely requested reservation is left
-      // out. In the same transaction, so the notice exists iff the change did.
-      const committedEvents = affectedReservations
-        .filter((r) => r.status === ReservationStatus.APPROVED)
-        .map((r) => ({
+      // out - unless Technical Support proposed something for it, which the
+      // Coordinator must see. In the same transaction, so the notice exists
+      // iff the change did.
+      const notifiable = new Map<string, NotifiableEvent>();
+      for (const r of affectedReservations) {
+        const proposals = recorded.filter((p) => p.eventId === r.event.id);
+        if (r.status !== ReservationStatus.APPROVED && proposals.length === 0) continue;
+        notifiable.set(r.event.id, {
           id: r.event.id,
           name: r.event.name,
           coordinatorId: r.event.coordinator?.id ?? null,
-        }));
-      if (committedEvents.length > 0) {
+          substitutions: proposals.map((p) => p.line),
+        });
+      }
+      if (notifiable.size > 0) {
         await this.equipmentNotifier?.unavailable(
           tx,
           { type, status: dto.status, reason: dto.reason },
-          committedEvents,
+          [...notifiable.values()],
         );
       }
 

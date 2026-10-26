@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  EquipmentAlternative,
   AvailabilityQuery,
   BrowseEquipmentQuery,
   ChangeEquipmentStatusPayload,
@@ -8,10 +9,12 @@ import type {
   Equipment,
   EquipmentListItem,
   EquipmentStatusChangeResult,
+  EquipmentSubstitution,
   EventRequirementDetails,
   EventRequirements,
   ItemAvailability,
   ReleasedReservation,
+  SubstitutionChoice,
   TechnicalSupportAssignment,
   UpcomingReservation,
 } from '@/types/api';
@@ -36,6 +39,28 @@ export const equipmentApi = {
     apiClient
       .patch<EquipmentStatusChangeResult>(`/equipment/${id}/status`, payload)
       .then((r) => r.data),
+
+  // Items that could replace a reservation's equipment: in service, with the
+  // reservation's full quantity free.
+  listAlternatives: (reservationId: string) =>
+    apiClient
+      .get<EquipmentAlternative[]>(`/equipment/reservations/${reservationId}/alternatives`)
+      .then((r) => r.data),
+
+  // Answer for a reservation of an item that is already out of service.
+  suggestSubstitution: (
+    reservationId: string,
+    payload: Omit<SubstitutionChoice, 'reservationId'>,
+  ) =>
+    apiClient
+      .post<EquipmentSubstitution>(`/equipment/reservations/${reservationId}/substitution`, payload)
+      .then((r) => r.data),
+
+  // The Coordinator's answer to a proposal.
+  acceptSubstitution: (id: string) =>
+    apiClient.post<EquipmentSubstitution>(`/equipment-substitutions/${id}/accept`).then((r) => r.data),
+  declineSubstitution: (id: string) =>
+    apiClient.post<EquipmentSubstitution>(`/equipment-substitutions/${id}/decline`).then((r) => r.data),
 
   // US-30: free units of one item for a date and time.
   checkAvailability: (equipmentId: string, query: AvailabilityQuery) =>

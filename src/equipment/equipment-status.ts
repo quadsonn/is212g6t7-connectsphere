@@ -1,4 +1,9 @@
-import { EquipmentStatus, Prisma, ReservationStatus } from '@prisma/client';
+import {
+  EquipmentStatus,
+  EventStatus,
+  Prisma,
+  ReservationStatus,
+} from '@prisma/client';
 
 import { isLendable } from './equipment-availability';
 
@@ -11,7 +16,9 @@ import { isLendable } from './equipment-availability';
  * The story's names for each status. The stored values predate it (US-29);
  * OUT_OF_SERVICE is what US-30 already read as "damaged".
  */
-export const EQUIPMENT_STATUS_LABELS: Readonly<Record<EquipmentStatus, string>> = {
+export const EQUIPMENT_STATUS_LABELS: Readonly<
+  Record<EquipmentStatus, string>
+> = {
   [EquipmentStatus.OPERATIONAL]: 'Available',
   [EquipmentStatus.UNDER_MAINTENANCE]: 'Under Maintenance',
   [EquipmentStatus.OUT_OF_SERVICE]: 'Damaged',
@@ -47,6 +54,17 @@ export const AFFECTED_RESERVATION_STATUSES: readonly ReservationStatus[] = [
   ReservationStatus.APPROVED,
 ];
 
+/**
+ * Events that are over or ended without going ahead. Equipment trouble is no
+ * longer their concern, so it is neither flagged on them nor notified to
+ * their Coordinator, whatever the dates on a leftover reservation say.
+ */
+export const FINISHED_EVENT_STATUSES: readonly EventStatus[] = [
+  EventStatus.COMPLETED,
+  EventStatus.CANCELLED,
+  EventStatus.REJECTED,
+];
+
 export function upcomingReservationsWhere(
   equipmentId: string,
   now: Date,
@@ -55,6 +73,7 @@ export function upcomingReservationsWhere(
     equipmentId,
     status: { in: [...AFFECTED_RESERVATION_STATUSES] },
     end: { gt: now },
+    event: { status: { notIn: [...FINISHED_EVENT_STATUSES] } },
   };
 }
 

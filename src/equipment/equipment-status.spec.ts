@@ -58,6 +58,7 @@ describe('US-45 equipment status rules', () => {
         equipmentId: 'eq-1',
         status: { in: [ReservationStatus.REQUESTED, ReservationStatus.APPROVED] },
         end: { gt: now },
+        event: { status: { notIn: ['COMPLETED', 'CANCELLED', 'REJECTED'] } },
       });
     });
   });

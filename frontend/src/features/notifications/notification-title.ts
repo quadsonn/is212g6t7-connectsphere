@@ -58,6 +58,10 @@ const TITLES: Record<string, string> = {
   // Equipment an event depends on went out of service, or was released.
   EQUIPMENT_UNAVAILABLE: 'Equipment unavailable',
   EQUIPMENT_RELEASED: 'Equipment released',
+  // Technical Support proposed a replacement for a confirmed event's equipment,
+  // and the Coordinator's answer.
+  EQUIPMENT_SUBSTITUTE_SUGGESTED: 'Replacement suggested',
+  EQUIPMENT_SUBSTITUTE_DECIDED: 'Replacement decided',
   // Incoming work for Coordinators and Leads.
   EVENT_SUBMITTED: 'New event request',
   // Registration-window notices for Attendees.

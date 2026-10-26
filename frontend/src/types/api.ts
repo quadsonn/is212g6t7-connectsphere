@@ -351,6 +351,49 @@ export interface UnavailableEquipment {
   quantity: number;
   start: string;
   end: string;
+  /**
+   * Technical Support's answer once the event is CONFIRMED: a replacement to
+   * accept or decline, or no alternative (alternativeEquipment null) to
+   * acknowledge. Null when nothing has been proposed.
+   */
+  substitution?: EquipmentSubstitution | null;
+}
+
+/** PENDING waits on the Coordinator; ACCEPTED/DECLINED are final; VOID ended with the outage. */
+export type SubstitutionStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'VOID';
+
+export interface EquipmentSubstitution {
+  id: string;
+  status: SubstitutionStatus;
+  createdAt: string;
+  decidedAt: string | null;
+  /** Null: Technical Support found no valid alternative. */
+  alternativeEquipment: {
+    id: string;
+    type: string;
+    description: string | null;
+    location: string | null;
+  } | null;
+  suggestedBy: { id: string; name: string };
+  decidedBy: { id: string; name: string } | null;
+}
+
+/** One answer from Technical Support: an item, or no valid alternative. */
+export interface SubstitutionChoice {
+  reservationId: string;
+  alternativeEquipmentId?: string;
+  noAlternative?: boolean;
+}
+
+/** An item that could replace a reservation's equipment, from GET …/alternatives. */
+export interface EquipmentAlternative {
+  id: string;
+  type: string;
+  description: string | null;
+  location: string | null;
+  totalQuantity: number;
+  availableQuantity: number;
+  sameType: boolean;
 }
 
 /** CLOSED (US-43): withdrawn without a decision because the event was cancelled. */
@@ -805,6 +848,8 @@ export interface Equipment extends EquipmentListItem {
 export interface ChangeEquipmentStatusPayload {
   status: EquipmentStatus;
   reason: string;
+  /** Required for each reservation on a CONFIRMED event when taking the item out of use. */
+  substitutions?: SubstitutionChoice[];
 }
 
 /**

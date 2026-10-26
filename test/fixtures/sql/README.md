@@ -301,13 +301,25 @@ Extra users added by Sprint 2 scripts (same password as the base users):
 
 ## Sprint 3 scripts
 
-Named after the first Sprint 3 test case that needs them (`TC-S3-XX`, see [sprint3-test-cases.md](../../../docs/testing/sprint3-test-cases.md)). Load after `base-users.sql` and `base-venues.sql`. Sprint 3 numbers continue after the highest ID any earlier script uses for that table.
+Named after the first Sprint 3 test case that needs them; a second script for the same test case gets a letter (`tc-s3-55b`). See [sprint3-test-cases.md](../../../docs/testing/sprint3-test-cases.md)). Load after `base-users.sql` and `base-venues.sql`. Sprint 3 numbers continue after the highest ID any earlier script uses for that table.
 
 | Script | Creates | Used by (TC-S3-) |
 |---|---|---|
 | `tc-s3-38-setup.sql` | `EVT-191` "Harbour Gala" in PLANNING with Main Hall approved (`BKG-074`); Ann and Rita Registered, Walt Withdrawn (`REG-009` to `REG-011`); `CRQ-006` pending, moving it to 2 Oct 2030 09:00–18:00 Singapore time | 38, 41, 42, 43, 45 |
 | `tc-s3-39-setup.sql` | `EVT-192` "Riverside Fair": Rooftop Terrace approved (`BKG-075`), Main Hall approved then reversed to REJECTED (`BKG-076`, decisions `BDC-001`, `BDC-002`), Seminar Room requested in its place (`BKG-077`); Ann Registered (`REG-012`) | 39, 44 |
 | `tc-s3-40-setup.sql` | `EVT-193` "Lakeside Talk": Main Hall approved and flagged as needing a replacement (`BKG-078`); Ann Registered (`REG-013`) | 40 |
+| `tc-s3-54-setup.sql` | A second Venue Staff member, Sam (`USR-016`), managing East Annex (`VEN-039`); Old Gym (`VEN-040`) managed by nobody; "Gala" (`EVT-194`) in PLANNING, 1 Oct 2030 18:00–22:00 UTC | 54 to 58, 62 (every test in `us40-venue-notifications`) |
+| `tc-s3-55-setup.sql` | Main Hall APPROVED for the Gala (`BKG-079`). After `tc-s3-54`. | 55, 56, 62 |
+| `tc-s3-55b-setup.sql` | Main Hall REQUESTED for the Gala (`BKG-080`). After `tc-s3-54`. | 55, 57 |
+| `tc-s3-56-setup.sql` | East Annex REJECTED for the Gala (`BKG-081`). After `tc-s3-55`. | 56 |
+| `tc-s3-59-setup.sql` | A Safety Officer, Sophie (`USR-017`), and "gala" (`EVT-195`) in PLANNING. After `base-users` and `tc-s1-25-setup` (the Lead). | Every test in `notifications` (59, 60, 61, 67) |
+| `tc-s3-59b-setup.sql` | One notice about the gala for each of seven roles (`NTF-001` to `NTF-007`) | 59 |
+| `tc-s3-60-setup.sql` | Two unread notices for Vera, one for Sam (`NTF-008` to `NTF-010`). After `tc-s3-54`. | 60 |
+| `tc-s3-60b-setup.sql` | One unread notice for Olivia (`NTF-011`). After `tc-s3-59`. | 60, 61 |
+| `tc-s3-60c-setup.sql` | Three unread notices for Olivia, an hour apart (`NTF-012` to `NTF-014`). After `tc-s3-59`. | 60 |
+| `tc-s3-61-setup.sql` | Five notices for Vera, "m1" (newest) to "m5" (`NTF-015` to `NTF-019`) | 61 |
+| `tc-s3-61b-setup.sql` | Two notices for Olivia and one for Cody, an hour apart (`NTF-020` to `NTF-022`). After `tc-s3-59`. | 60, 61 |
+| `tc-s3-67-setup.sql` | Cody's notice of a rejected booking with a suggested alternative (`NTF-023`). After `tc-s3-59`. | 67 |
 
 Extra users added by Sprint 3 scripts (same password as the base users):
 
@@ -315,3 +327,5 @@ Extra users added by Sprint 3 scripts (same password as the base users):
 |---|---|---|---|
 | `USR-014` | rita@example.com | Rita Registered | ATTENDEE (`tc-s3-38-setup.sql`) |
 | `USR-015` | walt@example.com | Walt Withdrawn | ATTENDEE (`tc-s3-38-setup.sql`) |
+| `USR-016` | sam.staff@example.com | Sam Staff | VENUE_STAFF (`tc-s3-54-setup.sql`) |
+| `USR-017` | safety@example.com | Sophie Safety | SAFETY_OFFICER (`tc-s3-59-setup.sql`) |

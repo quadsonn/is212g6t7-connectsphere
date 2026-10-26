@@ -234,6 +234,14 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - **Code gaps recorded:** no email or polling worker, so Story 38 AC-7 and Story 39 AC-7 are Fail (TC-S3-46, 53); AC-3 content is checked in-app.
 - **Next:** Story 40 (convert `us40-venue-notifications`, `notifications`), Story 41 (`bookings-suggestions`), Story 42 (`events-confirm`, Playwright), then the Sprint 3 coverage report.
 
+## 2026-10-27: Sprint 3, Story 40 (TC-S3-54 to 62)
+
+- **Converted** `test/us40-venue-notifications.e2e-spec.ts` (12 tests) and `test/notifications.e2e-spec.ts` (14 tests, 20 runs) to the shared pattern: `configureApp`, listen on 127.0.0.1, `resetDb` + base scripts in `beforeEach`, rows from `tc-s3` scripts instead of `deleteMany` and in-test seeding. Every assertion and test name is unchanged (diffed; the only new lines are the logins in `beforeAll`).
+- 12 new scripts (`tc-s3-54` to `tc-s3-67`), with `USR-016`/`USR-017`, `VEN-039`/`VEN-040`, `EVT-194`/`EVT-195`, `BKG-079` to `BKG-081`, `NTF-001` to `NTF-023`.
+- Runs: us40 12/12 ×3 (about 1.4 s), notifications 20/20 ×3 (about 1.8 s), on `localhost` / `connectsphere_test`. Frontend notification tests (Vitest): 29/29.
+- All 9 Story 40 test cases Pass. AC-6 ("within 1 minute") rests on the notice being written in the action's transaction plus the bell's 60-second poll.
+- One notifications test (US-41 AC-5) is tagged TC-S3-67 for Story 41.
+
 ## Open
 - **TC IDs:** done for US-07/08/09, US-03/04/05/06 and US-01 (TC-S1-01 to 62). The remaining stories get theirs as each group is written.
 - **Integration files still to convert:** `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`.

@@ -2,7 +2,7 @@
 
 Written test cases for the Sprint 3 user stories (Story 38 onwards), traced from story → acceptance criterion → test case → automated test. Stories and ACs use the numbers in the Sprint 3 user-story document; in the code, Sprint 3 labels match those numbers (`US-40` is Story 40). ACs are numbered in the order the card lists them.
 
-**In progress.** Done: **Story 38 and 39**. Stories 40 to 42 follow.
+**In progress.** Done: **Story 38 to 40**. Stories 41 and 42 follow.
 
 ## How to read this file
 
@@ -382,3 +382,201 @@ All four use only the local test database (or none). None touches the shared Sup
 **Story 39 AC ↔ code notes**
 - **AC-3, AC-7 (code gap):** notifications are in-app records; there is no email or worker.
 - **AC-5:** a repeated approve returns 200 and changes nothing; it does not send a second notice.
+
+---
+
+## Story 40 Venue Activity Notifications (Venue Staff)
+
+### TC-S3-54
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-54 |
+| Story/AC ref | Story 40 AC-1 (new booking request) |
+| Test Scenario | A new booking request for my venue notifies me |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s3-54-setup.sql on testDB (reset before test). Main Hall (`VEN-002`) is managed by venue.staff@example.com (Vera, `USR-010`); "Gala" (`EVT-194`) is in planning. Logged in as coord.a@example.com. |
+| Test Steps | 1. Cody requests Main Hall for the Gala, 1 Oct 2030 18:00–22:00 UTC.<br>2. Vera opens her notifications. |
+| Test Data | Main Hall, 120 expected |
+| Expected Result | Vera is notified of the new booking request. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | The request returned 201. Vera had one unread `BOOKING_REQUEST_SUBMITTED` notification. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: notifies only the venue manager, with venue, event, what happened, when and a link` |
+
+### TC-S3-55
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-55 |
+| Story/AC ref | Story 40 AC-1 (approved booking changed) |
+| Test Scenario | An approved booking's date, time or attendance changing notifies me; a booking that is not approved does not |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s3-54-setup.sql + tc-s3-55-setup.sql (Main Hall APPROVED, `BKG-079`), or + tc-s3-55b-setup.sql (Main Hall REQUESTED, `BKG-080`), on testDB (reset before test). Logged in as organiser@example.com, then coord.a@example.com. |
+| Test Steps | 1. Olivia requests a change and Cody approves it: (a) to 8 Oct 2030; (b) to 200 expected.<br>2. Repeat (b) with the booking only REQUESTED.<br>3. Read Vera's notifications. |
+| Test Data | New date 8 Oct 2030 18:00–22:00 UTC; attendance 120 → 200 |
+| Expected Result | Vera is notified once per approved booking, with what changed. Nothing is sent for the booking that was not approved. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | (a) One `BOOKING_DETAILS_CHANGED` for the rebooked booking: "Time 1 Oct 2030, 18:00–22:00 UTC → 8 Oct 2030, 18:00–22:00 UTC. The approval carries over; no new decision is needed." (b) "Attendance 120 → 200." The REQUESTED booking produced none. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a new date and time notifies the manager once per approved booking`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: an attendance change notifies the manager`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a booking that was not APPROVED is not reported as changed` |
+
+### TC-S3-56
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-56 |
+| Story/AC ref | Story 40 AC-1 (event cancelled) |
+| Test Scenario | An event using my venue is cancelled, and I am told |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s3-54-setup.sql + tc-s3-55-setup.sql + tc-s3-56-setup.sql on testDB (reset before test). The Gala has Main Hall APPROVED (Vera's) and East Annex REJECTED (Sam's, `USR-016`). |
+| Test Steps | 1. The Gala is cancelled.<br>2. Read Vera's and Sam's notifications. |
+| Test Data | — |
+| Expected Result | Vera is told her booking was released. Sam, whose booking was already rejected, is not. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | One `BOOKING_EVENT_CANCELLED` to Vera for `BKG-079`: "Booking for 1 Oct 2030, 18:00–22:00 UTC released." Sam had none. |
+| Status | Pass |
+| Remarks | Cancelled through `EventsService.setStatus`, as the test file was written before the Story 43 endpoint. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: notifies the manager of each venue with a live booking, and no one else` |
+
+### TC-S3-57
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-57 |
+| Story/AC ref | Story 40 AC-1 (tentative hold) |
+| Test Scenario | A tentative hold on my venue about to expire, or expired, notifies me |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s3-54-setup.sql + tc-s3-55b-setup.sql on testDB (reset before test). `BKG-080` stands in for a hold on Main Hall. |
+| Test Steps | 1. The hold is about to expire (30 Sep 2030 12:00 UTC).<br>2. The hold expires.<br>3. Read Vera's and Sam's notifications. |
+| Test Data | Expiry 30 Sep 2030 12:00 UTC |
+| Expected Result | Vera gets an "expiring" then an "expired" notice about the hold; Sam gets none. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | Vera got `HOLD_EXPIRING` ("…expires 30 Sep 2030, 12:00 UTC…") then `HOLD_EXPIRED`, both for `BKG-080`. Sam got none. |
+| Status | Pass |
+| Remarks | Calls the notifier directly. The hold workflow that triggers it is Story 54 and is tested with that story. |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: the hold helpers notify the venue manager` |
+
+### TC-S3-58
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-58 |
+| Story/AC ref | Story 40 AC-2 |
+| Test Scenario | I only get notifications for venues I manage |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s3-54-setup.sql (+ tc-s3-55-setup.sql + tc-s3-56-setup.sql for step 3) on testDB (reset before test). |
+| Test Steps | 1. A request for Main Hall (Vera's).<br>2. A request for Old Gym (`VEN-040`, nobody's).<br>3. The Gala is cancelled.<br>4. Read Sam's notifications after each. |
+| Test Data | — |
+| Expected Result | Sam is never notified about Main Hall or Old Gym. Old Gym notifies nobody. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | Sam's inbox stayed empty; the Old Gym request recorded no notification at all. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: notifies only the venue manager, with venue, event, what happened, when and a link`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a venue with no manager notifies no one`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: notifies the manager of each venue with a live booking, and no one else` |
+
+### TC-S3-59
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-59 |
+| Story/AC ref | Story 40 AC-3 |
+| Test Scenario | Each notification shows the venue, event name, what happened and when, and links to the related request |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s3-54-setup.sql on testDB (reset before test) for steps 1–2; test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s3-59-setup.sql + tc-s3-59b-setup.sql for step 3. |
+| Test Steps | 1. Cody requests Main Hall for the Gala.<br>2. Vera reads the notification.<br>3. Each role reads a notice about an event. |
+| Test Data | As TC-S3-54 |
+| Expected Result | The notice names Main Hall and the Gala, says it was requested and for when, and links to the booking request. Each role's link goes to its own page for the event. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | Vera's item had `relatedBooking.venue.name` "Main Hall", `relatedEvent.name` "Gala", summary "Requested for 1 Oct 2030, 18:00–22:00 UTC.", a `createdAt`, and link `/venues/bookings/<booking id>`. Role links were as expected (Organiser `/organiser/…`, Venue Staff `/venues/events/…`, Attendee none for an event in planning). |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: notifies only the venue manager, with venue, event, what happened, when and a link`<br>Integration: `test/notifications.e2e-spec.ts::roles with an event page get a link to it; others get none`<br>UI: `frontend/src/features/notifications/components/notification-bell.test.tsx::US-40 AC-3/AC-5: lists venue, event, what happened and when, newest first` |
+
+### TC-S3-60
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-60 |
+| Story/AC ref | Story 40 AC-4 |
+| Test Scenario | An unread count shows in the navigation, and I can mark notifications read one at a time or all at once |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s3-54-setup.sql + tc-s3-60-setup.sql, or test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s3-59-setup.sql + tc-s3-60b-setup.sql / tc-s3-60c-setup.sql / tc-s3-61b-setup.sql, on testDB (reset before test). |
+| Test Steps | 1. Read the unread count.<br>2. Mark one read; read the count.<br>3. Try to mark someone else's.<br>4. Mark all read.<br>5. Mark one unread again. |
+| Test Data | Vera: 2 unread; Sam: 1 unread; Olivia: 3 unread |
+| Expected Result | The count drops by one, then to zero; nobody can mark another user's notifications; mark all touches only my own; the bell shows the count. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | Counts went 2 → 1 → 0 (Vera) and 3 → 2 → 0 (Olivia, `marked: 2`); marking another's returned 404 and left it unread; marking unread cleared `readAt` and counted again; a second mark kept the first read time. Every role could open its own inbox; no token gave 401. The bell's badge showed the count. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: unread count, mark one, mark all — and never someone else's`<br>Integration: `test/notifications.e2e-spec.ts::updates the count after marking one read, then all`<br>Integration: `test/notifications.e2e-spec.ts::refuses to mark another user’s notification (404), and leaves it unread`<br>Integration: `test/notifications.e2e-spec.ts::marks one unread again: it counts again and its read time is cleared`<br>Integration: `test/notifications.e2e-spec.ts::refuses to mark another user’s notification unread (404), leaving it read`<br>Integration: `test/notifications.e2e-spec.ts::marking one read twice keeps its first read time`<br>Integration: `test/notifications.e2e-spec.ts::mark all read touches only the caller’s notifications`<br>Integration: `test/notifications.e2e-spec.ts::%s can open their own notifications`<br>Integration: `test/notifications.e2e-spec.ts::is refused without a token (401)`<br>UI: `frontend/src/features/notifications/components/notifications.test.tsx::shows the unread count, and its dropdown links to the page`<br>UI: `frontend/src/features/notifications/components/notification-bell.test.tsx::US-40 AC-4: marks all as read` |
+
+### TC-S3-61
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-61 |
+| Story/AC ref | Story 40 AC-5 |
+| Test Scenario | Notifications are listed newest first |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s3-54-setup.sql + tc-s3-61-setup.sql, or test/fixtures/sql/base-users.sql + tc-s1-25-setup.sql + tc-s3-59-setup.sql + tc-s3-61b-setup.sql / tc-s3-60b-setup.sql, on testDB (reset before test). |
+| Test Steps | 1. Vera reads her feed two at a time.<br>2. Olivia and Cody read theirs. |
+| Test Data | Vera: m1 (newest) to m5; Olivia: 10:00 and 12:00; Cody: 11:00 |
+| Expected Result | Each user sees only their own, newest first, and paging neither repeats nor skips one. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | Pages were [m1, m2], [m3, m4], [m5]; a limit of 0 or 101 gave 400. Olivia saw the 12:00 then the 10:00 notice; Cody only his. Stored reasons and links were shown for each story's notice. |
+| Status | Pass |
+| Remarks | — |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: newest first, paginated with a cursor`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: rejects a limit outside 1–100`<br>Integration: `test/notifications.e2e-spec.ts::lists only the caller’s, newest first`<br>Integration: `test/notifications.e2e-spec.ts::shows the notification, its reason, the event and a link to it`<br>Integration: `test/notifications.e2e-spec.ts::US-47 AC-6: shows the unfulfillable rejection with its reason and comment`<br>Integration: `test/notifications.e2e-spec.ts::US-48 AC-9: shows the change request outcome with the reason` |
+
+### TC-S3-62
+
+| Test case specification | |
+|---|---|
+| Test Case ID | TC-S3-62 |
+| Story/AC ref | Story 40 AC-6 |
+| Test Scenario | A notification appears within 1 minute of the action that triggered it |
+| Pre-conditions | Run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s3-54-setup.sql (+ tc-s3-55-setup.sql for step 3) on testDB (reset before test). |
+| Test Steps | 1. Cody requests Main Hall; Vera reads her notifications straight away.<br>2. A booking submission fails after notifying.<br>3. A cancellation is rolled back. |
+| Test Data | — |
+| Expected Result | The notice is there as soon as the action completes, and the page picks it up within a minute. An action that fails leaves no notification. |
+| Created By | Raye Yap |
+| Date of Creation | 2026-10-27 |
+| **Test execution record** | |
+| Actual Result | The notice was readable immediately after the request returned. The failed submission left no booking and no notification; the rolled-back cancellation left the event in PLANNING and no notification. The bell polls at most every 60 seconds. |
+| Status | Pass |
+| Remarks | Notices are written in the same transaction as the action, so "within 1 minute" depends on the page's polling interval (60 s). |
+| Executed By | Raye Yap (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: notifies only the venue manager, with venue, event, what happened, when and a link`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a failed booking submission leaves no notification`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a cancellation rolled back leaves no notification`<br>UI: `frontend/src/features/notifications/components/notification-bell.test.tsx::US-40 AC-6: notifications poll at most every 60 seconds, on the shared interval` |
+
+**Story 40 AC ↔ code notes**
+- **AC-1 (holds):** TC-S3-57 calls the hold notifier directly; the hold workflow itself is Story 54.
+- **AC-6:** met by writing the notice in the action's own transaction plus a 60-second poll on the page.
+

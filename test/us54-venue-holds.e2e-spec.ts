@@ -1,21 +1,19 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   BookingDecisionKind,
   BookingStatus,
-  EventStatus,
   NotificationType,
   PrismaClient,
-  Role,
-  VenueStatus,
 } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { BookingsService } from '../src/bookings/bookings.service';
 import { HoldExpiryScheduler } from '../src/bookings/hold-expiry.scheduler';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
 /**
  * US-54 e2e — tentative venue holds with expiry (Week 7 Customer Change #4).
@@ -23,6 +21,17 @@ import { listenOnLoopback } from './listen-on-loopback';
  * The expiry job is never started here (ScheduleModule does not run its
  * timers under test); tests call its two jobs directly, which is also how the
  * "correctness without the cron" cases prove they do not rely on it.
+ *
+ * Code under test: HoldsService (place, convert, extend, release, holdable
+ * events), BookingsService.conflictsFor (live holds hard, REQUESTED soft,
+ * expired holds ignored), HoldExpiryScheduler (expireDueHolds,
+ * sendExpiryWarnings), the calendar and availability views, and the
+ * VenueBooking_no_overlapping_committed EXCLUDE constraint.
+ *
+ * Pre-condition for every test: reset the testDB, then run base-users.sql,
+ * tc-s1-25-setup.sql (Leah Lead, USR-012), tc-s1-96-setup.sql (Vince, USR-013)
+ * and tc-s3-152-setup.sql (Main Hall, East Annex and the "Gala" EVT-276).
+ * Expiry times in the hold scripts are relative to the database clock.
  */
 describe('US-54 tentative venue holds (e2e)', () => {
   let app: INestApplication;
@@ -30,7 +39,26 @@ describe('US-54 tentative venue holds (e2e)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from base-users, tc-s1-25-setup, tc-s1-96-setup and tc-s3-152 to 158. */
+  const ids: Record<string, string> = {
+    staffA: 'USR-010',
+    staffB: 'USR-013',
+    organiser: 'USR-006',
+    coordinator: 'USR-004',
+    lead: 'USR-012',
+    hall: 'VEN-079',
+    annex: 'VEN-080',
+  };
+  const LOGINS: Record<string, string> = {
+    staffA: 'venue.staff@example.com',
+    staffB: 'venue.staff2@example.com',
+    organiser: 'organiser@example.com',
+    coordinator: 'coord.a@example.com',
+    lead: 'lead@example.com',
+  };
+  /** Events: tc-s3-152 (Gala), 152b (Draft), 153 (Submitted), 154 (Other), 158 (Unassigned). */
+  const gala = { id: 'EVT-276' };
+  const other = { id: 'EVT-279' };
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
@@ -38,43 +66,11 @@ describe('US-54 tentative venue holds (e2e)', () => {
   const at = (time: string, day = '2030-10-01') => new Date(`${day}T${time}:00Z`);
   const fromNow = (hours: number) => new Date(Date.now() + hours * 3_600_000);
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
-  const seedVenue = (name: string, managedById: string) =>
-    prisma.venue.create({
-      data: { name, location: 'Level 1', capacity: 300, status: VenueStatus.PUBLISHED, managedById },
-    });
-
-  const seedEvent = (
-    name = 'Gala',
-    {
-      status = EventStatus.PLANNING,
-      coordinatorId = ids.coordinator,
-    }: { status?: EventStatus; coordinatorId?: string | null } = {},
-  ) =>
-    prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId,
-        name,
-        purpose: 'Celebrate',
-        description: 'An evening',
-        category: 'Social',
-        proposedStart: at('18:00'),
-        proposedEnd: at('22:00'),
-        expectedAttendance: 120,
-        status,
-      },
-    });
-
-  /** A hold written directly — the only way to get one that has already expired. */
+  /** Only the database backstop writes a hold directly: that write is the act under test. */
   const seedHold = (eventId: string, holdExpiresAt: Date, start = at('18:00'), end = at('22:00')) =>
     prisma.venueBooking.create({
       data: {
@@ -86,11 +82,6 @@ describe('US-54 tentative venue holds (e2e)', () => {
         holdExpiresAt,
         heldById: ids.staffA,
       },
-    });
-
-  const seedBooking = (eventId: string, status: BookingStatus, start = at('18:00'), end = at('22:00')) =>
-    prisma.venueBooking.create({
-      data: { eventId, venueId: ids.hall, start, end, status, requestedById: ids.coordinator, expectedAttendance: 120 },
     });
 
   const placeHold = (body: object, who = 'staffA', venueId = ids.hall) =>
@@ -126,10 +117,17 @@ describe('US-54 tentative venue holds (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
-
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await given('base-users', 'tc-s1-25-setup', 'tc-s1-96-setup');
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
@@ -139,28 +137,15 @@ describe('US-54 tentative venue holds (e2e)', () => {
 
   beforeEach(async () => {
     jest.restoreAllMocks();
-    await prisma.notification.deleteMany();
-    await prisma.bookingDecision.deleteMany();
-    await prisma.venueBooking.deleteMany();
-    await prisma.venueBlock.deleteMany();
-    await prisma.venue.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('staffA', 'staff.a@example.com', Role.VENUE_STAFF);
-    await seedUser('staffB', 'staff.b@example.com', Role.VENUE_STAFF);
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('lead', 'lead@example.com', Role.EVENT_COORDINATOR_LEAD);
-
-    ids.hall = (await seedVenue('Main Hall', ids.staffA)).id;
-    ids.annex = (await seedVenue('East Annex', ids.staffB)).id;
+    await resetDb(prisma);
+    await given('base-users', 'tc-s1-25-setup', 'tc-s1-96-setup', 'tc-s3-152-setup');
   });
 
   describe('AC-1: placing a hold', () => {
+    // TC-S3-152 · US-54 AC-1 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if Venue Staff cannot hold a free slot for an event with an expiry, or the hold or the event picker is wrong
+    // Code: POST /venues/:venueId/holds -> HoldsService.place; GET /venues/:venueId/holdable-events -> HoldsService.holdableEvents
     it('US-54: Venue Staff hold a free slot for an event, with an expiry', async () => {
-      const event = await seedEvent();
+      const event = gala;
       const expiresAt = fromNow(48);
 
       const res = await placeHold(holdBody(event.id, { expiresAt })).expect(201);
@@ -175,15 +160,11 @@ describe('US-54 tentative venue holds (e2e)', () => {
       });
     });
 
+    // TC-S3-152 · US-54 AC-1 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-152c-setup · fails if Venue Staff cannot hold a free slot for an event with an expiry, or the hold or the event picker is wrong
+    // Code: POST /venues/:venueId/holds -> HoldsService.place; GET /venues/:venueId/holdable-events -> HoldsService.holdableEvents
     it('Story 20 AC-2: a hold carries the technical requirements, as a request does', async () => {
-      const event = await seedEvent();
-      await prisma.eventRequest.update({
-        where: { id: event.id },
-        data: { technicalSupportNeeds: 'Lighting technician', requiredFacilities: ['STAGE'] },
-      });
-      await prisma.equipmentRequirement.create({
-        data: { eventId: event.id, equipmentType: 'Spotlight', quantity: 2 },
-      });
+      await given('tc-s3-152c-setup');
+      const event = gala;
 
       const res = await placeHold(holdBody(event.id)).expect(201);
 
@@ -194,9 +175,10 @@ describe('US-54 tentative venue holds (e2e)', () => {
       });
     });
 
+    // TC-S3-152 · US-54 AC-1 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-152b-setup · fails if Venue Staff cannot hold a free slot for an event with an expiry, or the hold or the event picker is wrong
+    // Code: POST /venues/:venueId/holds -> HoldsService.place; GET /venues/:venueId/holdable-events -> HoldsService.holdableEvents
     it('US-54: lists the bookable events to hold for, with only the fields the picker needs', async () => {
-      const gala = await seedEvent('Gala');
-      await seedEvent('Draft', { status: EventStatus.DRAFT });
+      await given('tc-s3-152b-setup');
 
       const res = await http()
         .get(`/venues/${ids.hall}/holdable-events`)
@@ -210,7 +192,7 @@ describe('US-54 tentative venue holds (e2e)', () => {
           proposedStart: at('18:00').toISOString(),
           proposedEnd: at('22:00').toISOString(),
           expectedAttendance: 120,
-          coordinator: { id: ids.coordinator, name: 'coordinator' },
+          coordinator: { id: ids.coordinator, name: 'Cody Coordinator' },
         },
       ]);
       await http().get(`/venues/${ids.hall}/holdable-events`).set('Authorization', as('staffB')).expect(404);
@@ -218,41 +200,64 @@ describe('US-54 tentative venue holds (e2e)', () => {
   });
 
   describe('AC-2 and access: validation', () => {
+    // TC-S3-153 · US-54 AC-2 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if a hold is accepted with an expiry in the past or after the slot or event starts, by the wrong user, or for an event not in planning
+    // Code: HoldExpiryDto (@MinDate now) + holds.service assertExpiry; HoldsService.findManagedVenue; planning statuses only
     it('US-54: an expiry in the past is refused (400)', async () => {
-      const event = await seedEvent();
+      const event = gala;
       await placeHold(holdBody(event.id, { expiresAt: fromNow(-1) })).expect(400);
     });
 
+    // TC-S3-153 · US-54 AC-2 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if a hold is accepted with an expiry in the past or after the slot or event starts, by the wrong user, or for an event not in planning
+    // Code: HoldExpiryDto (@MinDate now) + holds.service assertExpiry; HoldsService.findManagedVenue; planning statuses only
     it('US-54: an expiry at or after the event starts is refused (400)', async () => {
-      const event = await seedEvent();
+      const event = gala;
       await placeHold(holdBody(event.id, { expiresAt: at('18:00') })).expect(400);
       await placeHold(holdBody(event.id, { expiresAt: at('19:00') })).expect(400);
     });
 
+    // TC-S3-153 · US-54 AC-2 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if a hold is accepted with an expiry in the past or after the slot or event starts, by the wrong user, or for an event not in planning
+    // Code: HoldExpiryDto (@MinDate now) + holds.service assertExpiry; HoldsService.findManagedVenue; planning statuses only
     it('US-54: an expiry after the held slot starts is refused, even before the event (400)', async () => {
-      const event = await seedEvent();
+      const event = gala;
       await placeHold(
         holdBody(event.id, { start: at('09:00', '2030-09-30'), end: at('12:00', '2030-09-30'), expiresAt: at('10:00', '2030-09-30') }),
       ).expect(400);
     });
 
+    // TC-S3-153 · US-54 AC-2 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if a hold is accepted with an expiry in the past or after the slot or event starts, by the wrong user, or for an event not in planning
+    // Code: HoldExpiryDto (@MinDate now) + holds.service assertExpiry; HoldsService.findManagedVenue; planning statuses only
     it('US-54: other roles are refused (403); Venue Staff who do not manage the venue get not found (404)', async () => {
-      const event = await seedEvent();
+      const event = gala;
       await placeHold(holdBody(event.id), 'coordinator').expect(403);
       await placeHold(holdBody(event.id), 'staffB').expect(404);
       expect(await prisma.venueBooking.count()).toBe(0);
     });
 
+    // TC-S3-152 · US-54 AC-1 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-152d-setup · fails if a draft venue can be held, or an unknown event is not refused
+    // Code: HoldsService.place (venue PUBLISHED, event found)
+    it('US-54: a draft venue cannot be held (409), nor an event that does not exist (404)', async () => {
+      await placeHold(holdBody('EVT-999')).expect(404);
+      await given('tc-s3-152d-setup');
+
+      await placeHold(holdBody(gala.id)).expect(409);
+      expect(await prisma.venueBooking.count()).toBe(0);
+    });
+
+    // TC-S3-153 · US-54 AC-2 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-153-setup · fails if a hold is accepted with an expiry in the past or after the slot or event starts, by the wrong user, or for an event not in planning
+    // Code: HoldExpiryDto (@MinDate now) + holds.service assertExpiry; HoldsService.findManagedVenue; planning statuses only
     it('US-54: an event that is not at a planning stage cannot be held for (409)', async () => {
-      const event = await seedEvent('Submitted', { status: EventStatus.SUBMITTED });
+      await given('tc-s3-153-setup');
+      const event = { id: 'EVT-278' };
       await placeHold(holdBody(event.id)).expect(409);
     });
   });
 
   describe('AC-3: a live hold hard-blocks; REQUESTED stays soft', () => {
+    // TC-S3-154 · US-54 AC-3 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-154-setup · fails if a live hold does not block other requests and holds like a confirmed booking, or a pending request blocks a hold
+    // Code: BookingsService.conflictsFor (HELD hard, REQUESTED soft)
     it('US-54: a booking request overlapping a live hold is refused (409)', async () => {
-      const held = await seedEvent('Held');
-      const other = await seedEvent('Other');
+      const held = gala;
+      await given('tc-s3-154-setup');
       const h = (await placeHold(holdBody(held.id)).expect(201)).body;
 
       const res = await requestBooking(other.id, at('20:00'), at('23:00')).expect(409);
@@ -262,26 +267,34 @@ describe('US-54 tentative venue holds (e2e)', () => {
       ]);
     });
 
+    // TC-S3-154 · US-54 AC-3 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-154-setup · fails if a live hold does not block other requests and holds like a confirmed booking, or a pending request blocks a hold
+    // Code: BookingsService.conflictsFor (HELD hard, REQUESTED soft)
     it('US-54: a hold overlapping a live hold is refused (409)', async () => {
-      const a = await seedEvent('A');
-      const b = await seedEvent('B');
+      const a = gala;
+      const b = other;
+      await given('tc-s3-154-setup');
       await placeHold(holdBody(a.id)).expect(201);
 
       await placeHold(holdBody(b.id, { start: at('21:00'), end: at('23:00') })).expect(409);
     });
 
+    // TC-S3-154 · US-54 AC-3 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-154-setup + tc-s3-154b-setup · fails if a live hold does not block other requests and holds like a confirmed booking, or a pending request blocks a hold
+    // Code: BookingsService.conflictsFor (HELD hard, REQUESTED soft)
     it('US-54: a hold overlapping an APPROVED booking is refused (409)', async () => {
-      const a = await seedEvent('A');
-      const b = await seedEvent('B');
-      await seedBooking(a.id, BookingStatus.APPROVED);
+      const b = other;
+      await given('tc-s3-154-setup');
+      await given('tc-s3-154b-setup');
 
       await placeHold(holdBody(b.id)).expect(409);
     });
 
+    // TC-S3-154 · US-54 AC-3 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-154-setup + tc-s3-154c-setup · fails if a live hold does not block other requests and holds like a confirmed booking, or a pending request blocks a hold
+    // Code: BookingsService.conflictsFor (HELD hard, REQUESTED soft)
     it('US-54: a hold overlapping a pending request goes through with a soft warning', async () => {
-      const a = await seedEvent('A');
-      const b = await seedEvent('B');
-      const pending = await seedBooking(a.id, BookingStatus.REQUESTED);
+      const b = other;
+      await given('tc-s3-154-setup');
+      await given('tc-s3-154c-setup');
+      const pending = { id: 'BKG-155' };
 
       const res = await placeHold(holdBody(b.id)).expect(201);
 
@@ -295,10 +308,11 @@ describe('US-54 tentative venue holds (e2e)', () => {
   });
 
   describe('AC-6: an expired hold is free without the expiry job', () => {
+    // TC-S3-157 · US-54 AC-6 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-154-setup + tc-s3-157-setup · fails if an expired hold still blocks the slot or shows as held before the expiry job runs
+    // Code: BookingsService.conflictsFor (live holds only); calendar, availability and search ignore expired holds
     it('US-54: an expired, unreleased hold does not block a request, and approving it succeeds despite the DB constraint', async () => {
-      const held = await seedEvent('Held');
-      const other = await seedEvent('Other');
-      const expired = await seedHold(held.id, fromNow(-1));
+      await given('tc-s3-154-setup', 'tc-s3-157-setup');
+      const expired = { id: 'BKG-157' };
 
       const req = await requestBooking(other.id).expect(201);
       expect(req.body.warnings).toEqual([]);
@@ -314,9 +328,10 @@ describe('US-54 tentative venue holds (e2e)', () => {
       expect(await recipients(NotificationType.HOLD_EXPIRED)).toEqual([ids.coordinator, ids.staffA].sort());
     });
 
+    // TC-S3-157 · US-54 AC-6 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-157-setup · fails if an expired hold still blocks the slot or shows as held before the expiry job runs
+    // Code: BookingsService.conflictsFor (live holds only); calendar, availability and search ignore expired holds
     it('US-54: an expired hold never shows as held or confirmed — calendar, availability and search', async () => {
-      const event = await seedEvent();
-      await seedHold(event.id, fromNow(-1));
+      await given('tc-s3-157-setup');
 
       const calendar = await http()
         .get(`/calendar?from=${at('00:00').toISOString()}&to=${at('00:00', '2030-10-03').toISOString()}`)
@@ -341,12 +356,15 @@ describe('US-54 tentative venue holds (e2e)', () => {
   });
 
   describe('AC-4: calendars', () => {
+    // TC-S3-155 · US-54 AC-4 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-154-setup + tc-s3-155-setup · fails if a live hold is not shown as Tentative with its expiry
+    // Code: GET /calendar (kind TENTATIVE, holdExpiresAt); venue availability 'tentative'
     it('US-54: a live hold is "Tentative" with its expiry; a pending request is "Pending"', async () => {
-      const a = await seedEvent('A');
-      const b = await seedEvent('B');
+      const a = gala;
+      await given('tc-s3-154-setup');
       const expiresAt = fromNow(48);
       const h = (await placeHold(holdBody(a.id, { expiresAt })).expect(201)).body;
-      const pending = await seedBooking(b.id, BookingStatus.REQUESTED, at('09:00'), at('12:00'));
+      await given('tc-s3-155-setup');
+      const pending = { id: 'BKG-156' };
 
       const res = await http()
         .get(`/calendar?from=${at('00:00').toISOString()}&to=${at('00:00', '2030-10-03').toISOString()}`)
@@ -366,8 +384,10 @@ describe('US-54 tentative venue holds (e2e)', () => {
   });
 
   describe('AC-5: convert, extend, release', () => {
+    // TC-S3-156 · US-54 AC-5 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if a hold cannot be converted, extended or released before expiry, or can be after expiry, by the wrong user, or on a non-hold
+    // Code: POST /bookings/:id/hold/(convert|extend|release) -> HoldsService.convert | extend | release (lockAndReadLive, findManagedHold)
     it('US-54: convert makes it a confirmed booking, recorded as a decision', async () => {
-      const event = await seedEvent();
+      const event = gala;
       const h = (await placeHold(holdBody(event.id)).expect(201)).body;
 
       await hold(h.id, 'convert').expect(200);
@@ -384,8 +404,10 @@ describe('US-54 tentative venue holds (e2e)', () => {
       ]);
     });
 
+    // TC-S3-156 · US-54 AC-5 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if a hold cannot be converted, extended or released before expiry, or can be after expiry, by the wrong user, or on a non-hold
+    // Code: POST /bookings/:id/hold/(convert|extend|release) -> HoldsService.convert | extend | release (lockAndReadLive, findManagedHold)
     it('US-54: convert re-runs the approval checks — a block added since refuses it (409)', async () => {
-      const event = await seedEvent();
+      const event = gala;
       const h = (await placeHold(holdBody(event.id)).expect(201)).body;
       await prisma.venueBlock.create({
         data: { venueId: ids.hall, start: at('20:00'), end: at('21:00'), reason: 'Repairs', createdById: ids.staffA },
@@ -395,8 +417,10 @@ describe('US-54 tentative venue holds (e2e)', () => {
       expect(await statusOf(h.id)).toBe(BookingStatus.HELD);
     });
 
+    // TC-S3-156 · US-54 AC-5 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if a hold cannot be converted, extended or released before expiry, or can be after expiry, by the wrong user, or on a non-hold
+    // Code: POST /bookings/:id/hold/(convert|extend|release) -> HoldsService.convert | extend | release (lockAndReadLive, findManagedHold)
     it('US-54: extend moves the expiry and resets the 24-hour warning', async () => {
-      const event = await seedEvent();
+      const event = gala;
       const h = (await placeHold(holdBody(event.id, { expiresAt: fromNow(2) })).expect(201)).body;
       await app.get(HoldExpiryScheduler).sendExpiryWarnings();
       expect((await prisma.venueBooking.findUniqueOrThrow({ where: { id: h.id } })).holdWarningSentAt).not.toBeNull();
@@ -411,17 +435,21 @@ describe('US-54 tentative venue holds (e2e)', () => {
       });
     });
 
+    // TC-S3-156 · US-54 AC-5 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if a hold cannot be converted, extended or released before expiry, or can be after expiry, by the wrong user, or on a non-hold
+    // Code: POST /bookings/:id/hold/(convert|extend|release) -> HoldsService.convert | extend | release (lockAndReadLive, findManagedHold)
     it('US-54: extend applies the same expiry rules (400)', async () => {
-      const event = await seedEvent();
+      const event = gala;
       const h = (await placeHold(holdBody(event.id)).expect(201)).body;
 
       await hold(h.id, 'extend', { expiresAt: fromNow(-1) }).expect(400);
       await hold(h.id, 'extend', { expiresAt: at('19:00') }).expect(400);
     });
 
+    // TC-S3-156 · US-54 AC-5 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-154-setup · fails if a hold cannot be converted, extended or released before expiry, or can be after expiry, by the wrong user, or on a non-hold
+    // Code: POST /bookings/:id/hold/(convert|extend|release) -> HoldsService.convert | extend | release (lockAndReadLive, findManagedHold)
     it('US-54: release frees the slot, with the reason recorded and the Coordinator told', async () => {
-      const event = await seedEvent();
-      const other = await seedEvent('Other');
+      const event = gala;
+      await given('tc-s3-154-setup');
       const h = (await placeHold(holdBody(event.id)).expect(201)).body;
 
       await hold(h.id, 'release').expect(200);
@@ -434,26 +462,32 @@ describe('US-54 tentative venue holds (e2e)', () => {
       await requestBooking(other.id).expect(201);
     });
 
+    // TC-S3-156 · US-54 AC-5 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-157-setup · fails if a hold cannot be converted, extended or released before expiry, or can be after expiry, by the wrong user, or on a non-hold
+    // Code: POST /bookings/:id/hold/(convert|extend|release) -> HoldsService.convert | extend | release (lockAndReadLive, findManagedHold)
     it.each(['convert', 'extend', 'release'] as const)(
       'US-54: %s is refused once the hold has expired (409)',
       async (action) => {
-        const event = await seedEvent();
-        const expired = await seedHold(event.id, fromNow(-1));
+        await given('tc-s3-157-setup');
+        const expired = { id: 'BKG-157' };
 
         await hold(expired.id, action, { expiresAt: fromNow(48) }).expect(409);
         expect(await statusOf(expired.id)).not.toBe(BookingStatus.APPROVED);
       },
     );
 
+    // TC-S3-156 · US-54 AC-5 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-154b-setup · fails if a hold cannot be converted, extended or released before expiry, or can be after expiry, by the wrong user, or on a non-hold
+    // Code: POST /bookings/:id/hold/(convert|extend|release) -> HoldsService.convert | extend | release (lockAndReadLive, findManagedHold)
     it.each(['convert', 'extend', 'release'] as const)('US-54: %s is refused on a booking that is not a hold (409)', async (action) => {
-      const event = await seedEvent();
-      const booking = await seedBooking(event.id, BookingStatus.APPROVED);
+      await given('tc-s3-154b-setup');
+      const booking = { id: 'BKG-154' };
 
       await hold(booking.id, action, { expiresAt: fromNow(48) }).expect(409);
     });
 
+    // TC-S3-156 · US-54 AC-5 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if a hold cannot be converted, extended or released before expiry, or can be after expiry, by the wrong user, or on a non-hold
+    // Code: POST /bookings/:id/hold/(convert|extend|release) -> HoldsService.convert | extend | release (lockAndReadLive, findManagedHold)
     it('US-54: only the venue manager can act on a hold (404)', async () => {
-      const event = await seedEvent();
+      const event = gala;
       const h = (await placeHold(holdBody(event.id)).expect(201)).body;
 
       await hold(h.id, 'release', {}, 'staffB').expect(404);
@@ -462,8 +496,10 @@ describe('US-54 tentative venue holds (e2e)', () => {
   });
 
   describe('AC-6/AC-7: the expiry job and notifications', () => {
+    // TC-S3-158 · US-54 AC-7 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if the Coordinator is not told when a hold is placed, or someone else is
+    // Code: HoldsService.place -> HoldNotifier (HOLD_PLACED)
     it('US-54: placing a hold notifies the event Coordinator', async () => {
-      const event = await seedEvent();
+      const event = gala;
       const h = (await placeHold(holdBody(event.id)).expect(201)).body;
 
       const [notice] = await notices(NotificationType.HOLD_PLACED);
@@ -473,17 +509,22 @@ describe('US-54 tentative venue holds (e2e)', () => {
       expect(await prisma.notification.count()).toBe(1);
     });
 
+    // TC-S3-158 · US-54 AC-7 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-158-setup · fails if an event with no Coordinator notifies no one, or not the Coordinator Leads
+    // Code: HoldsService.place -> HoldNotifier (HOLD_PLACED; the Leads when unassigned)
     it('US-54: an unassigned event notifies the Coordinator Leads instead', async () => {
-      const event = await seedEvent('Unassigned', { coordinatorId: null });
+      await given('tc-s3-158-setup');
+      const event = { id: 'EVT-280' };
       await placeHold(holdBody(event.id)).expect(201);
 
       expect(await recipients(NotificationType.HOLD_PLACED)).toEqual([ids.lead]);
     });
 
+    // TC-S3-157 · US-54 AC-6 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-157-setup + tc-s3-157b-setup · fails if a due hold is not released, a live one is, or a repeated or concurrent run releases or notifies twice
+    // Code: HoldExpiryScheduler.expireDueHolds
     it('US-54: expiry releases due holds once, however many times or instances run it', async () => {
-      const event = await seedEvent();
-      const due = await seedHold(event.id, fromNow(-1));
-      const live = await seedHold(event.id, fromNow(48), at('09:00'), at('12:00'));
+      await given('tc-s3-157-setup', 'tc-s3-157b-setup');
+      const due = { id: 'BKG-157' };
+      const live = { id: 'BKG-158' };
       const scheduler = app.get(HoldExpiryScheduler);
 
       await Promise.all([scheduler.expireDueHolds(), scheduler.expireDueHolds()]);
@@ -495,10 +536,12 @@ describe('US-54 tentative venue holds (e2e)', () => {
       expect(await recipients(NotificationType.HOLD_EXPIRED)).toEqual([ids.coordinator, ids.staffA].sort());
     });
 
+    // TC-S3-158 · US-54 AC-7 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-154-setup · fails if the 24-hour warning is missing, sent twice, sent for a hold not yet due, or sent to the wrong people
+    // Code: HoldExpiryScheduler.sendExpiryWarnings
     it('US-54: the 24-hour warning is sent once, to the Coordinator and the venue manager', async () => {
-      const event = await seedEvent();
+      const event = gala;
       await placeHold(holdBody(event.id, { expiresAt: fromNow(20) })).expect(201);
-      const other = await seedEvent('Later');
+      await given('tc-s3-154-setup');
       await placeHold(holdBody(other.id, { start: at('09:00'), end: at('12:00'), expiresAt: fromNow(30) })).expect(201);
       const scheduler = app.get(HoldExpiryScheduler);
 
@@ -512,21 +555,24 @@ describe('US-54 tentative venue holds (e2e)', () => {
   });
 
   describe('the database backstop', () => {
+    // TC-S3-154 · US-54 AC-3 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-154-setup + tc-s3-154b-setup · fails if two overlapping held or approved rows can both be saved, or the clash is reported as 500
+    // Code: VenueBooking_no_overlapping_committed EXCLUDE; isExclusionViolation maps 23P01 to 409
     it('US-54: two overlapping HELD/APPROVED rows written directly are rejected (EXCLUDE, 23P01)', async () => {
-      const a = await seedEvent('A');
-      const b = await seedEvent('B');
-      await seedBooking(a.id, BookingStatus.APPROVED);
+      const b = other;
+      await given('tc-s3-154-setup');
+      await given('tc-s3-154b-setup');
 
       const error = await seedHold(b.id, fromNow(48), at('20:00'), at('23:00')).catch((e: Error) => e);
 
       expect(String(error)).toMatch(/23P01|VenueBooking_no_overlapping_committed/);
     });
 
+    // TC-S3-154 · US-54 AC-3 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup + tc-s3-154-setup + tc-s3-157b-setup + tc-s3-157c-setup · fails if two overlapping held or approved rows can both be saved, or the clash is reported as 500
+    // Code: VenueBooking_no_overlapping_committed EXCLUDE; isExclusionViolation maps 23P01 to 409
     it('US-54: a constraint violation is reported as 409, not 500', async () => {
-      const a = await seedEvent('A');
-      const b = await seedEvent('B');
-      const live = await seedHold(a.id, fromNow(48), at('09:00'), at('12:00'));
-      const pending = await seedBooking(b.id, BookingStatus.REQUESTED, at('10:00'), at('11:00'));
+      await given('tc-s3-154-setup', 'tc-s3-157b-setup', 'tc-s3-157c-setup');
+      const live = { id: 'BKG-158' };
+      const pending = { id: 'BKG-159' };
       // Stub the app-level check so only the database stands in the way.
       jest.spyOn(app.get(BookingsService), 'conflictsFor').mockResolvedValue({
         hardConflicts: [],
@@ -543,8 +589,10 @@ describe('US-54 tentative venue holds (e2e)', () => {
   });
 
   describe('US-38: an event with a live hold is rescheduled', () => {
+    // TC-S3-156 · US-54 AC-5 · setup: base-users + tc-s1-25-setup + tc-s1-96-setup + tc-s3-152-setup · fails if a hold is moved with a rescheduled event instead of being released, or the Coordinator is not told
+    // Code: BookingsService.rebookForEventChange -> releaseHold (HOLD_RELEASED_BY_RESCHEDULE)
     it('US-54: the hold is released, not moved, and the Coordinator is told', async () => {
-      const event = await seedEvent();
+      const event = gala;
       const h = (await placeHold(holdBody(event.id, { expiresAt: fromNow(48) })).expect(201)).body;
 
       const created = await http()

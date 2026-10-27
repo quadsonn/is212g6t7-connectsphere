@@ -345,6 +345,116 @@ Named after the first Sprint 3 test case that needs them; a second script for th
 | `tc-s3-71e-setup.sql` | A second event (`EVT-204`) with its own free-text line (`REQ-013`). After `tc-s3-70`. | 71 |
 | `tc-s3-73b-setup.sql` | Updates `EVT-203` to AWAITING_ARRANGEMENTS. After `tc-s3-70`. | 73 |
 | `tc-s3-73c-setup.sql` | Updates `EVT-203` to APPROVED. After `tc-s3-70`. | 73 |
+| `tc-s3-75-setup.sql` | Story 43: "Autumn Festival" (`EVT-205`) with Main Hall and Rooftop Terrace approved, a hold on Seminar Room, 2 PA systems (`EQP-014`, `RSV-019`), a pending change request (`CRQ-007`), Ann Registered and Wendy (`USR-019`) Withdrawn. After `base-users` + `base-venues`. | 75 to 82 |
+| `tc-s3-75b-setup.sql` | Olivia's events that cannot be cancelled: draft, rejected, completed, cancelled, already started (`EVT-206` to `EVT-210`) | 75 |
+| `tc-s3-83-setup.sql` | Story 44: "Other" (`EVT-211`) and "Next" (`EVT-212`). After `tc-s3-54`. | 83 to 87 |
+| `tc-s3-83b-setup.sql` | The Gala's pending, held, approved and rejected Main Hall bookings (`BKG-100` to `BKG-103`) | 83, 85 |
+| `tc-s3-83c-setup.sql` | "Other"'s pending Main Hall booking (`BKG-104`) | 85 |
+| `tc-s3-83d-setup.sql` | The Gala's approved Main Hall booking, flagged for review (`BKG-105`) | 83 |
+| `tc-s3-83e-setup.sql` | 2 wireless microphones reserved for the Gala (`EQP-015`, `RSV-020`) | 83 |
+| `tc-s3-86-setup.sql` | The Gala's pending East Annex booking (`BKG-106`). After `tc-s3-55`. | 86 |
+| `tc-s3-87-setup.sql` | "Other"'s approved Main Hall booking 08:00–12:00 (`BKG-107`). After `tc-s3-55`. | 87 |
+| `tc-s3-87b-setup.sql` | Main Hall with 30-minute buffers; the Gala and "Other" flagged for clashing within them (`BKG-108`, `BKG-109`) | 87 |
+| `tc-s3-88-setup.sql` | Story 45: Wireless microphone (`EQP-016`, 10) and "Conference" (`EVT-213`). After `base-users`. | 88 to 94 |
+| `tc-s3-93-setup.sql` | "Later" and "Sooner" with upcoming microphone reservations (`EVT-214`, `EVT-215`, `RSV-021`, `RSV-022`) | 93 |
+| `tc-s3-93b-setup.sql` | Reservations the warning leaves out: released, rejected, past, another item (`EVT-216`, `EQP-017`, `RSV-023` to `RSV-026`) | 93 |
+| `tc-s3-93c-setup.sql` | 2 microphones approved for the Conference (`RSV-027`) | 93, 94 |
+| `tc-s3-99-setup.sql` | Story 46: Attendees a1 to a8 (`USR-020` to `USR-027`). After `base-users`. Dates in the Story 46 scripts are fixed against a frozen "now" of 1 Mar 2030. | 99 to 106 |
+| `tc-s3-99b-setup.sql` | An event for each period and capacity case (`EVT-217` to `EVT-228`) | 99 to 104, 106 |
+| `tc-s3-99c-setup.sql` | Browse list: open, full, closed, not yet open (`EVT-229` to `EVT-232`) | Story 33 browse test (kept) |
+| `tc-s3-99d-setup.sql` | Browse list: mine, planning, registration off, started, visible (`EVT-233` to `EVT-237`) | Story 33 browse test (kept) |
+| `tc-s3-107-setup.sql` | Story 47: "gala" (`EVT-238`) with a hold, an approved and a rejected booking and two projector reservations; "next" and "bystander" (`EVT-247`, `EVT-248`); hallA–C (`VEN-060` to `VEN-062`); Projector (`EQP-018`). After `base-users`. | 107 to 112 |
+| `tc-s3-107b-setup.sql` | An "other" event in each status (`EVT-239` to `EVT-246`) | 110 |
+| `tc-s3-113-setup.sql` | A confirmed event with a venue and equipment, and a rival event | 113 to 123 |
+| `tc-s3-113b-setup.sql` | A pending change request (CRQ-008): the default request: move conf to 2 Oct | 113 to 115, 117 to 123 |
+| `tc-s3-114-setup.sql` | Rival has mainHall at the new time | 114, 120 to 123 |
+| `tc-s3-114b-setup.sql` | A pending change request (CRQ-009): move conf to 2 Oct with 250 attending | 114 |
+| `tc-s3-114c-setup.sql` | Rival has mainHall just before the new time, inside its buffers | 114 |
+| `tc-s3-114d-setup.sql` | MainHall is blocked out on the new day | 114 |
+| `tc-s3-114e-setup.sql` | Conf also has annex, which rival holds at the new time | 114, 116 |
+| `tc-s3-115-setup.sql` | A pending change request (CRQ-010): move conf to 2 Oct and add 8 microphones | 115 |
+| `tc-s3-115b-setup.sql` | A pending change request (CRQ-011): move conf to 2 Oct and add 1 brokenCamera | 115 |
+| `tc-s3-115c-setup.sql` | A pending change request (CRQ-012): move conf to 2 Oct and change to 6 projectors | 115 |
+| `tc-s3-115d-setup.sql` | Rival holds 4 projectors at the new time | 115 |
+| `tc-s3-116-setup.sql` | A pending change request (CRQ-013): move conf to 2 Oct and add 2 microphones | 116 |
+| `tc-s3-119-setup.sql` | A pending change request (CRQ-014): move conf to 2 Oct with 120 attending | 119 |
+| `tc-s3-119b-setup.sql` | A pending change request (CRQ-015): change only the attendance, to 300 | 119 |
+| `tc-s3-119c-setup.sql` | An event with no arrangements, and a request to move it | 119 |
+| `tc-s3-120-setup.sql` | A pending change request (CRQ-017): move conf to 2 Oct with 999 attending | 120, 122 |
+| `tc-s3-120b-setup.sql` | Rival holds 5 projectors at the new time | 120, 122 |
+| `tc-s3-120c-setup.sql` | Rival's clashing mainHall booking is released (loaded mid-test) | 120, 121 |
+| `tc-s3-124-setup.sql` | A published venue saved without any buffer values | 124 to 129, 135 to 140 |
+| `tc-s3-124b-setup.sql` | The Sandbox Auditorium is still a draft | 124, 128 |
+| `tc-s3-126-setup.sql` | The Sandbox Auditorium already has 10-minute buffers | 126 |
+| `tc-s3-129-setup.sql` | A booking stored with an already-padded window, to check | 129 |
+| `tc-s3-130-setup.sql` | A venue with the customer's buffers, one with none, and two events | 130 to 134 |
+| `tc-s3-130b-setup.sql` | "existing" has only requested hall 10:00-12:00 | 132, 134 |
+| `tc-s3-130c-setup.sql` | "existing" has hall 15:00-15:45 (23:00-23:45 Singapore time), turnaround past midnight | 130, 132 |
+| `tc-s3-130d-setup.sql` | "existing" has plain 15:00-15:45 | 130 |
+| `tc-s3-130e-setup.sql` | Hall without buffers yet, holding two back-to-back approved bookings | 131 |
+| `tc-s3-130f-setup.sql` | Another venue, where "newEvent" has a pending request 12:15-13:00 | 131 |
+| `tc-s3-130g-setup.sql` | Hall gets 60-minute setup and turnaround (the click-through scenario) | 130, 131, 133, 134 |
+| `tc-s3-130h-setup.sql` | "existing" has hall 19:00-23:30 (the click-through evening booking) | 131, 133, 134 |
+| `tc-s3-130i-setup.sql` | "existing" has plain 19:00-23:30 | 134 |
+| `tc-s3-130j-setup.sql` | A venue saved without buffers, with the evening booking | 133 |
+| `tc-s3-130k-setup.sql` | "existing" has hall 11:00-15:30 (19:00-23:30 Singapore time) | 130 |
+| `tc-s3-130l-setup.sql` | Hall's buffers explicitly set back to 0 and 0 | 133 |
+| `tc-s3-131-setup.sql` | "existing" has hall 10:00-12:00 (occupying 09:30-12:45) | 131, 132, 134 |
+| `tc-s3-131b-setup.sql` | "newEvent" requested hall 12:30-13:30, inside the turnaround of tc-s3-131's booking | 131 |
+| `tc-s3-131c-setup.sql` | Hall is blocked out 12:00-12:30 for cleaning | 131 |
+| `tc-s3-133-setup.sql` | "existing" has plain 10:00-12:00 | 131, 133, 134 |
+| `tc-s3-135-setup.sql` | The customer's example: two approved bookings that clash only once 30/45 buffers apply | 137 to 140 |
+| `tc-s3-135b-setup.sql` | Two bookings whose padded windows only touch | 137 |
+| `tc-s3-135c-setup.sql` | A single approved booking, to check the overlap rule against | 135 |
+| `tc-s3-136-setup.sql` | The customer's pair, but in the past (1 Jan 2020) | 136 |
+| `tc-s3-136b-setup.sql` | The morning lecture, and a rejected talk at lunchtime | 135 |
+| `tc-s3-136c-setup.sql` | The customer's pair with the morning lecture only requested | 135, 138 |
+| `tc-s3-136d-setup.sql` | The customer's pair, on a different venue | 135 |
+| `tc-s3-138b-setup.sql` | An afternoon seminar that also clashes with the lunch talk under 30/45 | 138 |
+| `tc-s3-141-setup.sql` | An approved booking at a venue that is about to become unavailable, and a venue for its replacement | 141 to 145 |
+| `tc-s3-141b-setup.sql` | A pending and a rejected request for mainHall over the same slot | 141 |
+| `tc-s3-141c-setup.sql` | Bookings outside the unavailable period, or at another venue | 141 |
+| `tc-s3-142-setup.sql` | Another Coordinator's event, booked at eastHall | 141 |
+| `tc-s3-142b-setup.sql` | An event with no Coordinator, with a pending mainHall request | 141 |
+| `tc-s3-143b-setup.sql` | A second event of the same Coordinator | 143 |
+| `tc-s3-145-setup.sql` | A third venue, for a second replacement attempt | 145 |
+| `tc-s3-145b-setup.sql` | Showcase also holds eastHall for an afternoon breakout session | 145 |
+| `tc-s3-146-setup.sql` | An event in planning, and three venues with two managers | 146 to 151 |
+| `tc-s3-148-setup.sql` | Another event holds breakoutA in the afternoon | 148 |
+| `tc-s3-152-setup.sql` | Two venues with different managers, and an event in planning | 152 to 158 |
+| `tc-s3-152b-setup.sql` | A draft, which cannot be held for | 152 |
+| `tc-s3-152c-setup.sql` | The Gala's technical requirements (Story 20 AC-2) | 152 |
+| `tc-s3-152d-setup.sql` | Main Hall is taken back to draft | 152 |
+| `tc-s3-153-setup.sql` | A submitted event, not yet at a planning stage | 153 |
+| `tc-s3-154-setup.sql` | A second event in planning, competing for Main Hall | 154 to 158 |
+| `tc-s3-154b-setup.sql` | The Gala has Main Hall confirmed | 154, 156 |
+| `tc-s3-154c-setup.sql` | The Gala has a pending request for Main Hall | 154 |
+| `tc-s3-155-setup.sql` | A pending morning request for Main Hall | 155 |
+| `tc-s3-157-setup.sql` | A hold on Main Hall that expired an hour ago and was never released | 156, 157 |
+| `tc-s3-157b-setup.sql` | A live morning hold on Main Hall | 154, 157 |
+| `tc-s3-157c-setup.sql` | A pending request inside the live morning hold | 154 |
+| `tc-s3-158-setup.sql` | An event in planning with no Coordinator yet | 158 |
+| `tc-s3-159-setup.sql` | The people of the Coordinator Lead workflow | 159 to 176 |
+| `tc-s3-159b-setup.sql` | A draft, and a request already assigned to Marcus | 159, 163 |
+| `tc-s3-160-setup.sql` | One request waiting in the unassigned queue | 160 to 167, 170, 174 |
+| `tc-s3-161-setup.sql` | Three queued requests submitted a month apart | 161 |
+| `tc-s3-162-setup.sql` | The queued request's layout | 162 |
+| `tc-s3-162b-setup.sql` | The request has left the queue (Marcus has it) | 162 |
+| `tc-s3-168-setup.sql` | Marcus's events, active and closed, and one still queued | 168 |
+| `tc-s3-169-setup.sql` | One active event each for Marcus and Fatima | 169, 176 |
+| `tc-s3-170-setup.sql` | An event in planning, assigned to Marcus | 170, 172, 173, 175, 176 |
+| `tc-s3-171-setup.sql` | Marcus's closed events | 171 |
+| `tc-s3-173-setup.sql` | What an event carries when it is reassigned | 173 |
+| `tc-s3-177-setup.sql` | Two Safety Officers, a venue with restrictions, microphones, and an event in planning | 177 to 186 |
+| `tc-s3-177b-setup.sql` | A pending request for Main Hall | 177 |
+| `tc-s3-177c-setup.sql` | A second pending request for Main Hall, on another day | 177, 185 |
+| `tc-s3-177d-setup.sql` | The event needs 4 microphones (none reserved yet) | 177 |
+| `tc-s3-177e-setup.sql` | Main Hall approved for the Careers Fair, so it is ready to confirm | 177 to 186 |
+| `tc-s3-177f-setup.sql` | A second event, ready to confirm | 177 |
+| `tc-s3-177g-setup.sql` | The microphones are released while the event waits for its check | 177 |
+| `tc-s3-178-setup.sql` | 2 microphones requested and reserved for the Careers Fair | 177, 178, 182 |
+| `tc-s3-178b-setup.sql` | A block on Main Hall during the booked slot | 178 |
+| `tc-s3-185-setup.sql` | The event is cancelled while safety feedback waits for an answer | 185 |
 
 Extra users added by Sprint 3 scripts (same password as the base users):
 
@@ -355,3 +465,14 @@ Extra users added by Sprint 3 scripts (same password as the base users):
 | `USR-016` | sam.staff@example.com | Sam Staff | VENUE_STAFF (`tc-s3-54-setup.sql`) |
 | `USR-017` | safety@example.com | Sophie Safety | SAFETY_OFFICER (`tc-s3-59-setup.sql`) |
 | `USR-018` | other.staff@example.com | Olly Other | VENUE_STAFF (`tc-s3-63-setup.sql`) |
+| `USR-019` | wendy@example.com | Wendy Withdrawn | ATTENDEE (`tc-s3-75-setup.sql`) |
+| `USR-020` to `USR-027` | a1@example.com to a8@example.com | a1 to a8 | ATTENDEE (`tc-s3-99-setup.sql`) |
+| `USR-028` | olive@example.com | Olive (Acme Corp) | EVENT_ORGANISER (`tc-s3-159-setup.sql`) |
+| `USR-029` | lena@example.com | Lena | EVENT_COORDINATOR_LEAD (`tc-s3-159-setup.sql`) |
+| `USR-030` | marcus@example.com | Marcus | EVENT_COORDINATOR (`tc-s3-159-setup.sql`) |
+| `USR-031` | fatima@example.com | Fatima | EVENT_COORDINATOR (`tc-s3-159-setup.sql`) |
+| `USR-032` | venue@example.com | Vic | VENUE_STAFF (`tc-s3-159-setup.sql`) |
+| `USR-033` | sam.officer@example.com | Sam | SAFETY_OFFICER (`tc-s3-177-setup.sql`) |
+| `USR-034` | mei.officer@example.com | Mei | SAFETY_OFFICER (`tc-s3-177-setup.sql`) |
+
+`tc-s3-159-setup.sql` is loaded **instead of** `base-users.sql` (Stories 55 and 56 need exactly two Coordinators). `tc-s3-177-setup.sql` must not be loaded with another script that adds a Safety Officer (such as `tc-s3-59-setup.sql`).

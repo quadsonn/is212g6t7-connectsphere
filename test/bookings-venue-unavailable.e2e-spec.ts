@@ -1,21 +1,13 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  AccessibilityFeature,
-  BookingStatus,
-  EventStatus,
-  NotificationType,
-  PrismaClient,
-  Role,
-  RoomLayout,
-  VenueStatus,
-} from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { BookingStatus, EventStatus, NotificationType, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { VenueUnavailabilityService } from '../src/bookings/venue-unavailability.service';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
 /**
  * US-52 e2e — a booked venue becomes unavailable, the Coordinator is told and
@@ -25,6 +17,13 @@ import { listenOnLoopback } from './listen-on-loopback';
  * #57 (Venue Staff marking a venue unavailable) is not built, so each test
  * records the unavailability directly — a US-16 blocked-out period — and calls
  * the hook #57 will call, VenueUnavailabilityService.handleVenueUnavailable.
+ * That call is the action under test, so it stays in the tests.
+ *
+ * Pre-condition for every test: reset the testDB, then run base-users.sql,
+ * tc-s1-96-setup.sql (Vince, USR-013) and tc-s3-141-setup.sql (mainHall
+ * VEN-073, eastHall VEN-074, "showcase" EVT-266 with its approved mainHall
+ * booking BKG-145). Other bookings come from the tc-s3-14x scripts each test
+ * names.
  */
 describe('US-52 unavailable venue replacement (e2e)', () => {
   let app: INestApplication;
@@ -33,7 +32,44 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from base-users, tc-s1-96-setup and the tc-s3-141 scripts. */
+  const ids: Record<string, string> = {
+    organiser: 'USR-006',
+    coordinator: 'USR-004',
+    otherCoordinator: 'USR-005',
+    staff: 'USR-010',
+    otherStaff: 'USR-013',
+    tech: 'USR-009',
+    attendee: 'USR-001',
+    mainHall: 'VEN-073',
+    eastHall: 'VEN-074',
+    westHall: 'VEN-075',
+    showcase: 'EVT-266',
+    original: 'BKG-145',
+    pendingEvent: 'EVT-267',
+    pending: 'BKG-146',
+    rejectedEvent: 'EVT-268',
+    rejected: 'BKG-147',
+    later: 'EVT-269',
+    laterBooking: 'BKG-148',
+    elsewhere: 'EVT-270',
+    elsewhereBooking: 'BKG-149',
+    otherEvent: 'EVT-271',
+    otherBooking: 'BKG-150',
+    unassigned: 'EVT-272',
+    unassignedBooking: 'BKG-151',
+    mine2: 'EVT-273',
+    breakout: 'BKG-152',
+  };
+  const LOGINS: Record<string, string> = {
+    organiser: 'organiser@example.com',
+    coordinator: 'coord.a@example.com',
+    otherCoordinator: 'coord.b@example.com',
+    staff: 'venue.staff@example.com',
+    otherStaff: 'venue.staff2@example.com',
+    tech: 'tech.support@example.com',
+    attendee: 'attendee@example.com',
+  };
 
   // The affected booking's slot, and the period the venue is unavailable.
   const START = '2030-10-01T09:00:00.000Z';
@@ -47,79 +83,9 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-  };
-
-  const seedVenue = async (key: string, managedBy = 'staff') => {
-    const venue = await prisma.venue.create({
-      data: {
-        name: key,
-        location: `${key} building`,
-        capacity: 200,
-        facilities: [],
-        accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-        supportedLayouts: [RoomLayout.THEATRE],
-        status: VenueStatus.PUBLISHED,
-        managedById: ids[managedBy],
-      },
-    });
-    ids[key] = venue.id;
-  };
-
-  const seedEvent = async (key: string, coordinator: string | null = 'coordinator') => {
-    const event = await prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: coordinator ? ids[coordinator] : null,
-        name: key,
-        purpose: 'p',
-        description: 'd',
-        category: 'c',
-        proposedStart: new Date(START),
-        proposedEnd: new Date(END),
-        expectedAttendance: 80,
-        preferredLayout: RoomLayout.THEATRE,
-        accessibilityRequirements: [AccessibilityFeature.STEP_FREE_ACCESS],
-        equipmentNeeds: 'Edited on the event after booking.',
-        status: EventStatus.PLANNING,
-      },
-    });
-    ids[key] = event.id;
-    return event;
-  };
-
-  const seedBooking = async (
-    key: string,
-    event: string,
-    venue: string,
-    status: BookingStatus = BookingStatus.APPROVED,
-    start = START,
-    end = END,
-  ) => {
-    const booking = await prisma.venueBooking.create({
-      data: {
-        eventId: ids[event],
-        venueId: ids[venue],
-        start: new Date(start),
-        end: new Date(end),
-        status,
-        expectedAttendance: 80,
-        requestedById: ids.coordinator,
-        preferredLayout: RoomLayout.THEATRE,
-        layoutNotes: 'Stage at the front.',
-        accessibilityRequirements: [AccessibilityFeature.STEP_FREE_ACCESS],
-        accessibilityNotes: 'Two wheelchair users.',
-        equipmentNeeds: 'Two projectors.',
-      },
-    });
-    ids[key] = booking.id;
-    return booking;
+  /** Loads a test case's setup script(s) on top of the base scripts. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
   /** What #57 will do: record the unavailability, then call the hook. */
@@ -157,61 +123,43 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       where: { recipientId: ids[who], type: NotificationType.VENUE_UNAVAILABLE },
     });
 
-  const clear = async () => {
-    await prisma.notification.deleteMany();
-    await prisma.bookingSuggestion.deleteMany();
-    await prisma.bookingDecision.deleteMany();
-    // Replacement links point between bookings; drop them before the rows.
-    await prisma.venueBooking.updateMany({
-      data: { replacesBookingId: null, replacedByBookingId: null },
-    });
-    await prisma.venueBooking.deleteMany();
-    await prisma.venueBlock.deleteMany();
-    await prisma.venue.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-  };
-
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
     unavailability = app.get(VenueUnavailabilityService);
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s1-96-setup');
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
-    await clear();
     await prisma.$disconnect();
     await app.close();
   });
 
   beforeEach(async () => {
-    await clear();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('otherCoordinator', 'other.coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('staff', 'staff@example.com', Role.VENUE_STAFF);
-    await seedUser('otherStaff', 'other.staff@example.com', Role.VENUE_STAFF);
-    await seedUser('tech', 'tech@example.com', Role.TECHNICAL_SUPPORT_STAFF);
-    await seedUser('attendee', 'attendee@example.com', Role.ATTENDEE);
-
-    // mainHall becomes unavailable; eastHall is where replacements go.
-    await seedVenue('mainHall');
-    await seedVenue('eastHall', 'otherStaff');
-
-    await seedEvent('showcase');
-    await seedBooking('original', 'showcase', 'mainHall');
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s1-96-setup');
+    await loadSql(prisma, 'tc-s3-141-setup');
   });
 
   describe('US-52 trigger: affected bookings are identified, nothing else changes', () => {
+    // TC-S3-141 · US-52 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the wrong bookings are marked as affected, the event or booking is changed, or it is marked twice
+    // Code: VenueUnavailabilityService.handleVenueUnavailable
     it('marks the overlapping booking as needing a replacement, with the period and reason', async () => {
       const affected = await markUnavailable('mainHall');
 
@@ -229,6 +177,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       expect(stored.replacementNeededAt).not.toBeNull();
     });
 
+    // TC-S3-141 · US-52 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the wrong bookings are marked as affected, the event or booking is changed, or it is marked twice
+    // Code: VenueUnavailabilityService.handleVenueUnavailable
     it('does not cancel the event or change its details, or the booking itself', async () => {
       const eventBefore = await prisma.eventRequest.findUniqueOrThrow({ where: { id: ids.showcase } });
       const bookingBefore = await prisma.venueBooking.findUniqueOrThrow({ where: { id: ids.original } });
@@ -255,11 +205,10 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       });
     });
 
+    // TC-S3-141 · US-52 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup + tc-s3-141b-setup · fails if the wrong bookings are marked as affected, the event or booking is changed, or it is marked twice
+    // Code: VenueUnavailabilityService.handleVenueUnavailable
     it('affects pending requests too, but not rejected ones', async () => {
-      await seedEvent('pendingEvent');
-      await seedBooking('pending', 'pendingEvent', 'mainHall', BookingStatus.REQUESTED);
-      await seedEvent('rejectedEvent');
-      await seedBooking('rejected', 'rejectedEvent', 'mainHall', BookingStatus.REJECTED);
+      await given('tc-s3-141b-setup'); // a pending and a rejected mainHall request
 
       const affected = await markUnavailable('mainHall');
 
@@ -268,12 +217,10 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       expect(rejected.replacementNeededAt).toBeNull();
     });
 
+    // TC-S3-141 · US-52 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup + tc-s3-141c-setup · fails if the wrong bookings are marked as affected, the event or booking is changed, or it is marked twice
+    // Code: VenueUnavailabilityService.handleVenueUnavailable
     it('leaves bookings outside the period, or at other venues, untouched', async () => {
-      await seedEvent('later');
-      await seedBooking('laterBooking', 'later', 'mainHall', BookingStatus.APPROVED,
-        '2030-10-05T09:00:00.000Z', '2030-10-05T12:00:00.000Z');
-      await seedEvent('elsewhere');
-      await seedBooking('elsewhereBooking', 'elsewhere', 'eastHall');
+      await given('tc-s3-141c-setup'); // mainHall on 5 Oct; eastHall in the period
 
       await markUnavailable('mainHall');
 
@@ -283,6 +230,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       }
     });
 
+    // TC-S3-141 · US-52 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the wrong bookings are marked as affected, the event or booking is changed, or it is marked twice
+    // Code: VenueUnavailabilityService.handleVenueUnavailable
     it('does not mark or notify twice when called again', async () => {
       await markUnavailable('mainHall');
       const again = await unavailability.handleVenueUnavailable(ids.mainHall, PERIOD, REASON);
@@ -293,6 +242,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
   });
 
   describe('US-52 AC-1: the Coordinator is notified, with the reason', () => {
+    // TC-S3-141 · US-52 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the Coordinator is not told (with the event, venue, dates and reason), or someone else is
+    // Code: VenueUnavailabilityService -> VENUE_UNAVAILABLE notice
     it('names the event, the venue, the affected dates and the reason', async () => {
       await markUnavailable('mainHall');
 
@@ -305,9 +256,10 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       );
     });
 
+    // TC-S3-141 · US-52 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup + tc-s3-142-setup · fails if the Coordinator is not told (with the event, venue, dates and reason), or someone else is
+    // Code: VenueUnavailabilityService -> VENUE_UNAVAILABLE notice
     it('notifies only the Coordinator of the affected event', async () => {
-      await seedEvent('otherEvent', 'otherCoordinator');
-      await seedBooking('otherBooking', 'otherEvent', 'eastHall');
+      await given('tc-s3-142-setup'); // another Coordinator's event at eastHall
 
       await markUnavailable('mainHall');
 
@@ -318,9 +270,10 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       ).toBe(1);
     });
 
+    // TC-S3-141 · US-52 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup + tc-s3-142b-setup · fails if the Coordinator is not told (with the event, venue, dates and reason), or someone else is
+    // Code: VenueUnavailabilityService -> VENUE_UNAVAILABLE notice
     it('marks an event with no assigned Coordinator without error, and notifies no one', async () => {
-      await seedEvent('unassigned', null);
-      await seedBooking('unassignedBooking', 'unassigned', 'mainHall', BookingStatus.REQUESTED);
+      await given('tc-s3-142b-setup'); // an unassigned event's pending mainHall request
 
       const affected = await markUnavailable('mainHall');
 
@@ -336,6 +289,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
   });
 
   describe('US-52 AC-2: the affected event is flagged "Venue unavailable" for its Coordinator', () => {
+    // TC-S3-142 · US-52 AC-2 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the affected event is not flagged for its Coordinator, or the list is shown to someone else
+    // Code: GET /bookings/replacements-needed
     it('lists the affected booking with its event, venue, period and reason', async () => {
       await markUnavailable('mainHall');
 
@@ -355,16 +310,22 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       });
     });
 
+    // TC-S3-142 · US-52 AC-2 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the affected event is not flagged for its Coordinator, or the list is shown to someone else
+    // Code: GET /bookings/replacements-needed
     it('is empty for events that are not affected', async () => {
       await flagged().expect(200).expect([]);
     });
 
+    // TC-S3-142 · US-52 AC-2 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the affected event is not flagged for its Coordinator, or the list is shown to someone else
+    // Code: GET /bookings/replacements-needed
     it('is not shown to another Coordinator', async () => {
       await markUnavailable('mainHall');
 
       await flagged('otherCoordinator').expect(200).expect([]);
     });
 
+    // TC-S3-142 · US-52 AC-2 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the affected event is not flagged for its Coordinator, or the list is shown to someone else
+    // Code: GET /bookings/replacements-needed
     it.each(['staff', 'tech', 'organiser', 'attendee'])('is refused to %s (403)', async (who) => {
       await markUnavailable('mainHall');
       await flagged(who).expect(403);
@@ -372,6 +333,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
   });
 
   describe('US-52 AC-3: a replacement request from the affected event', () => {
+    // TC-S3-143 · US-52 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if a replacement request is not linked or pre-filled, skips availability rules, or can replace the wrong booking
+    // Code: BookingsService.request with replacesBookingId (findReplaceable)
     it('is an ordinary pending request, linked to the original, carrying its requirements', async () => {
       await markUnavailable('mainHall');
 
@@ -401,6 +364,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       ]);
     });
 
+    // TC-S3-143 · US-52 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if a replacement request is not linked or pre-filled, skips availability rules, or can replace the wrong booking
+    // Code: BookingsService.request with replacesBookingId (findReplaceable)
     it('can change the pre-filled timing and attendance', async () => {
       await markUnavailable('mainHall');
 
@@ -424,6 +389,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       });
     });
 
+    // TC-S3-143 · US-52 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if a replacement request is not linked or pre-filled, skips availability rules, or can replace the wrong booking
+    // Code: BookingsService.request with replacesBookingId (findReplaceable)
     it('uses the same availability rules: the unavailable venue is refused for the period', async () => {
       await markUnavailable('mainHall');
 
@@ -447,6 +414,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       expect(res.body.message).toBe('the requested time falls in a period blocked out for this venue');
     });
 
+    // TC-S3-143 · US-52 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup + tc-s3-143b-setup · fails if a replacement request is not linked or pre-filled, skips availability rules, or can replace the wrong booking
+    // Code: BookingsService.request with replacesBookingId (findReplaceable)
     it('refuses to replace a booking that was not marked, or one of another event', async () => {
       const notMarked = await requestReplacement({
         venueId: ids.eastHall,
@@ -456,7 +425,7 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
         'that booking has not been marked as needing a replacement',
       );
 
-      await seedEvent('mine2');
+      await given('tc-s3-143b-setup'); // the Coordinator's second event, "mine2"
       await markUnavailable('mainHall');
       const otherEvent = await requestReplacement(
         { venueId: ids.eastHall, replacesBookingId: ids.original },
@@ -466,6 +435,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       expect(otherEvent.body.message).toBe('booking to replace not found');
     });
 
+    // TC-S3-143 · US-52 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if a replacement request is not linked or pre-filled, skips availability rules, or can replace the wrong booking
+    // Code: BookingsService.request with replacesBookingId (findReplaceable)
     it("refuses another Coordinator's event (404) and other roles (403)", async () => {
       await markUnavailable('mainHall');
 
@@ -482,6 +453,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
   });
 
   describe('US-52 AC-4: the Coordinator selects a venue Venue Staff suggested', () => {
+    // TC-S3-144 · US-52 AC-4 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if selecting a suggested venue does not create a replacement request
+    // Code: BookingSuggestionsService.accept on a booking needing replacement
     it('creates a replacement request that still needs approval', async () => {
       await markUnavailable('mainHall');
       // Venue Staff take the affected booking back with a suggestion (US-41).
@@ -528,6 +501,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       return res.body.id as string;
     };
 
+    // TC-S3-145 · US-52 AC-5 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the original is not released when the replacement is confirmed, or is released too early, or another booking is released
+    // Code: BookingsService decide (APPROVED) -> releaseReplaced
     it('releases the original on approval, keeping the record and linking it', async () => {
       const replacementId = await replace();
 
@@ -559,6 +534,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       expect(view.body).toMatchObject({ status: 'RELEASED', replacedByBookingId: replacementId });
     });
 
+    // TC-S3-145 · US-52 AC-5 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the original is not released when the replacement is confirmed, or is released too early, or another booking is released
+    // Code: BookingsService decide (APPROVED) -> releaseReplaced
     it('clears the "Venue unavailable" flag on confirmation', async () => {
       const replacementId = await replace();
       expect((await flagged().expect(200)).body).toHaveLength(1);
@@ -568,6 +545,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       await flagged().expect(200).expect([]);
     });
 
+    // TC-S3-145 · US-52 AC-5 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the original is not released when the replacement is confirmed, or is released too early, or another booking is released
+    // Code: BookingsService decide (APPROVED) -> releaseReplaced
     it('does not release the original while the replacement is only requested', async () => {
       await replace();
 
@@ -577,6 +556,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       expect(original.releasedAt).toBeNull();
     });
 
+    // TC-S3-145 · US-52 AC-5 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup + tc-s3-145-setup · fails if the original is not released when the replacement is confirmed, or is released too early, or another booking is released
+    // Code: BookingsService decide (APPROVED) -> releaseReplaced
     it('keeps the original and the flag when the replacement is rejected, and allows another try', async () => {
       const first = await replace();
 
@@ -588,7 +569,7 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       expect((await flagged().expect(200)).body).toHaveLength(1);
 
       // Try again, at another venue.
-      await seedVenue('westHall', 'otherStaff');
+      await given('tc-s3-145-setup'); // westHall
       const second = await requestReplacement({
         venueId: ids.westHall,
         replacesBookingId: ids.original,
@@ -602,11 +583,11 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       });
     });
 
+    // TC-S3-145 · US-52 AC-5 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup + tc-s3-145b-setup + tc-s3-145-setup · fails if the original is not released when the replacement is confirmed, or is released too early, or another booking is released
+    // Code: BookingsService decide (APPROVED) -> releaseReplaced
     it("releases only the affected booking, never the event's other bookings", async () => {
       // The same event also holds eastHall for a breakout session.
-      await seedBooking('breakout', 'showcase', 'eastHall', BookingStatus.APPROVED,
-        '2030-10-01T13:00:00.000Z', '2030-10-01T15:00:00.000Z');
-      await seedVenue('westHall', 'otherStaff');
+      await given('tc-s3-145b-setup', 'tc-s3-145-setup'); // breakout at eastHall 13:00-15:00; westHall
       await markUnavailable('mainHall');
 
       const breakoutFlag = await prisma.venueBooking.findUniqueOrThrow({ where: { id: ids.breakout } });
@@ -629,6 +610,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       ).toBe(BookingStatus.RELEASED);
     });
 
+    // TC-S3-145 · US-52 AC-5 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the original is not released when the replacement is confirmed, or is released too early, or another booking is released
+    // Code: BookingsService decide (APPROVED) -> releaseReplaced
     it('a released booking cannot be decided on again, and frees its slot', async () => {
       const replacementId = await replace();
       await decide(replacementId, 'approve').expect(200);
@@ -646,6 +629,8 @@ describe('US-52 unavailable venue replacement (e2e)', () => {
       expect(live).toBe(0);
     });
 
+    // TC-S3-145 · US-52 AC-5 · setup: base-users + tc-s1-96-setup + tc-s3-141-setup · fails if the original is not released when the replacement is confirmed, or is released too early, or another booking is released
+    // Code: BookingsService decide (APPROVED) -> releaseReplaced
     it('a later replacement once one is confirmed is refused', async () => {
       const replacementId = await replace();
       await decide(replacementId, 'approve').expect(200);

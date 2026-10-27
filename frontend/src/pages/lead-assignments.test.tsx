@@ -9,10 +9,12 @@ import type { AssignmentResult, CoordinatorAssignments } from '@/types/api';
 import { LeadAssignments } from './lead-assignments';
 
 /**
- * UI tests for US-26 (Have an event reassigned when my availability changes):
+ * UI tests for US-26 (Have an event reassigned when my availability changes)
+ * and US-56 (the Lead's view of every Coordinator's assignments):
  * since Week 7 Change 5 the Event Coordinator Lead makes the reassignment, on
  * the Coordinator assignments page. Rendered with React Testing Library, API
- * mocked. The server's rules are proven by test/events-reassign.e2e-spec.ts;
+ * mocked. The server's rules are proven by test/events-reassign.e2e-spec.ts and
+ * test/events-assignment.e2e-spec.ts;
  * the browser journey by e2e/us24-us27-planning.spec.ts.
  */
 
@@ -89,5 +91,25 @@ describe('US-26 AC-2, AC-3: confirming hands the event over and says both were t
     expect(await screen.findByRole('status')).toHaveTextContent(
       '"Freshman Orientation 2030" moved from Cody Coordinator to Casey Coordinator. Both have been notified.',
     );
+  });
+});
+
+describe('US-56 AC-1, AC-2: every Coordinator with their active events and a count, filterable', () => {
+  // TC-S3-168, TC-S3-169 · US-56 AC-1, AC-2 · fails if a Coordinator, their count, or an event's name, status or date is missing, or the filter does not ask for that one Coordinator
+  // Code: LeadAssignments (useAssignmentsOverview(filter) -> GET /assignments?coordinatorId=)
+  it('shows each Coordinator with a count and their events, and filters by Coordinator', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const row = within((await screen.findByText('Freshman Orientation 2030')).closest('li')!);
+    expect(row.getByText('Planning')).toBeInTheDocument();
+    expect(row.getByText(/Oct 2030/)).toBeInTheDocument();
+    expect(screen.getByText('1 active event')).toBeInTheDocument();
+    expect(screen.getByText('0 active events')).toBeInTheDocument();
+    expect(api.overview).toHaveBeenLastCalledWith(undefined);
+
+    await user.selectOptions(screen.getByLabelText('Coordinator'), 'USR-005');
+
+    await waitFor(() => expect(api.overview).toHaveBeenLastCalledWith('USR-005'));
   });
 });

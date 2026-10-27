@@ -256,8 +256,30 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - All 5 Story 42 test cases Pass. AC-4: confirming moves to AWAITING_SAFETY_CHECK (Week 7 Change 6), noted.
 - **Coverage** ([coverage-s3.md](coverage-s3.md)): Story 38–42 files combined 97.7% statements / 80.2% branches. Both TEST gaps then got their tests (Story 41 accept refused for a started slot or no attendance, `tc-s3-68c-setup.sql`; Story 40 another user's cursor): combined now 98.6% / 82.1%. The rest is DEFERRED (Story 45/52/54/57) or EXCLUDE.
 
+## 2026-10-27: Sprint 3, Story 43 to 47 (TC-S3-75 to 112)
+
+- **Story 43 (new):** `test/us43-cancel-event.e2e-spec.ts` (8 tests, 14 runs) through the real `POST /events/:id/cancel`, and `e2e/us43-cancel.spec.ts` (1 browser test). One expectation corrected: registering for a cancelled event is refused with 404 (not visible), not 409.
+- **Converted** to reset + setup scripts, assertions unchanged (diffed): `us44-release-on-cancel` (10 tests, 27 assertion statements identical), `equipment-status` (25 tests; 40 of 42 identical, 2 changed only in the user's display name: "tech"/"coordinator" became the base users' "Toby Tech"/"Cody Coordinator"), `registrations-period-capacity` (64 identical; clock frozen at 1 Mar 2030, Date only, before login), `events-reject-unfulfillable` (47 identical). Every test tagged with its TC and `Code:` line.
+- **New tests:** Story 46 AC-2 boundary (registering exactly at the closing time is accepted); Story 46 AC-7 UI test `register-action.test.tsx` (4 runs).
+- Runs, 3 each on `localhost` / `connectsphere_test`: us43 14/14, us44 10/10, equipment-status 34/34, registrations 27/27, reject-unfulfillable 30/30; browser us43 1/1; UI tests for cancel panel 8/8, booking history 2/2, equipment status 7/7, register action 4/4, reject-unfulfillable 4/4.
+- **Story 45 code gaps:** equipment status is per item, not per unit. AC-1, 3, 4, 5 (breakdown), 6 (short count), 7 (flag), 8–11 are Fail (TC-S3-88, 90–98); AC-2 Pass.
+- **Coverage** (coverage-s3.md): Story 43–47 files combined 99.5% statements / 84.4% branches; nothing left to test (all EXCLUDE).
+- 20 new scripts (`tc-s3-75` to `tc-s3-107b`).
+
+## 2026-10-27: Sprint 3, Story 48 to 57 (TC-S3-113 to 186)
+
+- **Converted** to reset + setup scripts, every test tagged with its TC and `Code:` line, assertions diffed against the originals: `events-change-request-check` (Story 48, 101 assertion statements identical), `venue-buffers` (49, 17), `venues-buffers` (50, 42), `booking-review-flags` (51, 59), `bookings-venue-unavailable` (52, 66), `bookings-multi-venue` (53, 80), `us54-venue-holds` (54, 70; 1 changed only in the Coordinator's display name, "coordinator" → "Cody Coordinator"), `events-assignment` (55/56, 93; 1 changed only in the Organiser's email, "organiser@example.com" → "olive@example.com"), `safety-check` (57, 139 identical).
+- `events-assignment` loads its own users (`tc-s3-159-setup.sql`, `USR-028` to `USR-032`) instead of `base-users`: its tests need exactly two Coordinators. `safety-check` adds two Safety Officers (`USR-033`, `USR-034`). Hold expiries are relative to the database clock (`now() AT TIME ZONE 'UTC'`), so no frozen clock was needed.
+- Kept by design: the US-54 backstop test still writes an overlapping hold directly (the write is the act under test); events reach the Safety queue through the real Confirm endpoint.
+- **New tests (coverage TEST gaps):** a draft venue or unknown event cannot be held; the hold tick (new unit spec, 2 tests); a decision on or history of an unknown event; resubmitting an event cancelled while feedback waited; an event leaving the Safety queue once its equipment is released.
+- **New UI tests:** `lead-queue.test.tsx` (Story 55: entry fields, open and assign, the current assignee on a clash), `safety-review.test.tsx` (Story 57: the review contents; stage and reason required), and one Story 56 test in `lead-assignments.test.tsx` (counts and filter). The existing UI tests for Stories 48–54 are cited in the test cases. No browser test added: every UI-only AC is covered by a UI test.
+- Runs, 3 each on `localhost` / `connectsphere_test`: change-request-check 34/34, venue-buffers 21/21, venues-buffers 29/29, booking-review-flags 24/24, bookings-venue-unavailable 28/28, bookings-multi-venue 17/17, us54 35/35, events-assignment 33/33, safety-check 41/41; hold tick unit 2/2; new UI tests 8/8. Full unit suite 1875/1875; full frontend suite 366/366.
+- All 74 test cases Pass. Story 52 AC-5 notes open bug #4 (TC-S3-40).
+- **Coverage** (coverage-s3.md): Story 48–57 files combined 98.5% statements / 85.1% branches (from 96.9% / 82.3% before the gap tests); the rest is EXCLUDE. Three helpers have no caller (`overlapping`, `committedOverlapping`, `isHeld`): flagged for the team, not removed.
+- 90 new scripts (`tc-s3-113` to `tc-s3-185`), all listed in the fixture README.
+
 ## Open
-- **TC IDs:** Sprint 1 TC-S1-01 to 62; Sprint 3 TC-S3-38 to 74. The remaining stories get theirs as each group is written.
+- **TC IDs:** Sprint 1 TC-S1-01 to 62; Sprint 3 TC-S3-38 to 186 (Story 38 to 57). Story 45 is on hold while its code changes are under way.
 - **Integration files still to convert:** `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`.
 - **AC-5 window reading:** confirm fixed versus sliding with the team/customer.
 - **G1 (whitespace accepted):** fixed in `93316fa`. TC-S1-18 and TC-S1-27 tests were added in Step 3.

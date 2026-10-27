@@ -1,21 +1,25 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  ChangeRequestStatus,
-  EventStatus,
-  NotificationType,
-  PrismaClient,
-  Role,
-} from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { EventStatus, NotificationType, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
 /**
  * Event Coordinator Lead e2e — the unassigned queue, assignment, the
- * assignments view and reassignment.
+ * assignments view and reassignment (Stories 55 and 56).
+ *
+ * Code under test: AssignmentsController / AssignmentsService (queue,
+ * queued, coordinators, assign, overview, reassign), the Coordinator's
+ * assigned-events views, change history and notifications.
+ *
+ * Pre-condition for every test: reset the testDB, then run
+ * tc-s3-159-setup.sql (Olive, Lena the Lead, Marcus and Fatima the only two
+ * Coordinators, and Vic of Venue Staff). base-users.sql is not loaded: its two
+ * Coordinators would join every Coordinator list.
  */
 describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () => {
   let app: INestApplication;
@@ -23,49 +27,38 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed users from tc-s3-159-setup. */
+  const ids: Record<string, string> = {
+    organiser: 'USR-028',
+    lead: 'USR-029',
+    marcus: 'USR-030',
+    fatima: 'USR-031',
+    venueStaff: 'USR-032',
+  };
+  const LOGINS: Record<string, string> = {
+    organiser: 'olive@example.com',
+    lead: 'lena@example.com',
+    marcus: 'marcus@example.com',
+    fatima: 'fatima@example.com',
+    venueStaff: 'venue@example.com',
+  };
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
 
-  const seedUser = async (
-    key: string,
-    email: string,
-    role: Role,
-    name = key,
-    organisation: string | null = null,
-  ) => {
-    const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash: await bcrypt.hash(PASSWORD, 10),
-        name,
-        role,
-        organisation,
-      },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
-  const seedEvent = (overrides: Record<string, unknown> = {}) =>
-    prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: null,
-        name: 'Freshman Orientation 2030',
-        purpose: 'Welcome new students',
-        description: 'Full-day programme',
-        category: 'Student engagement',
-        proposedStart: new Date('2030-10-01T09:00:00Z'),
-        proposedEnd: new Date('2030-10-01T17:00:00Z'),
-        expectedAttendance: 99,
-        status: EventStatus.SUBMITTED,
-        submittedAt: new Date('2030-01-01T00:00:00Z'),
-        ...overrides,
-      },
-    });
+  /** Events from tc-s3-160 (queued) and tc-s3-170 (Marcus, in planning). */
+  const queuedEvent = { id: 'EVT-283', name: 'Freshman Orientation 2030' };
+  const marcusEvent = { id: 'EVT-296', name: 'Freshman Orientation 2030' };
+  /** tc-s3-171: Marcus's closed events. */
+  const CLOSED: Record<string, string> = {
+    [EventStatus.COMPLETED]: 'EVT-297',
+    [EventStatus.CANCELLED]: 'EVT-298',
+    [EventStatus.REJECTED]: 'EVT-299',
+  };
 
   const queue = (who = 'lead') =>
     http().get('/assignments/queue').set('Authorization', as(who));
@@ -90,10 +83,17 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
-
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await given('tc-s3-159-setup');
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
@@ -102,21 +102,13 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
   });
 
   beforeEach(async () => {
-    await prisma.notification.deleteMany();
-    await prisma.eventChangeRequest.deleteMany();
-    await prisma.clarificationMessage.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER, 'Olive', 'Acme Corp');
-    await seedUser('lead', 'lead@example.com', Role.EVENT_COORDINATOR_LEAD, 'Lena');
-    await seedUser('marcus', 'marcus@example.com', Role.EVENT_COORDINATOR, 'Marcus');
-    await seedUser('fatima', 'fatima@example.com', Role.EVENT_COORDINATOR, 'Fatima');
-    await seedUser('venueStaff', 'venue@example.com', Role.VENUE_STAFF);
+    await resetDb(prisma);
+    await given('tc-s3-159-setup');
   });
 
   describe('a newly submitted request goes into the unassigned queue', () => {
+    // TC-S3-159 · US-55 AC-1 · setup: tc-s3-159-setup · fails if a submitted request is assigned directly, or drafts and assigned requests are queued
+    // Code: EventsService submit (coordinatorId null); EventsAssignmentService.listQueue
     it('is unassigned when the Organiser submits it', async () => {
       const res = await http()
         .post('/events')
@@ -143,9 +135,10 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(list.body.map((e: { id: string }) => e.id)).toEqual([res.body.id]);
     });
 
+    // TC-S3-159 · US-55 AC-1 · setup: tc-s3-159-setup + tc-s3-159b-setup · fails if a submitted request is assigned directly, or drafts and assigned requests are queued
+    // Code: EventsService submit (coordinatorId null); EventsAssignmentService.listQueue
     it('does not list drafts or already-assigned requests', async () => {
-      await seedEvent({ status: EventStatus.DRAFT, submittedAt: null });
-      await seedEvent({ coordinatorId: ids.marcus, status: EventStatus.PLANNING });
+      await given('tc-s3-159b-setup');
 
       const res = await queue().expect(200);
 
@@ -154,8 +147,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
   });
 
   describe('only the Lead can view the queue', () => {
+    // TC-S3-160 · US-55 AC-2 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if a Coordinator or other role can see the queue, open from it or assign
+    // Code: EventsAssignmentController @Roles(EVENT_COORDINATOR_LEAD); JwtAuthGuard
     it('refuses every other role, Coordinators included', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
 
       for (const who of ['marcus', 'fatima', 'organiser', 'venueStaff']) {
         await queue(who).expect(403);
@@ -164,14 +160,19 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       }
     });
 
+    // TC-S3-160 · US-55 AC-2 · setup: tc-s3-159-setup · fails if a Coordinator or other role can see the queue, open from it or assign
+    // Code: EventsAssignmentController @Roles(EVENT_COORDINATOR_LEAD); JwtAuthGuard
     it('requires authentication', async () => {
       await http().get('/assignments/queue').expect(401);
     });
   });
 
   describe('each queue entry shows the review details, oldest first', () => {
+    // TC-S3-161 · US-55 AC-3 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if an entry misses a field or the oldest submission is not first
+    // Code: EventsAssignmentService.listQueue -> toQueueEntry (order by submittedAt)
     it('lists event, Organiser, organisation, category, date, attendance and submission time', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
 
       const res = await queue().expect(200);
 
@@ -179,7 +180,7 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
         {
           id: event.id,
           name: 'Freshman Orientation 2030',
-          organiser: { id: ids.organiser, name: 'Olive', email: 'organiser@example.com' },
+          organiser: { id: ids.organiser, name: 'Olive', email: 'olive@example.com' },
           organisation: 'Acme Corp',
           category: 'Student engagement',
           proposedStart: '2030-10-01T09:00:00.000Z',
@@ -190,19 +191,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       ]);
     });
 
+    // TC-S3-161 · US-55 AC-3 · setup: tc-s3-159-setup + tc-s3-161-setup · fails if an entry misses a field or the oldest submission is not first
+    // Code: EventsAssignmentService.listQueue -> toQueueEntry (order by submittedAt)
     it('lists the oldest submission first', async () => {
-      const newest = await seedEvent({
-        name: 'Newest',
-        submittedAt: new Date('2030-03-01T00:00:00Z'),
-      });
-      const oldest = await seedEvent({
-        name: 'Oldest',
-        submittedAt: new Date('2030-01-01T00:00:00Z'),
-      });
-      const middle = await seedEvent({
-        name: 'Middle',
-        submittedAt: new Date('2030-02-01T00:00:00Z'),
-      });
+      await given('tc-s3-161-setup');
+      const [newest, oldest, middle] = [{ id: 'EVT-284' }, { id: 'EVT-285' }, { id: 'EVT-286' }];
 
       const res = await queue().expect(200);
 
@@ -215,8 +208,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
   });
 
   describe('a queued request can be opened before assigning', () => {
+    // TC-S3-162 · US-55 AC-4 · setup: tc-s3-159-setup + tc-s3-160-setup + tc-s3-162-setup · fails if a queued request cannot be opened, or one that has left the queue can
+    // Code: EventsAssignmentService.getQueuedRequest
     it('shows its basic event information', async () => {
-      const event = await seedEvent({ preferredLayout: 'THEATRE', layoutNotes: 'Stage left' });
+      await given('tc-s3-160-setup', 'tc-s3-162-setup');
+      const event = queuedEvent;
 
       const res = await queued(event.id).expect(200);
 
@@ -232,14 +228,19 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       });
     });
 
+    // TC-S3-162 · US-55 AC-4 · setup: tc-s3-159-setup + tc-s3-160-setup + tc-s3-162b-setup · fails if a queued request cannot be opened, or one that has left the queue can
+    // Code: EventsAssignmentService.getQueuedRequest
     it('does not open a request that has left the queue', async () => {
-      const event = await seedEvent({ coordinatorId: ids.marcus });
+      await given('tc-s3-160-setup', 'tc-s3-162b-setup');
+      const event = queuedEvent;
 
       await queued(event.id).expect(404);
     });
   });
 
   describe('the Lead picks from the active Event Coordinators', () => {
+    // TC-S3-163 · US-55 AC-5 · setup: tc-s3-159-setup · fails if the list offers anyone but active Coordinators, or a non-Coordinator can be assigned
+    // Code: EventsAssignmentService.listCoordinators; assertIsCoordinator
     it('lists Coordinators only', async () => {
       const res = await http()
         .get('/assignments/coordinators')
@@ -249,8 +250,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(res.body.map((c: { name: string }) => c.name)).toEqual(['Fatima', 'Marcus']);
     });
 
+    // TC-S3-163 · US-55 AC-5 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if the list offers anyone but active Coordinators, or a non-Coordinator can be assigned
+    // Code: EventsAssignmentService.listCoordinators; assertIsCoordinator
     it('refuses a target who is not a Coordinator', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
 
       await assign(event.id, ids.venueStaff).expect(400);
       await assign(event.id, ids.lead).expect(400);
@@ -259,8 +263,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
   });
 
   describe('assigning', () => {
+    // TC-S3-164 · US-55 AC-6 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if the request stays in the queue or does not appear in the chosen Coordinator's list only
+    // Code: EventsAssignmentService.assign; EventsService.findAssignedRequests
     it('removes the request from the queue and puts it in that Coordinator’s list', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
 
       const res = await assign(event.id, ids.marcus).expect(200);
 
@@ -286,8 +293,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(others.body).toEqual([]);
     });
 
+    // TC-S3-164 · US-55 AC-6 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if the assignment is not recorded in the change history with who, to whom and when
+    // Code: EventsAssignmentService.assign -> swapCoordinator (EventChange)
     it('records who assigned it, to whom and when in the change history', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
       await assign(event.id, ids.marcus).expect(200);
 
       const res = await http()
@@ -303,8 +313,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(Date.parse(res.body.entries[0].createdAt)).not.toBeNaN();
     });
 
+    // TC-S3-165 · US-55 AC-7 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if the assigned Coordinator is not notified
+    // Code: EventsAssignmentService.assign -> notifications (EVENT_ASSIGNED)
     it('notifies the assigned Coordinator', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
       await assign(event.id, ids.marcus).expect(200);
 
       const notes = await prisma.notification.findMany({
@@ -320,8 +333,10 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       );
     });
 
+    // US-65 is not one of the Sprint 3 cards (38-57), so this carries no TC-S3 tag.
     it('US-65: tells the Organiser who their coordinator now is, in their inbox', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
       await assign(event.id, ids.marcus).expect(200);
 
       const inbox = await http().get('/notifications').set('Authorization', as('organiser')).expect(200);
@@ -334,8 +349,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       });
     });
 
+    // TC-S3-167 · US-55 AC-9 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if an assigned request can be assigned again, or the current assignee is not shown
+    // Code: EventsAssignmentService.assign -> alreadyAssigned (409, currentAssignee)
     it('blocks an already-assigned request and shows the current assignee', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
       await assign(event.id, ids.marcus).expect(200);
 
       const res = await assign(event.id, ids.fatima).expect(409);
@@ -349,8 +367,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(stored.coordinatorId).toBe(ids.marcus);
     });
 
+    // TC-S3-167 · US-55 AC-9 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if a refused second assignment notifies anyone again
+    // Code: EventsAssignmentService.assign -> alreadyAssigned (no notice)
     it('US-65 AC1: Given the event is already assigned, When a Lead assigns it again, Then the Organiser is not notified again', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
       await assign(event.id, ids.marcus).expect(200);
 
       await assign(event.id, ids.fatima).expect(409);
@@ -363,8 +384,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(toOrganiser[0].message).toBe(`Marcus is now the coordinator for "${event.name}".`);
     });
 
+    // TC-S3-167 · US-55 AC-9 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if two simultaneous assignments both succeed
+    // Code: EventsAssignmentService.assign (conditional update on coordinatorId null)
     it('lets only one of two simultaneous assignments win', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
 
       const results = await Promise.all([
         assign(event.id, ids.marcus),
@@ -376,16 +400,22 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(history).toBe(1);
     });
 
+    // TC-S3-163 · US-55 AC-5 · setup: tc-s3-159-setup + tc-s3-159b-setup · fails if a draft can be assigned
+    // Code: EventsAssignmentService.assign (queued requests only, 404)
     it('does not assign a draft', async () => {
-      const draft = await seedEvent({ status: EventStatus.DRAFT, submittedAt: null });
+      await given('tc-s3-159b-setup');
+      const draft = { id: 'EVT-281' };
 
       await assign(draft.id, ids.marcus).expect(404);
     });
   });
 
   describe('a request still in the queue cannot be reviewed or edited by any Coordinator', () => {
+    // TC-S3-166 · US-55 AC-8 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if a Coordinator can see, review or edit a request still in the queue
+    // Code: EventsService.findAssignedRequest(s) and review actions (assigned Coordinator only, 404)
     it('is invisible and untouchable to Coordinators', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
 
       for (const who of ['marcus', 'fatima']) {
         const list = await http()
@@ -414,8 +444,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
   });
 
   describe('Coordinators can no longer assign or reassign themselves', () => {
+    // TC-S3-176 · US-56 AC-9 · setup: tc-s3-159-setup + tc-s3-170-setup · fails if a Coordinator can still assign or reassign themselves
+    // Code: EventsAssignmentController (Lead-only); old Coordinator routes removed
     it('removes the Coordinator-side routes', async () => {
-      const event = await seedEvent({ coordinatorId: ids.marcus, status: EventStatus.PLANNING });
+      await given('tc-s3-170-setup');
+      const event = marcusEvent;
 
       await http()
         .patch(`/events/${event.id}/coordinator`)
@@ -432,24 +465,12 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
   });
 
   describe('the assignments view', () => {
+    // TC-S3-168 · US-56 AC-1 · setup: tc-s3-159-setup + tc-s3-168-setup · fails if a Coordinator, an active event, the event fields or the count is missing, or a closed or queued event is counted
+    // Code: EventsAssignmentService.listAssignments
     it('lists every Coordinator with their active events and a count', async () => {
-      const a = await seedEvent({
-        name: 'Later',
-        coordinatorId: ids.marcus,
-        status: EventStatus.PLANNING,
-        proposedStart: new Date('2030-12-01T09:00:00Z'),
-      });
-      const b = await seedEvent({
-        name: 'Sooner',
-        coordinatorId: ids.marcus,
-        status: EventStatus.CONFIRMED,
-        proposedStart: new Date('2030-11-01T09:00:00Z'),
-      });
-      for (const status of [EventStatus.COMPLETED, EventStatus.CANCELLED, EventStatus.REJECTED]) {
-        await seedEvent({ name: `Closed ${status}`, coordinatorId: ids.marcus, status });
-      }
-      // Unassigned requests belong to the queue, not to any Coordinator.
-      await seedEvent({ name: 'Queued' });
+      await given('tc-s3-168-setup');
+      const [a, b] = [{ id: 'EVT-288' }, { id: 'EVT-289' }];
+      // Unassigned requests (EVT-293) belong to the queue, not to any Coordinator.
 
       const res = await overview().expect(200);
 
@@ -465,9 +486,10 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       ]);
     });
 
+    // TC-S3-169 · US-56 AC-2 · setup: tc-s3-159-setup + tc-s3-169-setup · fails if the filter shows other Coordinators or accepts a non-Coordinator
+    // Code: EventsAssignmentService.listAssignments (coordinatorId filter, assertIsCoordinator)
     it('filters by Coordinator', async () => {
-      await seedEvent({ coordinatorId: ids.marcus, status: EventStatus.PLANNING });
-      await seedEvent({ coordinatorId: ids.fatima, status: EventStatus.PLANNING });
+      await given('tc-s3-169-setup');
 
       const res = await overview(`?coordinatorId=${ids.fatima}`).expect(200);
 
@@ -478,9 +500,10 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       await overview(`?coordinatorId=${ids.venueStaff}`).expect(400);
     });
 
+    // TC-S3-176 · US-56 AC-9 · setup: tc-s3-159-setup + tc-s3-169-setup · fails if anyone but the Lead sees all assignments, or a Coordinator sees another's events
+    // Code: EventsAssignmentController @Roles(EVENT_COORDINATOR_LEAD); EventsService.findAssignedRequests
     it('is Lead-only; a Coordinator sees only their own events', async () => {
-      await seedEvent({ coordinatorId: ids.marcus, status: EventStatus.PLANNING });
-      await seedEvent({ coordinatorId: ids.fatima, status: EventStatus.PLANNING });
+      await given('tc-s3-169-setup');
 
       for (const who of ['marcus', 'organiser', 'venueStaff']) {
         await overview('', who).expect(403);
@@ -496,11 +519,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
   });
 
   describe('reassigning', () => {
+    // TC-S3-172 · US-56 AC-5 · setup: tc-s3-159-setup + tc-s3-170-setup · fails if the previous Coordinator can still view or manage the event, or the new one cannot
+    // Code: EventsAssignmentService.reassign -> swapCoordinator
     it('moves the event: the previous Coordinator loses it and the new one gains it', async () => {
-      const event = await seedEvent({
-        coordinatorId: ids.marcus,
-        status: EventStatus.PLANNING,
-      });
+      await given('tc-s3-170-setup');
+      const event = marcusEvent;
 
       const res = await reassign(event.id, ids.fatima).expect(200);
       expect(res.body.coordinator.id).toBe(ids.fatima);
@@ -510,16 +533,22 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       await http().get(`/events/assigned/${event.id}`).set('Authorization', as('fatima')).expect(200);
     });
 
+    // TC-S3-170 · US-56 AC-3 · setup: tc-s3-159-setup + tc-s3-170-setup · fails if an event can be reassigned to its current Coordinator
+    // Code: EventsAssignmentService.reassign (same Coordinator, 400)
     it('blocks reassigning to the current Coordinator', async () => {
-      const event = await seedEvent({ coordinatorId: ids.marcus, status: EventStatus.PLANNING });
+      await given('tc-s3-170-setup');
+      const event = marcusEvent;
 
       await reassign(event.id, ids.marcus).expect(400);
     });
 
+    // TC-S3-171 · US-56 AC-4 · setup: tc-s3-159-setup + tc-s3-171-setup · fails if a completed, cancelled or rejected event can be reassigned
+    // Code: EventsAssignmentService.reassign (closed statuses, 409)
     it.each([EventStatus.COMPLETED, EventStatus.CANCELLED, EventStatus.REJECTED])(
       'blocks a %s event',
       async (status) => {
-        const event = await seedEvent({ coordinatorId: ids.marcus, status });
+        await given('tc-s3-171-setup');
+        const event = { id: CLOSED[status] };
 
         await reassign(event.id, ids.fatima).expect(409);
 
@@ -528,39 +557,22 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       },
     );
 
+    // TC-S3-170 · US-56 AC-3 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if a queued request can be reassigned instead of assigned
+    // Code: EventsAssignmentService.reassign (unassigned, 409)
     it('refers an unassigned request back to the queue', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
 
       await reassign(event.id, ids.fatima).expect(409);
     });
 
+    // TC-S3-173 · US-56 AC-6 · setup: tc-s3-159-setup + tc-s3-170-setup + tc-s3-173-setup · fails if bookings, comments or status change on reassignment, or pending change requests stay with the previous Coordinator
+    // Code: EventsAssignmentService.reassign -> swapCoordinator (coordinatorId only)
     it('leaves bookings, reservations and comments untouched, and moves pending change requests', async () => {
-      const venue = await prisma.venue.create({
-        data: { name: 'Hall', location: 'Block A', capacity: 500 },
-      });
-      const event = await seedEvent({ coordinatorId: ids.marcus, status: EventStatus.PLANNING });
-      const booking = await prisma.venueBooking.create({
-        data: {
-          eventId: event.id,
-          venueId: venue.id,
-          start: new Date('2030-10-01T09:00:00Z'),
-          end: new Date('2030-10-01T17:00:00Z'),
-          requestedById: ids.marcus,
-        },
-      });
-      const message = await prisma.clarificationMessage.create({
-        data: { eventId: event.id, authorId: ids.organiser, body: 'A question' },
-      });
-      await prisma.eventChangeRequest.create({
-        data: {
-          eventId: event.id,
-          requestedById: ids.organiser,
-          reason: 'More people are coming',
-          proposedAttendance: 150,
-          status: ChangeRequestStatus.PENDING,
-        },
-      });
-
+      await given('tc-s3-170-setup', 'tc-s3-173-setup');
+      const event = marcusEvent;
+      const booking = { id: 'BKG-160' };
+      const message = { id: 'CLM-001' };
       const pending = (who: string) =>
         http().get('/events/change-requests/pending').set('Authorization', as(who));
       expect((await pending('marcus').expect(200)).body).toHaveLength(1);
@@ -581,8 +593,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(stored.status).toBe(EventStatus.PLANNING);
     });
 
+    // TC-S3-174 · US-56 AC-7 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if the reassignment is not recorded with who, from and to, or earlier entries are lost
+    // Code: EventsAssignmentService.reassign -> swapCoordinator (EventChange)
     it('records who, from and to in the change history, and keeps earlier entries', async () => {
-      const event = await seedEvent();
+      await given('tc-s3-160-setup');
+      const event = queuedEvent;
       await assign(event.id, ids.marcus).expect(200);
       await reassign(event.id, ids.fatima).expect(200);
 
@@ -598,8 +613,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(res.body.entries[1].changedBy.id).toBe(ids.lead);
     });
 
+    // TC-S3-175 · US-56 AC-8 · setup: tc-s3-159-setup + tc-s3-170-setup · fails if the previous or new Coordinator is not notified
+    // Code: EventsAssignmentService.reassign -> notifications (EVENT_REASSIGNED)
     it('notifies both the previous and the new Coordinator', async () => {
-      const event = await seedEvent({ coordinatorId: ids.marcus, status: EventStatus.PLANNING });
+      await given('tc-s3-170-setup');
+      const event = marcusEvent;
       await reassign(event.id, ids.fatima).expect(200);
 
       const notes = await prisma.notification.findMany({
@@ -618,8 +636,11 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(toOrganiser?.message).toBe(`Your coordinator for "${event.name}" is now Fatima.`);
     });
 
+    // TC-S3-176 · US-56 AC-9 · setup: tc-s3-159-setup + tc-s3-170-setup · fails if anyone but the Lead can reassign
+    // Code: EventsAssignmentController @Roles(EVENT_COORDINATOR_LEAD)
     it('is Lead-only', async () => {
-      const event = await seedEvent({ coordinatorId: ids.marcus, status: EventStatus.PLANNING });
+      await given('tc-s3-170-setup');
+      const event = marcusEvent;
 
       for (const who of ['marcus', 'fatima', 'organiser', 'venueStaff']) {
         await reassign(event.id, ids.fatima, who).expect(403);

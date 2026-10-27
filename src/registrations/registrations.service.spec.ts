@@ -123,6 +123,8 @@ describe('RegistrationsService', () => {
     );
   });
 
+  // TC-S2-139, TC-S2-140, TC-S2-142 · US-33 AC-3, AC-4, AC-7 · unit: register() with Prisma mocked · fails if a
+  // registration is not saved as Registered, a second one is made, or the last place goes twice
   describe('register (US-33)', () => {
     it('AC-3: saves a REGISTERED registration, returns it and notifies', async () => {
       const result = await service.register(attendee, dto);
@@ -261,6 +263,8 @@ describe('RegistrationsService', () => {
     });
   });
 
+  // TC-S2-136, TC-S2-137, TC-S2-141 · US-33 AC-1, AC-5, AC-6, AC-7 · unit: getOptions() · fails if the Register
+  // option or its reason is wrong
   describe('getOptions (US-33 AC-1/AC-5/AC-6/AC-7)', () => {
     it('offers registration for an open, confirmed event with room', async () => {
       const result = await service.getOptions(attendee, 'event-1');
@@ -315,6 +319,8 @@ describe('RegistrationsService', () => {
     });
   });
 
+  // TC-S2-145, TC-S2-146, TC-S2-147 · US-34 AC-1 to AC-3 · unit: findMine() · fails if the list lacks a field, shows
+  // stale event details, or gives no message when empty
   describe('findMine (US-34)', () => {
     it('AC-1: lists event name, date/time, venue and status', async () => {
       prisma.registration.findMany.mockResolvedValue([row()]);
@@ -391,6 +397,7 @@ describe('RegistrationsService', () => {
     });
   });
 
+  // TC-S2-148 · US-34 AC-4 · unit: findOne() · fails if another Attendee's registration can be opened
   describe('findOne (US-34 AC-4)', () => {
     it('returns the caller\'s own registration', async () => {
       tx.registration.findUnique.mockResolvedValue(row());
@@ -418,6 +425,8 @@ describe('RegistrationsService', () => {
     });
   });
 
+  // TC-S2-153, TC-S2-154, TC-S2-155 · US-35 AC-3 to AC-5 · unit: withdraw() · fails if the status does not change,
+  // the place is not freed, or a withdrawal after the cutoff goes through
   describe('withdraw (US-35)', () => {
     beforeEach(() => {
       tx.registration.findUnique.mockResolvedValue(row());

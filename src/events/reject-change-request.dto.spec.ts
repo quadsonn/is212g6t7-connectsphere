@@ -5,6 +5,7 @@ import { validate } from 'class-validator';
 import { RejectChangeRequestDto } from './dto/reject-change-request.dto';
 
 /** US-37 AC-3 — rejecting a change request requires a reason. */
+// TC-S2-175 · US-37 AC-3 · unit: RejectChangeRequestDto · fails if a rejection without a reason passes
 describe('RejectChangeRequestDto (US-37)', () => {
   const messages = async (payload: Record<string, unknown>) => {
     const errors = await validate(plainToInstance(RejectChangeRequestDto, payload));

@@ -24,6 +24,8 @@ describe('registration rules', () => {
     ...overrides,
   });
 
+  // TC-S2-136, TC-S2-137, TC-S2-140, TC-S2-141, TC-S2-142 · US-33 AC-1, AC-4 to AC-7 · unit: evaluateRegistration() ·
+  // fails if registering is allowed for an event not confirmed or not open, twice, outside its window, or when full
   describe('evaluateRegistration', () => {
     it('US-33 AC-1: allows a confirmed event with registration enabled', () => {
       const result = evaluateRegistration(event(), 0, now);
@@ -130,6 +132,8 @@ describe('registration rules', () => {
     });
   });
 
+  // TC-S2-151, TC-S2-155, TC-S2-156, TC-S2-189 · US-35 AC-1, AC-5, AC-6 · unit: evaluateWithdrawal() · fails if
+  // withdrawal is offered after the cutoff, on a withdrawn registration, or on a cancelled event
   describe('evaluateWithdrawal', () => {
     it('US-35 AC-1: allows withdrawing an active registration before the cutoff', () => {
       const result = evaluateWithdrawal('REGISTERED', event(), now);

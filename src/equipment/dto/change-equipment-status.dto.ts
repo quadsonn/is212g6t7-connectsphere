@@ -1,6 +1,16 @@
 import { EquipmentStatus } from '@prisma/client';
-import { Transform } from 'class-transformer';
-import { IsEnum, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsArray,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
+
+import { SubstitutionChoiceDto } from './substitution-choice.dto';
 
 /**
  * US-45 — mark an item Damaged or Under Maintenance (AC-1), or back to
@@ -18,4 +28,15 @@ export class ChangeEquipmentStatusDto {
   @IsNotEmpty({ message: 'a reason is required to change the status' })
   @MaxLength(2000)
   reason: string;
+
+  /**
+   * Required for every reservation of this item on a CONFIRMED event when the
+   * item is taken out of use: a replacement, or "no valid alternative".
+   * Reservations on events that have not reached CONFIRMED need none.
+   */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SubstitutionChoiceDto)
+  substitutions?: SubstitutionChoiceDto[];
 }

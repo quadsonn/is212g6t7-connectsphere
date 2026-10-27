@@ -34,6 +34,7 @@ export const ID_PREFIX = {
   RevokedToken: 'RVT',
   ClarificationMessage: 'CLM',
   SafetyReview: 'SFR',
+  EquipmentSubstitution: 'SUB',
 } as const;
 
 export type ReadableIdModel = keyof typeof ID_PREFIX;

@@ -9,7 +9,35 @@ export interface NotifiableEvent {
   id: string;
   name: string | null;
   coordinatorId: string | null;
+  /**
+   * Substitutions Technical Support recorded for this event's reservations of
+   * the item, when it is CONFIRMED. Each is named in the notice so the
+   * Coordinator sees the proposal where they see the problem.
+   */
+  substitutions?: SubstitutionLine[];
 }
+
+/** One reservation line and what Technical Support proposed for it. */
+export interface SubstitutionLine {
+  quantity: number;
+  /** The item that went out of service. */
+  originalType: string;
+  /** The proposed replacement's type; null when there is no valid alternative. */
+  alternativeType: string | null;
+}
+
+/** "2 × "Mic B" instead of "Mic A"" / "no valid alternative for 2 × "Mic A"". */
+export function describeSubstitution(line: SubstitutionLine): string {
+  return line.alternativeType
+    ? `${line.quantity} × "${line.alternativeType}" instead of "${line.originalType}"`
+    : `no valid alternative for ${line.quantity} × "${line.originalType}"`;
+}
+
+/** What the Coordinator can do next: with no replacement offered, only acknowledge. */
+const decideHint = (lines: readonly SubstitutionLine[]) =>
+  lines.some((l) => l.alternativeType)
+    ? ' Open the event to accept the replacement or decline it and acknowledge the problem.'
+    : ' Open the event to acknowledge the problem.';
 
 /**
  * US — tell the Event Coordinator when equipment their event depends on
@@ -52,9 +80,60 @@ export class EquipmentNotifier {
         NotificationType.EQUIPMENT_UNAVAILABLE,
         // " Reason: " so the notifications page shows the reason apart.
         `Equipment "${item.type}" reserved for your event "${event.name ?? 'an event'}" is now ${label}. ` +
-          `Reason: ${item.reason}`,
+          `Reason: ${item.reason}` +
+          this.substitutionSentence(event.substitutions),
       );
     }
+  }
+
+  /**
+   * Technical Support proposed a substitution after the first notice (the item
+   * was already out of service, or the first proposal was voided).
+   */
+  async substituteSuggested(
+    tx: Prisma.TransactionClient,
+    event: NotifiableEvent,
+    line: SubstitutionLine,
+  ): Promise<void> {
+    await this.toCoordinator(
+      tx,
+      event,
+      NotificationType.EQUIPMENT_SUBSTITUTE_SUGGESTED,
+      `Technical Support has answered the unavailable equipment for your event "${event.name ?? 'an event'}": ` +
+        `${describeSubstitution(line)}.${decideHint([line])}`,
+    );
+  }
+
+  /** The Coordinator decided; tell the Technical Support member(s) concerned. */
+  async substituteDecided(
+    tx: Prisma.TransactionClient,
+    input: {
+      recipientIds: readonly string[];
+      event: { id: string; name: string | null };
+      line: SubstitutionLine;
+      accepted: boolean;
+      coordinatorName: string;
+    },
+  ): Promise<void> {
+    const outcome = input.accepted
+      ? `accepted the replacement (${describeSubstitution(input.line)}); the reservation was moved`
+      : `declined the proposal (${describeSubstitution(input.line)}) and acknowledged the equipment problem; the event goes ahead`;
+    for (const recipientId of new Set(input.recipientIds)) {
+      await this.notifications.notify(
+        {
+          recipientId,
+          type: NotificationType.EQUIPMENT_SUBSTITUTE_DECIDED,
+          message: `${input.coordinatorName} ${outcome} for "${input.event.name ?? 'an event'}".`,
+          relatedEventId: input.event.id,
+        },
+        tx,
+      );
+    }
+  }
+
+  private substitutionSentence(lines: readonly SubstitutionLine[] | undefined): string {
+    if (!lines || lines.length === 0) return '';
+    return ` Technical Support proposes: ${lines.map(describeSubstitution).join('; ')}.${decideHint(lines)}`;
   }
 
   /**

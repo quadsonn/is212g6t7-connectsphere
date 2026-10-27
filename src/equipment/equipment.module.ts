@@ -6,6 +6,8 @@ import { EquipmentRequirementsService } from './equipment-requirements.service';
 import { EquipmentReservationsService } from './equipment-reservations.service';
 import { EquipmentController } from './equipment.controller';
 import { EquipmentService } from './equipment.service';
+import { EquipmentSubstitutionsController } from './equipment-substitutions.controller';
+import { EquipmentSubstitutionsService } from './equipment-substitutions.service';
 import { EquipmentStatusNotifier } from './equipment-status-notifier';
 import { TechnicalSupportNotifier } from './technical-support-notifier';
 import { TechnicalSupportAssignmentsController } from './technical-support-assignments.controller';
@@ -22,7 +24,11 @@ import { TechnicalSupportAssignmentsService } from './technical-support-assignme
  */
 @Module({
   imports: [NotificationsModule],
-  controllers: [EquipmentController, TechnicalSupportAssignmentsController],
+  controllers: [
+    EquipmentController,
+    EquipmentSubstitutionsController,
+    TechnicalSupportAssignmentsController,
+  ],
   providers: [
     EquipmentService,
     EquipmentRequirementsService,
@@ -34,6 +40,9 @@ import { TechnicalSupportAssignmentsService } from './technical-support-assignme
     // US-66: tells an event's assigned Technical Support member.
     TechnicalSupportNotifier,
     EquipmentNotifier,
+    // A replacement for equipment a CONFIRMED event loses: proposed by
+    // Technical Support, accepted or declined by the Coordinator.
+    EquipmentSubstitutionsService,
   ],
   // US-66: TechnicalSupportNotifier, so EventsService can tell Technical
   // Support when an event's requirements change.

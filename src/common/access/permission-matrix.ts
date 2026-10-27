@@ -71,6 +71,9 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
       [Resource.RESERVATION]: [
         g(Action.CREATE, Scope.ASSIGNED),
         g(Action.READ, Scope.ASSIGNED),
+        // Accept or decline Technical Support's replacement for equipment a
+        // confirmed event lost - on their own events only.
+        g(Action.DECIDE, Scope.ASSIGNED),
       ],
       // Requirement change 6: the outcome and reasons of a safety check on an
       // event they coordinate, and the means to answer it by sending the event

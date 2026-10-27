@@ -6,8 +6,19 @@ import { Field, Textarea } from '@/components/ui/form';
 import { apiErrorMessage } from '@/lib/api-client';
 import { EQUIPMENT_STATUS_STYLES } from '@/lib/status';
 import { formatDate, formatDateRange } from '@/lib/utils';
-import type { Equipment, EquipmentStatus, UpcomingReservation } from '@/types/api';
+import type {
+  Equipment,
+  EquipmentStatus,
+  SubstitutionChoice,
+  UpcomingReservation,
+} from '@/types/api';
 import { useChangeEquipmentStatus, useUpcomingReservations } from '../hooks/use-equipment';
+import {
+  needsReplacement,
+  NO_ALTERNATIVE,
+  SubstitutionPicker,
+  UNANSWERED,
+} from './substitution-picker';
 
 /** The order the options are offered in, and the verb for each. */
 const OPTIONS: { status: EquipmentStatus; action: string }[] = [
@@ -48,6 +59,8 @@ function ReservationList({ reservations }: { reservations: UpcomingReservation[]
 export function EquipmentStatusPanel({ item }: { item: Equipment }) {
   const [choice, setChoice] = useState<EquipmentStatus | null>(null);
   const [reason, setReason] = useState('');
+  // reservationId -> an item id, NO_ALTERNATIVE, or UNANSWERED.
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<{
     status: EquipmentStatus;
     affected: UpcomingReservation[];
@@ -57,16 +70,30 @@ export function EquipmentStatusPanel({ item }: { item: Equipment }) {
   const warningWanted = choice !== null && takesOutOfUse(choice);
   const upcoming = useUpcomingReservations(item.id, warningWanted);
 
+  // Reservations on CONFIRMED events: each needs an answer before saving.
+  const confirmed = warningWanted ? (upcoming.data ?? []).filter(needsReplacement) : [];
+  const unanswered = confirmed.some((r) => !answers[r.id]);
+  const substitutions: SubstitutionChoice[] = confirmed.map((r) =>
+    answers[r.id] === NO_ALTERNATIVE
+      ? { reservationId: r.id, noAlternative: true }
+      : { reservationId: r.id, alternativeEquipmentId: answers[r.id] },
+  );
+
   const reset = () => {
     setChoice(null);
     setReason('');
+    setAnswers({});
     change.reset();
   };
 
   function submit() {
     if (!choice) return;
     change.mutate(
-      { status: choice, reason: reason.trim() },
+      {
+        status: choice,
+        reason: reason.trim(),
+        ...(substitutions.length > 0 ? { substitutions } : {}),
+      },
       {
         onSuccess: (result) => {
           setSaved({ status: choice, affected: result.affectedReservations });
@@ -174,7 +201,30 @@ export function EquipmentStatusPanel({ item }: { item: Equipment }) {
                       {upcoming.data.length === 1 ? '' : 's'} will be affected. They are not
                       cancelled automatically.
                     </p>
-                    <ReservationList reservations={upcoming.data} />
+                    <ReservationList
+                      reservations={upcoming.data.filter((r) => !needsReplacement(r))}
+                    />
+                    {confirmed.length > 0 ? (
+                      <div className="mt-2 border-t border-amber-200 pt-2">
+                        <p className="text-sm font-medium text-amber-950">
+                          {confirmed.length === 1
+                            ? '1 reservation is on a confirmed event and needs a replacement.'
+                            : `${confirmed.length} reservations are on confirmed events and need a replacement.`}
+                        </p>
+                        <ul className="divide-y divide-amber-200">
+                          {confirmed.map((r) => (
+                            <SubstitutionPicker
+                              key={r.id}
+                              reservation={r}
+                              value={answers[r.id] ?? UNANSWERED}
+                              onChange={(value) =>
+                                setAnswers((current) => ({ ...current, [r.id]: value }))
+                              }
+                            />
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="text-sm text-ink-600">
@@ -223,7 +273,8 @@ export function EquipmentStatusPanel({ item }: { item: Equipment }) {
                 disabled={
                   change.isPending ||
                   reason.trim().length === 0 ||
-                  (warningWanted && upcoming.isPending)
+                  (warningWanted && upcoming.isPending) ||
+                  unanswered
                 }
                 onClick={submit}
               >

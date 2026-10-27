@@ -172,6 +172,16 @@ enum Facility {
 }
 
 // US-29: an equipment item's condition, shown in its full detail view.
+// Equipment substitution lifecycle. PENDING waits on the Coordinator; ACCEPTED
+// and DECLINED are final. VOID closes a substitution the incident outlived —
+// the item came back into service, so there is nothing left to decide.
+enum SubstitutionStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  VOID
+}
+
 // AMBIGUOUS: §5 lists no such enum — inferred from AC-2's "operational
 // status". Defaults to OPERATIONAL since that describes every item until
 // Technical Support records otherwise (US-45, PATCH /equipment/:id/status).
@@ -297,6 +307,12 @@ enum NotificationType {
   // (RELEASED).
   EQUIPMENT_UNAVAILABLE
   EQUIPMENT_RELEASED
+  // Technical Support suggested a replacement (or said there is none) for a
+  // confirmed event's equipment after the first notice — sent to the Coordinator.
+  EQUIPMENT_SUBSTITUTE_SUGGESTED
+  // The Coordinator accepted or declined that suggestion — sent to the
+  // Technical Support member who made it.
+  EQUIPMENT_SUBSTITUTE_DECIDED
   // Sent to all Coordinator Leads when a new (or resubmitted) event request is
   // submitted, so incoming work finds them without polling the queue.
   EVENT_SUBMITTED
@@ -353,6 +369,10 @@ model User {
   venueBlocks                VenueBlock[]
   // US-45: equipment status changes this user recorded.
   equipmentStatusChanges     EquipmentStatusChange[]
+  // Equipment substitutions this user suggested (Technical Support) or decided
+  // (Coordinator).
+  suggestedSubstitutions     EquipmentSubstitution[] @relation("SubstitutionSuggester")
+  decidedSubstitutions       EquipmentSubstitution[] @relation("SubstitutionDecider")
   // US-51: booking conflict reviews this user resolved by hand.
   resolvedBookingReviews     VenueBooking[]          @relation("BookingReviewResolver")
   // US-54: tentative holds this Venue Staff member placed.
@@ -462,8 +482,8 @@ model EventRequest {
   // notice has been sent, so the sweep that detects these moments fires each
   // exactly once per event and never retroactively re-announces. Null means
   // not yet sent. See registration-notifications.ts.
-  registrationOpenedNotifiedAt      DateTime?
-  registrationClosedNotifiedAt      DateTime?
+  registrationOpenedNotifiedAt       DateTime?
+  registrationClosedNotifiedAt       DateTime?
   registrationNearCapacityNotifiedAt DateTime?
 
   // US-05 AC-2: why a Coordinator rejected the request. Written by the review
@@ -726,12 +746,14 @@ model Equipment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  reservations       EquipmentReservation[]
-  requirements       EquipmentRequirement[]
-  changeRequestLines EventChangeRequestEquipment[]
-  statusChanges      EquipmentStatusChange[]
+  reservations         EquipmentReservation[]
+  requirements         EquipmentRequirement[]
+  changeRequestLines   EventChangeRequestEquipment[]
+  statusChanges        EquipmentStatusChange[]
+  // Substitutions that offer this item as the replacement for another.
+  substitutionsOffered EquipmentSubstitution[]
   // US-60: status-change notices about this item.
-  notifications      Notification[]
+  notifications        Notification[]
 
   @@index([type])
 }
@@ -786,6 +808,11 @@ model EquipmentReservation {
   replacedBy   EquipmentReservation? @relation("ReservationReplacement", fields: [replacedById], references: [id], onDelete: SetNull)
   replaces     EquipmentReservation? @relation("ReservationReplacement")
 
+  // Substitutions proposed for this reservation, and the one (if any) whose
+  // acceptance created it.
+  substitutions         EquipmentSubstitution[] @relation("SubstitutionForReservation")
+  createdBySubstitution EquipmentSubstitution?  @relation("SubstitutionResult")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -794,6 +821,48 @@ model EquipmentReservation {
   // as VenueBooking — the index helps the query, the service enforces the rule.
   @@index([equipmentId, start, end])
   @@index([eventId])
+  @@index([status])
+}
+
+/**
+ * Technical Support's answer to "this item is out of service" for a
+ * reservation on a CONFIRMED event: a replacement item of the same quantity,
+ * or — when nothing fits — no alternative at all (alternativeEquipmentId null).
+ * The Coordinator then accepts (the reservation is rebooked onto the
+ * alternative) or declines (the original stays and the equipment flag stays
+ * with them). A decline is final.
+ * A partial unique index in the migration allows one non-VOID substitution per
+ * reservation; Prisma cannot express it.
+ */
+model EquipmentSubstitution {
+  // Readable ID, e.g. SUB-001 (CLAUDE.md, "IDs"), issued by the database.
+  id String @id @default(dbgenerated("next_readable_id('SUB'::text)"))
+
+  reservationId String
+  reservation   EquipmentReservation @relation("SubstitutionForReservation", fields: [reservationId], references: [id], onDelete: Cascade)
+
+  // Null: Technical Support found no valid alternative. Nothing to accept.
+  alternativeEquipmentId String?
+  alternativeEquipment   Equipment? @relation(fields: [alternativeEquipmentId], references: [id], onDelete: Restrict)
+
+  status SubstitutionStatus @default(PENDING)
+
+  suggestedById String
+  suggestedBy   User   @relation("SubstitutionSuggester", fields: [suggestedById], references: [id], onDelete: Restrict)
+
+  decidedById String?
+  decidedBy   User?     @relation("SubstitutionDecider", fields: [decidedById], references: [id], onDelete: Restrict)
+  decidedAt   DateTime?
+
+  // The reservation the acceptance created on the alternative. Unique, so one
+  // substitution becomes at most one reservation.
+  resultReservationId String?               @unique
+  resultReservation   EquipmentReservation? @relation("SubstitutionResult", fields: [resultReservationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([reservationId])
+  @@index([alternativeEquipmentId])
   @@index([status])
 }
 

@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
+import { eventKeys } from '@/features/events/hooks/use-events';
 import type {
+  EquipmentAlternative,
   BrowseEquipmentQuery,
   ChangeEquipmentStatusPayload,
   CommitReservationPayload,
@@ -8,6 +11,7 @@ import type {
   Equipment,
   EquipmentListItem,
   EquipmentStatusChangeResult,
+  EquipmentSubstitution,
   EventRequirementDetails,
   EventRequirements,
   ItemAvailability,
@@ -26,6 +30,7 @@ export const equipmentKeys = {
   eventRequirements: (eventId: string) => ['equipment', 'requirements', eventId] as const,
   eventDetails: (eventId: string) => ['equipment', 'requirements', eventId, 'details'] as const,
   released: ['equipment', 'released'] as const,
+  alternatives: (reservationId: string) => ['equipment', 'alternatives', reservationId] as const,
   assignments: ['equipment', 'assignments'] as const,
 };
 
@@ -148,5 +153,42 @@ export function useMyTechnicalSupportAssignments() {
     queryKey: equipmentKeys.assignments,
     queryFn: equipmentApi.listMyAssignments,
     staleTime: 0,
+  });
+}
+
+/** The dropdown for one reservation: items that could replace its equipment. */
+export function useAlternatives(reservationId: string, enabled = true) {
+  return useQuery<EquipmentAlternative[]>({
+    queryKey: equipmentKeys.alternatives(reservationId),
+    queryFn: () => equipmentApi.listAlternatives(reservationId),
+    enabled: Boolean(reservationId) && enabled,
+    staleTime: 0,
+  });
+}
+
+/**
+ * The Coordinator's answer to a proposal. Accepting moves a reservation and
+ * declining clears the proposal, so the event, its flag and the equipment
+ * queries are all refreshed.
+ */
+export function useDecideSubstitution() {
+  const queryClient = useQueryClient();
+  return useMutation<EquipmentSubstitution, unknown, { id: string; action: 'accept' | 'decline' }>({
+    mutationFn: ({ id, action }) =>
+      action === 'accept'
+        ? equipmentApi.acceptSubstitution(id)
+        : equipmentApi.declineSubstitution(id),
+    onSuccess: (_result, { action }) =>
+      toast.success(
+        action === 'accept'
+          ? 'Replacement accepted. The reservation and the required equipment now use it.'
+          : 'Equipment problem acknowledged. The event goes ahead.',
+      ),
+    // A 409 means the world moved (the alternative filled up): show the
+    // server's reason, but refresh so the flag reflects the truth.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      void queryClient.invalidateQueries({ queryKey: equipmentKeys.all });
+    },
   });
 }

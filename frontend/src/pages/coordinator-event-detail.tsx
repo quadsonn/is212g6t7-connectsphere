@@ -414,7 +414,7 @@ export function CoordinatorEventDetail() {
               )}
             </CardContent>
           </Card>
-          <EquipmentUnavailableNotice items={event.unavailableEquipment} />
+          <EquipmentUnavailableNotice items={event.unavailableEquipment} canDecide={isAssignedToMe} />
 
           {/* US-12 AC-2: the Organiser's own description of the equipment they need,
               shown with the core details (the structured list is the card below). */}

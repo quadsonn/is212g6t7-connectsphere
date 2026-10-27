@@ -84,7 +84,7 @@ export function OrganiserDashboard() {
               </thead>
               <tbody className="divide-y divide-ink-100">
                 {events.map((event) => (
-                  <tr key={event.id} className="relative hover:bg-ink-50">
+                  <tr key={event.id} className="group relative transition-colors hover:bg-ink-50">
                     <td className="px-5 py-3.5">
                       {/* A draft may have these fields still empty (US-04). The
                           after:inset-0 pseudo-element stretches this single
@@ -93,7 +93,7 @@ export function OrganiserDashboard() {
                           tab stop. */}
                       <Link
                         to={`/organiser/${event.id}`}
-                        className="static font-medium text-ink-900 after:absolute after:inset-0 after:content-[''] hover:underline"
+                        className="static font-medium text-ink-900 after:absolute after:inset-0 after:content-[''] group-hover:text-brand-700 group-hover:underline"
                       >
                         {event.name ?? (
                           <span className="italic text-ink-400">Untitled draft</span>
@@ -120,9 +120,11 @@ export function OrganiserDashboard() {
                       ) : null}
                     </td>
                     <td className="px-5 py-3.5">
+                      {/* Above the stretched link, so it opens the pop-up. */}
                       <Button
                         size="sm"
                         variant="secondary"
+                        className="relative z-10"
                         onClick={() => setSelectedEventId(event.id)}
                       >
                         View

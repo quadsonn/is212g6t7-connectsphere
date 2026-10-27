@@ -90,27 +90,38 @@ describe('status write audit (US-11)', () => {
   const operationalStatusWrite =
     /equipment\.(update|updateMany|create|createMany|upsert)\(\s*\{[\s\S]{0,200}?data:\s*\{[^{}]*\boperationalStatus\s*:/g;
 
-  it('writes Equipment.operationalStatus in exactly one place (US-45)', () => {
-    // Only changeStatus() moves an item between statuses, so every change is
-    // validated and recorded with its reason (AC-2).
-    const offenders = files.flatMap((file) => {
-      const matches = readFileSync(file, 'utf8').match(operationalStatusWrite) ?? [];
+  /** US-45 — the damaged and under-maintenance counts. */
+  const conditionCountWrite =
+    /equipment\.(update|updateMany|create|createMany|upsert)\(\s*\{[\s\S]{0,200}?data:\s*(counts|\{[^{}]*\b(damagedQuantity|maintenanceQuantity)\s*:)/g;
+
+  const offendersOf = (pattern: RegExp) =>
+    files.flatMap((file) => {
+      const matches = readFileSync(file, 'utf8').match(pattern) ?? [];
       return matches.map(() => relative(SRC, file));
     });
 
-    expect(offenders).toEqual([ALLOWED_EQUIPMENT_STATUS_FILE]);
+  it('US-45: never writes Equipment.operationalStatus — the database derives it from the counts', () => {
+    expect(offendersOf(operationalStatusWrite)).toEqual([]);
   });
 
-  it('records a reason alongside that write (US-45 AC-2)', () => {
+  it('US-45: writes the damaged and under-maintenance counts in exactly one place', () => {
+    // Only changeStatus() moves units between statuses, so every change is
+    // validated and recorded with its quantity and reason (AC-2).
+    expect(offendersOf(conditionCountWrite)).toEqual([ALLOWED_EQUIPMENT_STATUS_FILE]);
+  });
+
+  it('US-45 AC-2: records the quantity and reason alongside that write', () => {
     const source = readFileSync(join(SRC, ALLOWED_EQUIPMENT_STATUS_FILE), 'utf8');
     const changeBody = source.slice(
       source.indexOf('async changeStatus('),
-      source.indexOf('private async findDetail('),
+      source.indexOf('private async upcomingWithShortages('),
     );
 
-    expect(changeBody).toMatch(/statusChangeError\(/);
-    expect(changeBody).toMatch(/data:\s*\{\s*operationalStatus:\s*dto\.status\s*\}/);
+    expect(changeBody).toMatch(/statusMoveError\(/);
+    expect(changeBody).toMatch(/FOR UPDATE/);
+    expect(changeBody).toMatch(/equipment\.update\(\{ where: \{ id: equipmentId \}, data: counts \}\)/);
     expect(changeBody).toMatch(/equipmentStatusChange\.create\(/);
+    expect(changeBody).toMatch(/quantity:\s*dto\.quantity/);
     expect(changeBody).toMatch(/reason:\s*dto\.reason/);
   });
 

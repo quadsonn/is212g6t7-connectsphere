@@ -76,7 +76,10 @@ export type HistoryField =
   | 'equipmentReservations'
   // US-43: a cancellation is recorded as the status move plus its reason.
   | 'status'
-  | 'cancellationReason';
+  | 'cancellationReason'
+  // US-45: Technical Support reduced or released a short reservation, or the
+  // Coordinator accepted an alternative; recorded with the reason given.
+  | 'equipmentReservationReason';
 
 /** US-26 AC-2 — one field's previous and new value. */
 export interface FieldChange {

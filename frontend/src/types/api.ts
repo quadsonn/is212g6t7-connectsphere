@@ -290,7 +290,9 @@ export interface FieldChange {
     | 'equipmentReservations'
     // US-43: a cancellation is recorded as the status move plus its reason.
     | 'status'
-    | 'cancellationReason';
+    | 'cancellationReason'
+    // US-45: why a reservation was reduced, released or replaced.
+    | 'equipmentReservationReason';
   previous: string | number | boolean | string[] | null;
   next: string | number | boolean | string[] | null;
 }
@@ -339,6 +341,8 @@ export interface OrganiserRequestView extends EventRequest {
    * attention is needed, with no action attached; empty when all is well.
    */
   unavailableEquipment?: UnavailableEquipment[];
+  /** US-45: upcoming reservations short of working units. */
+  equipmentShortages?: EventReservationShortage[];
 }
 
 /** One requested/reserved item whose equipment is now unavailable. */
@@ -351,49 +355,6 @@ export interface UnavailableEquipment {
   quantity: number;
   start: string;
   end: string;
-  /**
-   * Technical Support's answer once the event is CONFIRMED: a replacement to
-   * accept or decline, or no alternative (alternativeEquipment null) to
-   * acknowledge. Null when nothing has been proposed.
-   */
-  substitution?: EquipmentSubstitution | null;
-}
-
-/** PENDING waits on the Coordinator; ACCEPTED/DECLINED are final; VOID ended with the outage. */
-export type SubstitutionStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'VOID';
-
-export interface EquipmentSubstitution {
-  id: string;
-  status: SubstitutionStatus;
-  createdAt: string;
-  decidedAt: string | null;
-  /** Null: Technical Support found no valid alternative. */
-  alternativeEquipment: {
-    id: string;
-    type: string;
-    description: string | null;
-    location: string | null;
-  } | null;
-  suggestedBy: { id: string; name: string };
-  decidedBy: { id: string; name: string } | null;
-}
-
-/** One answer from Technical Support: an item, or no valid alternative. */
-export interface SubstitutionChoice {
-  reservationId: string;
-  alternativeEquipmentId?: string;
-  noAlternative?: boolean;
-}
-
-/** An item that could replace a reservation's equipment, from GET …/alternatives. */
-export interface EquipmentAlternative {
-  id: string;
-  type: string;
-  description: string | null;
-  location: string | null;
-  totalQuantity: number;
-  availableQuantity: number;
-  sameType: boolean;
 }
 
 /** CLOSED (US-43): withdrawn without a decision because the event was cancelled. */
@@ -837,24 +798,59 @@ export interface EquipmentStatusChange {
   changedBy: { id: string; name: string };
 }
 
+/** US-45 AC-2 — one entry of an item's status history, with its quantity. */
+export interface EquipmentStatusHistoryEntry extends EquipmentStatusChange {
+  quantity: number;
+}
+
 /** US-29 AC-2 — GET /equipment/:id, the full record. */
 export interface Equipment extends EquipmentListItem {
+  /** Derived from the counts: Available while any unit works. */
   operationalStatus: EquipmentStatus;
-  /** US-45: why the item has its current status; null if never changed. */
+  /** US-45: the latest status change; null if never changed. */
   latestStatusChange: EquipmentStatusChange | null;
 }
 
-/** US-45 — PATCH /equipment/:id/status. A reason is always required (AC-2). */
-export interface ChangeEquipmentStatusPayload {
-  status: EquipmentStatus;
-  reason: string;
-  /** Required for each reservation on a CONFIRMED event when taking the item out of use. */
-  substitutions?: SubstitutionChoice[];
+/** US-45 — an item's units by condition, from GET /equipment/condition. */
+export interface EquipmentCondition {
+  equipmentId: string;
+  totalQuantity: number;
+  workingQuantity: number;
+  damagedQuantity: number;
+  maintenanceQuantity: number;
 }
 
 /**
- * US-45 AC-5 — a reservation of the item that has not ended yet, from
- * GET /equipment/:id/upcoming-reservations or the status change's response.
+ * US-45 — PATCH /equipment/:id/status: move `quantity` units from one status
+ * to another. A reason is always required (AC-2).
+ */
+export interface ChangeEquipmentStatusPayload {
+  from: EquipmentStatus;
+  to: EquipmentStatus;
+  quantity: number;
+  reason: string;
+}
+
+/** US-45 — Technical Support's record that no valid alternative exists. */
+export interface NoAlternativeNote {
+  id: string;
+  reason: string;
+  createdAt: string;
+}
+
+/** US-45 — an open alternative Technical Support suggested for a short reservation. */
+export interface EquipmentSuggestion {
+  id: string;
+  quantity: number;
+  reason: string;
+  alternativeEquipment: { id: string; type: string };
+  createdAt?: string;
+}
+
+/**
+ * US-45 AC-5 — a committed reservation of the item that has not ended yet,
+ * from GET /equipment/:id/upcoming-reservations or the status change's
+ * response, with how many units it is short by now and after a proposed move.
  */
 export interface UpcomingReservation {
   id: string;
@@ -868,13 +864,41 @@ export interface UpcomingReservation {
     status: EventStatus;
     coordinator: { id: string; name: string } | null;
   };
+  shortBy: number;
+  shortByAfter: number;
+  openSuggestion: EquipmentSuggestion | null;
+  noAlternative: NoAlternativeNote | null;
 }
 
 /** US-45 — what a status change returns. */
 export interface EquipmentStatusChangeResult {
   equipment: Equipment;
-  /** AC-5: reservations affected by the change; empty when none are. */
+  condition: EquipmentCondition;
+  /** AC-5: reservations the change made short, or shorter; empty when none. */
   affectedReservations: UpcomingReservation[];
+}
+
+/** US-45 — one of an event's upcoming reservations, with its shortage. */
+export interface EventReservationShortage {
+  reservationId: string;
+  equipmentId: string;
+  equipmentType: string;
+  quantity: number;
+  /** Units the working stock is short for this reservation; 0 if covered. */
+  shortBy: number;
+  start: string;
+  end: string;
+  openSuggestion: EquipmentSuggestion | null;
+  /** Technical Support found no valid alternative (Coordinator's view only). */
+  noAlternative: NoAlternativeNote | null;
+}
+
+/** US-45 — an item free in the needed quantity, to suggest as an alternative. */
+export interface AlternativeItem {
+  equipmentId: string;
+  type: string;
+  location: string | null;
+  availableQuantity: number;
 }
 
 /** US-29 AC-3 — catalogue search and sort. */

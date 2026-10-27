@@ -10,11 +10,11 @@ import {
   NotificationType,
   Prisma,
   ReservationStatus,
-  SubstitutionStatus,
 } from '@prisma/client';
 
 import { AccessControlService } from '../common/access/access-control.service';
 import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
+import { FINISHED_EVENT_STATUSES } from './equipment-status';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { shortSlot } from '../bookings/slot-label';
@@ -24,15 +24,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CommitReservationDto } from './dto/commit-reservation.dto';
 import { EquipmentNotifier } from './equipment-notifier';
 import {
+  AVAILABILITY_EQUIPMENT_SELECT,
   computeItemAvailability,
   holdingReservationsWhere,
   ItemAvailability,
 } from './equipment-availability';
-import { FINISHED_EVENT_STATUSES } from './equipment-status';
-import {
-  SUBSTITUTION_SELECT,
-  SubstitutionView,
-} from './equipment-substitution';
 import { TechnicalSupportNotifier } from './technical-support-notifier';
 
 /**
@@ -62,14 +58,6 @@ export interface UnavailableReservation {
   quantity: number;
   start: Date;
   end: Date;
-  /**
-   * Technical Support's answer, when the event is CONFIRMED: a replacement to
-   * accept or decline, or "no valid alternative" (alternativeEquipment null) to
-   * acknowledge. Null while nothing has been proposed - always so for an event
-   * that has not reached CONFIRMED. A DECLINED one stays: the flag remains with
-   * the Coordinator, who has acknowledged it.
-   */
-  substitution: SubstitutionView | null;
 }
 
 /**
@@ -179,59 +167,51 @@ export class EquipmentReservationsService {
   ): Promise<CommittedReservation> {
     this.access.requireScope(user, Resource.RESERVATION, Action.CREATE);
 
-    const { reservation, event } = await this.prisma.$transaction(
-      async (tx) => {
-        const event = await this.lockEvent(tx, dto.eventId);
-        await this.lockEquipment(tx, dto.equipmentId);
+    const { reservation, event } = await this.prisma.$transaction(async (tx) => {
+      const event = await this.lockEvent(tx, dto.eventId);
+      await this.lockEquipment(tx, dto.equipmentId);
 
-        const window = { start: event.proposedStart, end: event.proposedEnd };
+      const window = { start: event.proposedStart, end: event.proposedEnd };
 
-        // Shared with US-30: the same equipment fields, the same definition of
-        // "held", the same arithmetic. Only the decision on the result is ours.
-        const [equipment, held] = await Promise.all([
-          tx.equipment.findUniqueOrThrow({
-            where: { id: dto.equipmentId },
-            select: {
-              id: true,
-              type: true,
-              totalQuantity: true,
-              operationalStatus: true,
-            },
-          }),
-          tx.equipmentReservation.findMany({
-            where: holdingReservationsWhere([dto.equipmentId], window),
-            select: { quantity: true, start: true, end: true },
-          }),
-        ]);
+      // Shared with US-30: the same equipment fields, the same definition of
+      // "held", the same arithmetic. Only the decision on the result is ours.
+      const [equipment, held] = await Promise.all([
+        tx.equipment.findUniqueOrThrow({
+          where: { id: dto.equipmentId },
+          select: AVAILABILITY_EQUIPMENT_SELECT,
+        }),
+        tx.equipmentReservation.findMany({
+          where: holdingReservationsWhere([dto.equipmentId], window),
+          select: { quantity: true, start: true, end: true },
+        }),
+      ]);
 
-        const availability = computeItemAvailability({
-          equipment,
-          requestedQuantity: dto.quantity,
-          reservations: held,
-          window,
-        });
+      const availability = computeItemAvailability({
+        equipment,
+        requestedQuantity: dto.quantity,
+        reservations: held,
+        window,
+      });
 
-        // AC-3: refused, with the reason.
-        if (!availability.fullyAvailable) {
-          throw new ConflictException(rejectionReason(availability, window));
-        }
+      // AC-3: refused, with the reason.
+      if (!availability.fullyAvailable) {
+        throw new ConflictException(rejectionReason(availability, window, equipment));
+      }
 
-        const reservation = await tx.equipmentReservation.create({
-          data: {
-            eventId: event.id,
-            equipmentId: equipment.id,
-            quantity: dto.quantity,
-            start: window.start,
-            end: window.end,
-            status: ReservationStatus.APPROVED,
-          },
-          select: RESERVATION_SELECT,
-        });
+      const reservation = await tx.equipmentReservation.create({
+        data: {
+          eventId: event.id,
+          equipmentId: equipment.id,
+          quantity: dto.quantity,
+          start: window.start,
+          end: window.end,
+          status: ReservationStatus.APPROVED,
+        },
+        select: RESERVATION_SELECT,
+      });
 
-        return { reservation, event };
-      },
-      COMMIT_TRANSACTION_OPTIONS,
-    );
+      return { reservation, event };
+    }, COMMIT_TRANSACTION_OPTIONS);
 
     // AC-4: only once the commitment is confirmed (committed), and
     // best-effort — a notification failure must not undo the commitment.
@@ -257,10 +237,7 @@ export class EquipmentReservationsService {
    * US-43 — how many reservations a cancellation is about to release, so the
    * Organiser can be told. Read before the release, which is what changes it.
    */
-  countReleasable(
-    eventId: string,
-    tx: Prisma.TransactionClient,
-  ): Promise<number> {
+  countReleasable(eventId: string, tx: Prisma.TransactionClient): Promise<number> {
     return tx.equipmentReservation.count({
       where: { eventId, status: { in: [...RELEASABLE_STATUSES] } },
     });
@@ -296,10 +273,7 @@ export class EquipmentReservationsService {
     // A guard on the contract, not a user-facing rule: releasing a live
     // event's equipment would silently free units it still needs. US-47: a
     // request rejected as unfulfillable gives its equipment back the same way.
-    if (
-      event?.status !== EventStatus.CANCELLED &&
-      event?.status !== EventStatus.REJECTED
-    ) {
+    if (event?.status !== EventStatus.CANCELLED && event?.status !== EventStatus.REJECTED) {
       throw new ConflictException(
         'equipment can only be released for a cancelled or rejected event',
       );
@@ -326,10 +300,7 @@ export class EquipmentReservationsService {
     await this.technicalSupport?.reservationsReleased(
       tx,
       eventId,
-      releasing.map((r) => ({
-        quantity: r.quantity,
-        equipmentType: r.equipment.type,
-      })),
+      releasing.map((r) => ({ quantity: r.quantity, equipmentType: r.equipment.type })),
     );
     // US — AC-2: tell the Coordinator their reserved equipment was released.
     if (committed > 0) {
@@ -362,9 +333,9 @@ export class EquipmentReservationsService {
         // nothing, and a reservation already over needs no attention.
         status: { in: [...RELEASABLE_STATUSES] },
         end: { gt: now },
-        // A finished event has nothing left to arrange.
-        event: { status: { notIn: [...FINISHED_EVENT_STATUSES] } },
         equipment: { operationalStatus: { not: EquipmentStatus.OPERATIONAL } },
+        // A finished event's leftover reservation needs no attention.
+        event: { status: { notIn: [...FINISHED_EVENT_STATUSES] } },
       },
       select: {
         id: true,
@@ -372,15 +343,7 @@ export class EquipmentReservationsService {
         start: true,
         end: true,
         status: true,
-        equipment: {
-          select: { id: true, type: true, operationalStatus: true },
-        },
-        // A VOID one answered an outage that has ended.
-        substitutions: {
-          where: { status: { not: SubstitutionStatus.VOID } },
-          select: SUBSTITUTION_SELECT,
-          take: 1,
-        },
+        equipment: { select: { id: true, type: true, operationalStatus: true } },
       },
       orderBy: [{ start: 'asc' }, { id: 'asc' }],
     });
@@ -394,7 +357,6 @@ export class EquipmentReservationsService {
       quantity: row.quantity,
       start: row.start,
       end: row.end,
-      substitution: row.substitutions[0] ?? null,
     }));
   }
 
@@ -457,59 +419,13 @@ export class EquipmentReservationsService {
     for (const r of rebooked) {
       await tx.equipmentReservation.update({
         where: { id: r.reservationId },
-        data: {
-          status: ReservationStatus.RELEASED,
-          releasedAt,
-          replacedById: r.replacementId,
-        },
+        data: { status: ReservationStatus.RELEASED, releasedAt, replacedById: r.replacementId },
       });
     }
 
     await this.technicalSupport?.reservationsRebooked(tx, eventId, rebooked);
 
     return rebooked;
-  }
-
-  /**
-   * A Coordinator accepted a replacement for equipment a CONFIRMED event lost:
-   * book the same event, window and quantity on `equipmentId` - keeping the
-   * original's status, so a committed reservation stays committed - and
-   * release the original, linked to its replacement (as US-48 does). Inside
-   * the caller's transaction, which has checked the alternative has the units
-   * free and holds its row lock.
-   */
-  async rebookOntoItem(
-    tx: Prisma.TransactionClient,
-    original: {
-      id: string;
-      eventId: string;
-      quantity: number;
-      start: Date;
-      end: Date;
-      status: ReservationStatus;
-    },
-    equipmentId: string,
-  ): Promise<{ id: string }> {
-    const replacement = await tx.equipmentReservation.create({
-      data: {
-        eventId: original.eventId,
-        equipmentId,
-        quantity: original.quantity,
-        start: original.start,
-        end: original.end,
-        status: original.status,
-      },
-      select: { id: true },
-    });
-    await tx.equipmentReservation.update({
-      where: { id: original.id },
-      data: {
-        status: ReservationStatus.RELEASED,
-        releasedAt: new Date(),
-        replacedById: replacement.id,
-      },
-    });
-    return replacement;
   }
 
   /** US-33 AC-3 — which reservations were released, and for which event. */
@@ -558,9 +474,7 @@ export class EquipmentReservationsService {
     // guarantees both), but the type allows null and a commitment without a
     // window would lock nothing.
     if (!event.proposedStart || !event.proposedEnd) {
-      throw new ConflictException(
-        'the event has no date and time to commit for',
-      );
+      throw new ConflictException('the event has no date and time to commit for');
     }
 
     return {
@@ -568,6 +482,34 @@ export class EquipmentReservationsService {
       proposedStart: event.proposedStart,
       proposedEnd: event.proposedEnd,
     };
+  }
+
+  /**
+   * US-45 — release one reservation that Technical Support gave back to
+   * resolve a shortage, or that an accepted alternative replaced in full. The
+   * caller holds the item's lock and records why. Kept here with the other
+   * reservation status writes (events-status-audit.spec.ts).
+   */
+  async releaseOne(tx: Prisma.TransactionClient, reservationId: string): Promise<void> {
+    await tx.equipmentReservation.update({
+      where: { id: reservationId },
+      data: { status: ReservationStatus.RELEASED, releasedAt: new Date() },
+    });
+  }
+
+  /**
+   * US-45 — commit units of an accepted alternative for the short
+   * reservation's period. The caller holds the item's lock and has checked the
+   * units are free, as commit() does.
+   */
+  createCommitted(
+    tx: Prisma.TransactionClient,
+    data: { eventId: string; equipmentId: string; quantity: number; start: Date; end: Date },
+  ): Promise<{ id: string }> {
+    return tx.equipmentReservation.create({
+      data: { ...data, status: ReservationStatus.APPROVED },
+      select: { id: true },
+    });
   }
 
   /**
@@ -587,25 +529,35 @@ export class EquipmentReservationsService {
   }
 }
 
-/** US-32 AC-3 — why a commitment was refused, in terms the user can act on. */
+/**
+ * US-31 AC-3 — why a commitment was refused, in terms the user can act on.
+ * US-45: when some units are out of use, `counts` names how many are damaged
+ * and under maintenance.
+ */
 export function rejectionReason(
   availability: ItemAvailability,
   window: { start: Date; end: Date },
+  counts?: { damagedQuantity: number; maintenanceQuantity: number },
 ): string {
   const period = `${window.start.toISOString()} – ${window.end.toISOString()}`;
+  const { type, totalQuantity } = availability;
 
-  if (availability.unavailableQuantity > 0) {
+  if (availability.unavailableQuantity >= totalQuantity) {
     const condition =
       availability.operationalStatus === EquipmentStatus.UNDER_MAINTENANCE
         ? 'under maintenance'
         : 'damaged (out of service)';
-    return `${availability.type} is ${condition}, so none of it can be committed.`;
+    return `${type} is ${condition}, so none of it can be committed.`;
   }
 
+  const breakdown =
+    availability.unavailableQuantity > 0 && counts
+      ? `of ${totalQuantity}, ${counts.damagedQuantity} are damaged, ${counts.maintenanceQuantity} under ` +
+        `maintenance, and ${availability.reservedQuantity} are`
+      : `${availability.reservedQuantity} of ${totalQuantity} are`;
   return (
     `Only ${availability.availableQuantity} of the ${availability.requestedQuantity} ` +
-    `${availability.type} requested are free for ${period}: ` +
-    `${availability.reservedQuantity} of ${availability.totalQuantity} are already ` +
-    `committed to an overlapping period.`
+    `${type} requested are free for ${period}: ${breakdown} ` +
+    `already committed to an overlapping period.`
   );
 }

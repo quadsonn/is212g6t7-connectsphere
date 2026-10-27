@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { LinkButton } from '@/components/ui/link-button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
+import { EventReservationsCard } from '@/features/equipment/components/reservation-cards';
 import { RequirementsView } from '@/features/equipment/components/requirements-view';
 import {
   useCommitReservation,
@@ -88,6 +89,9 @@ export function EquipmentEventRequirements() {
               <RequirementsView requirements={event} />
             </CardContent>
           </Card>
+
+          {/* US-45: what is reserved, flagged when short, with the actions. */}
+          <EventReservationsCard eventId={event.eventId} eventStatus={event.status} />
 
           {NOT_COMMITTABLE[event.status] ? (
             <Card className="mt-6">

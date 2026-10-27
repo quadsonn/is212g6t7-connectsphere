@@ -11,7 +11,7 @@ import { TechnicalRequirementsView } from '@/features/events/components/technica
 import { useRelatedEvent, useRelatedEvents } from '@/features/events/hooks/use-events';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
-import { formatDateRange, humanise } from '@/lib/utils';
+import { formatDateRange, humanise, STRETCHED_LINK } from '@/lib/utils';
 import { ACCESSIBILITY_FEATURE_LABELS } from '@/types/api';
 
 /**
@@ -51,10 +51,15 @@ export function RelatedEventsList({ basePath }: { basePath: string }) {
         {events && events.length > 0 ? (
           <ul className="divide-y divide-ink-100">
             {events.map((event) => (
-              <li key={event.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
+              <li
+                key={event.id}
+                className="group relative flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-ink-50"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2.5">
-                    <span className="truncate font-medium text-ink-900">{event.name}</span>
+                    <span className="truncate font-medium text-ink-900 group-hover:text-brand-700 group-hover:underline">
+                      {event.name}
+                    </span>
                     <EventStatusBadge status={event.status} />
                   </div>
                   <p className="mt-1 text-xs text-ink-500">
@@ -62,7 +67,7 @@ export function RelatedEventsList({ basePath }: { basePath: string }) {
                     {attendanceBandLabel(event.expectedAttendance)} expected
                   </p>
                 </div>
-                <LinkButton to={`${basePath}/${event.id}`} size="sm" variant="secondary">
+                <LinkButton to={`${basePath}/${event.id}`} size="sm" variant="secondary" className={STRETCHED_LINK}>
                   View details
                 </LinkButton>
               </li>

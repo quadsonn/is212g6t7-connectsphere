@@ -58,8 +58,14 @@ const TITLES: Record<string, string> = {
   // Equipment an event depends on went out of service, or was released.
   EQUIPMENT_UNAVAILABLE: 'Equipment unavailable',
   EQUIPMENT_RELEASED: 'Equipment released',
-  // Technical Support proposed a replacement for a confirmed event's equipment,
-  // and the Coordinator's answer.
+  // US-45: resolving a shortage — a reservation reduced or released, and an
+  // alternative item suggested (to the Coordinator) and decided (to Tech Support).
+  EQUIPMENT_RESERVATION_ADJUSTED: 'Equipment reservation changed',
+  EQUIPMENT_ALTERNATIVE_SUGGESTED: 'Alternative equipment suggested',
+  EQUIPMENT_ALTERNATIVE_DECIDED: 'Alternative equipment decided',
+  EQUIPMENT_NO_ALTERNATIVE: 'No alternative equipment',
+  // Replacement proposals from the retired substitution flow (now US-45's
+  // suggestions). No longer sent; kept so stored notices still read well.
   EQUIPMENT_SUBSTITUTE_SUGGESTED: 'Replacement suggested',
   EQUIPMENT_SUBSTITUTE_DECIDED: 'Replacement decided',
   // Incoming work for Coordinators and Leads.

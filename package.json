@@ -32,6 +32,7 @@
     "prisma:seed:us42": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us42.ts",
     "prisma:seed:us44": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us44.ts",
     "prisma:seed:us58": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us58.ts",
+    "prisma:seed:us45": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us45.ts",
     "prisma:seed:us64": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us64.ts",
     "prisma:seed:us65": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us65.ts",
     "prisma:seed:us61": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-us61.ts",

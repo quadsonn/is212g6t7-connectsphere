@@ -9,35 +9,7 @@ export interface NotifiableEvent {
   id: string;
   name: string | null;
   coordinatorId: string | null;
-  /**
-   * Substitutions Technical Support recorded for this event's reservations of
-   * the item, when it is CONFIRMED. Each is named in the notice so the
-   * Coordinator sees the proposal where they see the problem.
-   */
-  substitutions?: SubstitutionLine[];
 }
-
-/** One reservation line and what Technical Support proposed for it. */
-export interface SubstitutionLine {
-  quantity: number;
-  /** The item that went out of service. */
-  originalType: string;
-  /** The proposed replacement's type; null when there is no valid alternative. */
-  alternativeType: string | null;
-}
-
-/** "2 × "Mic B" instead of "Mic A"" / "no valid alternative for 2 × "Mic A"". */
-export function describeSubstitution(line: SubstitutionLine): string {
-  return line.alternativeType
-    ? `${line.quantity} × "${line.alternativeType}" instead of "${line.originalType}"`
-    : `no valid alternative for ${line.quantity} × "${line.originalType}"`;
-}
-
-/** What the Coordinator can do next: with no replacement offered, only acknowledge. */
-const decideHint = (lines: readonly SubstitutionLine[]) =>
-  lines.some((l) => l.alternativeType)
-    ? ' Open the event to accept the replacement or decline it and acknowledge the problem.'
-    : ' Open the event to acknowledge the problem.';
 
 /**
  * US — tell the Event Coordinator when equipment their event depends on
@@ -60,80 +32,45 @@ export class EquipmentNotifier {
   constructor(private readonly notifications: NotificationsService) {}
 
   /**
-   * AC-1 — an item was marked damaged or under maintenance; notify the
-   * Coordinator of each event that has a committed (APPROVED) reservation of
-   * it, once per event. `events` is already filtered to the committed ones.
+   * AC-1 — units of an item were marked damaged or under maintenance and the
+   * remaining units no longer cover a committed reservation; notify the
+   * Coordinator of each such event, once per event. US-45: the notice names how
+   * many units were marked and how many the event is now short by. `events` is
+   * already filtered to the reservations the change made short.
    */
   async unavailable(
     tx: Prisma.TransactionClient,
-    item: { type: string; status: EquipmentStatus; reason: string },
-    events: NotifiableEvent[],
+    item: {
+      type: string;
+      status: EquipmentStatus;
+      reason: string;
+      /** US-45: units marked, of how many. */
+      quantity?: number;
+      totalQuantity?: number;
+    },
+    events: (NotifiableEvent & { shortBy?: number })[],
   ): Promise<void> {
     const label = EQUIPMENT_STATUS_LABELS[item.status].toLowerCase();
-    const seen = new Set<string>();
+    const worst = new Map<string, NotifiableEvent & { shortBy?: number }>();
     for (const event of events) {
-      if (seen.has(event.id)) continue; // one notice per event
-      seen.add(event.id);
+      // One notice per event, naming its largest shortfall.
+      if ((worst.get(event.id)?.shortBy ?? -1) < (event.shortBy ?? 0)) worst.set(event.id, event);
+    }
+    const marked =
+      item.quantity !== undefined && item.totalQuantity !== undefined
+        ? `${item.quantity} of ${item.totalQuantity} "${item.type}" are now ${label}`
+        : `Equipment "${item.type}" is now ${label}`;
+    for (const event of worst.values()) {
+      const short = event.shortBy ? ` and is short by ${event.shortBy}` : '';
       await this.toCoordinator(
         tx,
         event,
         NotificationType.EQUIPMENT_UNAVAILABLE,
         // " Reason: " so the notifications page shows the reason apart.
-        `Equipment "${item.type}" reserved for your event "${event.name ?? 'an event'}" is now ${label}. ` +
-          `Reason: ${item.reason}` +
-          this.substitutionSentence(event.substitutions),
+        `${marked}: the reservation for your event "${event.name ?? 'an event'}" is affected${short}. ` +
+          `Reason: ${item.reason}`,
       );
     }
-  }
-
-  /**
-   * Technical Support proposed a substitution after the first notice (the item
-   * was already out of service, or the first proposal was voided).
-   */
-  async substituteSuggested(
-    tx: Prisma.TransactionClient,
-    event: NotifiableEvent,
-    line: SubstitutionLine,
-  ): Promise<void> {
-    await this.toCoordinator(
-      tx,
-      event,
-      NotificationType.EQUIPMENT_SUBSTITUTE_SUGGESTED,
-      `Technical Support has answered the unavailable equipment for your event "${event.name ?? 'an event'}": ` +
-        `${describeSubstitution(line)}.${decideHint([line])}`,
-    );
-  }
-
-  /** The Coordinator decided; tell the Technical Support member(s) concerned. */
-  async substituteDecided(
-    tx: Prisma.TransactionClient,
-    input: {
-      recipientIds: readonly string[];
-      event: { id: string; name: string | null };
-      line: SubstitutionLine;
-      accepted: boolean;
-      coordinatorName: string;
-    },
-  ): Promise<void> {
-    const outcome = input.accepted
-      ? `accepted the replacement (${describeSubstitution(input.line)}); the reservation was moved`
-      : `declined the proposal (${describeSubstitution(input.line)}) and acknowledged the equipment problem; the event goes ahead`;
-    for (const recipientId of new Set(input.recipientIds)) {
-      await this.notifications.notify(
-        {
-          recipientId,
-          type: NotificationType.EQUIPMENT_SUBSTITUTE_DECIDED,
-          message: `${input.coordinatorName} ${outcome} for "${input.event.name ?? 'an event'}".`,
-          relatedEventId: input.event.id,
-        },
-        tx,
-      );
-    }
-  }
-
-  private substitutionSentence(lines: readonly SubstitutionLine[] | undefined): string {
-    if (!lines || lines.length === 0) return '';
-    return ` Technical Support proposes: ${lines.map(describeSubstitution).join('; ')}.${decideHint(lines)}`;
   }
 
   /**
@@ -157,6 +94,39 @@ export class EquipmentNotifier {
   }
 
   /** The event's Coordinator, or every Lead if unassigned; skip + log if none. */
+  /**
+   * US-45 — Technical Support reduced or released a reservation of this event
+   * to resolve a shortage; the message carries what changed and the reason.
+   */
+  async reservationAdjusted(
+    tx: Prisma.TransactionClient,
+    event: NotifiableEvent,
+    message: string,
+  ): Promise<void> {
+    await this.toCoordinator(tx, event, NotificationType.EQUIPMENT_RESERVATION_ADJUSTED, message);
+  }
+
+  /** US-45 — an alternative item was suggested for a short reservation. */
+  async alternativeSuggested(
+    tx: Prisma.TransactionClient,
+    event: NotifiableEvent,
+    message: string,
+  ): Promise<void> {
+    await this.toCoordinator(tx, event, NotificationType.EQUIPMENT_ALTERNATIVE_SUGGESTED, message);
+  }
+
+  /**
+   * US-45 — Technical Support found no valid alternative for a short
+   * reservation on a confirmed event; the message carries the reason.
+   */
+  async noAlternative(
+    tx: Prisma.TransactionClient,
+    event: NotifiableEvent,
+    message: string,
+  ): Promise<void> {
+    await this.toCoordinator(tx, event, NotificationType.EQUIPMENT_NO_ALTERNATIVE, message);
+  }
+
   private async toCoordinator(
     tx: Prisma.TransactionClient,
     event: NotifiableEvent,

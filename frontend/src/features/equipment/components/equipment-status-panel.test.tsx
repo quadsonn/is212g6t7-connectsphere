@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Equipment, UpcomingReservation } from '@/types/api';
+import type { Equipment, EquipmentCondition, UpcomingReservation } from '@/types/api';
 import { equipmentApi } from '../api/equipment.api';
 import { EquipmentStatusPanel } from './equipment-status-panel';
 
@@ -13,9 +13,9 @@ vi.mock('../api/equipment.api', () => ({
 
 const api = vi.mocked(equipmentApi);
 
-const available: Equipment = {
+const item: Equipment = {
   id: 'eq-1',
-  type: 'Wireless microphone',
+  type: 'Projector',
   description: null,
   location: 'AV Store',
   totalQuantity: 10,
@@ -23,22 +23,19 @@ const available: Equipment = {
   latestStatusChange: null,
 };
 
-const damaged: Equipment = {
-  ...available,
-  operationalStatus: 'OUT_OF_SERVICE',
-  latestStatusChange: {
-    id: 'c1',
-    fromStatus: 'OPERATIONAL',
-    toStatus: 'OUT_OF_SERVICE',
-    reason: 'Cracked casing.',
-    changedAt: '2030-09-01T09:00:00.000Z',
-    changedBy: { id: 'u1', name: 'Nadia Technical' },
-  },
+const allWorking: EquipmentCondition = {
+  equipmentId: 'eq-1',
+  totalQuantity: 10,
+  workingQuantity: 10,
+  damagedQuantity: 0,
+  maintenanceQuantity: 0,
 };
 
-const gala: UpcomingReservation = {
+const twoDamaged: EquipmentCondition = { ...allWorking, workingQuantity: 8, damagedQuantity: 2 };
+
+const gala = (shortBy: number, shortByAfter: number): UpcomingReservation => ({
   id: 'r1',
-  quantity: 4,
+  quantity: 9,
   start: '2030-10-01T09:00:00.000Z',
   end: '2030-10-01T17:00:00.000Z',
   status: 'APPROVED',
@@ -48,120 +45,156 @@ const gala: UpcomingReservation = {
     status: 'PLANNING',
     coordinator: { id: 'c1', name: 'Chris Coordinator' },
   },
-};
+  shortBy,
+  shortByAfter,
+  openSuggestion: null,
+});
 
-const renderPanel = (item: Equipment) =>
+const renderPanel = (condition: EquipmentCondition) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <EquipmentStatusPanel item={item} />
+      <EquipmentStatusPanel item={item} condition={condition} />
     </QueryClientProvider>,
   );
 
-const submitButton = (label: string) => screen.getByRole('button', { name: label });
+const setQuantity = async (user: ReturnType<typeof userEvent.setup>, value: string) => {
+  const input = screen.getByLabelText(/Quantity/);
+  await user.clear(input);
+  await user.type(input, value);
+};
 
 beforeEach(() => vi.resetAllMocks());
 
-describe('US-45 equipment status panel', () => {
-  it('US-45 AC-1: offers Damaged and Under Maintenance for an available item', () => {
-    renderPanel(available);
-
-    expect(screen.getByRole('radio', { name: 'Mark as damaged' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Mark as under maintenance' })).toBeInTheDocument();
-    // Not offered: it is already available.
-    expect(screen.queryByRole('radio', { name: 'Set back to available' })).not.toBeInTheDocument();
+describe('US-45 equipment status panel (by quantity)', () => {
+  it('US-45: shows the units by condition, e.g. "8 available, 2 damaged, 0 under maintenance"', () => {
+    renderPanel(twoDamaged);
+    expect(screen.getByLabelText('Units by condition')).toHaveTextContent(
+      '8 available, 2 damaged, 0 under maintenance',
+    );
   });
 
-  it('US-45 AC-2: cannot be saved without a reason, and sends the trimmed reason', async () => {
+  it('US-45 AC-1/AC-3: offers only moves with units to move', () => {
+    renderPanel(allWorking);
+    expect(screen.getByRole('radio', { name: 'Mark as damaged' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Mark as under maintenance' })).toBeInTheDocument();
+    // Nothing is damaged or under maintenance, so nothing to repair.
+    expect(screen.queryByRole('radio', { name: 'Repair damaged' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Return from maintenance' })).not.toBeInTheDocument();
+  });
+
+  it('US-45 AC-1/AC-2: mark 2 of 10 damaged — the quantity and trimmed reason are sent', async () => {
     api.listUpcomingReservations.mockResolvedValue([]);
-    api.changeStatus.mockResolvedValue({ equipment: damaged, affectedReservations: [] });
-    renderPanel(available);
+    api.changeStatus.mockResolvedValue({ equipment: item, condition: twoDamaged, affectedReservations: [] });
+    renderPanel(allWorking);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('radio', { name: 'Mark as damaged' }));
-    await screen.findByText(/No upcoming reservations/);
-    expect(submitButton('Change to damaged')).toBeDisabled();
+    await setQuantity(user, '2');
+    const save = screen.getAllByRole('button', { name: 'Mark as damaged' }).at(-1)!;
+    await waitFor(() => expect(save).toBeDisabled()); // no reason yet
 
-    await user.type(screen.getByLabelText(/Reason/), '   ');
-    expect(submitButton('Change to damaged')).toBeDisabled();
-
-    await user.type(screen.getByLabelText(/Reason/), 'Cracked casing.  ');
-    expect(submitButton('Change to damaged')).toBeEnabled();
-    await user.click(submitButton('Change to damaged'));
+    await user.type(screen.getByLabelText(/Reason/), '  Cracked lens  ');
+    await waitFor(() => expect(save).toBeEnabled());
+    await user.click(save);
 
     await waitFor(() =>
       expect(api.changeStatus).toHaveBeenCalledWith('eq-1', {
-        status: 'OUT_OF_SERVICE',
-        reason: 'Cracked casing.',
+        from: 'OPERATIONAL',
+        to: 'OUT_OF_SERVICE',
+        quantity: 2,
+        reason: 'Cracked lens',
       }),
     );
+    expect(await screen.findByRole('status')).toHaveTextContent('2 units moved from working to damaged');
   });
 
-  it('US-45 AC-2: shows the reason for the current status', () => {
-    renderPanel(damaged);
-
-    expect(screen.getByText('Cracked casing.')).toBeInTheDocument();
-    expect(screen.getByText(/by Nadia Technical/)).toBeInTheDocument();
-  });
-
-  it('US-45 AC-3: a damaged item can be set back to available, without a reservation check', async () => {
-    api.changeStatus.mockResolvedValue({ equipment: available, affectedReservations: [] });
-    renderPanel(damaged);
+  it('US-45 AC-5: before saving, lists the reservations the change would leave short, with how many', async () => {
+    api.listUpcomingReservations.mockResolvedValue([gala(0, 1)]);
+    renderPanel(allWorking);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('radio', { name: 'Set back to available' }));
-    await user.type(screen.getByLabelText(/Reason/), 'Repaired.');
-    await user.click(submitButton('Change to available'));
+    await user.click(screen.getByRole('radio', { name: 'Mark as damaged' }));
+    await setQuantity(user, '2');
 
-    await waitFor(() =>
-      expect(api.changeStatus).toHaveBeenCalledWith('eq-1', {
-        status: 'OPERATIONAL',
-        reason: 'Repaired.',
-      }),
-    );
-    expect(api.listUpcomingReservations).not.toHaveBeenCalled();
-    expect(await screen.findByText('Status changed to available.')).toBeInTheDocument();
+    const warning = await screen.findByRole('alert');
+    expect(warning).toHaveTextContent("can't cover 1 upcoming reservation");
+    expect(warning).toHaveTextContent('not cancelled or reassigned');
+    expect(warning).toHaveTextContent('Annual Gala');
+    expect(warning).toHaveTextContent('9 reserved · short by 1');
+    expect(api.listUpcomingReservations).toHaveBeenLastCalledWith('eq-1', {
+      from: 'OPERATIONAL',
+      to: 'OUT_OF_SERVICE',
+      quantity: 2,
+    });
   });
 
-  it('US-45 AC-5: warns, before saving, with the reservations that would be affected', async () => {
-    api.listUpcomingReservations.mockResolvedValue([gala]);
-    renderPanel(available);
+  it('US-45 AC-5: a reservation already short by as much is not listed as affected', async () => {
+    api.listUpcomingReservations.mockResolvedValue([gala(1, 1)]);
+    renderPanel(twoDamaged);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('radio', { name: 'Mark as under maintenance' }));
-
-    expect(await screen.findByText(/1 existing reservation will be affected/)).toBeInTheDocument();
-    expect(screen.getByText('Annual Gala')).toBeInTheDocument();
-    expect(screen.getByText(/4 units/)).toBeInTheDocument();
-    expect(screen.getByText(/Coordinator: Chris Coordinator/)).toBeInTheDocument();
-    expect(api.changeStatus).not.toHaveBeenCalled();
+    expect(await screen.findByText('The remaining units still cover every upcoming reservation.')).toBeInTheDocument();
   });
 
-  it('US-45 AC-5: after saving, lists the reservations the server found affected', async () => {
+  it('US-45 AC-3: repair a quantity of damaged units', async () => {
+    api.changeStatus.mockResolvedValue({ equipment: item, condition: allWorking, affectedReservations: [] });
+    renderPanel(twoDamaged);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('radio', { name: 'Repair damaged' }));
+    await setQuantity(user, '2');
+    await user.type(screen.getByLabelText(/Reason/), 'Lenses replaced');
+    await user.click(screen.getAllByRole('button', { name: 'Repair damaged' }).at(-1)!);
+
+    await waitFor(() =>
+      expect(api.changeStatus).toHaveBeenCalledWith('eq-1', {
+        from: 'OUT_OF_SERVICE',
+        to: 'OPERATIONAL',
+        quantity: 2,
+        reason: 'Lenses replaced',
+      }),
+    );
+    // A repair frees units, so nothing is checked for shortages first.
+    expect(api.listUpcomingReservations).not.toHaveBeenCalled();
+  });
+
+  it('US-45 AC-1: shows the server refusing more units than are working', async () => {
     api.listUpcomingReservations.mockResolvedValue([]);
-    api.changeStatus.mockResolvedValue({ equipment: damaged, affectedReservations: [gala] });
-    renderPanel(available);
+    api.changeStatus.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 409, data: { message: "Only 8 of 10 Projector are working, so 9 can't be marked damaged." } },
+    });
+    renderPanel(twoDamaged);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('radio', { name: 'Mark as damaged' }));
-    await screen.findByText(/No upcoming reservations/);
-    await user.type(screen.getByLabelText(/Reason/), 'Dropped.');
-    await user.click(submitButton('Change to damaged'));
+    await setQuantity(user, '9');
+    await user.type(screen.getByLabelText(/Reason/), 'Dropped');
+    await user.click(screen.getAllByRole('button', { name: 'Mark as damaged' }).at(-1)!);
 
-    expect(await screen.findByText(/1 existing reservation is affected/)).toBeInTheDocument();
-    expect(screen.getByText('Annual Gala')).toBeInTheDocument();
+    expect(await screen.findByText(/can't be marked damaged/)).toBeInTheDocument();
   });
 
-  it('shows the server error when the change is refused', async () => {
-    api.listUpcomingReservations.mockResolvedValue([]);
-    api.changeStatus.mockRejectedValue(new Error('network down'));
-    renderPanel(available);
+  it('US-45 AC-5: after saving, shows the reservations the server found short', async () => {
+    api.listUpcomingReservations.mockResolvedValue([gala(0, 1)]);
+    api.changeStatus.mockResolvedValue({
+      equipment: item,
+      condition: twoDamaged,
+      affectedReservations: [gala(1, 1)],
+    });
+    renderPanel(allWorking);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('radio', { name: 'Mark as damaged' }));
-    await screen.findByText(/No upcoming reservations/);
-    await user.type(screen.getByLabelText(/Reason/), 'Dropped.');
-    await user.click(submitButton('Change to damaged'));
+    await setQuantity(user, '2');
+    await user.type(screen.getByLabelText(/Reason/), 'Cracked lens');
+    await screen.findByRole('alert');
+    await user.click(screen.getAllByRole('button', { name: 'Mark as damaged' }).at(-1)!);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Could not change the status|network down/);
+    const saved = await screen.findByRole('status');
+    expect(saved).toHaveTextContent('1 upcoming reservation is now short');
+    expect(saved).toHaveTextContent('Nothing was cancelled');
+    expect(saved).toHaveTextContent('Annual Gala');
   });
 });

@@ -32,26 +32,42 @@ export class EquipmentNotifier {
   constructor(private readonly notifications: NotificationsService) {}
 
   /**
-   * AC-1 — an item was marked damaged or under maintenance; notify the
-   * Coordinator of each event that has a committed (APPROVED) reservation of
-   * it, once per event. `events` is already filtered to the committed ones.
+   * AC-1 — units of an item were marked damaged or under maintenance and the
+   * remaining units no longer cover a committed reservation; notify the
+   * Coordinator of each such event, once per event. US-45: the notice names how
+   * many units were marked and how many the event is now short by. `events` is
+   * already filtered to the reservations the change made short.
    */
   async unavailable(
     tx: Prisma.TransactionClient,
-    item: { type: string; status: EquipmentStatus; reason: string },
-    events: NotifiableEvent[],
+    item: {
+      type: string;
+      status: EquipmentStatus;
+      reason: string;
+      /** US-45: units marked, of how many. */
+      quantity?: number;
+      totalQuantity?: number;
+    },
+    events: (NotifiableEvent & { shortBy?: number })[],
   ): Promise<void> {
     const label = EQUIPMENT_STATUS_LABELS[item.status].toLowerCase();
-    const seen = new Set<string>();
+    const worst = new Map<string, NotifiableEvent & { shortBy?: number }>();
     for (const event of events) {
-      if (seen.has(event.id)) continue; // one notice per event
-      seen.add(event.id);
+      // One notice per event, naming its largest shortfall.
+      if ((worst.get(event.id)?.shortBy ?? -1) < (event.shortBy ?? 0)) worst.set(event.id, event);
+    }
+    const marked =
+      item.quantity !== undefined && item.totalQuantity !== undefined
+        ? `${item.quantity} of ${item.totalQuantity} "${item.type}" are now ${label}`
+        : `Equipment "${item.type}" is now ${label}`;
+    for (const event of worst.values()) {
+      const short = event.shortBy ? ` and is short by ${event.shortBy}` : '';
       await this.toCoordinator(
         tx,
         event,
         NotificationType.EQUIPMENT_UNAVAILABLE,
         // " Reason: " so the notifications page shows the reason apart.
-        `Equipment "${item.type}" reserved for your event "${event.name ?? 'an event'}" is now ${label}. ` +
+        `${marked}: the reservation for your event "${event.name ?? 'an event'}" is affected${short}. ` +
           `Reason: ${item.reason}`,
       );
     }
@@ -78,6 +94,27 @@ export class EquipmentNotifier {
   }
 
   /** The event's Coordinator, or every Lead if unassigned; skip + log if none. */
+  /**
+   * US-45 — Technical Support reduced or released a reservation of this event
+   * to resolve a shortage; the message carries what changed and the reason.
+   */
+  async reservationAdjusted(
+    tx: Prisma.TransactionClient,
+    event: NotifiableEvent,
+    message: string,
+  ): Promise<void> {
+    await this.toCoordinator(tx, event, NotificationType.EQUIPMENT_RESERVATION_ADJUSTED, message);
+  }
+
+  /** US-45 — an alternative item was suggested for a short reservation. */
+  async alternativeSuggested(
+    tx: Prisma.TransactionClient,
+    event: NotifiableEvent,
+    message: string,
+  ): Promise<void> {
+    await this.toCoordinator(tx, event, NotificationType.EQUIPMENT_ALTERNATIVE_SUGGESTED, message);
+  }
+
   private async toCoordinator(
     tx: Prisma.TransactionClient,
     event: NotifiableEvent,

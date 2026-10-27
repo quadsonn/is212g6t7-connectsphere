@@ -5,25 +5,32 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma, ReservationStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { EquipmentNotifier } from './equipment-notifier';
 import { AccessControlService } from '../common/access/access-control.service';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
-import { inEntryOrder } from '../prisma/readable-id';
+import { compareReadableIds, inEntryOrder } from '../prisma/readable-id';
 import { BrowseEquipmentDto, EquipmentSortField, SortOrder } from './dto/browse-equipment.dto';
-import { ChangeEquipmentStatusDto } from './dto/change-equipment-status.dto';
+import {
+  ChangeEquipmentStatusDto,
+  ProposedStatusMoveDto,
+} from './dto/change-equipment-status.dto';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import {
+  AVAILABILITY_EQUIPMENT_SELECT,
   computeItemAvailability,
   holdingReservationsWhere,
   ItemAvailability,
+  workingQuantity,
 } from './equipment-availability';
+import { loadShortages } from './equipment-shortage';
 import {
-  affectsReservations,
-  statusChangeError,
+  applyStatusMove,
+  statusMoveError,
+  unitsIn,
   upcomingReservationsWhere,
 } from './equipment-status';
 import { EquipmentStatusNotifier } from './equipment-status-notifier';
@@ -60,7 +67,7 @@ export const STATUS_CHANGE_SELECT = {
   changedBy: { select: { id: true, name: true } },
 } as const satisfies Prisma.EquipmentStatusChangeSelect;
 
-/** US-45 AC-5 — a reservation the status change puts at risk, and its event. */
+/** US-45 AC-5 — an upcoming committed reservation of an item, and its event. */
 export const UPCOMING_RESERVATION_SELECT = {
   id: true,
   quantity: true,
@@ -75,6 +82,16 @@ export const UPCOMING_RESERVATION_SELECT = {
       coordinator: { select: { id: true, name: true } },
     },
   },
+  // US-45: the open alternative suggestion, if Technical Support made one.
+  suggestions: {
+    where: { status: 'OPEN' },
+    select: {
+      id: true,
+      quantity: true,
+      reason: true,
+      alternativeEquipment: { select: { id: true, type: true } },
+    },
+  },
 } as const satisfies Prisma.EquipmentReservationSelect;
 
 export type EquipmentListItem = Prisma.EquipmentGetPayload<{
@@ -83,13 +100,62 @@ export type EquipmentListItem = Prisma.EquipmentGetPayload<{
 export type StatusChangeRecord = Prisma.EquipmentStatusChangeGetPayload<{
   select: typeof STATUS_CHANGE_SELECT;
 }>;
-export type UpcomingReservation = Prisma.EquipmentReservationGetPayload<{
+
+/**
+ * US-45 AC-2 — one entry of an item's status history: how many units moved,
+ * from and to which status, the reason, who and when.
+ */
+export const STATUS_HISTORY_SELECT = {
+  ...STATUS_CHANGE_SELECT,
+  quantity: true,
+} as const satisfies Prisma.EquipmentStatusChangeSelect;
+
+export type StatusHistoryEntry = Prisma.EquipmentStatusChangeGetPayload<{
+  select: typeof STATUS_HISTORY_SELECT;
+}>;
+type UpcomingReservationRow = Prisma.EquipmentReservationGetPayload<{
   select: typeof UPCOMING_RESERVATION_SELECT;
 }>;
 
 /**
+ * US-45 — an upcoming reservation with its shortage: `shortBy` now, and
+ * `shortByAfter` under a proposed change (the warning before saving).
+ */
+export type UpcomingReservation = Omit<UpcomingReservationRow, 'suggestions'> & {
+  shortBy: number;
+  shortByAfter: number;
+  openSuggestion: UpcomingReservationRow['suggestions'][number] | null;
+};
+
+/** US-45 — an item's units by condition: "8 available, 2 damaged, 0 under maintenance". */
+export interface EquipmentCondition {
+  equipmentId: string;
+  totalQuantity: number;
+  workingQuantity: number;
+  damagedQuantity: number;
+  maintenanceQuantity: number;
+}
+
+const CONDITION_SELECT = {
+  id: true,
+  totalQuantity: true,
+  damagedQuantity: true,
+  maintenanceQuantity: true,
+} as const satisfies Prisma.EquipmentSelect;
+
+function toCondition(item: Prisma.EquipmentGetPayload<{ select: typeof CONDITION_SELECT }>): EquipmentCondition {
+  return {
+    equipmentId: item.id,
+    totalQuantity: item.totalQuantity,
+    workingQuantity: workingQuantity(item),
+    damagedQuantity: item.damagedQuantity,
+    maintenanceQuantity: item.maintenanceQuantity,
+  };
+}
+
+/**
  * US-29 AC-2 — the full detail. US-45 adds the most recent status change, so
- * the reason an item is damaged or under maintenance is shown with it; null
+ * the reason units are damaged or under maintenance is shown with it; null
  * for an item whose status has never been changed.
  */
 export type EquipmentDetail = Prisma.EquipmentGetPayload<{
@@ -99,7 +165,11 @@ export type EquipmentDetail = Prisma.EquipmentGetPayload<{
 /** US-45 — what a status change returns. */
 export interface StatusChangeResult {
   equipment: EquipmentDetail;
-  /** AC-5: reservations affected by the change; empty when none are. */
+  condition: EquipmentCondition;
+  /**
+   * AC-5: reservations the change made short, or shorter; empty when none.
+   * Nothing is cancelled or reassigned.
+   */
   affectedReservations: UpcomingReservation[];
 }
 
@@ -197,54 +267,95 @@ export class EquipmentService {
     return item;
   }
 
+  /** US-45 — every item's units by condition, for the catalogue. */
+  async findConditions(user: AuthenticatedUser): Promise<EquipmentCondition[]> {
+    const items = await this.prisma.equipment.findMany({
+      where: this.visibilityFilter(user),
+      select: CONDITION_SELECT,
+    });
+    return items.map(toCondition);
+  }
+
+  /** US-45 AC-2 — the item's status history, newest first, with quantities. */
+  async findStatusHistory(user: AuthenticatedUser, equipmentId: string): Promise<StatusHistoryEntry[]> {
+    await this.findCondition(user, equipmentId);
+    const rows = await this.prisma.equipmentStatusChange.findMany({
+      where: { equipmentId },
+      orderBy: [{ changedAt: 'desc' }],
+      select: STATUS_HISTORY_SELECT,
+    });
+    // Newest first; IDs break ties in entry order (CLAUDE.md, "Ordering").
+    return rows.sort(
+      (a, b) => b.changedAt.getTime() - a.changedAt.getTime() || compareReadableIds(b.id, a.id),
+    );
+  }
+
+  /** US-45 — one item's units by condition, for its page. */
+  async findCondition(user: AuthenticatedUser, equipmentId: string): Promise<EquipmentCondition> {
+    const item = await this.prisma.equipment.findFirst({
+      where: { AND: [{ id: equipmentId }, this.visibilityFilter(user)] },
+      select: CONDITION_SELECT,
+    });
+    if (!item) {
+      throw new NotFoundException('equipment not found');
+    }
+    return toCondition(item);
+  }
+
   /**
-   * US-45 AC-5 — the reservations that marking this item Damaged or Under
-   * Maintenance would affect, so the warning can be shown before the change
-   * is saved. Read-only; changeStatus() works the list out again under the
-   * lock, so the answer it returns is the one that held when it was saved.
+   * US-45 — the item's upcoming committed reservations, each with how many
+   * units it is short by now and, when a move is proposed, after it (AC-5:
+   * the warning shown before the change is saved). Past reservations are not
+   * listed. Read-only; changeStatus() works the shortage out again under the
+   * lock, so what it returns is what held when the change was saved.
    */
   async findUpcomingReservations(
     user: AuthenticatedUser,
     equipmentId: string,
+    proposal: ProposedStatusMoveDto = {},
   ): Promise<UpcomingReservation[]> {
-    const visibility = this.visibilityFilter(user);
-
     const item = await this.prisma.equipment.findFirst({
-      where: { AND: [{ id: equipmentId }, visibility] },
-      select: { id: true },
+      where: { AND: [{ id: equipmentId }, this.visibilityFilter(user)] },
+      select: { ...CONDITION_SELECT, type: true },
     });
 
     if (!item) {
       throw new NotFoundException('equipment not found');
     }
 
-    return this.prisma.equipmentReservation.findMany({
-      where: upcomingReservationsWhere(equipmentId, new Date()),
-      orderBy: [{ start: 'asc' }, { id: 'asc' }],
-      select: UPCOMING_RESERVATION_SELECT,
-    });
+    const now = new Date();
+    const { from, to, quantity } = proposal;
+    // A proposal that could not be saved (more units than are in `from`) is
+    // previewed as far as it can go, so the warning still shows its effect.
+    const after =
+      from && to && quantity && from !== to
+        ? applyStatusMove(item, from, to, Math.min(quantity, unitsIn(item, from)))
+        : item;
+
+    return this.upcomingWithShortages(this.prisma, equipmentId, now, workingQuantity({ ...item, ...after }));
   }
 
   /**
-   * US-45 — the only place Equipment.operationalStatus is written
-   * (events-status-audit.spec.ts enforces it).
+   * US-45 — the only place an item's damaged and under-maintenance counts are
+   * written (events-status-audit.spec.ts enforces it). operationalStatus is
+   * derived from them by the database.
    *
-   * AC-1/AC-3: any status may move to any other; statusChangeError() refuses
-   * only a no-op. AC-2: the reason is required by the DTO and stored with the
-   * change. AC-4 needs nothing here: availability (US-30) and commitment
-   * (US-32) already count a non-OPERATIONAL item as having no free units.
-   * AC-5: the affected reservations come back with the result.
+   * AC-1/AC-3: `quantity` units move between statuses; statusMoveError()
+   * refuses marking more units than are working and repairing more than are
+   * damaged or under maintenance. AC-2: the reason is required by the DTO and
+   * stored with the quantity, who and when. AC-4: availability (US-29, US-31,
+   * US-48) counts only working units, so the change takes effect at once.
+   * AC-5: the reservations it made short, or shorter, come back with the
+   * result. None is cancelled or reassigned.
    *
-   * The item's row is locked FOR UPDATE, the same lock a US-32 commit takes,
-   * so a commit and a status change of one item run one at a time: either the
-   * commit lands first and is listed as affected here, or it runs after and
-   * sees the item as unavailable.
+   * The item's row is locked FOR UPDATE — the same lock a US-31 commit and a
+   * reservation adjustment take — and the counts are read under it, so two
+   * changes of one item run one at a time and cannot together go over its
+   * total (a CHECK constraint backs this up).
    *
-   * Existing reservations are left as they are — the story asks for a warning,
-   * not for them to be released.
-   *
-   * US-60: once the change has committed, every other Technical Support member
-   * is told (EquipmentStatusNotifier), best-effort.
+   * US-67: the Coordinator of each event with a reservation made short is
+   * told, in the transaction. US-60: once committed, every other Technical
+   * Support member is told, best-effort.
    */
   async changeStatus(
     user: AuthenticatedUser,
@@ -261,12 +372,12 @@ export class EquipmentService {
         throw new NotFoundException('equipment not found');
       }
 
-      const { operationalStatus: from, type } = await tx.equipment.findUniqueOrThrow({
+      const item = await tx.equipment.findUniqueOrThrow({
         where: { id: equipmentId },
-        select: { operationalStatus: true, type: true },
+        select: { ...CONDITION_SELECT, type: true },
       });
 
-      const error = statusChangeError(from, dto.status);
+      const error = statusMoveError(item, dto.from, dto.to, dto.quantity);
       if (error) {
         throw new ConflictException(error);
       }
@@ -282,60 +393,95 @@ export class EquipmentService {
         throw new UnauthorizedException('your account no longer exists, please log in again');
       }
 
-      await tx.equipment.update({
-        where: { id: equipmentId },
-        data: { operationalStatus: dto.status },
-      });
+      const now = new Date();
+      const before = await loadShortages(tx, [equipmentId], now);
+
+      const counts = applyStatusMove(item, dto.from, dto.to, dto.quantity);
+      await tx.equipment.update({ where: { id: equipmentId }, data: counts });
 
       await tx.equipmentStatusChange.create({
         data: {
           equipmentId,
-          fromStatus: from,
-          toStatus: dto.status,
+          fromStatus: dto.from,
+          toStatus: dto.to,
+          quantity: dto.quantity,
           reason: dto.reason,
           changedById: user.userId,
         },
       });
 
-      const affectedReservations = affectsReservations(dto.status)
-        ? await tx.equipmentReservation.findMany({
-            where: upcomingReservationsWhere(equipmentId, new Date()),
-            orderBy: [{ start: 'asc' }, { id: 'asc' }],
-            select: UPCOMING_RESERVATION_SELECT,
-          })
-        : [];
+      const upcoming = await this.upcomingWithShortages(tx, equipmentId, now);
+      const affectedReservations = upcoming.filter(
+        (r) => r.shortBy > (before.get(r.id) ?? 0),
+      );
 
-      // US — AC-1: tell the Coordinator of each affected event, once per event.
-      // "Committed" is APPROVED only; a merely requested reservation is left
-      // out. In the same transaction, so the notice exists iff the change did.
-      const committedEvents = affectedReservations
-        .filter((r) => r.status === ReservationStatus.APPROVED)
-        .map((r) => ({
-          id: r.event.id,
-          name: r.event.name,
-          coordinatorId: r.event.coordinator?.id ?? null,
-        }));
-      if (committedEvents.length > 0) {
+      // US-67: the Coordinator of each event a reservation was made short for,
+      // once per event, with the quantity. In the transaction, so the notice
+      // exists iff the change did.
+      if (affectedReservations.length > 0) {
         await this.equipmentNotifier?.unavailable(
           tx,
-          { type, status: dto.status, reason: dto.reason },
-          committedEvents,
+          {
+            type: item.type,
+            status: dto.to,
+            reason: dto.reason,
+            quantity: dto.quantity,
+            totalQuantity: item.totalQuantity,
+          },
+          affectedReservations.map((r) => ({
+            id: r.event.id,
+            name: r.event.name,
+            coordinatorId: r.event.coordinator?.id ?? null,
+            shortBy: r.shortBy,
+          })),
         );
       }
 
       const equipment = await this.findDetail(tx, { id: equipmentId });
+      const condition = toCondition({ ...item, ...counts });
 
-      return { equipment: equipment!, affectedReservations };
+      return { equipment: equipment!, condition, affectedReservations };
     }, STATUS_TRANSACTION_OPTIONS);
 
     await this.statusNotifier?.statusChanged({
       equipmentId,
-      toStatus: dto.status,
+      toStatus: dto.to,
+      quantity: dto.quantity,
       reason: dto.reason,
       actorId: user.userId,
     });
 
     return result;
+  }
+
+  /**
+   * US-45 — the item's upcoming committed reservations with their shortage,
+   * now and with `workingAfter` working units.
+   */
+  private async upcomingWithShortages(
+    client: Prisma.TransactionClient,
+    equipmentId: string,
+    now: Date,
+    workingAfter?: number,
+  ): Promise<UpcomingReservation[]> {
+    const [rows, shortNow, shortAfter] = await Promise.all([
+      client.equipmentReservation.findMany({
+        where: upcomingReservationsWhere(equipmentId, now),
+        orderBy: [{ start: 'asc' }, { id: 'asc' }],
+        select: UPCOMING_RESERVATION_SELECT,
+      }),
+      loadShortages(client, [equipmentId], now),
+      workingAfter === undefined
+        ? null
+        : loadShortages(client, [equipmentId], now, new Map([[equipmentId, workingAfter]])),
+    ]);
+
+    return rows.map(({ suggestions, ...row }) => ({
+      ...row,
+      shortBy: shortNow.get(row.id) ?? 0,
+      shortByAfter: (shortAfter ?? shortNow).get(row.id) ?? 0,
+      openSuggestion: suggestions[0] ?? null,
+    }));
   }
 
   /** The detail fields plus the latest status change, flattened. */
@@ -385,12 +531,7 @@ export class EquipmentService {
     const [equipment, held] = await Promise.all([
       this.prisma.equipment.findFirst({
         where: { AND: [{ id: equipmentId }, visibility] },
-        select: {
-          id: true,
-          type: true,
-          totalQuantity: true,
-          operationalStatus: true,
-        },
+        select: AVAILABILITY_EQUIPMENT_SELECT,
       }),
       this.prisma.equipmentReservation.findMany({
         where: holdingReservationsWhere([equipmentId], window),
@@ -439,9 +580,7 @@ export class EquipmentService {
           createdAt: true,
           equipmentType: true,
           quantity: true,
-          equipment: {
-            select: { id: true, type: true, totalQuantity: true, operationalStatus: true },
-          },
+          equipment: { select: AVAILABILITY_EQUIPMENT_SELECT },
         },
       }),
     );
@@ -472,3 +611,4 @@ export class EquipmentService {
     }));
   }
 }
+

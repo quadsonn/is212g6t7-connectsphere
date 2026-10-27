@@ -6,7 +6,11 @@ import { PageHeader } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
-import { useEquipmentCatalogue } from '@/features/equipment/hooks/use-equipment';
+import { ConditionSummary } from '@/features/equipment/components/equipment-condition';
+import {
+  useEquipmentCatalogue,
+  useEquipmentConditions,
+} from '@/features/equipment/hooks/use-equipment';
 import { apiErrorMessage } from '@/lib/api-client';
 import type { BrowseEquipmentQuery } from '@/types/api';
 
@@ -17,6 +21,9 @@ export function EquipmentCatalogue() {
   const [sortOrder, setSortOrder] = useState<BrowseEquipmentQuery['sortOrder']>('asc');
   const navigate = useNavigate();
 
+  // US-45: units by condition, matched to each row by id.
+  const conditions = useEquipmentConditions();
+  const conditionOf = new Map((conditions.data ?? []).map((c) => [c.equipmentId, c]));
   const { data: items, isPending, isError, error } = useEquipmentCatalogue({
     // Sent to the server, which does the filtering — not a client-side filter
     // over a partial list (AC-3).
@@ -126,6 +133,8 @@ export function EquipmentCatalogue() {
                   {/* Total owned, not free right now — availability depends on a date
                       and time, which is what Check availability is for. */}
                   <th scope="col" className="px-5 py-3 font-medium">Total quantity</th>
+                  {/* US-45: how many of those work, are damaged, or are under maintenance. */}
+                  <th scope="col" className="px-5 py-3 font-medium">Condition</th>
                   <th scope="col" className="px-5 py-3 font-medium">Location</th>
                 </tr>
               </thead>
@@ -141,6 +150,9 @@ export function EquipmentCatalogue() {
                     </td>
                     <td className="px-5 py-3.5 text-ink-600">{item.description ?? '—'}</td>
                     <td className="px-5 py-3.5 tabular-nums text-ink-600">{item.totalQuantity}</td>
+                    <td className="px-5 py-3.5">
+                      <ConditionSummary condition={conditionOf.get(item.id)} />
+                    </td>
                     <td className="px-5 py-3.5 text-ink-600">{item.location ?? '—'}</td>
                   </tr>
                 ))}

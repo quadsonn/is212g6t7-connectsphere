@@ -16,7 +16,7 @@ describe('EquipmentStatusNotifier (US-60)', () => {
 
   beforeEach(() => {
     prisma = {
-      equipment: { findUnique: jest.fn().mockResolvedValue({ type: 'Projector' }) },
+      equipment: { findUnique: jest.fn().mockResolvedValue({ type: 'Projector', totalQuantity: 10 }) },
       user: {
         findUnique: jest.fn().mockResolvedValue({ name: 'Wei Technical' }),
         findMany: jest.fn().mockResolvedValue(staff),
@@ -31,13 +31,14 @@ describe('EquipmentStatusNotifier (US-60)', () => {
 
   const change = (toStatus: EquipmentStatus) =>
     notifier.statusChanged({
+      quantity: 2,
       equipmentId: 'EQP-001',
       toStatus,
       reason: 'Cracked lens',
       actorId: 'USR-001',
     });
 
-  it('US-60 AC-1: every other Technical Support member is told the item name and new status', async () => {
+  it('US-60 AC-1 / US-45: every other Technical Support member is told the quantity, item name and new status', async () => {
     const sent = await change(EquipmentStatus.OUT_OF_SERVICE);
 
     expect(sent).toBe(2);
@@ -45,7 +46,7 @@ describe('EquipmentStatusNotifier (US-60)', () => {
       staff.map(({ id }) => ({
         recipientId: id,
         type: NotificationType.EQUIPMENT_STATUS_CHANGED,
-        message: 'Projector marked Damaged by Wei Technical. Reason: Cracked lens',
+        message: '2 of 10 Projector marked Damaged by Wei Technical. Reason: Cracked lens',
         relatedEquipmentId: 'EQP-001',
       })),
     );
@@ -54,7 +55,7 @@ describe('EquipmentStatusNotifier (US-60)', () => {
   it('US-60 AC-1: Under Maintenance is announced with its own label', async () => {
     await change(EquipmentStatus.UNDER_MAINTENANCE);
 
-    expect(notifications.notifySafely.mock.calls[0][0].message).toMatch(/^Projector marked Under Maintenance/);
+    expect(notifications.notifySafely.mock.calls[0][0].message).toMatch(/^2 of 10 Projector marked Under Maintenance/);
   });
 
   it('US-60 AC-2: the recipients are looked up without the actor, by role', async () => {

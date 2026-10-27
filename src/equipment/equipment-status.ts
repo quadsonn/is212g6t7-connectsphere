@@ -1,10 +1,13 @@
 import { EquipmentStatus, Prisma, ReservationStatus } from '@prisma/client';
 
-import { isLendable } from './equipment-availability';
+import { EquipmentCounts, workingQuantity } from './equipment-availability';
 
 /**
  * US-45 — the operational status rules, kept free of Nest and of database
  * access so they can be unit-tested directly (CLAUDE.md §8).
+ *
+ * Status is by quantity: an item's units are working, damaged or under
+ * maintenance, and a change moves a number of them from one to another.
  */
 
 /**
@@ -17,52 +20,83 @@ export const EQUIPMENT_STATUS_LABELS: Readonly<Record<EquipmentStatus, string>> 
   [EquipmentStatus.OUT_OF_SERVICE]: 'Damaged',
 };
 
-/**
- * AC-1/AC-3 — whether an item may move from one status to another, and if
- * not, why. Every move between the three statuses is allowed (damaged items
- * go to maintenance, repaired items come back to available); only a "change"
- * to the status the item already has is refused, since it would record a
- * reason for nothing happening.
- */
-export function statusChangeError(
-  from: EquipmentStatus,
-  to: EquipmentStatus,
-): string | null {
-  if (from === to) {
-    return `this item is already ${EQUIPMENT_STATUS_LABELS[to]}`;
+/** How many of an item's units are in each status. */
+export function unitsIn(item: EquipmentCounts, status: EquipmentStatus): number {
+  switch (status) {
+    case EquipmentStatus.OPERATIONAL:
+      return workingQuantity(item);
+    case EquipmentStatus.OUT_OF_SERVICE:
+      return item.damagedQuantity;
+    case EquipmentStatus.UNDER_MAINTENANCE:
+      return item.maintenanceQuantity;
   }
-  return null;
 }
 
 /**
- * AC-5 — the reservations a status change puts at risk: those still holding
- * (APPROVED) or awaiting (REQUESTED) units of this item for a period that has
- * not ended yet. Released and rejected reservations hold nothing, and a
- * reservation that is already over cannot be affected.
+ * AC-1/AC-3 — whether `quantity` units may move from one status to another,
+ * and if not, why.
  *
- * The same two statuses US-33 treats as live (RELEASABLE_STATUSES).
+ * Any move between the three statuses is allowed: working units are marked
+ * damaged or under maintenance, damaged units go to maintenance, repaired
+ * units come back to available. Refused: a move to the same status, and
+ * moving more units than are in the status they come from — marking more
+ * than are working, or repairing more than are damaged or under maintenance.
  */
-export const AFFECTED_RESERVATION_STATUSES: readonly ReservationStatus[] = [
-  ReservationStatus.REQUESTED,
-  ReservationStatus.APPROVED,
-];
+export function statusMoveError(
+  item: EquipmentCounts & { type: string },
+  from: EquipmentStatus,
+  to: EquipmentStatus,
+  quantity: number,
+): string | null {
+  if (from === to) {
+    return `the units are already ${EQUIPMENT_STATUS_LABELS[to]}`;
+  }
 
+  const inFrom = unitsIn(item, from);
+  if (quantity <= inFrom) return null;
+
+  const target = EQUIPMENT_STATUS_LABELS[to].toLowerCase();
+  if (from === EquipmentStatus.OPERATIONAL) {
+    return (
+      `Only ${inFrom} of ${item.totalQuantity} ${item.type} are working, ` +
+      `so ${quantity} can't be marked ${target}.`
+    );
+  }
+  const source = EQUIPMENT_STATUS_LABELS[from].toLowerCase();
+  return (
+    `Only ${inFrom} ${item.type} are ${source}, ` +
+    `so ${quantity} can't be ${to === EquipmentStatus.OPERATIONAL ? 'set back to available' : `moved to ${target}`}.`
+  );
+}
+
+/** The counts after moving `quantity` units from one status to another. */
+export function applyStatusMove(
+  item: EquipmentCounts,
+  from: EquipmentStatus,
+  to: EquipmentStatus,
+  quantity: number,
+): { damagedQuantity: number; maintenanceQuantity: number } {
+  const delta = (status: EquipmentStatus) =>
+    (status === to ? quantity : 0) - (status === from ? quantity : 0);
+
+  return {
+    damagedQuantity: item.damagedQuantity + delta(EquipmentStatus.OUT_OF_SERVICE),
+    maintenanceQuantity: item.maintenanceQuantity + delta(EquipmentStatus.UNDER_MAINTENANCE),
+  };
+}
+
+/**
+ * AC-5 — the reservations a shortage can touch: committed (APPROVED) ones for
+ * a period that has not ended yet. Only a commitment holds units (US-29's
+ * HOLDING_STATUSES); a past reservation cannot be affected.
+ */
 export function upcomingReservationsWhere(
   equipmentId: string,
   now: Date,
 ): Prisma.EquipmentReservationWhereInput {
   return {
     equipmentId,
-    status: { in: [...AFFECTED_RESERVATION_STATUSES] },
+    status: ReservationStatus.APPROVED,
     end: { gt: now },
   };
-}
-
-/**
- * AC-5 — only taking an item out of use affects its reservations. Setting it
- * back to Available (AC-3) frees units rather than withdrawing them, so there
- * is nothing to warn about.
- */
-export function affectsReservations(to: EquipmentStatus): boolean {
-  return !isLendable(to);
 }

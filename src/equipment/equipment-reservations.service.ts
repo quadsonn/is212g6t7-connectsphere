@@ -23,6 +23,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CommitReservationDto } from './dto/commit-reservation.dto';
 import { EquipmentNotifier } from './equipment-notifier';
 import {
+  AVAILABILITY_EQUIPMENT_SELECT,
   computeItemAvailability,
   holdingReservationsWhere,
   ItemAvailability,
@@ -176,12 +177,7 @@ export class EquipmentReservationsService {
       const [equipment, held] = await Promise.all([
         tx.equipment.findUniqueOrThrow({
           where: { id: dto.equipmentId },
-          select: {
-            id: true,
-            type: true,
-            totalQuantity: true,
-            operationalStatus: true,
-          },
+          select: AVAILABILITY_EQUIPMENT_SELECT,
         }),
         tx.equipmentReservation.findMany({
           where: holdingReservationsWhere([dto.equipmentId], window),
@@ -198,7 +194,7 @@ export class EquipmentReservationsService {
 
       // AC-3: refused, with the reason.
       if (!availability.fullyAvailable) {
-        throw new ConflictException(rejectionReason(availability, window));
+        throw new ConflictException(rejectionReason(availability, window, equipment));
       }
 
       const reservation = await tx.equipmentReservation.create({
@@ -486,6 +482,34 @@ export class EquipmentReservationsService {
   }
 
   /**
+   * US-45 — release one reservation that Technical Support gave back to
+   * resolve a shortage, or that an accepted alternative replaced in full. The
+   * caller holds the item's lock and records why. Kept here with the other
+   * reservation status writes (events-status-audit.spec.ts).
+   */
+  async releaseOne(tx: Prisma.TransactionClient, reservationId: string): Promise<void> {
+    await tx.equipmentReservation.update({
+      where: { id: reservationId },
+      data: { status: ReservationStatus.RELEASED, releasedAt: new Date() },
+    });
+  }
+
+  /**
+   * US-45 — commit units of an accepted alternative for the short
+   * reservation's period. The caller holds the item's lock and has checked the
+   * units are free, as commit() does.
+   */
+  createCommitted(
+    tx: Prisma.TransactionClient,
+    data: { eventId: string; equipmentId: string; quantity: number; start: Date; end: Date },
+  ): Promise<{ id: string }> {
+    return tx.equipmentReservation.create({
+      data: { ...data, status: ReservationStatus.APPROVED },
+      select: { id: true },
+    });
+  }
+
+  /**
    * Row-locks the item so concurrent commitments of it run one at a time.
    * Public so a change request approval (US-48) takes the same lock.
    */
@@ -502,25 +526,35 @@ export class EquipmentReservationsService {
   }
 }
 
-/** US-32 AC-3 — why a commitment was refused, in terms the user can act on. */
+/**
+ * US-31 AC-3 — why a commitment was refused, in terms the user can act on.
+ * US-45: when some units are out of use, `counts` names how many are damaged
+ * and under maintenance.
+ */
 export function rejectionReason(
   availability: ItemAvailability,
   window: { start: Date; end: Date },
+  counts?: { damagedQuantity: number; maintenanceQuantity: number },
 ): string {
   const period = `${window.start.toISOString()} – ${window.end.toISOString()}`;
+  const { type, totalQuantity } = availability;
 
-  if (availability.unavailableQuantity > 0) {
+  if (availability.unavailableQuantity >= totalQuantity) {
     const condition =
       availability.operationalStatus === EquipmentStatus.UNDER_MAINTENANCE
         ? 'under maintenance'
         : 'damaged (out of service)';
-    return `${availability.type} is ${condition}, so none of it can be committed.`;
+    return `${type} is ${condition}, so none of it can be committed.`;
   }
 
+  const breakdown =
+    availability.unavailableQuantity > 0 && counts
+      ? `of ${totalQuantity}, ${counts.damagedQuantity} are damaged, ${counts.maintenanceQuantity} under ` +
+        `maintenance, and ${availability.reservedQuantity} are`
+      : `${availability.reservedQuantity} of ${totalQuantity} are`;
   return (
     `Only ${availability.availableQuantity} of the ${availability.requestedQuantity} ` +
-    `${availability.type} requested are free for ${period}: ` +
-    `${availability.reservedQuantity} of ${availability.totalQuantity} are already ` +
-    `committed to an overlapping period.`
+    `${type} requested are free for ${period}: ${breakdown} ` +
+    `already committed to an overlapping period.`
   );
 }

@@ -17,6 +17,7 @@ import { PlanningEditForm } from '@/features/events/components/planning-edit-for
 import { RejectUnfulfillable } from '@/features/events/components/reject-unfulfillable';
 import { TechnicalRequirementsCard } from '@/features/events/components/technical-requirements';
 import { TechnicalSupportCard } from '@/features/events/components/technical-support-card';
+import { EquipmentShortageCard } from '@/features/events/components/equipment-shortage-card';
 import { EquipmentUnavailableNotice } from '@/features/events/components/equipment-unavailable-notice';
 import { ARRANGEMENT_LABELS } from '@/features/events/lib/change-format';
 import { BookingRequestForm } from '@/features/bookings/components/booking-request-form';
@@ -411,7 +412,13 @@ export function CoordinatorEventDetail() {
               )}
             </CardContent>
           </Card>
-          <EquipmentUnavailableNotice items={event.unavailableEquipment} />
+          <EquipmentShortageCard items={event.equipmentShortages} canDecide={isAssignedToMe} />
+          {/* US-67's notice, less what the shortage card above already lists. */}
+          <EquipmentUnavailableNotice
+            items={event.unavailableEquipment?.filter(
+              (u) => !event.equipmentShortages?.some((s) => s.reservationId === u.reservationId),
+            )}
+          />
 
           <TechnicalRequirementsCard event={event} editable={inPlanning && isAssignedToMe} />
 

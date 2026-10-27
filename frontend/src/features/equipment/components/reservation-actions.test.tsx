@@ -12,12 +12,13 @@ vi.mock('../api/equipment.api', () => ({
     releaseReservation: vi.fn(),
     listAlternatives: vi.fn(),
     suggestAlternative: vi.fn(),
+    recordNoAlternative: vi.fn(),
   },
 }));
 
 const api = vi.mocked(equipmentApi);
 
-const renderActions = (canSuggest = true) =>
+const renderActions = (canSuggest = true, noAlternative: { id: string; reason: string; createdAt: string } | null = null) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <ReservationActions
@@ -26,6 +27,7 @@ const renderActions = (canSuggest = true) =>
         shortBy={3}
         canSuggest={canSuggest}
         openSuggestion={null}
+        noAlternative={noAlternative}
       />
     </QueryClientProvider>,
   );
@@ -101,5 +103,34 @@ describe('US-45 resolving a shortage (Technical Support)', () => {
   it('US-45 AC-7: no suggestion is offered for an event that is not confirmed', () => {
     renderActions(false);
     expect(screen.queryByRole('button', { name: 'Suggest alternative' })).not.toBeInTheDocument();
+  });
+
+  it('US-45 AC-7: "no valid alternative" needs a reason, then is recorded', async () => {
+    api.recordNoAlternative.mockResolvedValue({});
+    renderActions();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'No valid alternative' }));
+    const save = screen.getByRole('button', { name: 'Record no valid alternative' });
+    expect(save).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/Reason/), 'Nothing that bright');
+    await user.click(save);
+    await waitFor(() =>
+      expect(api.recordNoAlternative).toHaveBeenCalledWith('RSV-001', { reason: 'Nothing that bright' }),
+    );
+  });
+
+  it('US-45 AC-7: once recorded, shows it and does not offer it again', () => {
+    renderActions(true, { id: 'ESG-002', reason: 'Nothing that bright', createdAt: '2030-09-01T00:00:00.000Z' });
+    expect(screen.getByText('No valid alternative recorded: Nothing that bright')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'No valid alternative' })).not.toBeInTheDocument();
+    // An alternative may still be suggested if one turns up.
+    expect(screen.getByRole('button', { name: 'Suggest alternative' })).toBeInTheDocument();
+  });
+
+  it('US-45 AC-7: "no valid alternative" is not offered for an event that is not confirmed', () => {
+    renderActions(false);
+    expect(screen.queryByRole('button', { name: 'No valid alternative' })).not.toBeInTheDocument();
   });
 });

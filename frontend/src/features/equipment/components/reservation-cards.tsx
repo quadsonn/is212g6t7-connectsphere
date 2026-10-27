@@ -49,6 +49,7 @@ export function ItemReservationsCard({ equipmentId }: { equipmentId: string }) {
                     shortBy={r.shortBy}
                     canSuggest={r.event.status === 'CONFIRMED'}
                     openSuggestion={r.openSuggestion}
+                    noAlternative={r.noAlternative}
                   />
                 ) : null}
               </li>
@@ -139,6 +140,7 @@ export function EventReservationsCard({
                     shortBy={r.shortBy}
                     canSuggest={eventStatus === 'CONFIRMED'}
                     openSuggestion={r.openSuggestion}
+                    noAlternative={r.noAlternative}
                   />
                 ) : null}
               </li>

@@ -1502,15 +1502,16 @@ export class EventsService {
 
   /**
    * US-45 — the event's reservations that are short of working units, shown as
-   * "Short by N" on the event page. Suggestions are the Coordinator's to
-   * decide, so only their view carries them.
+   * "Short by N" on the event page. Technical Support's answers (a suggestion
+   * to decide, or "no valid alternative") are for the Coordinator, so only
+   * their view carries them.
    */
   private async shortagesFor(
     eventId: string,
     withSuggestions: boolean,
   ): Promise<EventReservationShortage[]> {
     const short = (await this.equipmentShortages?.findEventReservations(eventId, { onlyShort: true })) ?? [];
-    return withSuggestions ? short : short.map((r) => ({ ...r, openSuggestion: null }));
+    return withSuggestions ? short : short.map((r) => ({ ...r, openSuggestion: null, noAlternative: null }));
   }
 
   /** US-38 AC-5 — the event's most recently decided change request, or null. */

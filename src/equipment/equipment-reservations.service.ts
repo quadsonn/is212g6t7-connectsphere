@@ -14,6 +14,7 @@ import {
 
 import { AccessControlService } from '../common/access/access-control.service';
 import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
+import { FINISHED_EVENT_STATUSES } from './equipment-status';
 import { Action, Resource } from '../common/access/permission.types';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { shortSlot } from '../bookings/slot-label';
@@ -333,6 +334,8 @@ export class EquipmentReservationsService {
         status: { in: [...RELEASABLE_STATUSES] },
         end: { gt: now },
         equipment: { operationalStatus: { not: EquipmentStatus.OPERATIONAL } },
+        // A finished event's leftover reservation needs no attention.
+        event: { status: { notIn: [...FINISHED_EVENT_STATUSES] } },
       },
       select: {
         id: true,

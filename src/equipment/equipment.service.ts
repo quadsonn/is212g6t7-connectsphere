@@ -26,7 +26,13 @@ import {
   ItemAvailability,
   workingQuantity,
 } from './equipment-availability';
-import { loadShortages } from './equipment-shortage';
+import {
+  LATEST_SUGGESTION_SELECT,
+  latestAnswer,
+  loadShortages,
+  NoAlternativeNote,
+  OpenSuggestion,
+} from './equipment-shortage';
 import {
   applyStatusMove,
   statusMoveError,
@@ -82,16 +88,8 @@ export const UPCOMING_RESERVATION_SELECT = {
       coordinator: { select: { id: true, name: true } },
     },
   },
-  // US-45: the open alternative suggestion, if Technical Support made one.
-  suggestions: {
-    where: { status: 'OPEN' },
-    select: {
-      id: true,
-      quantity: true,
-      reason: true,
-      alternativeEquipment: { select: { id: true, type: true } },
-    },
-  },
+  // US-45: Technical Support's latest answer: an open suggestion, or none valid.
+  suggestions: LATEST_SUGGESTION_SELECT,
 } as const satisfies Prisma.EquipmentReservationSelect;
 
 export type EquipmentListItem = Prisma.EquipmentGetPayload<{
@@ -124,7 +122,8 @@ type UpcomingReservationRow = Prisma.EquipmentReservationGetPayload<{
 export type UpcomingReservation = Omit<UpcomingReservationRow, 'suggestions'> & {
   shortBy: number;
   shortByAfter: number;
-  openSuggestion: UpcomingReservationRow['suggestions'][number] | null;
+  openSuggestion: OpenSuggestion | null;
+  noAlternative: NoAlternativeNote | null;
 };
 
 /** US-45 — an item's units by condition: "8 available, 2 damaged, 0 under maintenance". */
@@ -480,7 +479,7 @@ export class EquipmentService {
       ...row,
       shortBy: shortNow.get(row.id) ?? 0,
       shortByAfter: (shortAfter ?? shortNow).get(row.id) ?? 0,
-      openSuggestion: suggestions[0] ?? null,
+      ...latestAnswer(suggestions),
     }));
   }
 

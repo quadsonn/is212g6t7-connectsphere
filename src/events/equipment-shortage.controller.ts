@@ -19,6 +19,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import {
   AlternativesQueryDto,
+  NoAlternativeDto,
   ReduceReservationDto,
   ReleaseReservationDto,
   SuggestAlternativeDto,
@@ -87,6 +88,17 @@ export class EquipmentShortageController {
     @Body() dto: SuggestAlternativeDto,
   ) {
     return this.actions.suggest(user, id, dto);
+  }
+
+  /** For a confirmed event, record that no valid alternative exists, with a reason. */
+  @Post('reservations/:id/no-alternative')
+  @Roles(Role.TECHNICAL_SUPPORT_STAFF)
+  noAlternative(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: NoAlternativeDto,
+  ) {
+    return this.actions.noAlternative(user, id, dto);
   }
 
   /** The event's Coordinator accepts the suggestion. */

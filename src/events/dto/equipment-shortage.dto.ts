@@ -23,6 +23,9 @@ export class ReduceReservationDto extends WithReason {
 /** US-45 — release a reservation entirely, with a reason. */
 export class ReleaseReservationDto extends WithReason {}
 
+/** US-45 — record that no valid alternative exists for a short reservation. */
+export class NoAlternativeDto extends WithReason {}
+
 /**
  * US-45 — suggest `quantity` units of another item in place of the same
  * number of the short reservation's, with a reason.

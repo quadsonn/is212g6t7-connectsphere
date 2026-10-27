@@ -831,6 +831,13 @@ export interface ChangeEquipmentStatusPayload {
   reason: string;
 }
 
+/** US-45 — Technical Support's record that no valid alternative exists. */
+export interface NoAlternativeNote {
+  id: string;
+  reason: string;
+  createdAt: string;
+}
+
 /** US-45 — an open alternative Technical Support suggested for a short reservation. */
 export interface EquipmentSuggestion {
   id: string;
@@ -860,6 +867,7 @@ export interface UpcomingReservation {
   shortBy: number;
   shortByAfter: number;
   openSuggestion: EquipmentSuggestion | null;
+  noAlternative: NoAlternativeNote | null;
 }
 
 /** US-45 — what a status change returns. */
@@ -881,6 +889,8 @@ export interface EventReservationShortage {
   start: string;
   end: string;
   openSuggestion: EquipmentSuggestion | null;
+  /** Technical Support found no valid alternative (Coordinator's view only). */
+  noAlternative: NoAlternativeNote | null;
 }
 
 /** US-45 — an item free in the needed quantity, to suggest as an alternative. */

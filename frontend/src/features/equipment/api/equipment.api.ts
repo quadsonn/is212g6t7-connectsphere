@@ -82,6 +82,10 @@ export const equipmentApi = {
       .post<EquipmentSuggestion>(`/equipment/reservations/${id}/suggestions`, payload)
       .then((r) => r.data),
 
+  // US-45: no valid alternative exists, with a reason.
+  recordNoAlternative: (id: string, payload: { reason: string }) =>
+    apiClient.post(`/equipment/reservations/${id}/no-alternative`, payload).then((r) => r.data),
+
   // US-45: the Coordinator decides a suggestion.
   acceptSuggestion: (id: string) =>
     apiClient.post(`/equipment/suggestions/${id}/accept`).then((r) => r.data),

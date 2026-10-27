@@ -35,6 +35,7 @@ import { loadShortages } from '../equipment/equipment-shortage';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  NoAlternativeDto,
   ReduceReservationDto,
   ReleaseReservationDto,
   SuggestAlternativeDto,
@@ -229,6 +230,61 @@ export class EquipmentShortageActionsService {
         location: item.location,
         availableQuantity: free,
       }));
+  }
+
+  /**
+   * For a CONFIRMED event whose reservation is short, record that there is no
+   * valid alternative, with a reason. The Coordinator is told and sees it on
+   * the event page. Refused while a suggestion is open (the Coordinator decides
+   * that first) or when the latest answer already says so. A suggestion may
+   * still follow later, if an alternative turns up.
+   */
+  async noAlternative(user: AuthenticatedUser, reservationId: string, dto: NoAlternativeDto) {
+    this.access.requireScope(user, Resource.RESERVATION, Action.UPDATE);
+
+    return this.prisma.$transaction(async (tx) => {
+      const r = await this.lockLiveReservation(tx, reservationId);
+
+      if (r.event.status !== EventStatus.CONFIRMED) {
+        throw new ConflictException('"no valid alternative" is recorded only for a confirmed event');
+      }
+      const shortBy = (await loadShortages(tx, [r.equipmentId])).get(r.id);
+      if (r.status !== ReservationStatus.APPROVED || !shortBy) {
+        throw new ConflictException('this reservation is not short, so there is nothing to record');
+      }
+
+      const latest = await tx.equipmentSuggestion.findFirst({
+        where: { reservationId: r.id },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { id: true, status: true },
+      });
+      if (latest?.status === EquipmentSuggestionStatus.OPEN) {
+        throw new ConflictException(
+          `this reservation has an open suggestion (${latest.id}); the Coordinator decides it first`,
+        );
+      }
+      if (latest?.status === EquipmentSuggestionStatus.NO_ALTERNATIVE) {
+        throw new ConflictException('"no valid alternative" is already recorded for this reservation');
+      }
+
+      const record = await tx.equipmentSuggestion.create({
+        data: {
+          reservationId: r.id,
+          status: EquipmentSuggestionStatus.NO_ALTERNATIVE,
+          reason: dto.reason,
+          suggestedById: user.userId,
+        },
+      });
+
+      await this.notifier.noAlternative(
+        tx,
+        this.notifiable(r),
+        `Technical Support found no valid alternative for ${r.equipment.type} reserved for your event ` +
+          `"${r.event.name ?? 'an event'}", which is short by ${shortBy}. Reason: ${dto.reason}`,
+      );
+
+      return record;
+    }, TRANSACTION_OPTIONS);
   }
 
   /**
@@ -499,7 +555,13 @@ export class EquipmentShortageActionsService {
     if (!suggestion || suggestion.reservation.event.coordinatorId !== user.userId) {
       throw new NotFoundException('suggestion not found');
     }
-    return suggestion;
+    const { alternativeEquipmentId, alternativeEquipment, quantity } = suggestion;
+    if (alternativeEquipmentId === null || alternativeEquipment === null || quantity === null) {
+      throw new ConflictException(
+        'Technical Support found no valid alternative here, so there is nothing to accept or decline',
+      );
+    }
+    return { ...suggestion, alternativeEquipmentId, alternativeEquipment, quantity };
   }
 
   /** Closes open suggestions the reservation can no longer honour. */

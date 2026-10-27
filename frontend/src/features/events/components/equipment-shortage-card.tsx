@@ -53,7 +53,8 @@ function SuggestionDecision({ suggestion, shortType }: { suggestion: EquipmentSu
  * US-45 — the event's reservations the working units no longer cover, each
  * flagged "Short by N". The server derives it live, so the card clears on its
  * own once the reservations fit again. The Coordinator (`canDecide`) also
- * sees an open alternative Technical Support suggested, to accept or decline.
+ * sees Technical Support's answer: an alternative to accept or decline, or
+ * that there is no valid alternative.
  * Renders nothing when nothing is short.
  */
 export function EquipmentShortageCard({
@@ -89,6 +90,14 @@ export function EquipmentShortageCard({
                 </div>
                 {canDecide && item.openSuggestion ? (
                   <SuggestionDecision suggestion={item.openSuggestion} shortType={item.equipmentType} />
+                ) : null}
+                {canDecide && item.noAlternative ? (
+                  <div className="mt-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm">
+                    <p className="font-medium text-ink-900">
+                      Technical Support found no valid alternative.
+                    </p>
+                    <p className="text-ink-600">Reason: {item.noAlternative.reason}</p>
+                  </div>
                 ) : null}
               </li>
             ))}

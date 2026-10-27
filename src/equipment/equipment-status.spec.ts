@@ -206,11 +206,12 @@ describe('US-45 equipment status rules (by quantity)', () => {
       expect(computeShortages(7, [slot('a', 2, 9, 12), slot('b', 5, 10, 13)], now).size).toBe(0);
     });
 
-    it('US-45 AC-5: looks only at committed reservations of this item that have not ended', () => {
+    it('US-45 AC-5: looks only at committed reservations of this item that have not ended, on events still going ahead', () => {
       expect(upcomingReservationsWhere('eq-1', now)).toEqual({
         equipmentId: 'eq-1',
         status: ReservationStatus.APPROVED,
         end: { gt: now },
+        event: { status: { notIn: ['COMPLETED', 'CANCELLED', 'REJECTED'] } },
       });
     });
   });

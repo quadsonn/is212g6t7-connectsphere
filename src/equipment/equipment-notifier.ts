@@ -115,6 +115,18 @@ export class EquipmentNotifier {
     await this.toCoordinator(tx, event, NotificationType.EQUIPMENT_ALTERNATIVE_SUGGESTED, message);
   }
 
+  /**
+   * US-45 — Technical Support found no valid alternative for a short
+   * reservation on a confirmed event; the message carries the reason.
+   */
+  async noAlternative(
+    tx: Prisma.TransactionClient,
+    event: NotifiableEvent,
+    message: string,
+  ): Promise<void> {
+    await this.toCoordinator(tx, event, NotificationType.EQUIPMENT_NO_ALTERNATIVE, message);
+  }
+
   private async toCoordinator(
     tx: Prisma.TransactionClient,
     event: NotifiableEvent,

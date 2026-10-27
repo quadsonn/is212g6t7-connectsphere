@@ -2,7 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { ReservationStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { loadShortages } from './equipment-shortage';
+import {
+  LATEST_SUGGESTION_SELECT,
+  latestAnswer,
+  loadShortages,
+  NoAlternativeNote,
+  OpenSuggestion,
+} from './equipment-shortage';
+import { FINISHED_EVENT_STATUSES } from './equipment-status';
 
 /**
  * US-45 — one of an event's upcoming committed reservations, with how many
@@ -17,13 +24,10 @@ export interface EventReservationShortage {
   shortBy: number;
   start: Date;
   end: Date;
-  openSuggestion: {
-    id: string;
-    quantity: number;
-    reason: string;
-    alternativeEquipment: { id: string; type: string };
-    createdAt: Date;
-  } | null;
+  /** An alternative waiting for the Coordinator, if Technical Support suggested one. */
+  openSuggestion: OpenSuggestion | null;
+  /** Technical Support's record that there is no valid alternative, if made. */
+  noAlternative: NoAlternativeNote | null;
 }
 
 /**
@@ -48,7 +52,12 @@ export class EquipmentShortageService {
     now: Date = new Date(),
   ): Promise<EventReservationShortage[]> {
     const rows = await this.prisma.equipmentReservation.findMany({
-      where: { eventId, status: ReservationStatus.APPROVED, end: { gt: now } },
+      where: {
+        eventId,
+        status: ReservationStatus.APPROVED,
+        end: { gt: now },
+        event: { status: { notIn: [...FINISHED_EVENT_STATUSES] } },
+      },
       orderBy: [{ start: 'asc' }, { id: 'asc' }],
       select: {
         id: true,
@@ -56,16 +65,7 @@ export class EquipmentShortageService {
         start: true,
         end: true,
         equipment: { select: { id: true, type: true } },
-        suggestions: {
-          where: { status: 'OPEN' },
-          select: {
-            id: true,
-            quantity: true,
-            reason: true,
-            createdAt: true,
-            alternativeEquipment: { select: { id: true, type: true } },
-          },
-        },
+        suggestions: LATEST_SUGGESTION_SELECT,
       },
     });
 
@@ -84,7 +84,7 @@ export class EquipmentShortageService {
         shortBy: shortBy.get(row.id) ?? 0,
         start: row.start,
         end: row.end,
-        openSuggestion: row.suggestions[0] ?? null,
+        ...latestAnswer(row.suggestions),
       }))
       .filter((r) => !onlyShort || r.shortBy > 0);
   }

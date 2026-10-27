@@ -4,21 +4,23 @@ import { Button } from '@/components/ui/button';
 import { Field, Select, Textarea } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { apiErrorMessage } from '@/lib/api-client';
-import type { EquipmentSuggestion } from '@/types/api';
+import type { EquipmentSuggestion, NoAlternativeNote } from '@/types/api';
 import {
   useAlternatives,
+  useRecordNoAlternative,
   useReduceReservation,
   useReleaseReservation,
   useSuggestAlternative,
 } from '../hooks/use-equipment';
 
-type Mode = 'reduce' | 'release' | 'suggest' | null;
+type Mode = 'reduce' | 'release' | 'suggest' | 'none' | null;
 
 /**
  * US-45 — Technical Support resolve a shortage by hand, for one reservation:
  *   - reduce it to fewer units, or release it, with a required reason;
  *   - for a confirmed event, suggest an alternative item (only items free in
- *     the needed quantity are offered), which the Coordinator then decides.
+ *     the needed quantity are offered), which the Coordinator then decides,
+ *     or record that there is no valid alternative, with a reason.
  * Nothing is decided automatically; each change is recorded in the event's
  * history and the Coordinator is told (server-side).
  */
@@ -28,6 +30,7 @@ export function ReservationActions({
   shortBy,
   canSuggest,
   openSuggestion,
+  noAlternative = null,
 }: {
   reservationId: string;
   quantity: number;
@@ -35,6 +38,7 @@ export function ReservationActions({
   /** A confirmed event whose reservation is short. */
   canSuggest: boolean;
   openSuggestion: EquipmentSuggestion | null;
+  noAlternative?: NoAlternativeNote | null;
 }) {
   const [mode, setMode] = useState<Mode>(null);
   const [count, setCount] = useState(String(Math.max(1, quantity - shortBy)));
@@ -44,11 +48,13 @@ export function ReservationActions({
   const reduce = useReduceReservation();
   const release = useReleaseReservation();
   const suggest = useSuggestAlternative();
+  const none = useRecordNoAlternative();
 
   const n = Number(count);
   const valid = Number.isInteger(n) && n >= 1;
   const alternatives = useAlternatives(reservationId, valid ? n : 0, mode === 'suggest');
-  const active = mode === 'reduce' ? reduce : mode === 'release' ? release : suggest;
+  const active =
+    mode === 'reduce' ? reduce : mode === 'release' ? release : mode === 'none' ? none : suggest;
 
   const open = (next: Mode) => {
     setMode(next);
@@ -58,6 +64,7 @@ export function ReservationActions({
     reduce.reset();
     release.reset();
     suggest.reset();
+    none.reset();
   };
 
   const done = { onSuccess: () => setMode(null) };
@@ -65,6 +72,7 @@ export function ReservationActions({
     const why = reason.trim();
     if (mode === 'reduce') reduce.mutate({ id: reservationId, quantity: n, reason: why }, done);
     if (mode === 'release') release.mutate({ id: reservationId, reason: why }, done);
+    if (mode === 'none') none.mutate({ id: reservationId, reason: why }, done);
     if (mode === 'suggest') {
       suggest.mutate({ id: reservationId, alternativeEquipmentId: alternative, quantity: n, reason: why }, done);
     }
@@ -73,6 +81,7 @@ export function ReservationActions({
   const ready =
     reason.trim().length > 0 &&
     (mode === 'release' ||
+      mode === 'none' ||
       (mode === 'reduce' && valid && n < quantity) ||
       (mode === 'suggest' && valid && n <= quantity && alternative !== ''));
 
@@ -82,6 +91,12 @@ export function ReservationActions({
         <p className="text-xs text-ink-600">
           Suggested: {openSuggestion.quantity} × {openSuggestion.alternativeEquipment.type} — waiting
           for the Coordinator.
+        </p>
+      ) : null}
+
+      {noAlternative && !openSuggestion ? (
+        <p className="text-xs text-ink-600">
+          No valid alternative recorded: {noAlternative.reason}
         </p>
       ) : null}
 
@@ -100,10 +115,20 @@ export function ReservationActions({
               Suggest alternative
             </Button>
           ) : null}
+          {canSuggest && !openSuggestion && !noAlternative ? (
+            <Button type="button" size="sm" variant="secondary" onClick={() => open('none')}>
+              No valid alternative
+            </Button>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-3 rounded-lg border border-ink-200 bg-ink-50 p-3">
-          {mode !== 'release' ? (
+          {mode === 'none' ? (
+            <p className="text-sm text-ink-700">
+              Tells the Coordinator that no other item can cover the {shortBy} short. The
+              reservation stays as it is.
+            </p>
+          ) : mode !== 'release' ? (
             <Field
               label={mode === 'reduce' ? 'Reduce to' : 'Quantity of the alternative'}
               htmlFor={`${reservationId}-count`}
@@ -187,7 +212,9 @@ export function ReservationActions({
                   ? 'Reduce reservation'
                   : mode === 'release'
                     ? 'Release reservation'
-                    : 'Send suggestion'}
+                    : mode === 'none'
+                      ? 'Record no valid alternative'
+                      : 'Send suggestion'}
             </Button>
           </div>
         </div>

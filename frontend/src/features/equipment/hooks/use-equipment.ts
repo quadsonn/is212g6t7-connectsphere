@@ -157,6 +157,11 @@ export const useSuggestAlternative = () =>
       }),
   );
 
+export const useRecordNoAlternative = () =>
+  useShortageMutation((v: { id: string; reason: string }) =>
+    equipmentApi.recordNoAlternative(v.id, { reason: v.reason }),
+  );
+
 export const useAcceptSuggestion = () =>
   useShortageMutation((id: string) => equipmentApi.acceptSuggestion(id));
 

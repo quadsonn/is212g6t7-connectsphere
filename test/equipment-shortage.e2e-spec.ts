@@ -71,6 +71,9 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
   const accept = (suggestionId: string, who = 'coordinator') =>
     http().post(`/equipment/suggestions/${suggestionId}/accept`).set('Authorization', as(who));
 
+  const noAlternative = (reservationId: string, body: Record<string, unknown>, who = 'tech') =>
+    http().post(`/equipment/reservations/${reservationId}/no-alternative`).set('Authorization', as(who)).send(body);
+
   const decline = (suggestionId: string, who = 'coordinator') =>
     http().post(`/equipment/suggestions/${suggestionId}/decline`).set('Authorization', as(who));
 
@@ -582,6 +585,112 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
         status: EquipmentSuggestionStatus.INVALID,
       });
       await accept(suggestion.id).expect(409);
+    });
+
+    it.each([undefined, '', '   '])('US-45 AC-7: "no valid alternative" needs a reason (%p)', async (reason) => {
+      await noAlternative(ids.galaRes, { reason }).expect(400);
+      expect(await prisma.equipmentSuggestion.count()).toBe(0);
+    });
+
+    it('US-45 AC-7: "no valid alternative" is recorded, and the Coordinator is told', async () => {
+      const res = await noAlternative(ids.galaRes, { reason: '  Nothing else that bright  ' }).expect(201);
+
+      expect(res.body).toMatchObject({
+        status: 'NO_ALTERNATIVE',
+        alternativeEquipmentId: null,
+        quantity: null,
+        reason: 'Nothing else that bright',
+        suggestedById: ids.tech,
+      });
+      expect(res.body.id).toMatch(/^ESG-\d{3,}$/);
+      expect(await notices('coordinator', NotificationType.EQUIPMENT_NO_ALTERNATIVE)).toEqual([
+        expect.objectContaining({
+          relatedEventId: ids.gala,
+          message:
+            'Technical Support found no valid alternative for Projector reserved for your event "Gala", ' +
+            'which is short by 3. Reason: Nothing else that bright',
+        }),
+      ]);
+      // Nothing about the reservation changes.
+      expect(await reservation(ids.galaRes)).toMatchObject({ quantity: 5, status: ReservationStatus.APPROVED });
+    });
+
+    it('US-45 AC-7: the Coordinator sees it on the event page; the Organiser does not', async () => {
+      await noAlternative(ids.galaRes, { reason: 'Nothing else that bright' }).expect(201);
+
+      const [short] = (await coordinatorView(ids.gala)).equipmentShortages;
+      expect(short).toMatchObject({
+        shortBy: 3,
+        openSuggestion: null,
+        noAlternative: { reason: 'Nothing else that bright' },
+      });
+
+      const organiser = (await http().get(`/events/mine/${ids.gala}`).set('Authorization', as('organiser')).expect(200)).body;
+      expect(organiser.equipmentShortages[0].noAlternative).toBeNull();
+    });
+
+    it("US-45 AC-7: Technical Support's screens show it too", async () => {
+      await noAlternative(ids.galaRes, { reason: 'Nothing else that bright' }).expect(201);
+
+      expect(await techView(ids.gala)).toEqual([
+        expect.objectContaining({ reservationId: ids.galaRes, noAlternative: expect.objectContaining({ reason: 'Nothing else that bright' }) }),
+      ]);
+    });
+
+    it('US-45 AC-7: "no valid alternative" only for a confirmed event', async () => {
+      await prisma.eventRequest.update({ where: { id: ids.gala }, data: { status: EventStatus.PLANNING } });
+      await noAlternative(ids.galaRes, { reason: 'x' }).expect(409);
+    });
+
+    it('US-45 AC-7: "no valid alternative" only for a reservation that is short', async () => {
+      await repair(3).expect(200);
+      await noAlternative(ids.galaRes, { reason: 'x' }).expect(409);
+    });
+
+    it('US-45 AC-7: not while a suggestion is open — the Coordinator decides that first', async () => {
+      await suggestLaser().expect(201);
+      const res = await noAlternative(ids.galaRes, { reason: 'x' }).expect(409);
+      expect(res.body.message).toMatch(/the Coordinator decides it first/);
+    });
+
+    it('US-45 AC-7: not recorded twice in a row', async () => {
+      await noAlternative(ids.galaRes, { reason: 'x' }).expect(201);
+      const res = await noAlternative(ids.galaRes, { reason: 'y' }).expect(409);
+      expect(res.body.message).toMatch(/already recorded/);
+    });
+
+    it('US-45 AC-7: an alternative can still be suggested later, and then replaces it on the page', async () => {
+      await noAlternative(ids.galaRes, { reason: 'Nothing yet' }).expect(201);
+      await suggestLaser().expect(201);
+
+      const [short] = (await coordinatorView(ids.gala)).equipmentShortages;
+      expect(short.noAlternative).toBeNull();
+      expect(short.openSuggestion).toMatchObject({ alternativeEquipment: { id: ids.laser } });
+    });
+
+    it('US-45 AC-7: there is nothing to accept or decline on "no valid alternative"', async () => {
+      const { body } = await noAlternative(ids.galaRes, { reason: 'x' }).expect(201);
+      await accept(body.id).expect(409);
+      await decline(body.id).expect(409);
+    });
+
+    it('US-45 AC-7: only Technical Support may record it', async () => {
+      await noAlternative(ids.galaRes, { reason: 'x' }, 'coordinator').expect(403);
+    });
+
+    it('US-45 AC-7: the database requires a "no valid alternative" record to name no item', async () => {
+      await expect(
+        prisma.equipmentSuggestion.create({
+          data: {
+            reservationId: ids.galaRes,
+            status: 'NO_ALTERNATIVE',
+            alternativeEquipmentId: ids.laser,
+            quantity: 3,
+            reason: 'x',
+            suggestedById: ids.tech,
+          },
+        }),
+      ).rejects.toThrow();
     });
   });
 });

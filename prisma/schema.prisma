@@ -305,6 +305,13 @@ enum NotificationType {
   // Technical Support member who suggested it).
   EQUIPMENT_ALTERNATIVE_SUGGESTED
   EQUIPMENT_ALTERNATIVE_DECIDED
+  // US-45: Technical Support found no valid alternative for a short
+  // reservation on a confirmed event; sent to the Coordinator with the reason.
+  EQUIPMENT_NO_ALTERNATIVE
+  // From the retired substitution flow (20261026090000), replaced by US-45's
+  // suggestions. No longer sent; kept so stored notices keep their type.
+  EQUIPMENT_SUBSTITUTE_SUGGESTED
+  EQUIPMENT_SUBSTITUTE_DECIDED
   // Sent to all Coordinator Leads when a new (or resubmitted) event request is
   // submitted, so incoming work finds them without polling the queue.
   EVENT_SUBMITTED
@@ -473,8 +480,8 @@ model EventRequest {
   // notice has been sent, so the sweep that detects these moments fires each
   // exactly once per event and never retroactively re-announces. Null means
   // not yet sent. See registration-notifications.ts.
-  registrationOpenedNotifiedAt      DateTime?
-  registrationClosedNotifiedAt      DateTime?
+  registrationOpenedNotifiedAt       DateTime?
+  registrationClosedNotifiedAt       DateTime?
   registrationNearCapacityNotifiedAt DateTime?
 
   // US-05 AC-2: why a Coordinator rejected the request. Written by the review
@@ -799,10 +806,14 @@ enum EquipmentSuggestionStatus {
   // The alternative was no longer available in the quantity when the
   // Coordinator accepted, or the short reservation no longer held anything.
   INVALID
+  // Technical Support found no valid alternative. Nothing to accept: the
+  // Coordinator is told, and sees it on the event page.
+  NO_ALTERNATIVE
 }
 
 /// US-45: for a confirmed event whose reservation is short, Technical Support
-/// suggests another item; the Coordinator accepts or declines it. Accepting
+/// suggests another item, which the Coordinator accepts or declines — or
+/// records that there is no valid alternative. Accepting
 /// reserves `quantity` of the alternative and takes the same number off the
 /// short reservation (releasing it if none are left), in one transaction.
 model EquipmentSuggestion {
@@ -812,12 +823,13 @@ model EquipmentSuggestion {
   reservationId String
   reservation   EquipmentReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
 
-  alternativeEquipmentId String
-  alternativeEquipment   Equipment @relation(fields: [alternativeEquipmentId], references: [id], onDelete: Restrict)
+  // Both null for NO_ALTERNATIVE, and only then (CHECK).
+  alternativeEquipmentId String?
+  alternativeEquipment   Equipment? @relation(fields: [alternativeEquipmentId], references: [id], onDelete: Restrict)
 
   // Positive and at most the reservation's quantity (enforced by the service;
   // positivity also by CHECK).
-  quantity Int
+  quantity Int?
 
   // Required — a CHECK also rejects a blank one.
   reason String

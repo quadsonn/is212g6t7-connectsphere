@@ -1,4 +1,9 @@
-import { EquipmentStatus, Prisma, ReservationStatus } from '@prisma/client';
+import {
+  EquipmentStatus,
+  EventStatus,
+  Prisma,
+  ReservationStatus,
+} from '@prisma/client';
 
 import { EquipmentCounts, workingQuantity } from './equipment-availability';
 
@@ -14,7 +19,9 @@ import { EquipmentCounts, workingQuantity } from './equipment-availability';
  * The story's names for each status. The stored values predate it (US-29);
  * OUT_OF_SERVICE is what US-30 already read as "damaged".
  */
-export const EQUIPMENT_STATUS_LABELS: Readonly<Record<EquipmentStatus, string>> = {
+export const EQUIPMENT_STATUS_LABELS: Readonly<
+  Record<EquipmentStatus, string>
+> = {
   [EquipmentStatus.OPERATIONAL]: 'Available',
   [EquipmentStatus.UNDER_MAINTENANCE]: 'Under Maintenance',
   [EquipmentStatus.OUT_OF_SERVICE]: 'Damaged',
@@ -86,9 +93,21 @@ export function applyStatusMove(
 }
 
 /**
+ * Events that are over or ended without going ahead. Equipment trouble is no
+ * longer their concern, so it is neither flagged on them nor notified to
+ * their Coordinator, whatever the dates on a leftover reservation say.
+ */
+export const FINISHED_EVENT_STATUSES: readonly EventStatus[] = [
+  EventStatus.COMPLETED,
+  EventStatus.CANCELLED,
+  EventStatus.REJECTED,
+];
+
+/**
  * AC-5 — the reservations a shortage can touch: committed (APPROVED) ones for
- * a period that has not ended yet. Only a commitment holds units (US-29's
- * HOLDING_STATUSES); a past reservation cannot be affected.
+ * a period that has not ended yet, on events still going ahead. Only a
+ * commitment holds units (US-29's HOLDING_STATUSES); a past reservation, or
+ * one left on a finished event, cannot be affected.
  */
 export function upcomingReservationsWhere(
   equipmentId: string,
@@ -98,5 +117,6 @@ export function upcomingReservationsWhere(
     equipmentId,
     status: ReservationStatus.APPROVED,
     end: { gt: now },
+    event: { status: { notIn: [...FINISHED_EVENT_STATUSES] } },
   };
 }

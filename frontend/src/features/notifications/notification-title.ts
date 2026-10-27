@@ -63,6 +63,11 @@ const TITLES: Record<string, string> = {
   EQUIPMENT_RESERVATION_ADJUSTED: 'Equipment reservation changed',
   EQUIPMENT_ALTERNATIVE_SUGGESTED: 'Alternative equipment suggested',
   EQUIPMENT_ALTERNATIVE_DECIDED: 'Alternative equipment decided',
+  EQUIPMENT_NO_ALTERNATIVE: 'No alternative equipment',
+  // Replacement proposals from the retired substitution flow (now US-45's
+  // suggestions). No longer sent; kept so stored notices still read well.
+  EQUIPMENT_SUBSTITUTE_SUGGESTED: 'Replacement suggested',
+  EQUIPMENT_SUBSTITUTE_DECIDED: 'Replacement decided',
   // Incoming work for Coordinators and Leads.
   EVENT_SUBMITTED: 'New event request',
   // Registration-window notices for Attendees.

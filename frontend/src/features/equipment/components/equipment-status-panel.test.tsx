@@ -48,6 +48,7 @@ const gala = (shortBy: number, shortByAfter: number): UpcomingReservation => ({
   shortBy,
   shortByAfter,
   openSuggestion: null,
+  noAlternative: null,
 });
 
 const renderPanel = (condition: EquipmentCondition) =>

@@ -27,6 +27,7 @@ const short: EventReservationShortage = {
     reason: 'Same brightness',
     alternativeEquipment: { id: 'EQP-002', type: 'Laser projector' },
   },
+  noAlternative: null,
 };
 
 const renderCard = (items: EventReservationShortage[] | undefined, canDecide = false) =>
@@ -92,5 +93,23 @@ describe('US-45 equipment shortage on the event page', () => {
 
     await user.click(screen.getByRole('button', { name: 'Accept' }));
     expect(await screen.findByText(/no longer valid/)).toBeInTheDocument();
+  });
+
+  it('US-45 AC-7: the Coordinator sees that Technical Support found no valid alternative, with the reason', () => {
+    renderCard(
+      [{ ...short, openSuggestion: null, noAlternative: { id: 'ESG-002', reason: 'Nothing that bright', createdAt: '2030-09-01T00:00:00.000Z' } }],
+      true,
+    );
+    expect(screen.getByText('Technical Support found no valid alternative.')).toBeInTheDocument();
+    expect(screen.getByText('Reason: Nothing that bright')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument();
+  });
+
+  it('US-45 AC-7: the Organiser does not see it', () => {
+    renderCard(
+      [{ ...short, openSuggestion: null, noAlternative: { id: 'ESG-002', reason: 'Nothing that bright', createdAt: '2030-09-01T00:00:00.000Z' } }],
+      false,
+    );
+    expect(screen.queryByText('Technical Support found no valid alternative.')).not.toBeInTheDocument();
   });
 });

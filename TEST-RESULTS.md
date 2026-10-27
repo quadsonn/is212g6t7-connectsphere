@@ -1,17 +1,17 @@
 # Test results
 
-Generated 2026-10-27 00:41 on branch `sprint4-marilyn` at commit `98fb770` plus uncommitted changes. It is a snapshot of one run of every suite; regenerate it after the tests change.
+Generated 2026-10-27 12:52 on branch `sprint4-marilyn` at commit `c1b87c7` plus uncommitted changes. It is a snapshot of one run of every suite; regenerate it after the tests change.
 
 One file per sprint; each lists every test for that sprint's stories with its expected checks and actual result.
 
 | Sprint | Stories | File | Tests | Passed | Failed |
 |---|---|---|---|---|---|
 | Sprint 1 | US-01 to US-13 | [TEST-RESULTS-SPRINT1.md](TEST-RESULTS-SPRINT1.md) | 681 | 681 | 0 |
-| Sprint 2 | US-14 to US-37 | [TEST-RESULTS-SPRINT2.md](TEST-RESULTS-SPRINT2.md) | 1679 | 1679 | 0 |
+| Sprint 2 | US-14 to US-37 | [TEST-RESULTS-SPRINT2.md](TEST-RESULTS-SPRINT2.md) | 1691 | 1691 | 0 |
 | Sprint 3 | US-38 to US-57 | [TEST-RESULTS-SPRINT3.md](TEST-RESULTS-SPRINT3.md) | 946 | 946 | 0 |
 | Sprint 4 | US-58 to US-67 | [TEST-RESULTS-SPRINT4.md](TEST-RESULTS-SPRINT4.md) | 209 | 209 | 0 |
 | Not tied to a story | — | below | 118 | 118 | 0 |
-| **All** | | | **3633** | **3633** | **0** |
+| **All** | | | **3645** | **3645** | **0** |
 
 Sprint boundaries: Sprint 1 is US-01 to 13; Sprint 2 is US-14 to 37 (US-14 and 15 were carried over from Sprint 1 and finished in Sprint 2); Sprint 3 is the stories already on `Sprint3-MAIN` (US-38 to 57), Sprint 4 the rest (US-58 to 67).
 
@@ -21,9 +21,9 @@ Sprint boundaries: Sprint 1 is US-01 to 13; Sprint 2 is US-14 to 37 (US-14 and 1
 |---|---|---|---|---|---|
 | **Unit** | One service, rule or DTO on its own (`src/**/*.spec.ts`), database mocked. `npm test` | 1873 | 1873 | 0 | 0 |
 | **Integration** | The real Nest app and the local `connectsphere_test` database over HTTP (`test/*.e2e-spec.ts`); also the functional tests. `npm run test:e2e` | 1350 | 1350 | 0 | 0 |
-| **UI** | React screens with React Testing Library and Vitest (`frontend/src/**/*.test.tsx`), API mocked. `npm --prefix frontend test` | 370 | 370 | 0 | 0 |
-| **E2E** | Playwright drives Chromium through the real app, API and test database (`e2e/*.spec.ts`). `npm run test:browser` | 40 | 40 | 0 | 0 |
-| **Total** | | **3633** | **3633** | **0** | **0** |
+| **UI** | React screens with React Testing Library and Vitest (`frontend/src/**/*.test.tsx`), API mocked. `npm --prefix frontend test` | 380 | 380 | 0 | 0 |
+| **E2E** | Playwright drives Chromium through the real app, API and test database (`e2e/*.spec.ts`). `npm run test:browser` | 42 | 42 | 0 | 0 |
+| **Total** | | **3645** | **3645** | **0** | **0** |
 
 ## Failures
 

@@ -8,6 +8,8 @@ describe('change review rules (US-37)', () => {
   const current = { proposedStart: start, proposedEnd: end };
   const nothing = { proposedStart: null, proposedEnd: null };
 
+  // TC-S2-177 · US-37 AC-4 · unit: applicabilityErrors() · fails if an approval could leave the event with dates
+  // in the past or out of order
   describe('applicabilityErrors (AC-4: approval must not leave the event invalid)', () => {
     it('allows a request that changes no dates', () => {
       expect(applicabilityErrors(current, nothing, now)).toEqual([]);
@@ -67,6 +69,8 @@ describe('change review rules (US-37)', () => {
     });
   });
 
+  // TC-S2-174 · US-37 AC-6 · unit: capacityWarnings() · fails if attendance over a booked venue's capacity gives
+  // no warning, or one is given when attendance isn't changing
   describe('capacityWarnings (AC-6)', () => {
     const booking = (capacity: number | null, name: string | null = 'Main Hall') => ({
       id: 'b1',

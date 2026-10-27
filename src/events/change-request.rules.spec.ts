@@ -25,7 +25,8 @@ describe('change request rules (US-36)', () => {
     ],
   };
 
-  describe('AC: only submitted or confirmed (and live in between) events', () => {
+  // TC-S2-169 · US-36 AC-10 · unit: the status rule · fails if a cancelled, completed or rejected event can take a request
+  describe('US-36 AC-10: only submitted or confirmed (and live in between) events', () => {
     it.each([
       EventStatus.SUBMITTED,
       EventStatus.UNDER_REVIEW,
@@ -60,7 +61,8 @@ describe('change request rules (US-36)', () => {
     });
   });
 
-  describe('AC: at least one field must differ from the current value', () => {
+  // TC-S2-161 · US-36 AC-2 · unit: the diff rule · fails if a request that changes nothing passes, or a real change is missed
+  describe('US-36 AC-2: at least one field must differ from the current value', () => {
     it('rejects a request that restates every current value', () => {
       const result = evaluateChangeRequest(
         current,
@@ -105,7 +107,8 @@ describe('change request rules (US-36)', () => {
     });
   });
 
-  describe('AC: dates cannot be in the past; end must be after start', () => {
+  // TC-S2-162 · US-36 AC-3 · unit: the date rule · fails if a past date or an end before the start passes
+  describe('US-36 AC-3: dates cannot be in the past; end must be after start', () => {
     it('rejects a start in the past', () => {
       const result = evaluateChangeRequest(
         current,
@@ -171,7 +174,8 @@ describe('change request rules (US-36)', () => {
     });
   });
 
-  describe('AC: equipment changes — add, remove, change quantity', () => {
+  // TC-S2-164 · US-36 AC-5 · unit: the equipment diff · fails if an added, removed or changed item is missed
+  describe('US-36 AC-5: equipment changes — add, remove, change quantity', () => {
     it('detects an added item', () => {
       const result = evaluateChangeRequest(
         current,

@@ -21,7 +21,8 @@ describe('CreateChangeRequestDto (US-36)', () => {
     expect(await messages(valid)).toEqual([]);
   });
 
-  describe('AC: a reason is required', () => {
+  // TC-S2-160 · US-36 AC-1 · unit: CreateChangeRequestDto · fails if a request without a reason passes
+  describe('US-36 AC-1: a reason is required', () => {
     it('rejects a missing reason', async () => {
       expect(await messages({ proposedAttendance: 80 })).toContain('reason is required');
     });
@@ -31,7 +32,8 @@ describe('CreateChangeRequestDto (US-36)', () => {
     });
   });
 
-  describe('AC: expected attendance is a positive whole number', () => {
+  // TC-S2-163 · US-36 AC-4 · unit: CreateChangeRequestDto · fails if a zero, negative or fractional attendance passes
+  describe('US-36 AC-4: expected attendance is a positive whole number', () => {
     it.each([0, -5])('rejects %s', async (value) => {
       expect(await messages({ ...valid, proposedAttendance: value })).toContain(
         'proposedAttendance must be greater than zero',
@@ -45,7 +47,8 @@ describe('CreateChangeRequestDto (US-36)', () => {
     });
   });
 
-  describe('AC: end time must be after start time', () => {
+  // TC-S2-162 · US-36 AC-3 · unit: CreateChangeRequestDto · fails if an end before the start passes
+  describe('US-36 AC-3: end time must be after start time', () => {
     it('rejects an end before the start', async () => {
       expect(
         await messages({
@@ -63,7 +66,8 @@ describe('CreateChangeRequestDto (US-36)', () => {
     });
   });
 
-  describe('AC: equipment quantities are positive whole numbers', () => {
+  // TC-S2-166 · US-36 AC-7 · unit: CreateChangeRequestDto · fails if a zero, negative or fractional quantity passes
+  describe('US-36 AC-7: equipment quantities are positive whole numbers', () => {
     const lineMessages = (quantity: unknown) =>
       messages({ reason: 'r', equipment: [{ equipmentId: 'projector', quantity }] });
 

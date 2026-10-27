@@ -2,7 +2,7 @@
 
 Written test cases for the Sprint 2 user stories (Story 16 to 37), traced from story → acceptance criterion → test case → automated test. Stories appear in the order of the Sprint 2 user-story document, and the `US-XX` labels in every test file use its numbers. App code comments and migration folder names still use older labels (see [sprint2-conventions.md](sprint2-conventions.md)).
 
-**Regeneration in progress (2026-10-26 to 27).** After the Sprint 3 and Sprint 4 merges, every story is being re-checked against its acceptance criteria, every test is commented with its test case, story/AC and the code it checks, and UI and browser tests are added. Done: **Story 16 to 35**. The rest follow in batches.
+**Regenerated 2026-10-26 to 27.** After the Sprint 3 and Sprint 4 merges, every story was re-checked against its acceptance criteria, every test is commented with its test case, story/AC and the code it checks, and UI and browser tests were added. All 189 test cases pass; none is left manual.
 
 US-14 and US-15 were carried over from Sprint 1 and finished in Sprint 2. Their test cases stay in [sprint1-test-cases.md](sprint1-test-cases.md) (TC-S1-103 to 111); their results are reported with Sprint 2.
 
@@ -14,7 +14,7 @@ US-14 and US-15 were carried over from Sprint 1 and finished in Sprint 2. Their 
 - **Expected Result** is written from the AC wording, not from the code. Code gaps are noted in Remarks, and each story ends with its AC ↔ code notes.
 - **Automated by** gives `<type>: <file>::<exact test name>`. Unit tests are cited by their `describe` block where the whole block serves the test case. Names with `%s` are table-driven (`it.each`), and every row runs.
 - **Test case IDs are stable.** TC-S2-01 to TC-S2-181 keep their 18 Oct numbers; new test cases continue from TC-S2-182.
-- **Manual** test cases cover what only the user interface can show. The regeneration replaces them with UI and browser tests where it can; any left are run on the app.
+- **Manual** test cases cover what only the user interface can show. The regeneration replaces them with UI and browser tests where it can; none is left after the regeneration.
 
 **Test types**
 
@@ -3717,12 +3717,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::shows the event's current values`<br>Integration: `test/events-change-request.e2e-spec.ts::offers the equipment catalogue to pick from` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::shows the event's current values`<br>Integration: `test/events-change-request.e2e-spec.ts::offers the equipment catalogue to pick from`<br>Unit: `src/events/events-change-request.service.spec.ts::EventsChangeRequestService (US-36) US-36 AC-6: equipment items are selected from the catalogue`<br>UI: `frontend/src/features/events/components/change-request-form.test.tsx::shows the current date, time, attendance and equipment, with the catalogue to pick from` |
 
 ### TC-S2-160
 
@@ -3738,12 +3738,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %s (400) and saves nothing` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %s (400) and saves nothing`<br>Unit: `src/events/create-change-request.dto.spec.ts::CreateChangeRequestDto (US-36) US-36 AC-1: a reason is required`<br>UI: `frontend/src/features/events/components/change-request-form.test.tsx::asks for a reason and for at least one change, and sends nothing`<br>E2E: `e2e/us36-us37-change-requests.spec.ts::an Organiser requests a change; the Coordinator rejects it with a reason the Organiser sees` |
 
 ### TC-S2-161
 
@@ -3759,12 +3759,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %s (400)` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %s (400)`<br>Unit: `src/events/change-request.rules.spec.ts::change request rules (US-36) US-36 AC-2: at least one field must differ from the current value`<br>Unit: `src/events/events-change-request.service.spec.ts::EventsChangeRequestService (US-36) US-36 AC-2: at least one field must differ`<br>UI: `frontend/src/features/events/components/change-request-form.test.tsx::asks for a reason and for at least one change, and sends nothing` |
 
 ### TC-S2-162
 
@@ -3780,12 +3780,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %s (400)`<br>Integration: `test/events-change-request.e2e-spec.ts::accepts a new date and time in the future` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %s (400)`<br>Integration: `test/events-change-request.e2e-spec.ts::accepts a new date and time in the future`<br>Unit: `src/events/change-request.rules.spec.ts::change request rules (US-36) US-36 AC-3: dates cannot be in the past; end must be after start`<br>Unit: `src/events/create-change-request.dto.spec.ts::CreateChangeRequestDto (US-36) US-36 AC-3: end time must be after start time`<br>Unit: `src/events/events-change-request.service.spec.ts::EventsChangeRequestService (US-36) US-36 AC-3: proposed dates cannot be in the past; end must be after start` |
 
 ### TC-S2-163
 
@@ -3801,12 +3801,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %p (400)` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses %p (400)`<br>Unit: `src/events/create-change-request.dto.spec.ts::CreateChangeRequestDto (US-36) US-36 AC-4: expected attendance is a positive whole number` |
 
 ### TC-S2-164
 
@@ -3822,12 +3822,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::saves a new list that changes a quantity and adds an item`<br>Integration: `test/events-change-request.e2e-spec.ts::saves a request to remove every item` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::saves a new list that changes a quantity and adds an item`<br>Integration: `test/events-change-request.e2e-spec.ts::saves a request to remove every item`<br>Unit: `src/events/change-request.rules.spec.ts::change request rules (US-36) US-36 AC-5: equipment changes — add, remove, change quantity`<br>Unit: `src/events/events-change-request.service.spec.ts::EventsChangeRequestService (US-36) US-36 AC-5, AC-6: equipment changes — add, remove, change quantity, from the catalogue`<br>UI: `frontend/src/features/events/components/change-request-form.test.tsx::sends only what changed: a new attendance and the edited equipment list`<br>UI: `frontend/src/features/events/components/change-request-form.test.tsx::sends an empty list when every item is removed` |
 
 ### TC-S2-165
 
@@ -3843,12 +3843,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses an item that is not in the catalogue (400)`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses the same item twice (400)` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses an item that is not in the catalogue (400)`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses the same item twice (400)`<br>Unit: `src/events/events-change-request.service.spec.ts::EventsChangeRequestService (US-36) US-36 AC-5, AC-6: equipment changes — add, remove, change quantity, from the catalogue` |
 
 ### TC-S2-166
 
@@ -3864,12 +3864,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses a quantity of %p (400)` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::refuses a quantity of %p (400)`<br>Unit: `src/events/create-change-request.dto.spec.ts::CreateChangeRequestDto (US-36) US-36 AC-7: equipment quantities are positive whole numbers`<br>UI: `frontend/src/features/events/components/change-request-form.test.tsx::flags a quantity that is not a positive whole number` |
 
 ### TC-S2-167
 
@@ -3885,12 +3885,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::saves it as PENDING on the event, storing only what changes`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses a second request while one is pending (409)`<br>Integration: `test/events-change-request.e2e-spec.ts::lets only one of two simultaneous requests through` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::saves it as PENDING on the event, storing only what changes`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses a second request while one is pending (409)`<br>Integration: `test/events-change-request.e2e-spec.ts::lets only one of two simultaneous requests through`<br>Unit: `src/events/events-change-request.service.spec.ts::EventsChangeRequestService (US-36) US-36 AC-8: a submitted request is saved as Pending and linked to the event`<br>Unit: `src/events/events-change-request.service.spec.ts::EventsChangeRequestService (US-36) US-36 AC-8: one pending request per event`<br>E2E: `e2e/us36-us37-change-requests.spec.ts::an Organiser requests a change; the Coordinator rejects it with a reason the Organiser sees` |
 
 ### TC-S2-168
 
@@ -3906,12 +3906,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::keeps the event as it was and shows the request beside it` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::keeps the event as it was and shows the request beside it`<br>Unit: `src/events/events-change-request.service.spec.ts::EventsService viewing an event with a pending change request (US-36)`<br>E2E: `e2e/us36-us37-change-requests.spec.ts::an Organiser requests a change; the Coordinator rejects it with a reason the Organiser sees` |
 
 ### TC-S2-169
 
@@ -3927,12 +3927,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | Every status from Submitted to Confirmed (including Returned and Planning) is allowed, on the team's reading of "submitted or confirmed". |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::accepts a request for a confirmed event`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses a %s event (409)` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::accepts a request for a confirmed event`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses a %s event (409)`<br>Unit: `src/events/change-request.rules.spec.ts::change request rules (US-36) US-36 AC-10: only submitted or confirmed (and live in between) events`<br>Unit: `src/events/events-change-request.service.spec.ts::EventsChangeRequestService (US-36) US-36 AC-10: only submitted or confirmed events (and those live in between)` |
 
 ### TC-S2-170
 
@@ -3948,12 +3948,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-request.e2e-spec.ts::hides another Organiser's event (404)`<br>Integration: `test/events-change-request.e2e-spec.ts::accepts the Organiser\`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses %s (403)` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-request.e2e-spec.ts::hides another Organiser's event (404)`<br>Integration: `test/events-change-request.e2e-spec.ts::accepts the Organiser's own event`<br>Integration: `test/events-change-request.e2e-spec.ts::refuses %s (403)`<br>Unit: `src/events/events-change-request.service.spec.ts::EventsChangeRequestService (US-36) US-36 AC-11: Organisers can only request changes to their own events` |
 
 ### TC-S2-171
 
@@ -3962,19 +3962,25 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-171 |
 | Story/AC ref | Story 36 AC-1, AC-5, AC-9 |
 | Test Scenario | Request a change from the Organiser's event page |
-| Pre-conditions | Log in as organiser@example.com. A submitted event with some catalogue equipment. |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + tc-s2-159-setup.sql on testDB (reset before test). Logged in as organiser@example.com, then coord.a@example.com, then organiser@example.com again. UI tests: API mocked. |
 | Test Steps | 1. Open the event and start a change request.<br>2. Change the attendance and one equipment quantity, add an item from the catalogue, enter a reason, submit.<br>3. Look at the event page. |
 | Test Data | Seed data on the running app |
 | Expected Result | The form starts from the current date, time, attendance and equipment; items are picked from the catalogue. After submitting, the original details still show, with the pending request beside them. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result |  |
-| Status | Not Executed |
-| Remarks | Manual: the AC is about the user interface. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | Manual |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Was manual; now automated. The browser test also follows the request to the Coordinator's rejection and back to the Organiser (Story 37 AC-5). |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | E2E: `e2e/us36-us37-change-requests.spec.ts::an Organiser requests a change; the Coordinator rejects it with a reason the Organiser sees`<br>UI: `frontend/src/features/events/components/change-request-form.test.tsx::shows the current date, time, attendance and equipment, with the catalogue to pick from`<br>UI: `frontend/src/features/events/components/change-request-form.test.tsx::asks for a reason and for at least one change, and sends nothing`<br>UI: `frontend/src/features/events/components/change-request-form.test.tsx::flags a quantity that is not a positive whole number`<br>UI: `frontend/src/features/events/components/change-request-form.test.tsx::sends only what changed: a new attendance and the edited equipment list`<br>UI: `frontend/src/features/events/components/change-request-form.test.tsx::sends an empty list when every item is removed` |
+
+**US-36 AC ↔ code notes**
+
+- **Manual → automated:** TC-S2-171.
+- **Fixed in this regeneration:** the change request form's Start and End date labels were not attached to their date pickers; they are now.
+- **Citation fixed:** TC-S2-170's test name had an escaped apostrophe that cut its citation short; the test now uses double quotes.
 
 ---
 
@@ -3994,12 +4000,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-review.e2e-spec.ts::lists only my pending requests, oldest first`<br>Integration: `test/events-change-review.e2e-spec.ts::shows another Coordinator only theirs` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::lists only my pending requests, oldest first`<br>Integration: `test/events-change-review.e2e-spec.ts::shows another Coordinator only theirs`<br>Unit: `src/events/events-change-review.service.spec.ts::EventsChangeReviewService (US-37) US-37 AC-1: pending requests for events assigned to this Coordinator only`<br>E2E: `e2e/us36-us37-change-requests.spec.ts::a Coordinator sees only their requests, is warned about capacity, and approves` |
 
 ### TC-S2-173
 
@@ -4015,12 +4021,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-review.e2e-spec.ts::shows current and proposed values, the reason and the requester`<br>Integration: `test/events-change-review.e2e-spec.ts::shows the new window a date change would give the event` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::shows current and proposed values, the reason and the requester`<br>Integration: `test/events-change-review.e2e-spec.ts::shows the new window a date change would give the event`<br>Unit: `src/events/events-change-review.service.spec.ts::EventsChangeReviewService (US-37) US-37 AC-2: current vs proposed, plus the Organiser’s reason`<br>UI: `frontend/src/pages/coordinator-change-request-detail.test.tsx::shows the current and proposed values side by side, with the reason`<br>E2E: `e2e/us36-us37-change-requests.spec.ts::a Coordinator sees only their requests, is warned about capacity, and approves` |
 
 ### TC-S2-174
 
@@ -4036,12 +4042,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-review.e2e-spec.ts::warns that 350 exceeds Main Hall (300)`<br>Integration: `test/events-change-review.e2e-spec.ts::raises no capacity warning when attendance is not changing` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::warns that 350 exceeds Main Hall (300)`<br>Integration: `test/events-change-review.e2e-spec.ts::raises no capacity warning when attendance is not changing`<br>Unit: `src/events/change-review.rules.spec.ts::change review rules (US-37) capacityWarnings (AC-6)`<br>Unit: `src/events/events-change-review.service.spec.ts::EventsChangeReviewService (US-37) US-37 AC-6: a capacity warning before deciding`<br>UI: `frontend/src/pages/coordinator-change-request-detail.test.tsx::warns about the booked venue’s capacity above the decision, without blocking Approve`<br>E2E: `e2e/us36-us37-change-requests.spec.ts::a Coordinator sees only their requests, is warned about capacity, and approves` |
 
 ### TC-S2-175
 
@@ -4057,12 +4063,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-review.e2e-spec.ts::refuses a rejection with %s (400)`<br>Integration: `test/events-change-review.e2e-spec.ts::rejects with the reason, leaving the event unchanged` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::refuses a rejection with %s (400)`<br>Integration: `test/events-change-review.e2e-spec.ts::rejects with the reason, leaving the event unchanged`<br>Unit: `src/events/reject-change-request.dto.spec.ts::RejectChangeRequestDto (US-37)`<br>Unit: `src/events/events-change-review.service.spec.ts::EventsChangeReviewService (US-37) US-37 AC-3, AC-5: reject — a reason is recorded, the event is unchanged`<br>UI: `frontend/src/pages/coordinator-change-request-detail.test.tsx::needs a reason to reject, then sends it and returns to the list`<br>E2E: `e2e/us36-us37-change-requests.spec.ts::an Organiser requests a change; the Coordinator rejects it with a reason the Organiser sees` |
 
 ### TC-S2-176
 
@@ -4078,12 +4084,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-review.e2e-spec.ts::shows the rejection and reason on the Organiser\` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::shows the rejection and reason on the Organiser's event`<br>Unit: `src/events/events-change-review.service.spec.ts::EventsChangeReviewService (US-37) US-37 AC-3, AC-5: reject — a reason is recorded, the event is unchanged`<br>E2E: `e2e/us36-us37-change-requests.spec.ts::an Organiser requests a change; the Coordinator rejects it with a reason the Organiser sees` |
 
 ### TC-S2-177
 
@@ -4099,12 +4105,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-review.e2e-spec.ts::applies a new attendance and records it in the history`<br>Integration: `test/events-change-review.e2e-spec.ts::applies new dates` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::applies a new attendance and records it in the history`<br>Integration: `test/events-change-review.e2e-spec.ts::applies new dates`<br>Unit: `src/events/change-review.rules.spec.ts::change review rules (US-37) applicabilityErrors (AC-4: approval must not leave the event invalid)`<br>Unit: `src/events/events-change-review.service.spec.ts::EventsChangeReviewService (US-37) US-37 AC-4: approve — the event is updated, the request approved, the change recorded`<br>UI: `frontend/src/pages/coordinator-change-request-detail.test.tsx::approves and returns to the list`<br>E2E: `e2e/us36-us37-change-requests.spec.ts::a Coordinator sees only their requests, is warned about capacity, and approves` |
 
 ### TC-S2-178
 
@@ -4120,12 +4126,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-review.e2e-spec.ts::replaces the catalogue equipment, keeping notes and free-text lines` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::replaces the catalogue equipment, keeping notes and free-text lines`<br>Unit: `src/events/events-change-review.service.spec.ts::EventsChangeReviewService (US-37) US-37 AC-4: approve — the event is updated, the request approved, the change recorded` |
 
 ### TC-S2-179
 
@@ -4141,12 +4147,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-review.e2e-spec.ts::refuses a second decision (409)`<br>Integration: `test/events-change-review.e2e-spec.ts::lets only one of a simultaneous approve and reject through` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::refuses a second decision (409)`<br>Integration: `test/events-change-review.e2e-spec.ts::lets only one of a simultaneous approve and reject through`<br>Unit: `src/events/events-change-review.service.spec.ts::EventsChangeReviewService (US-37) US-37 AC-3, AC-5: reject — a reason is recorded, the event is unchanged`<br>UI: `frontend/src/pages/coordinator-change-request-detail.test.tsx::offers no decision once the request has been decided` |
 
 ### TC-S2-180
 
@@ -4162,12 +4168,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-18. |
+| Actual Result | Matched the Expected Result: every listed automated test passed on 2026-10-27. |
 | Status | Pass |
 | Remarks | None. |
 | Executed By | Marilyn Ong (automated) |
-| Date of Execution | 2026-10-18 |
-| Automated by | Integration: `test/events-change-review.e2e-spec.ts::hides another Coordinator's request (404)`<br>Integration: `test/events-change-review.e2e-spec.ts::reports an unknown request as not found (404)`<br>Integration: `test/events-change-review.e2e-spec.ts::refuses %s (403)` |
+| Date of Execution | 2026-10-27 |
+| Automated by | Integration: `test/events-change-review.e2e-spec.ts::hides another Coordinator's request (404)`<br>Integration: `test/events-change-review.e2e-spec.ts::reports an unknown request as not found (404)`<br>Integration: `test/events-change-review.e2e-spec.ts::refuses %s (403)`<br>Unit: `src/events/events-change-review.service.spec.ts::EventsChangeReviewService (US-37) US-37 AC-1: pending requests for events assigned to this Coordinator only`<br>E2E: `e2e/us36-us37-change-requests.spec.ts::a Coordinator sees only their requests, is warned about capacity, and approves` |
 
 ### TC-S2-181
 
@@ -4176,19 +4182,25 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S2-181 |
 | Story/AC ref | Story 37 AC-1, AC-2, AC-6 |
 | Test Scenario | Review a change request on the Coordinator screens |
-| Pre-conditions | Log in as coord.a@example.com. A pending request that proposes more attendees than the booked venue holds. |
+| Pre-conditions | Browser test: run test/fixtures/sql/base-users.sql + base-venues.sql + tc-s2-159-setup.sql + tc-s2-172-setup.sql on testDB (reset before test). Logged in as coord.a@example.com. UI tests: API mocked. |
 | Test Steps | 1. Open Change requests.<br>2. Open the request.<br>3. Reject it without a reason, then with one. |
 | Test Data | Seed data on the running app |
 | Expected Result | The list shows the pending request; the review shows current and proposed values side by side, the reason and a capacity warning. Reject needs a reason before it can be submitted. |
 | Created By | Marilyn Ong |
 | Date of Creation | 2026-10-18 |
 | **Test execution record** | |
-| Actual Result |  |
-| Status | Not Executed |
-| Remarks | Manual: the AC is about the user interface. |
-| Executed By |  |
-| Date of Execution |  |
-| Automated by | Manual |
+| Actual Result | As expected. |
+| Status | Pass |
+| Remarks | Was manual; now automated by UI and browser tests. |
+| Executed By | Marilyn Ong (automated) |
+| Date of Execution | 2026-10-27 |
+| Automated by | E2E: `e2e/us36-us37-change-requests.spec.ts::a Coordinator sees only their requests, is warned about capacity, and approves`<br>UI: `frontend/src/pages/coordinator-change-request-detail.test.tsx::shows the current and proposed values side by side, with the reason`<br>UI: `frontend/src/pages/coordinator-change-request-detail.test.tsx::warns about the booked venue’s capacity above the decision, without blocking Approve`<br>UI: `frontend/src/pages/coordinator-change-request-detail.test.tsx::needs a reason to reject, then sends it and returns to the list`<br>UI: `frontend/src/pages/coordinator-change-request-detail.test.tsx::approves and returns to the list`<br>UI: `frontend/src/pages/coordinator-change-request-detail.test.tsx::offers no decision once the request has been decided` |
+
+**US-37 AC ↔ code notes**
+
+- **Manual → automated:** TC-S2-181.
+- **Citation fixed:** TC-S2-176, as for TC-S2-170.
+- **Since 18 Oct:** approving a date or time change now also re-checks and rebooks the event's arrangements (Sprint 3's US-48); that is tested with Story 23 (TC-S2-67) and in Sprint 3.
 
 ---
 
@@ -4196,7 +4208,8 @@ All four use only the local test database (or none). None touches the shared Sup
 
 | Date | Change | Commit | Test cases affected |
 |---|---|---|---|
-| 2026-10-27 | **Regeneration, batch 5 (Story 32 to 35).** Integration describes labelled with their story; unit describe blocks commented with their test cases. New integration tests for cancelling through the app (TC-S2-135); the cancelled-event registration tests given a test case. New UI tests (`register.test.tsx`, `equipment-released.test.tsx`, more in `attendee-registrations.test.tsx`) and browser tests (`e2e/us32-us35-registrations.spec.ts`). | this commit | TC-S2-135: Fail → Pass. TC-S2-144, 150, 158: Not Executed → Pass. TC-S2-138 citation fixed. New: TC-S2-189. All Story 32 to 35 cases re-run. |
+| 2026-10-27 | **Regeneration, batch 6 (Story 36 to 37).** Integration describes labelled with their story; unit describe blocks numbered with their ACs and commented with their test cases. New UI tests (`change-request-form.test.tsx`, `coordinator-change-request-detail.test.tsx`) and browser tests (`e2e/us36-us37-change-requests.spec.ts`). **Code change:** the change request form's date labels are attached to their pickers. | this commit | TC-S2-171, 181: Not Executed → Pass. TC-S2-170 and 176 citations fixed. All Story 36 to 37 cases re-run. |
+| 2026-10-27 | **Regeneration, batch 5 (Story 32 to 35).** Integration describes labelled with their story; unit describe blocks commented with their test cases. New integration tests for cancelling through the app (TC-S2-135); the cancelled-event registration tests given a test case. New UI tests (`register.test.tsx`, `equipment-released.test.tsx`, more in `attendee-registrations.test.tsx`) and browser tests (`e2e/us32-us35-registrations.spec.ts`). | `c1b87c7` | TC-S2-135: Fail → Pass. TC-S2-144, 150, 158: Not Executed → Pass. TC-S2-138 citation fixed. New: TC-S2-189. All Story 32 to 35 cases re-run. |
 | 2026-10-26 | **Regeneration, batch 4 (Story 28 to 31).** Every integration describe labelled with its story; unit describe blocks commented with their test cases; the equipment controller spec and the Coordinator-notice tests relabelled. New UI tests (`equipment-catalogue.test.tsx`, `equipment-availability.test.tsx`, `equipment-event-requirements.test.tsx`, more in `equipment-dashboard.test.tsx`) and browser tests (`e2e/us28-us31-equipment.spec.ts`). **Code change:** each catalogue item opens from a link (US-28 AC-2). | `98fb770` | TC-S2-102, 113, 120, 121: Not Executed → Pass. TC-S2-115 updated for finished events. All Story 28 to 31 cases re-run. |
 | 2026-10-26 | **Regeneration, batch 3 (Story 24 to 27).** Every test commented with its test case, story/AC and a `Code:` line. Story 26 rewritten for Week 7 Change 5: `test/events-reassign.e2e-spec.ts` (deleted when the Lead took over reassignment) is rewritten to test the Lead's endpoints on setup scripts. Story 27 unit tests relabelled (US-36 → US-27). New UI tests (`planning-edit-form.test.tsx`, `change-history.test.tsx`, `lead-assignments.test.tsx`, more in `technical-requirements.test.tsx`) and browser tests (`e2e/us24-us27-planning.spec.ts`). | `98fb770` | TC-S2-83 to 88 rewritten for the Lead (Change 5). TC-S2-90: Fail → Pass (fixed). New: TC-S2-188. All Story 24 to 27 cases re-run. |
 | 2026-10-26 | **Regeneration, batch 2 (Story 20 to 23).** Every test commented with its test case, story/AC and a `Code:` line. The Story 20 AC-2 tests, which edited rows in the test and had no test case, now load `tc-s2-35-setup.sql`. Booking UI tests relabelled from app-code story numbers to the document's. New UI tests (`booking-request-form.test.tsx`, `venue-booking-queue.test.tsx`, decisions on the detail view) and browser tests (`e2e/us20-us23-bookings.spec.ts`). | `284f89f` | TC-S2-49: Fail → Pass (fixed). TC-S2-66: N/A → Pass. TC-S2-67: Fail → Pass. TC-S2-81, 82: Not Executed → Pass. New: TC-S2-187. All Story 20 to 23 cases re-run. |
@@ -4206,6 +4219,4 @@ All four use only the local test database (or none). None touches the shared Sup
 
 ## Gaps (no automated test yet)
 
-| Test case | Story/AC | What's missing |
-|---|---|---|
-| Story 36 to 37 | all | Re-checked in the last batch of the regeneration |
+None. Every Sprint 2 test case has at least one automated test, and every one passes.

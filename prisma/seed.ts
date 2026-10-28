@@ -369,6 +369,8 @@ async function main() {
         equipmentId: item.id,
         fromStatus: EquipmentStatus.OPERATIONAL,
         toStatus: change.to,
+        // The whole item was marked, so every unit moved.
+        quantity: item.totalQuantity,
         reason: change.reason,
         changedById: tech.id,
       },

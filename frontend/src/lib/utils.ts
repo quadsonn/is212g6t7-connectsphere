@@ -5,6 +5,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Stretches a list row's detail link over the whole row, so a click anywhere
+ * on it opens the details (as on the Attendee cards). The row must be
+ * `relative`; other controls in it need `relative z-10` to stay clickable.
+ */
+export const STRETCHED_LINK = "after:absolute after:inset-0 after:content-['']";
+
 /** "EVENT_ORGANISER" -> "Event Organiser" */
 export function humanise(value: string): string {
   return value

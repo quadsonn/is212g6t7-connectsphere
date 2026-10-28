@@ -94,56 +94,104 @@ export function peakReservedQuantity(
 }
 
 /**
- * AC-3 — whether an item's units can be lent out at all.
- *
- * AMBIGUOUS: the briefing gives an item one operational status, not a count
- * per condition, so an item marked UNDER_MAINTENANCE or OUT_OF_SERVICE (read
- * as "damaged") takes all of its units out of availability. Setting the
- * status is US-45 (EquipmentService.changeStatus); this only reads it.
+ * Whether a status is one units can be lent out in. Used for the status a
+ * change moves units to (US-60 alerts only when units go out of use); an
+ * item's own availability is counted from its quantities, below.
  */
 export function isLendable(status: EquipmentStatus): boolean {
   return status === EquipmentStatus.OPERATIONAL;
 }
 
+/**
+ * US-45 — the fields every availability check reads, so US-29, US-31, US-48
+ * and the US-19 suitability panel all select the same thing.
+ */
+export const AVAILABILITY_EQUIPMENT_SELECT = {
+  id: true,
+  type: true,
+  totalQuantity: true,
+  operationalStatus: true,
+  damagedQuantity: true,
+  maintenanceQuantity: true,
+} as const satisfies Prisma.EquipmentSelect;
+
+export interface EquipmentCounts {
+  totalQuantity: number;
+  damagedQuantity: number;
+  maintenanceQuantity: number;
+}
+
+/** US-45 — units in working order: not damaged and not under maintenance. */
+export function workingQuantity(item: EquipmentCounts): number {
+  return Math.max(0, item.totalQuantity - item.damagedQuantity - item.maintenanceQuantity);
+}
+
 export interface ItemAvailability {
   equipmentId: string;
   type: string;
+  /** Derived from the counts (see schema.prisma); kept for older readers. */
   operationalStatus: EquipmentStatus;
   requestedQuantity: number;
   totalQuantity: number;
-  /** AC-3: units excluded because the item is damaged or under maintenance. */
+  /** Units out of use: damaged plus under maintenance (US-45). */
   unavailableQuantity: number;
-  /** AC-2: peak units committed to overlapping events in the window. */
+  /** Peak units committed to overlapping events in the window. */
   reservedQuantity: number;
-  /** AC-1: units free for the whole window. */
+  /** Units free for the whole window. */
   availableQuantity: number;
-  /** AC-4: false when the requested quantity is not fully available. */
+  /** False when the requested quantity is not fully available. */
   fullyAvailable: boolean;
-  /** AC-4: how many more units were requested than are free; 0 if none. */
+  /** How many more units were requested than are free; 0 if none. */
   shortfall: number;
 }
 
-/** AC-1–AC-4 for one equipment type. */
-export function computeItemAvailability(input: {
-  equipment: {
-    id: string;
-    type: string;
-    totalQuantity: number;
-    operationalStatus: EquipmentStatus;
+/** What availability needs to know of an item. */
+export interface AvailabilityEquipment {
+  id: string;
+  type: string;
+  totalQuantity: number;
+  operationalStatus: EquipmentStatus;
+  /**
+   * US-45 counts. When a caller has only the status, they are read from it
+   * the way the database trigger does for a status-only write: a whole item
+   * marked damaged or under maintenance has all its units in that state.
+   */
+  damagedQuantity?: number;
+  maintenanceQuantity?: number;
+}
+
+/** US-45 — an item's damaged and under-maintenance counts. */
+export function countsOf(equipment: AvailabilityEquipment): EquipmentCounts {
+  return {
+    totalQuantity: equipment.totalQuantity,
+    damagedQuantity:
+      equipment.damagedQuantity ??
+      (equipment.operationalStatus === EquipmentStatus.OUT_OF_SERVICE ? equipment.totalQuantity : 0),
+    maintenanceQuantity:
+      equipment.maintenanceQuantity ??
+      (equipment.operationalStatus === EquipmentStatus.UNDER_MAINTENANCE ? equipment.totalQuantity : 0),
   };
+}
+
+/**
+ * US-29/US-31 — one equipment type's availability for a window.
+ *
+ * US-45: available = total - damaged - under maintenance - reserved, so
+ * marking 2 of 10 damaged takes 2 units away, not all 10.
+ */
+export function computeItemAvailability(input: {
+  equipment: AvailabilityEquipment;
   requestedQuantity: number;
   reservations: readonly ReservationSlot[];
   window: { start: Date; end: Date };
 }): ItemAvailability {
   const { equipment, requestedQuantity, reservations, window } = input;
 
-  const unavailableQuantity = isLendable(equipment.operationalStatus)
-    ? 0
-    : equipment.totalQuantity;
+  const unavailableQuantity = equipment.totalQuantity - workingQuantity(countsOf(equipment));
   const reservedQuantity = peakReservedQuantity(reservations, window);
 
-  // Clamped at zero: approved reservations exceeding stock is a data problem
-  // to surface elsewhere, not a negative number of free units.
+  // Clamped at zero: approved reservations exceeding the working units is a
+  // shortage (US-45, computeShortages), not a negative number of free units.
   const availableQuantity = Math.max(
     0,
     equipment.totalQuantity - unavailableQuantity - reservedQuantity,
@@ -161,4 +209,53 @@ export function computeItemAvailability(input: {
     fullyAvailable: requestedQuantity <= availableQuantity,
     shortfall: Math.max(0, requestedQuantity - availableQuantity),
   };
+}
+
+/** A reservation as the shortage check sees it. */
+export interface ShortageSlot extends ReservationSlot {
+  id: string;
+}
+
+/**
+ * US-45 — how many units each upcoming reservation of one item is short by,
+ * given how many units are working.
+ *
+ * Over each stretch of time from `now` on, the units reserved at once are
+ * compared with the working units. Every reservation held during a stretch
+ * that is over-committed is short by the excess, at most its own quantity;
+ * a reservation is short by its worst stretch. Nobody is singled out: if two
+ * reservations of 5 overlap and 7 work, both are short by 3, and it is for
+ * Technical Support or the Coordinator to decide which one gives way.
+ *
+ * Only the time from `now` counts, so a past reservation (or the past part of
+ * an ongoing one) never makes anything short. Reservations not short are
+ * absent from the result.
+ */
+export function computeShortages(
+  working: number,
+  reservations: readonly ShortageSlot[],
+  now: Date,
+): Map<string, number> {
+  const from = now.getTime();
+  const live = reservations
+    .filter((r) => r.quantity > 0 && r.end.getTime() > from)
+    .map((r) => ({ ...r, s: Math.max(r.start.getTime(), from), e: r.end.getTime() }));
+
+  const edges = [...new Set(live.flatMap((r) => [r.s, r.e]))].sort((a, b) => a - b);
+  const shortBy = new Map<string, number>();
+
+  for (let i = 0; i < edges.length - 1; i++) {
+    const [segStart, segEnd] = [edges[i], edges[i + 1]];
+    // Half-open, as overlaps(): held during [segStart, segEnd).
+    const held = live.filter((r) => r.s < segEnd && segStart < r.e);
+    const excess = held.reduce((sum, r) => sum + r.quantity, 0) - working;
+    if (excess <= 0) continue;
+
+    for (const r of held) {
+      const short = Math.min(excess, r.quantity);
+      if (short > (shortBy.get(r.id) ?? 0)) shortBy.set(r.id, short);
+    }
+  }
+
+  return shortBy;
 }

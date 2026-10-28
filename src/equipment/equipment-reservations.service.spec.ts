@@ -421,6 +421,9 @@ describe('EquipmentReservationsService', () => {
         in: [ReservationStatus.REQUESTED, ReservationStatus.APPROVED],
       });
       expect(where.end).toEqual({ gt: now });
+      expect(where.event).toEqual({
+        status: { notIn: [EventStatus.COMPLETED, EventStatus.CANCELLED, EventStatus.REJECTED] },
+      });
       expect(where.equipment).toEqual({
         operationalStatus: { not: EquipmentStatus.OPERATIONAL },
       });

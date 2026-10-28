@@ -22,6 +22,7 @@ export const ID_PREFIX = {
   BookingDecision: 'BDC',
   VenueBlock: 'BLK',
   Equipment: 'EQP',
+  EquipmentSuggestion: 'ESG',
   EquipmentReservation: 'RSV',
   EquipmentRequirement: 'REQ',
   EventChange: 'CHG',

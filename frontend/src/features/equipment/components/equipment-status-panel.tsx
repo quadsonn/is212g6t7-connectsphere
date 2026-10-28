@@ -3,31 +3,62 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, Textarea } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import { apiErrorMessage } from '@/lib/api-client';
-import { EQUIPMENT_STATUS_STYLES } from '@/lib/status';
-import { formatDate, formatDateRange } from '@/lib/utils';
-import type { Equipment, EquipmentStatus, UpcomingReservation } from '@/types/api';
+import { formatDateRange } from '@/lib/utils';
+import type {
+  Equipment,
+  EquipmentCondition,
+  EquipmentStatus,
+  UpcomingReservation,
+} from '@/types/api';
 import { useChangeEquipmentStatus, useUpcomingReservations } from '../hooks/use-equipment';
+import { conditionText } from '../lib/condition';
 
-/** The order the options are offered in, and the verb for each. */
-const OPTIONS: { status: EquipmentStatus; action: string }[] = [
-  { status: 'OUT_OF_SERVICE', action: 'Mark as damaged' },
-  { status: 'UNDER_MAINTENANCE', action: 'Mark as under maintenance' },
-  { status: 'OPERATIONAL', action: 'Set back to available' },
+interface Move {
+  from: EquipmentStatus;
+  to: EquipmentStatus;
+  action: string;
+}
+
+/** The moves offered, in order, and the verb for each. */
+const MOVES: Move[] = [
+  { from: 'OPERATIONAL', to: 'OUT_OF_SERVICE', action: 'Mark as damaged' },
+  { from: 'OPERATIONAL', to: 'UNDER_MAINTENANCE', action: 'Mark as under maintenance' },
+  { from: 'OUT_OF_SERVICE', to: 'UNDER_MAINTENANCE', action: 'Send damaged for maintenance' },
+  { from: 'OUT_OF_SERVICE', to: 'OPERATIONAL', action: 'Repair damaged' },
+  { from: 'UNDER_MAINTENANCE', to: 'OPERATIONAL', action: 'Return from maintenance' },
 ];
 
-/** Only taking an item out of use affects its reservations (AC-5). */
-const takesOutOfUse = (status: EquipmentStatus) => status !== 'OPERATIONAL';
+const WORDS: Record<EquipmentStatus, string> = {
+  OPERATIONAL: 'working',
+  OUT_OF_SERVICE: 'damaged',
+  UNDER_MAINTENANCE: 'under maintenance',
+};
 
-function ReservationList({ reservations }: { reservations: UpcomingReservation[] }) {
+function unitsIn(condition: EquipmentCondition, status: EquipmentStatus): number {
+  if (status === 'OUT_OF_SERVICE') return condition.damagedQuantity;
+  if (status === 'UNDER_MAINTENANCE') return condition.maintenanceQuantity;
+  return condition.workingQuantity;
+}
+
+/** Only taking working units out of use can leave reservations short (AC-5). */
+const takesOutOfUse = (move: Move) => move.from === 'OPERATIONAL';
+
+function ShortList({
+  reservations,
+  shortOf,
+}: {
+  reservations: UpcomingReservation[];
+  shortOf: (r: UpcomingReservation) => number;
+}) {
   return (
     <ul className="mt-2 divide-y divide-amber-200 text-sm">
       {reservations.map((r) => (
         <li key={r.id} className="py-2">
           <p className="font-medium text-amber-950">{r.event.name ?? 'Untitled event'}</p>
           <p className="text-amber-900">
-            {r.quantity} unit{r.quantity === 1 ? '' : 's'} · {formatDateRange(r.start, r.end)} ·{' '}
-            {r.status === 'APPROVED' ? 'Committed' : 'Requested'}
+            {r.quantity} reserved · short by {shortOf(r)} · {formatDateRange(r.start, r.end)}
             {r.event.coordinator ? ` · Coordinator: ${r.event.coordinator.name}` : ''}
           </p>
         </li>
@@ -37,46 +68,59 @@ function ReservationList({ reservations }: { reservations: UpcomingReservation[]
 }
 
 /**
- * US-45 — Technical Support changes an item's status from its catalogue entry.
+ * US-45 — Technical Support move a quantity of an item's units between
+ * Available, Damaged and Under Maintenance, from its catalogue entry.
  *
- * AC-1: Damaged or Under Maintenance. AC-2: the change cannot be saved
- * without a reason. AC-3: back to Available once repaired. AC-5: before
- * saving, the reservations the change would affect are listed as a warning;
- * after saving, the server's own list (taken under its lock) is shown, since
- * a reservation may have been made in between. AC-4 is enforced server-side.
+ * AC-1: mark a quantity damaged or under maintenance; AC-3: set a quantity
+ * back to available. AC-2: nothing is saved without a reason. AC-5: before
+ * saving, the upcoming reservations the change would leave short are listed
+ * (event, quantity reserved, how many short); none is cancelled. After saving,
+ * the server's own list, taken under its lock, is shown. Over-marking and
+ * over-repairing are refused by the server with a message, shown here.
  */
-export function EquipmentStatusPanel({ item }: { item: Equipment }) {
-  const [choice, setChoice] = useState<EquipmentStatus | null>(null);
+export function EquipmentStatusPanel({
+  item,
+  condition,
+}: {
+  item: Equipment;
+  condition: EquipmentCondition;
+}) {
+  const [move, setMove] = useState<Move | null>(null);
+  const [quantity, setQuantity] = useState('1');
   const [reason, setReason] = useState('');
-  const [saved, setSaved] = useState<{
-    status: EquipmentStatus;
-    affected: UpcomingReservation[];
-  } | null>(null);
+  const [saved, setSaved] = useState<{ move: Move; quantity: number; affected: UpcomingReservation[] } | null>(
+    null,
+  );
 
   const change = useChangeEquipmentStatus(item.id);
-  const warningWanted = choice !== null && takesOutOfUse(choice);
-  const upcoming = useUpcomingReservations(item.id, warningWanted);
+  const count = Number(quantity);
+  const validCount = Number.isInteger(count) && count >= 1;
+  const proposal =
+    move && takesOutOfUse(move) && validCount ? { from: move.from, to: move.to, quantity: count } : undefined;
+  const preview = useUpcomingReservations(item.id, proposal, proposal !== undefined);
+  const affected = (preview.data ?? []).filter((r) => r.shortByAfter > r.shortBy);
 
   const reset = () => {
-    setChoice(null);
+    setMove(null);
+    setQuantity('1');
     setReason('');
     change.reset();
   };
 
   function submit() {
-    if (!choice) return;
+    if (!move || !validCount) return;
     change.mutate(
-      { status: choice, reason: reason.trim() },
+      { from: move.from, to: move.to, quantity: count, reason: reason.trim() },
       {
         onSuccess: (result) => {
-          setSaved({ status: choice, affected: result.affectedReservations });
+          setSaved({ move, quantity: count, affected: result.affectedReservations });
           reset();
         },
       },
     );
   }
 
-  const latest = item.latestStatusChange;
+  const offered = MOVES.filter((m) => unitsIn(condition, m.from) > 0);
 
   return (
     <Card>
@@ -84,17 +128,10 @@ export function EquipmentStatusPanel({ item }: { item: Equipment }) {
         <CardTitle>Status</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {latest && latest.toStatus === item.operationalStatus ? (
-          <div className="text-sm text-ink-700">
-            <p>
-              <span className="font-medium text-ink-900">Reason:</span> {latest.reason}
-            </p>
-            <p className="text-xs text-ink-500">
-              Set to {EQUIPMENT_STATUS_STYLES[latest.toStatus].label.toLowerCase()} by{' '}
-              {latest.changedBy.name} on {formatDate(latest.changedAt)}
-            </p>
-          </div>
-        ) : null}
+        <p className="text-sm text-ink-700" aria-label="Units by condition">
+          {conditionText(condition)}
+          <span className="text-ink-500"> · {condition.totalQuantity} in total</span>
+        </p>
 
         {saved ? (
           <div
@@ -112,14 +149,17 @@ export function EquipmentStatusPanel({ item }: { item: Equipment }) {
                   : 'text-sm font-medium text-emerald-900'
               }
             >
-              Status changed to {EQUIPMENT_STATUS_STYLES[saved.status].label.toLowerCase()}.
+              {saved.quantity} unit{saved.quantity === 1 ? '' : 's'} moved from {WORDS[saved.move.from]} to{' '}
+              {WORDS[saved.move.to]}.
               {saved.affected.length > 0
-                ? ` ${saved.affected.length} existing reservation${
+                ? ` ${saved.affected.length} upcoming reservation${
                     saved.affected.length === 1 ? ' is' : 's are'
-                  } affected and still hold this item — arrange a replacement or let the coordinator know:`
+                  } now short. Nothing was cancelled; their Coordinators have been told:`
                 : ''}
             </p>
-            {saved.affected.length > 0 ? <ReservationList reservations={saved.affected} /> : null}
+            {saved.affected.length > 0 ? (
+              <ShortList reservations={saved.affected} shortOf={(r) => r.shortBy} />
+            ) : null}
             <div className="mt-2 flex justify-end">
               <Button type="button" size="sm" variant="secondary" onClick={() => setSaved(null)}>
                 Dismiss
@@ -129,56 +169,66 @@ export function EquipmentStatusPanel({ item }: { item: Equipment }) {
         ) : null}
 
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Change status">
-          {OPTIONS.filter((option) => option.status !== item.operationalStatus).map((option) => (
-            <Button
-              key={option.status}
-              type="button"
-              size="sm"
-              role="radio"
-              aria-checked={choice === option.status}
-              variant={
-                choice === option.status
-                  ? takesOutOfUse(option.status)
-                    ? 'danger'
-                    : 'primary'
-                  : 'secondary'
-              }
-              onClick={() => {
-                setChoice(option.status);
-                setSaved(null);
-                change.reset();
-              }}
-            >
-              {option.action}
-            </Button>
-          ))}
+          {offered.map((m) => {
+            const chosen = move?.from === m.from && move?.to === m.to;
+            return (
+              <Button
+                key={`${m.from}-${m.to}`}
+                type="button"
+                size="sm"
+                role="radio"
+                aria-checked={chosen}
+                variant={chosen ? (takesOutOfUse(m) ? 'danger' : 'primary') : 'secondary'}
+                onClick={() => {
+                  setMove(m);
+                  setSaved(null);
+                  change.reset();
+                }}
+              >
+                {m.action}
+              </Button>
+            );
+          })}
         </div>
 
-        {choice ? (
+        {move ? (
           <>
-            {warningWanted ? (
+            <Field
+              label="Quantity"
+              htmlFor="equipment-status-quantity"
+              required
+              hint={`${unitsIn(condition, move.from)} ${WORDS[move.from]} now.`}
+            >
+              <Input
+                id="equipment-status-quantity"
+                type="number"
+                min={1}
+                step={1}
+                className="w-32"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+              />
+            </Field>
+
+            {proposal ? (
               <div aria-live="polite">
-                {upcoming.isPending ? (
+                {preview.isPending ? (
                   <p className="text-sm text-ink-500">Checking for affected reservations…</p>
-                ) : upcoming.isError ? (
+                ) : preview.isError ? (
                   <p className="text-sm text-red-700">
-                    {apiErrorMessage(upcoming.error, 'Could not check for affected reservations.')}
+                    {apiErrorMessage(preview.error, 'Could not check for affected reservations.')}
                   </p>
-                ) : upcoming.data.length > 0 ? (
-                  <div
-                    role="alert"
-                    className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3"
-                  >
+                ) : affected.length > 0 ? (
+                  <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
                     <p className="text-sm font-medium text-amber-950">
-                      Warning: {upcoming.data.length} existing reservation
-                      {upcoming.data.length === 1 ? '' : 's'} will be affected. They are not
-                      cancelled automatically.
+                      Warning: the remaining units can't cover {affected.length} upcoming reservation
+                      {affected.length === 1 ? '' : 's'}. They are not cancelled or reassigned.
                     </p>
-                    <ReservationList reservations={upcoming.data} />
+                    <ShortList reservations={affected} shortOf={(r) => r.shortByAfter} />
                   </div>
                 ) : (
                   <p className="text-sm text-ink-600">
-                    No upcoming reservations of this item are affected.
+                    The remaining units still cover every upcoming reservation.
                   </p>
                 )}
               </div>
@@ -189,8 +239,8 @@ export function EquipmentStatusPanel({ item }: { item: Equipment }) {
               htmlFor="equipment-status-reason"
               required
               hint={
-                takesOutOfUse(choice)
-                  ? 'What is wrong with it, e.g. "Cracked casing" or "Annual service".'
+                takesOutOfUse(move)
+                  ? 'What is wrong with them, e.g. "Cracked lens" or "Annual service".'
                   : 'e.g. "Repaired and tested".'
               }
             >
@@ -219,17 +269,16 @@ export function EquipmentStatusPanel({ item }: { item: Equipment }) {
               <Button
                 type="button"
                 size="sm"
-                variant={takesOutOfUse(choice) ? 'danger' : 'primary'}
+                variant={takesOutOfUse(move) ? 'danger' : 'primary'}
                 disabled={
                   change.isPending ||
+                  !validCount ||
                   reason.trim().length === 0 ||
-                  (warningWanted && upcoming.isPending)
+                  (proposal !== undefined && preview.isPending)
                 }
                 onClick={submit}
               >
-                {change.isPending
-                  ? 'Saving…'
-                  : `Change to ${EQUIPMENT_STATUS_STYLES[choice].label.toLowerCase()}`}
+                {change.isPending ? 'Saving…' : move.action}
               </Button>
             </div>
           </>

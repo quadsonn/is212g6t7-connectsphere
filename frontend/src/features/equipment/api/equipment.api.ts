@@ -1,13 +1,19 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  AlternativeItem,
   AvailabilityQuery,
   BrowseEquipmentQuery,
   ChangeEquipmentStatusPayload,
   CommitReservationPayload,
   CommittedReservation,
   Equipment,
+  EquipmentCondition,
   EquipmentListItem,
   EquipmentStatusChangeResult,
+  EquipmentStatusHistoryEntry,
+  EquipmentStatus,
+  EquipmentSuggestion,
+  EventReservationShortage,
   EventRequirementDetails,
   EventRequirements,
   ItemAvailability,
@@ -15,6 +21,13 @@ import type {
   TechnicalSupportAssignment,
   UpcomingReservation,
 } from '@/types/api';
+
+/** US-45 — a move to preview before it is saved. */
+export interface ProposedStatusMove {
+  from: EquipmentStatus;
+  to: EquipmentStatus;
+  quantity: number;
+}
 
 export const equipmentApi = {
   // US-29 AC-1/AC-3/AC-4: the catalogue, searchable and sortable.
@@ -25,13 +38,61 @@ export const equipmentApi = {
   getById: (id: string) =>
     apiClient.get<Equipment>(`/equipment/${id}`).then((r) => r.data),
 
-  // US-45 AC-5: reservations of the item that have not ended — the warning.
-  listUpcomingReservations: (id: string) =>
+  // US-45 AC-5: committed reservations of the item that have not ended, each
+  // with its shortage now and under a proposed move — the warning.
+  listUpcomingReservations: (id: string, proposal?: ProposedStatusMove) =>
     apiClient
-      .get<UpcomingReservation[]>(`/equipment/${id}/upcoming-reservations`)
+      .get<UpcomingReservation[]>(`/equipment/${id}/upcoming-reservations`, { params: proposal })
       .then((r) => r.data),
 
-  // US-45 AC-1/AC-2/AC-3: change an item's status, with a reason.
+  // US-45: units by condition, for every item and for one.
+  listConditions: () =>
+    apiClient.get<EquipmentCondition[]>('/equipment/condition').then((r) => r.data),
+  getCondition: (id: string) =>
+    apiClient.get<EquipmentCondition>(`/equipment/${id}/condition`).then((r) => r.data),
+
+  // US-45 AC-2: the item's status history, with quantities.
+  listStatusHistory: (id: string) =>
+    apiClient
+      .get<EquipmentStatusHistoryEntry[]>(`/equipment/${id}/status-history`)
+      .then((r) => r.data),
+
+  // US-45: an event's reservations with their shortage (Technical Support).
+  listEventReservations: (eventId: string) =>
+    apiClient
+      .get<EventReservationShortage[]>(`/equipment/events/${eventId}/reservations`)
+      .then((r) => r.data),
+
+  // US-45: resolve a shortage by hand — reduce or release, with a reason.
+  reduceReservation: (id: string, payload: { quantity: number; reason: string }) =>
+    apiClient.patch(`/equipment/reservations/${id}`, payload).then((r) => r.data),
+  releaseReservation: (id: string, payload: { reason: string }) =>
+    apiClient.post(`/equipment/reservations/${id}/release`, payload).then((r) => r.data),
+
+  // US-45: items free in the needed quantity, and suggesting one.
+  listAlternatives: (id: string, quantity: number) =>
+    apiClient
+      .get<AlternativeItem[]>(`/equipment/reservations/${id}/alternatives`, { params: { quantity } })
+      .then((r) => r.data),
+  suggestAlternative: (
+    id: string,
+    payload: { alternativeEquipmentId: string; quantity: number; reason: string },
+  ) =>
+    apiClient
+      .post<EquipmentSuggestion>(`/equipment/reservations/${id}/suggestions`, payload)
+      .then((r) => r.data),
+
+  // US-45: no valid alternative exists, with a reason.
+  recordNoAlternative: (id: string, payload: { reason: string }) =>
+    apiClient.post(`/equipment/reservations/${id}/no-alternative`, payload).then((r) => r.data),
+
+  // US-45: the Coordinator decides a suggestion.
+  acceptSuggestion: (id: string) =>
+    apiClient.post(`/equipment/suggestions/${id}/accept`).then((r) => r.data),
+  declineSuggestion: (id: string) =>
+    apiClient.post(`/equipment/suggestions/${id}/decline`).then((r) => r.data),
+
+  // US-45 AC-1/AC-2/AC-3: move a quantity of units between statuses, with a reason.
   changeStatus: (id: string, payload: ChangeEquipmentStatusPayload) =>
     apiClient
       .patch<EquipmentStatusChangeResult>(`/equipment/${id}/status`, payload)

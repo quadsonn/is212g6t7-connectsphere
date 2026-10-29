@@ -134,6 +134,34 @@ describe('registration rules', () => {
 
   // TC-S2-151, TC-S2-155, TC-S2-156, TC-S2-189 · US-35 AC-1, AC-5, AC-6 · unit: evaluateWithdrawal() · fails if
   // withdrawal is offered after the cutoff, on a withdrawn registration, or on a cancelled event
+  // TC-S3-99 · US-46 AC-1 · setup: none (unit) · fails if an event with no start date, or a window with only one end set, breaks the times shown
+  // Code: resolveWindow (no start: no default times); evaluateRegistration messages without an open or close time
+  describe('US-46 AC-1: an event with no start date uses only the times set on it', () => {
+    const undated = (overrides: Partial<RegistrationEventFacts>) => event({ proposedStart: null, ...overrides });
+
+    it('says only when registration opens when no closing time can be worked out', () => {
+      const opensAt = new Date('2030-10-05T00:00:00.000Z');
+
+      const result = evaluateRegistration(undated({ registrationOpensAt: opensAt }), 0, now);
+
+      expect(result).toMatchObject({ block: 'NOT_YET_OPEN', closesAt: null });
+      expect(result.reason).toBe(`Registration opens at ${opensAt.toISOString()}.`);
+    });
+
+    it('says only when registration closed when no opening time can be worked out', () => {
+      const closesAt = new Date('2030-09-30T00:00:00.000Z');
+
+      const result = evaluateRegistration(undated({ registrationClosesAt: closesAt }), 0, now);
+
+      expect(result).toMatchObject({ block: 'CLOSED', opensAt: null });
+      expect(result.reason).toBe(`Registration is closed. It closed at ${closesAt.toISOString()}.`);
+    });
+
+    it('has no withdrawal cutoff to show', () => {
+      expect(evaluateWithdrawal('REGISTERED', undated({}), now).withdrawalCutoffAt).toBeNull();
+    });
+  });
+
   describe('evaluateWithdrawal', () => {
     it('US-35 AC-1: allows withdrawing an active registration before the cutoff', () => {
       const result = evaluateWithdrawal('REGISTERED', event(), now);

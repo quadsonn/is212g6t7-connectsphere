@@ -1,8 +1,10 @@
 # Sprint 3 coverage check (Story 38 to 57)
 
+**Current figures:** Story 38–47 and Story 48–57 are both at 100% of statements; branches are 100% for 48–57 and 99.6% for 38–47 (one branch cannot run, stated below). The two earlier Story 38–42 and 43–47 sections are kept as history.
+
 Measured on 2026-10-27 on `Sprint4-RAYE`, after the Story 42 step; **updated** after the two TEST-gap tests were added. Unit: `npx jest --coverage` (1873 tests). Integration: the six Sprint 3 files, 104 tests, on `localhost` / `connectsphere_test` (`us38-attendee-change-notifications`, `us39-request-outcome-notifications`, `us40-venue-notifications`, `notifications`, `bookings-suggestions`, `events-confirm`). Combined = covered by either suite, merged per statement and branch (same method as [coverage-s1.md](coverage-s1.md)).
 
-## Summary
+## Summary (Story 38 to 42, first measurement — superseded by "Story 38 to 47 at 100%" below)
 
 | | Statements | Branches |
 |---|---|---|
@@ -76,7 +78,7 @@ None: both proposed tests are written and pass. Everything still uncovered is DE
 
 ---
 
-## Story 43 to 47
+## Story 43 to 47 (first measurement — superseded by "Story 38 to 47 at 100%" below)
 
 Measured on 2026-10-27 after the Story 43–47 step. Unit: `npx jest --coverage` (1873 tests). Integration: `us43-cancel-event`, `us44-release-on-cancel`, `equipment-status`, `registrations-period-capacity`, `events-reject-unfulfillable` (115 tests) on `localhost` / `connectsphere_test`. Combined, same method as above.
 
@@ -110,51 +112,120 @@ Measured on 2026-10-27 after the Story 43–47 step. Unit: `npx jest --coverage`
 
 **Story 45 code gaps are not coverage gaps:** the per-unit status, shortage flags, alternative suggestions and reduce/release (TC-S3-88, 90, 91, 95–98) have no code to cover; see the test cases.
 
-## Story 48 to 57
 
-Measured on 2026-10-27 after the Story 48–57 step. Unit: `npx jest --coverage` (1875 tests). Integration: `events-change-request-check`, `venue-buffers`, `venues-buffers`, `booking-review-flags`, `bookings-venue-unavailable`, `bookings-multi-venue`, `us54-venue-holds`, `events-assignment`, `safety-check` (262 tests) on `localhost` / `connectsphere_test`. Combined, same method as above. Files are the ones these stories added; shared files (`bookings.service.ts`, `venues.service.ts`) are covered by the same runs but not listed.
+## Story 38 to 47 at 100%
+
+Measured on 2026-10-29, after merging `sprint4-main` and `sprint4-marilyn`. Unit: `npx jest --coverage` (1938 tests). Integration: the **full** suite, all 68 files (1426 tests), on `localhost` / `connectsphere_test`, because code in these stories is also exercised by later stories' files (Story 52, the equipment substitutions). Combined, same method as above. Rows with a method name count only that method.
 
 | | Statements | Branches |
 |---|---|---|
-| Before the TEST-gap tests | 96.9% (751/775) | 82.3% (204/248) |
-| **Combined** | **98.5% (763/775)** | **85.1% (211/248)** |
+| Before (this merge, integration files for 38–47 only) | 98.4% (563/572) | 83.3% (205/246) |
+| **Combined, with the full suite and the new unit tests** | **100% (572/572)** | **99.6% (245/246)** |
+
+| Story | File (or method) | Statements | Branches |
+|---|---|---|---|
+| 38 | notifications/attendee-change-notifier.service.ts | 100.0% | 100.0% |
+| 38 | notifications/event-schedule-change.ts | 100.0% | 100.0% |
+| 39 | events/events.service.ts (`notifyOrganiserOfDecision`) | 100.0% | 100.0% |
+| 40 | bookings/venue-activity-notifier.ts | 100.0% | 100.0% |
+| 40 | notifications/notifications-inbox.service.ts | 100.0% | 100.0% |
+| 40 | notifications/notifications.controller.ts | 100.0% | — |
+| 40 | notifications/notification-view.ts | 100.0% | 100.0% |
+| 40 | notifications/notifications.service.ts | 100.0% | 100.0% |
+| 41 | bookings/booking-suggestions.service.ts | 100.0% | 100.0% |
+| 41 | bookings/booking-suggestions.ts | 100.0% | 100.0% |
+| 41 | bookings/booking-alternatives.ts | 100.0% | 100.0% |
+| 42 | events/event-confirmation.service.ts | 100.0% | 100.0% |
+| 42 | events/confirmation-readiness.rules.ts | 100.0% | 95.5% |
+| 43 | events/events-cancellation.service.ts | 100.0% | 100.0% |
+| 43 | events/event-cancellation.rules.ts | 100.0% | 100.0% |
+| 43 | events/dto/cancel-event.dto.ts | 100.0% | 100.0% |
+| 44 | bookings/bookings.service.ts (`releaseForCancelledEvent`) | 100.0% | 100.0% |
+| 45 | equipment/equipment-status.ts | 100.0% | 100.0% |
+| 45 | equipment/equipment.service.ts (`changeStatus`) | 100.0% | 100.0% |
+| 45 | equipment/dto/change-equipment-status.dto.ts | 100.0% | 100.0% |
+| 46 | registrations/registration-rules.ts | 100.0% | 100.0% |
+| 46 | registrations/registrations.service.ts (`register`) | 100.0% | 100.0% |
+| 47 | events/events-unfulfillable.service.ts | 100.0% | 100.0% |
+
+**Not possible (1 branch):**
+
+| File:line | Branch | Why it cannot run |
+|---|---|---|
+| `events/confirmation-readiness.rules.ts:65` | The "not approved (status)" wording for a venue booking | `venueItem()` is private and only ever receives live bookings (pending, approved, or a hold that has not expired); `occupies()` filters everything else out first. The wording is a deliberate safety net for a status added later (see the allowlist comment above `occupies`), so no input can reach it. |
+
+**How the rest are reached.** Fallbacks for missing names, default parameters, race guards and failures that the running app cannot produce are covered by unit tests built with mocks, each tagged with its TC and listed in the test case:
+
+| Path | Unit test |
+|---|---|
+| A date stored as a Date, or an unreadable value, in the Attendee notice | `notifications/event-schedule-change.spec.ts` |
+| A failure that is not an Error object, swallowed | `notifications/attendee-change-notifier.service.spec.ts` |
+| Attendance changed from nothing recorded | `bookings/venue-activity-notifier.spec.ts` (new) |
+| The inbox with no page given | `notifications/notifications-inbox.service.spec.ts` (new) |
+| Technical Support's equipment link; an unknown role; an empty reason | `notifications/notification-view.spec.ts` |
+| The equipment item recorded only when named; an empty batch; a batch notice with no event | `notifications/notifications.service.spec.ts` |
+| An unnamed venue that is not free; two accepts racing for one suggestion | `bookings/booking-suggestions.spec.ts` (new) |
+| Unnamed venues and a request with no attendance, ranked | `bookings/booking-alternatives.spec.ts` |
+| Confirm refused while safety feedback waits, allowed once answered; a nameless venue and event | `events/event-confirmation.service.spec.ts` |
+| Cancelling an event with no name | `events/events-cancellation.service.spec.ts` |
+| A cancel reason that is not text | `events/dto/cancel-event.dto.spec.ts` (new) |
+| Marking an item out of service without the substitutions service, on an event with no Coordinator | `equipment/equipment-change-status.service.spec.ts` (new) |
+| An event with no start date: only the times set on it | `registrations/registration-rules.spec.ts` |
+| Registering for an event with no name | `registrations/registrations.service.spec.ts` |
+| A Coordinator who is not assigned; an event with no name | `events/events-unfulfillable.service.spec.ts` (new) |
+
+## Story 48 to 57
+
+Measured on 2026-10-29. Unit: `npx jest --coverage` (1916 tests). Integration: `events-change-request-check`, `venue-buffers`, `venues-buffers`, `booking-review-flags`, `bookings-venue-unavailable`, `bookings-multi-venue`, `us54-venue-holds`, `events-assignment`, `safety-check` (262 tests) on `localhost` / `connectsphere_test`. Combined, same method as above. Files are the ones these stories added; shared files (`bookings.service.ts`, `venues.service.ts`) are covered by the same runs but not listed.
+
+| | Statements | Branches |
+|---|---|---|
+| First measurement (2026-10-27) | 96.9% (751/775) | 82.3% (204/248) |
+| After the integration TEST-gap tests | 98.5% (763/775) | 85.1% (211/248) |
+| After deleting the three unused helpers (2026-10-28) | 99.0% (761/769) | 86.8% (211/243) |
+| **Combined, with the unit tests for the remaining paths** | **100% (769/769)** | **100% (243/243)** |
 
 | Story | File | Statements | Branches |
 |---|---|---|---|
-| 48 | events/change-arrangement-check.service.ts | 98.4% | 91.7% |
-| 48 | events/change-arrangement-check.ts | 100.0% | 86.4% |
+| 48 | events/change-arrangement-check.service.ts | 100.0% | 100.0% |
+| 48 | events/change-arrangement-check.ts | 100.0% | 100.0% |
 | 48 | bookings/booking-reschedule.ts | 100.0% | 100.0% |
-| 49/50 | bookings/booking-overlap.ts | 89.5% | 81.8% |
-| 51 | bookings/booking-review.service.ts | 100.0% | 77.8% |
-| 51 | bookings/buffer-clashes.ts | 100.0% | 87.5% |
+| 49/50 | bookings/booking-overlap.ts | 100.0% | 100.0% |
+| 51 | bookings/booking-review.service.ts | 100.0% | 100.0% |
+| 51 | bookings/buffer-clashes.ts | 100.0% | 100.0% |
 | 52 | bookings/venue-unavailability.service.ts | 100.0% | 100.0% |
 | 52 | bookings/venue-unavailability.ts | 100.0% | 100.0% |
 | 53 | bookings/venue-arrangement.ts | 100.0% | 100.0% |
-| 54 | bookings/holds.service.ts | 98.9% | 92.9% |
+| 54 | bookings/holds.service.ts | 100.0% | 100.0% |
 | 54 | bookings/holds.controller.ts | 100.0% | — |
-| 54 | bookings/hold-expiry.ts | 100.0% | 66.7% |
+| 54 | bookings/hold-expiry.ts | 100.0% | 100.0% |
 | 54 | bookings/hold-expiry.scheduler.ts | 100.0% | 100.0% |
 | 54 | bookings/dto/hold.dto.ts | 100.0% | — |
-| 55/56 | events/events-assignment.service.ts | 98.9% | 80.0% |
+| 55/56 | events/events-assignment.service.ts | 100.0% | 100.0% |
 | 55/56 | events/events-assignment.controller.ts | 100.0% | 100.0% |
 | 55/56 | events/dto/assign-coordinator.dto.ts | 100.0% | — |
-| 57 | safety/safety.service.ts | 97.1% | 86.4% |
-| 57 | safety/safety-readiness.service.ts | 91.3% | 66.7% |
+| 57 | safety/safety.service.ts | 100.0% | 100.0% |
+| 57 | safety/safety-readiness.service.ts | 100.0% | 100.0% |
 | 57 | safety/safety-readiness.rules.ts | 100.0% | 100.0% |
 | 57 | safety/safety.controller.ts | 100.0% | — |
-| 57 | safety/dto/safety-decision.dto.ts | 100.0% | 50.0% |
+| 57 | safety/dto/safety-decision.dto.ts | 100.0% | 100.0% |
 | 57 | safety/dto/resubmit-safety.dto.ts | 100.0% | 100.0% |
 
-**TEST (now covered):** a draft venue or an unknown event cannot be held (`holds.service.ts:92, 97`); the every-minute hold tick, including one job failing (`hold-expiry.scheduler.ts:37–44`, new unit spec); a decision on, or the history of, an unknown event (`safety.service.ts:342, 417`); resubmitting an event cancelled while feedback waited (`safety.service.ts:505`); an event leaving the Safety queue once its equipment is released (`safety-readiness.service.ts:158`). **DEFERRED:** none. **EXCLUDE** (all of the rest):
+**Nothing is left uncovered, so nothing needs an "impossible" reason.**
 
-| File:line | What isn't covered | Reason |
-|---|---|---|
-| `events/change-arrangement-check.service.ts:122` | An event with no proposed start or end | Only submitted events get change requests, and submission requires both. |
-| `bookings/booking-overlap.ts:17, 128` | `overlapping()` and `committedOverlapping()` | No caller in `src`: unused helpers. Flagged for the team to remove or use. |
-| `safety/safety-readiness.service.ts:101, 107` | `isHeld()` | No caller in `src`: the queue lists only events awaiting a check, and only Confirm or a resubmit puts one there, so nothing needs to ask. Flagged as above. |
-| `bookings/holds.service.ts:263` | A past expiry inside the service | `HoldExpiryDto` (`@MinDate`) refuses it first (tested: 400). |
-| `events/events-assignment.service.ts:387`, `safety/safety-readiness.service.ts:131` | Re-throwing an unexpected database error | Only a database failure reaches it. |
-| `safety/safety.service.ts:358` | Deciding while the arrangements have stopped being ready | The arrangements listener takes the event out of the queue first (tested); this is the race backstop. |
-| `safety/safety.service.ts:476` | The event vanishing between the access check and the lock | Events are never deleted. |
-| `safety/safety.service.ts:585` | Notifying when the event has no Coordinator | An event awaiting a safety check always has one. |
-| Branches | Name and venue fallbacks ("Untitled event", "an unnamed venue"), default parameters (`now`, `db`, `scope`), `?? null` on optional DTO fields, and the guards above | Same reasons: values that are always present, or callers that always pass them. |
+**How the last paths are reached.** Some paths can't be reached through the running app: a fallback for a missing name, a default parameter, a guard against a race, or a database failure. Those are covered by unit tests that build the situation with mocks, each tagged with its TC:
+
+| Path | Unit test |
+|---|---|
+| Integration TEST gaps (2026-10-27): a draft venue or unknown event on a hold; a decision on, or history of, an unknown event; resubmitting a cancelled event; equipment released while queued | `us54-venue-holds`, `safety-check` (integration) |
+| The every-minute hold tick, including one job failing | `hold-expiry.scheduler.spec.ts` |
+| The hold jobs called with no venue or time; `isLive()` with no time | `hold-expiry.spec.ts`, `booking-overlap.spec.ts` |
+| A past expiry when the DTO is skipped | `holds.service.spec.ts` |
+| An event with no dates; an item whose reservations are all still requested | `change-arrangement-check.service.spec.ts` |
+| A nameless hold, venue or event, and a block with no reason, in the check's wording | `change-arrangement-check.spec.ts` |
+| A nameless partner in a review flag; the re-check with its defaults; a blank resolve note | `booking-review.service.spec.ts` |
+| Same-time clashes sorted by partner, then booking | `buffer-clashes.spec.ts` |
+| A lost assignment race to a request that has gone; an unexpected database error; notices for an unnamed event and an unknown actor | `events-assignment.service.spec.ts` |
+| Missing capacity or attendance and a block row without its block in the review; arrangements that stop being ready under the lock; a decision with no reason or stage; no Coordinator to notify; an event gone before a resubmit locks it | `safety/safety.service.spec.ts` |
+| A nameless venue in the readiness facts; a lost race and an unexpected failure leaving the queue | `safety/safety-readiness.service.spec.ts` |
+| A reason that is not text | `safety/safety-decision.dto.spec.ts` |

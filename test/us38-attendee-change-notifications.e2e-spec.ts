@@ -123,12 +123,8 @@ describe('US-38 attendee change notifications (e2e)', () => {
     });
 
     // TC-S3-40 · US-38 AC-1 · setup: base-users + base-venues + tc-s3-40-setup · fails if a venue replaced through the Story 52 replacement request tells no one
-    // Code: POST /bookings with replacesBookingId, then BookingsService decide (APPROVED) -> releaseReplaced
-    // KNOWN BUG (audit gap #4): the replaced booking is RELEASED, but
-    // notifyAttendeesIfVenueReplaced only looks for an earlier booking that was
-    // approved and then REJECTED, so this replacement tells no one. Switch to
-    // it(...) when the fix lands.
-    it.failing('tells Registered Attendees when a Story 52 replacement request is approved', async () => {
+    // Code: POST /bookings with replacesBookingId, then BookingsService decide (APPROVED) -> releaseReplaced -> notifyAttendeesIfVenueReplaced (replacesBookingId)
+    it('tells Registered Attendees when a Story 52 replacement request is approved', async () => {
       await given('tc-s3-40-setup');
 
       const replacement = await http()

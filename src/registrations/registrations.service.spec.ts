@@ -153,6 +153,18 @@ describe('RegistrationsService', () => {
       );
     });
 
+    // TC-S3-100 · US-46 AC-2 · setup: none (unit) · fails if registering for an event with no name breaks the confirmation notice
+    // Code: RegistrationsService.register (event name fallback)
+    it('US-46: words the confirmation for an event with no name', async () => {
+      tx.eventRequest.findUnique.mockResolvedValue({ ...eventFacts, name: null });
+
+      await service.register(attendee, dto);
+
+      expect(notifications.notifySafely).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'You are registered for "the event".' }),
+      );
+    });
+
     it('locks the event before checking capacity', async () => {
       await service.register(attendee, dto);
       expect(tx.$queryRaw).toHaveBeenCalled();

@@ -274,9 +274,33 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - **New tests (coverage TEST gaps):** a draft venue or unknown event cannot be held; the hold tick (new unit spec, 2 tests); a decision on or history of an unknown event; resubmitting an event cancelled while feedback waited; an event leaving the Safety queue once its equipment is released.
 - **New UI tests:** `lead-queue.test.tsx` (Story 55: entry fields, open and assign, the current assignee on a clash), `safety-review.test.tsx` (Story 57: the review contents; stage and reason required), and one Story 56 test in `lead-assignments.test.tsx` (counts and filter). The existing UI tests for Stories 48–54 are cited in the test cases. No browser test added: every UI-only AC is covered by a UI test.
 - Runs, 3 each on `localhost` / `connectsphere_test`: change-request-check 34/34, venue-buffers 21/21, venues-buffers 29/29, booking-review-flags 24/24, bookings-venue-unavailable 28/28, bookings-multi-venue 17/17, us54 35/35, events-assignment 33/33, safety-check 41/41; hold tick unit 2/2; new UI tests 8/8. Full unit suite 1875/1875; full frontend suite 366/366.
-- All 74 test cases Pass. Story 52 AC-5 notes open bug #4 (TC-S3-40).
+- All 74 test cases Pass. Story 52 AC-5 noted open bug #4 (TC-S3-40), since fixed (2026-10-28 entry).
 - **Coverage** (coverage-s3.md): Story 48–57 files combined 98.5% statements / 85.1% branches (from 96.9% / 82.3% before the gap tests); the rest is EXCLUDE. Three helpers have no caller (`overlapping`, `committedOverlapping`, `isHeld`): flagged for the team, not removed.
 - 90 new scripts (`tc-s3-113` to `tc-s3-185`), all listed in the fixture README.
+
+## 2026-10-28: merged sprint4-main and sprint4-marilyn; audit gap #4 fixed; unused helpers deleted
+
+- **Merged** `origin/sprint4-main` (`1776b73`, the Story 45 equipment substitutions, with a new migration) and `origin/sprint4-marilyn` (`c1b87c7`, `bb85a11`, Sprint 2 test regeneration) into `Sprint4-RAYE`. No conflicts; the one file both sides changed (`equipment-reservations.service.spec.ts`) passes 29/29. The new migration was applied to `localhost` / `connectsphere_test` only, by the test setup.
+- **Audit gap #4 fixed** (team-approved): `BookingsService.notifyAttendeesIfVenueReplaced` now checks the approved booking's `replacesBookingId` first, so a confirmed Story 52 replacement tells the Registered Attendees "Venue: old → new". The reversal route is unchanged. The TC-S3-40 test went from `it.failing` to `it` and passed 3 runs; TC-S3-40 is now Pass.
+- **Deleted** the unused `overlapping()` and `committedOverlapping()` (`src/bookings/booking-overlap.ts`) and `isHeld()` (`src/safety/safety-readiness.service.ts`), team-approved. No behaviour change.
+- Runs: unit 1893/1893; us38 4/4 ×3; the 11 integration files that use replacements, overlaps or the safety queue 306/306.
+- **Coverage** (coverage-s3.md, Story 48–57): 99.0% statements / 86.8% branches (from 98.5% / 85.1%).
+
+## 2026-10-29: Story 48 to 57 at 100% coverage
+
+- Course requirement: "100% coverage unless not possible and stated why". The remaining 8 statements and 32 branches were all reachable, so none needed an "impossible" reason.
+- **23 new unit tests** reach the paths the running app cannot: name fallbacks, default parameters, race guards and database failures, built with mocks. 5 new spec files (`safety/safety.service.spec.ts`, `safety/safety-readiness.service.spec.ts`, `bookings/hold-expiry.spec.ts`, `bookings/holds.service.spec.ts`, `events/change-arrangement-check.service.spec.ts`) and additions to 6 existing ones. Each test tagged with its TC and `Code:` line, and listed in its test case's "Automated by".
+- Stale references to the deleted `isHeld()` removed: one comment in `safety.service.ts` (`decide`), three `Code:` tags in `safety-check.e2e-spec.ts`.
+- Runs: the 11 touched unit specs 100/100 ×3; full unit suite 1916/1916; the 9 Story 48–57 integration files 262/262 on `localhost` / `connectsphere_test`.
+- **Coverage** (coverage-s3.md): Story 48–57 files combined **100% statements (769/769), 100% branches (243/243)**.
+
+## 2026-10-29: Story 38 to 47 at 100%; full suite green
+
+- **Full integration suite** (68 files) on `localhost` / `connectsphere_test`: first run 67/68, `equipment-substitutions.e2e-spec.ts` (Felecia, from the `sprint4-main` merge) failed 44 tests when run after other files. Its `clear()` deleted table by table and missed `VenueBlock`, so `user.deleteMany()` hit a foreign key; the same failure in `afterAll` left the app open, so Jest never exited. **Fixed (test only):** `clear()` now calls the guarded `resetDb`. No assertion changed. Re-run: **68/68 files, 1426/1426 tests**, Jest exits cleanly.
+- **22 new unit tests** for Stories 38–47 (6 new spec files: `venue-activity-notifier`, `notifications-inbox.service`, `booking-suggestions`, `cancel-event.dto`, `events-unfulfillable.service`, `equipment-change-status.service`; additions to 9 existing ones), each tagged and listed in its test case's "Automated by".
+- Runs: the 15 touched unit specs 180/180 ×3; `equipment-substitutions` 44/44 ×3 (twice alone, once in the full run); full unit suite 1938/1938.
+- **Coverage** (coverage-s3.md, "Story 38 to 47 at 100%"): **100% statements (572/572), 99.6% branches (245/246)**. The one branch cannot run and the reason is stated (`confirmation-readiness.rules.ts:65`, only live bookings reach it).
+- Sprint 3 coverage requirement now met for Story 38–57.
 
 ## Open
 - **TC IDs:** Sprint 1 TC-S1-01 to 62; Sprint 3 TC-S3-38 to 186 (Story 38 to 57). Story 45 is on hold while its code changes are under way.

@@ -91,12 +91,12 @@ All four use only the local test database (or none). None touches the shared Sup
 | Created By | Raye Yap |
 | Date of Creation | 2026-10-27 |
 | **Test execution record** | |
-| Actual Result | The request returned 201 and the approval 200, and Main Hall was released, but **no Attendee was notified**. |
-| Status | Fail |
-| Remarks | **Bug found by test audit (audit gap #4).** `BookingsService.notifyAttendeesIfVenueReplaced` only looks for an earlier booking that was approved and then REJECTED (a reversal, TC-S3-39). The Story 52 flow leaves the original APPROVED until the replacement is approved, then marks it RELEASED, so the lookup finds nothing. Captured as `it.failing`; switch it to `it` when fixed. |
+| Actual Result | The request returned 201 and the approval 200; Main Hall was released, and the one Registered Attendee (`USR-001`) got a notice reading "Venue: Main Hall → Rooftop Terrace". |
+| Status | Pass |
+| Remarks | **Bug found by test audit (audit gap #4), fixed 2026-10-28.** `notifyAttendeesIfVenueReplaced` used to look only for an earlier booking that was approved and then REJECTED (a reversal, TC-S3-39), so a Story 52 replacement, which leaves the original RELEASED, notified no one. It now checks the replacement's `replacesBookingId` first. First run: Fail (captured as `it.failing`). |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us38-attendee-change-notifications.e2e-spec.ts::tells Registered Attendees when a Story 52 replacement request is approved` (`it.failing`) |
+| Date of Execution | 2026-10-28 |
+| Automated by | Integration: `test/us38-attendee-change-notifications.e2e-spec.ts::tells Registered Attendees when a Story 52 replacement request is approved` |
 
 ### TC-S3-41
 
@@ -138,7 +138,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | Times are shown in Singapore time. **The content is an in-app notification, not an email**: the app has no email delivery (see TC-S3-46). |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us38-attendee-change-notifications.e2e-spec.ts::sends each Registered Attendee one notice listing every changed field, old and new`<br>Unit: `src/notifications/event-schedule-change.spec.ts::event schedule change notice AC-3: shows the event name and each changed field with old and new value` |
+| Automated by | Integration: `test/us38-attendee-change-notifications.e2e-spec.ts::sends each Registered Attendee one notice listing every changed field, old and new`<br>Unit: `src/notifications/event-schedule-change.spec.ts::event schedule change notice AC-3: shows the event name and each changed field with old and new value`<br>Unit: `src/notifications/event-schedule-change.spec.ts::formats a Date like its ISO string, and shows an unreadable value as it is` |
 
 ### TC-S3-43
 
@@ -222,10 +222,10 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | **Code gap.** `NotificationsService` records in-app notifications only ("There is no email, push, websocket…"), so retry and failure recording cannot exist yet. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Unit: `src/notifications/attendee-change-notifier.service.spec.ts::AttendeeChangeNotifier best-effort: never fails the change that triggered it`<br>Unit: `src/notifications/notifications.service.spec.ts::NotificationsService notifySafely` |
+| Automated by | Unit: `src/notifications/attendee-change-notifier.service.spec.ts::AttendeeChangeNotifier best-effort: never fails the change that triggered it`<br>Unit: `src/notifications/notifications.service.spec.ts::NotificationsService notifySafely`<br>Unit: `src/notifications/attendee-change-notifier.service.spec.ts::also swallows a failure that is not an Error object` |
 
 **Story 38 AC ↔ code notes**
-- **AC-1 (bug, audit gap #4):** a venue replaced through the Story 52 replacement request notifies no one (TC-S3-40). Only the reversal route notifies.
+- **AC-1 (audit gap #4, fixed 2026-10-28):** a venue replaced through the Story 52 replacement request used to notify no one (TC-S3-40); only the reversal route did. Both routes now notify.
 - **AC-3, AC-7 (code gap):** notifications are in-app records; there is no email or worker.
 
 ---
@@ -427,7 +427,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a new date and time notifies the manager once per approved booking`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: an attendance change notifies the manager`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a booking that was not APPROVED is not reported as changed` |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a new date and time notifies the manager once per approved booking`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: an attendance change notifies the manager`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a booking that was not APPROVED is not reported as changed`<br>Unit: `src/bookings/venue-activity-notifier.spec.ts::says "not set" when the booking had no attendance before` |
 
 ### TC-S3-56
 
@@ -511,7 +511,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: notifies only the venue manager, with venue, event, what happened, when and a link`<br>Integration: `test/notifications.e2e-spec.ts::roles with an event page get a link to it; others get none`<br>UI: `frontend/src/features/notifications/components/notification-bell.test.tsx::US-40 AC-3/AC-5: lists venue, event, what happened and when, newest first` |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: notifies only the venue manager, with venue, event, what happened, when and a link`<br>Integration: `test/notifications.e2e-spec.ts::roles with an event page get a link to it; others get none`<br>UI: `frontend/src/features/notifications/components/notification-bell.test.tsx::US-40 AC-3/AC-5: lists venue, event, what happened and when, newest first`<br>Unit: `src/notifications/notification-view.spec.ts::US-60: Technical Support go to the equipment item when one is named; an unknown role gets no link`<br>Unit: `src/notifications/notification-view.spec.ts::treats an empty reason as none`<br>Unit: `src/notifications/notifications.service.spec.ts::US-60: records the equipment item only when one is named` |
 
 ### TC-S3-60
 
@@ -553,7 +553,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: newest first, paginated with a cursor`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: rejects a limit outside 1–100`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: refuses another user's notification as the paging cursor (404)`<br>Integration: `test/notifications.e2e-spec.ts::lists only the caller’s, newest first`<br>Integration: `test/notifications.e2e-spec.ts::shows the notification, its reason, the event and a link to it`<br>Integration: `test/notifications.e2e-spec.ts::US-47 AC-6: shows the unfulfillable rejection with its reason and comment`<br>Integration: `test/notifications.e2e-spec.ts::US-48 AC-9: shows the change request outcome with the reason` |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: newest first, paginated with a cursor`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: rejects a limit outside 1–100`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: refuses another user's notification as the paging cursor (404)`<br>Integration: `test/notifications.e2e-spec.ts::lists only the caller’s, newest first`<br>Integration: `test/notifications.e2e-spec.ts::shows the notification, its reason, the event and a link to it`<br>Integration: `test/notifications.e2e-spec.ts::US-47 AC-6: shows the unfulfillable rejection with its reason and comment`<br>Integration: `test/notifications.e2e-spec.ts::US-48 AC-9: shows the change request outcome with the reason`<br>Unit: `src/notifications/notifications-inbox.service.spec.ts::reads the caller's own notifications, newest first, with the default page size when given no page` |
 
 ### TC-S3-62
 
@@ -574,7 +574,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | Notices are written in the same transaction as the action, so "within 1 minute" depends on the page's polling interval (60 s). |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: notifies only the venue manager, with venue, event, what happened, when and a link`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a failed booking submission leaves no notification`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a cancellation rolled back leaves no notification`<br>UI: `frontend/src/features/notifications/components/notification-bell.test.tsx::US-40 AC-6: notifications poll at most every 60 seconds, on the shared interval` |
+| Automated by | Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: notifies only the venue manager, with venue, event, what happened, when and a link`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a failed booking submission leaves no notification`<br>Integration: `test/us40-venue-notifications.e2e-spec.ts::US-40: a cancellation rolled back leaves no notification`<br>UI: `frontend/src/features/notifications/components/notification-bell.test.tsx::US-40 AC-6: notifications poll at most every 60 seconds, on the shared interval`<br>Unit: `src/notifications/notifications.service.spec.ts::writes nothing for an empty list, and stores missing links as none` |
 
 **Story 40 AC ↔ code notes**
 - **AC-1 (holds):** TC-S3-57 calls the hold notifier directly; the hold workflow itself is Story 54.
@@ -624,7 +624,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | A venue with only a pending request overlapping counts as free (pendingHall). |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::proposes only free venues that meet capacity and accessibility, best match first`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::never proposes the venue the request asked for`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::allows a booking ending exactly when the slot starts (back-to-back)`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the list excludes venues too small for the expected attendance`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the list excludes venues that are not free, including within setup or turnaround time`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-4: nothing is offered when no free venue is big enough`<br>Unit: `src/bookings/booking-alternatives.spec.ts::US-41 alternative venue ranking US-41 AC-2: a candidate meets the capacity and accessibility requirements`<br>Unit: `src/bookings/booking-alternatives.spec.ts::US-41 alternative venue ranking US-41 AC-2: candidates are ranked by how well they match`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-2: shows the ranked candidates, best match first` |
+| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::proposes only free venues that meet capacity and accessibility, best match first`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::never proposes the venue the request asked for`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::allows a booking ending exactly when the slot starts (back-to-back)`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the list excludes venues too small for the expected attendance`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the list excludes venues that are not free, including within setup or turnaround time`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-4: nothing is offered when no free venue is big enough`<br>Unit: `src/bookings/booking-alternatives.spec.ts::US-41 alternative venue ranking US-41 AC-2: a candidate meets the capacity and accessibility requirements`<br>Unit: `src/bookings/booking-alternatives.spec.ts::US-41 alternative venue ranking US-41 AC-2: candidates are ranked by how well they match`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-2: shows the ranked candidates, best match first`<br>Unit: `src/bookings/booking-alternatives.spec.ts::orders unnamed venues by id, and ranks without spare capacity when no attendance was recorded` |
 
 ### TC-S3-65
 
@@ -666,7 +666,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::refuses a venue held by %s, and records nothing`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::allows a venue with only a pending request overlapping — it is not booked`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the list excludes venues that are not free, including within setup or turnaround time`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the server refuses an under-capacity venue even when the page is bypassed, and records nothing`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the same check applies when a reversal (US-52) suggests venues`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-4: shows the server refusing a venue that is not free` |
+| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::refuses a venue held by %s, and records nothing`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::allows a venue with only a pending request overlapping — it is not booked`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the list excludes venues that are not free, including within setup or turnaround time`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the server refuses an under-capacity venue even when the page is bypassed, and records nothing`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-3: the same check applies when a reversal (US-52) suggests venues`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-4: shows the server refusing a venue that is not free`<br>Unit: `src/bookings/booking-suggestions.spec.ts::refuses an unnamed venue that is not free, naming it "That venue"` |
 
 ### TC-S3-67
 
@@ -708,7 +708,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | The details come from the original booking request, not the event's later edits. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::creates a pending request for the suggested venue with the original time, attendance and requirements`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::cannot accept the same suggestion twice`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::goes through the normal request checks: refused if the venue was booked meanwhile`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is refused once a reversal has approved the original`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::refuses to accept the suggestion on %s (409), and creates nothing`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::404s for a suggestion of another request, or another Coordinator`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is refused to %s (403)`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-1/AC-2: refuses accepting a suggestion whose venue no longer holds the attendance`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-6: accepting creates a request and opens it` |
+| Automated by | Integration: `test/bookings-suggestions.e2e-spec.ts::creates a pending request for the suggested venue with the original time, attendance and requirements`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::cannot accept the same suggestion twice`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::goes through the normal request checks: refused if the venue was booked meanwhile`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is refused once a reversal has approved the original`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::refuses to accept the suggestion on %s (409), and creates nothing`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::404s for a suggestion of another request, or another Coordinator`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::is refused to %s (403)`<br>Integration: `test/bookings-suggestions.e2e-spec.ts::Capacity AC-1/AC-2: refuses accepting a suggestion whose venue no longer holds the attendance`<br>UI: `frontend/src/features/bookings/components/suggestions.test.tsx::US-41 AC-6: accepting creates a request and opens it`<br>Unit: `src/bookings/booking-suggestions.spec.ts::refuses the second of two accepts racing for the same suggestion` |
 
 ### TC-S3-69
 
@@ -778,7 +778,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: no venue booked`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: one REQUESTED booking is still pending`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: an APPROVED booking flagged for review needs conflict review`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: a linked line under-reserved reads 1 of 2`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: an unticked free-text line needs a manual check`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: ticking records who and when; undo clears it`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a catalogue-linked line cannot be ticked (400)`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a line from another event is not found`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a tick survives an edit that leaves the line unchanged`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-1/AC-2: an event that is not ready gets 409 with the checklist`<br>Unit: `src/events/confirmation-readiness.rules.spec.ts::US-42 confirmation readiness rules US-42 AC-2: lists every outstanding item at once, venues first`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42: ticking a free-text line marks it as checked by hand`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42: unticking undoes the check`<br>E2E: `e2e/us42-confirm.spec.ts::Confirm stays disabled and the checklist names what is missing` |
+| Automated by | Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: no venue booked`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: one REQUESTED booking is still pending`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: an APPROVED booking flagged for review needs conflict review`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: a linked line under-reserved reads 1 of 2`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-2: an unticked free-text line needs a manual check`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: ticking records who and when; undo clears it`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a catalogue-linked line cannot be ticked (400)`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a line from another event is not found`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: a tick survives an edit that leaves the line unchanged`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-1/AC-2: an event that is not ready gets 409 with the checklist`<br>Unit: `src/events/confirmation-readiness.rules.spec.ts::US-42 confirmation readiness rules US-42 AC-2: lists every outstanding item at once, venues first`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42: ticking a free-text line marks it as checked by hand`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42: unticking undoes the check`<br>E2E: `e2e/us42-confirm.spec.ts::Confirm stays disabled and the checklist names what is missing`<br>Unit: `src/events/event-confirmation.service.spec.ts::US-42: words the checklist and the notice for a nameless venue and event` |
 
 ### TC-S3-72
 
@@ -820,7 +820,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | **AC ↔ code (Week 7 Change 6):** the AC says the status becomes Confirmed; the code moves the event to AWAITING_SAFETY_CHECK, because Change 6 (Story 57) puts the Safety Officer's check between arrangements and Confirmed. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-4: a ready event moves to AWAITING_SAFETY_CHECK with who and when`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: confirming works from PLANNING too`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: an event that is not in planning cannot be confirmed (409)`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: confirming twice is refused the second time (409)`<br>Unit: `src/events/event-confirmation.service.spec.ts::US-42 EventsService.setStatus records who confirmed`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42 AC-4: when ready, Confirm asks first, then confirms and shows a toast`<br>E2E: `e2e/us42-confirm.spec.ts::a ready event is confirmed, and the Organiser sees it` |
+| Automated by | Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-4: a ready event moves to AWAITING_SAFETY_CHECK with who and when`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: confirming works from PLANNING too`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: an event that is not in planning cannot be confirmed (409)`<br>Integration: `test/events-confirm.e2e-spec.ts::US-42: confirming twice is refused the second time (409)`<br>Unit: `src/events/event-confirmation.service.spec.ts::US-42 EventsService.setStatus records who confirmed`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42 AC-4: when ready, Confirm asks first, then confirms and shows a toast`<br>E2E: `e2e/us42-confirm.spec.ts::a ready event is confirmed, and the Organiser sees it`<br>Unit: `src/events/event-confirmation.service.spec.ts::US-42 / US-57: refuses Confirm while safety feedback waits for an answer, and allows it once answered` |
 
 ### TC-S3-74
 
@@ -841,7 +841,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-5: the Organiser is notified and sees the new status`<br>Unit: `src/events/event-confirmation.service.spec.ts::US-42 EventConfirmationService`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42 AC-5: the Organiser-facing label for the new status`<br>E2E: `e2e/us42-confirm.spec.ts::a ready event is confirmed, and the Organiser sees it` |
+| Automated by | Integration: `test/events-confirm.e2e-spec.ts::US-42 AC-5: the Organiser is notified and sees the new status`<br>Unit: `src/events/event-confirmation.service.spec.ts::US-42 EventConfirmationService`<br>UI: `frontend/src/features/events/components/confirm-arrangements-card.test.tsx::US-42 AC-5: the Organiser-facing label for the new status`<br>E2E: `e2e/us42-confirm.spec.ts::a ready event is confirmed, and the Organiser sees it`<br>Unit: `src/events/event-confirmation.service.spec.ts::US-42: words the checklist and the notice for a nameless venue and event` |
 
 **Story 42 AC ↔ code notes**
 - **AC-4 (Week 7 Change 6):** confirming moves the event to AWAITING_SAFETY_CHECK rather than Confirmed; the Safety Officer's approval (Story 57) comes before Confirmed.
@@ -891,7 +891,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us43-cancel-event.e2e-spec.ts::refuses %s with 400 and cancels nothing`<br>Unit: `src/events/cancel-event.dto.spec.ts::CancelEventDto (US-43)`<br>UI: `frontend/src/features/events/components/cancel-event-panel.test.tsx::AC-2: refuses to cancel without a reason and sends nothing`<br>UI: `frontend/src/features/events/components/cancel-event-panel.test.tsx::AC-2: a whitespace-only reason does not count`<br>UI: `frontend/src/features/events/components/cancel-event-panel.test.tsx::AC-2: confirming sends the trimmed reason with confirm: true, then closes`<br>E2E: `e2e/us43-cancel.spec.ts::a draft offers no Cancel; a live event is cancelled with a reason and shows Cancelled` |
+| Automated by | Integration: `test/us43-cancel-event.e2e-spec.ts::refuses %s with 400 and cancels nothing`<br>Unit: `src/events/cancel-event.dto.spec.ts::CancelEventDto (US-43)`<br>UI: `frontend/src/features/events/components/cancel-event-panel.test.tsx::AC-2: refuses to cancel without a reason and sends nothing`<br>UI: `frontend/src/features/events/components/cancel-event-panel.test.tsx::AC-2: a whitespace-only reason does not count`<br>UI: `frontend/src/features/events/components/cancel-event-panel.test.tsx::AC-2: confirming sends the trimmed reason with confirm: true, then closes`<br>E2E: `e2e/us43-cancel.spec.ts::a draft offers no Cancel; a live event is cancelled with a reason and shows Cancelled`<br>Unit: `src/events/dto/cancel-event.dto.spec.ts::refuses a reason that is not text, and accepts a trimmed one` |
 
 ### TC-S3-77
 
@@ -1017,7 +1017,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | Olivia also gets her own confirmation (US-65), checked in its own suite. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us43-cancel-event.e2e-spec.ts::notifies the Coordinator and the Registered Attendee, not the Withdrawn one`<br>Unit: `src/events/events-cancellation.service.spec.ts::EventsCancellationService (US-43) AC-8: the Coordinator and all registered Attendees are notified` |
+| Automated by | Integration: `test/us43-cancel-event.e2e-spec.ts::notifies the Coordinator and the Registered Attendee, not the Withdrawn one`<br>Unit: `src/events/events-cancellation.service.spec.ts::EventsCancellationService (US-43) AC-8: the Coordinator and all registered Attendees are notified`<br>Unit: `src/events/events-cancellation.service.spec.ts::AC-8: words both notices for an event with no name` |
 
 **Story 43 AC ↔ code notes**
 - No mismatches. AC-7: a registration on a cancelled event is refused with 404 (not visible), not 409.
@@ -1178,7 +1178,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/equipment-status.e2e-spec.ts::400s when the reason is %s, and changes nothing`<br>Integration: `test/equipment-status.e2e-spec.ts::records the change: from, to, trimmed reason, who and when`<br>Integration: `test/equipment-status.e2e-spec.ts::the database refuses a blank reason written around the API`<br>Integration: `test/equipment-status.e2e-spec.ts::shows the latest reason in the item detail` |
+| Automated by | Integration: `test/equipment-status.e2e-spec.ts::400s when the reason is %s, and changes nothing`<br>Integration: `test/equipment-status.e2e-spec.ts::records the change: from, to, trimmed reason, who and when`<br>Integration: `test/equipment-status.e2e-spec.ts::the database refuses a blank reason written around the API`<br>Integration: `test/equipment-status.e2e-spec.ts::shows the latest reason in the item detail`<br>Unit: `src/equipment/equipment-change-status.service.spec.ts::records the change and flags the affected event, with no Coordinator to name` |
 
 ### TC-S3-90
 
@@ -1395,7 +1395,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/registrations-period-capacity.e2e-spec.ts::rejects a registration submitted before registration opens, and shows the times`<br>Integration: `test/registrations-period-capacity.e2e-spec.ts::rejects a registration submitted after registration closes, and shows the times`<br>Unit: `src/registrations/registration-rules.spec.ts::registration rules evaluateRegistration` |
+| Automated by | Integration: `test/registrations-period-capacity.e2e-spec.ts::rejects a registration submitted before registration opens, and shows the times`<br>Integration: `test/registrations-period-capacity.e2e-spec.ts::rejects a registration submitted after registration closes, and shows the times`<br>Unit: `src/registrations/registration-rules.spec.ts::registration rules evaluateRegistration`<br>Unit: `src/registrations/registration-rules.spec.ts::says only when registration opens when no closing time can be worked out` |
 
 ### TC-S3-100
 
@@ -1416,7 +1416,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | The card notes the at-or-before boundary is an assumption to confirm with the customer; the code accepts exactly at the closing time. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/registrations-period-capacity.e2e-spec.ts::accepts a registration inside the period`<br>Integration: `test/registrations-period-capacity.e2e-spec.ts::accepts a registration submitted exactly at the closing time`<br>Unit: `src/registrations/registration-rules.spec.ts::registration rules evaluateRegistration` |
+| Automated by | Integration: `test/registrations-period-capacity.e2e-spec.ts::accepts a registration inside the period`<br>Integration: `test/registrations-period-capacity.e2e-spec.ts::accepts a registration submitted exactly at the closing time`<br>Unit: `src/registrations/registration-rules.spec.ts::registration rules evaluateRegistration`<br>Unit: `src/registrations/registrations.service.spec.ts::US-46: words the confirmation for an event with no name` |
 
 ### TC-S3-101
 
@@ -1570,7 +1570,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-reject-unfulfillable.e2e-spec.ts::rejects the event and stores the reason and comment`<br>Integration: `test/events-reject-unfulfillable.e2e-spec.ts::refuses another Coordinator (404: the event is not theirs to see), changing nothing`<br>Integration: `test/events-reject-unfulfillable.e2e-spec.ts::is refused to %s (403)`<br>UI: `frontend/src/features/events/components/reject-unfulfillable.test.tsx::US-47 AC-1/AC-2: rejects from the event page with a reason and a comment` |
+| Automated by | Integration: `test/events-reject-unfulfillable.e2e-spec.ts::rejects the event and stores the reason and comment`<br>Integration: `test/events-reject-unfulfillable.e2e-spec.ts::refuses another Coordinator (404: the event is not theirs to see), changing nothing`<br>Integration: `test/events-reject-unfulfillable.e2e-spec.ts::is refused to %s (403)`<br>UI: `frontend/src/features/events/components/reject-unfulfillable.test.tsx::US-47 AC-1/AC-2: rejects from the event page with a reason and a comment`<br>Unit: `src/events/events-unfulfillable.service.spec.ts::refuses a Coordinator who is not assigned to the event, changing nothing` |
 
 ### TC-S3-108
 
@@ -1675,7 +1675,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | Cody also gets the equipment-released notice (US-67), which is separate. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-reject-unfulfillable.e2e-spec.ts::notifies the Organiser, and only them`<br>Integration: `test/events-reject-unfulfillable.e2e-spec.ts::shows the Organiser the rejection and its reason on their request` |
+| Automated by | Integration: `test/events-reject-unfulfillable.e2e-spec.ts::notifies the Organiser, and only them`<br>Integration: `test/events-reject-unfulfillable.e2e-spec.ts::shows the Organiser the rejection and its reason on their request`<br>Unit: `src/events/events-unfulfillable.service.spec.ts::words the Organiser's notice for an event with no name` |
 
 **Story 47 AC ↔ code notes**
 - No mismatches. AC-3: a comment is required as well as the reason category.
@@ -1701,7 +1701,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-change-request-check.e2e-spec.ts::returns the check with the review, writing nothing`<br>Integration: `test/events-change-request-check.e2e-spec.ts::another Coordinator can neither see the check nor decide (404)`<br>Integration: `test/events-change-request-check.e2e-spec.ts::is refused to %s (403)`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-1: shows the check when a pending request is opened` |
+| Automated by | Integration: `test/events-change-request-check.e2e-spec.ts::returns the check with the review, writing nothing`<br>Integration: `test/events-change-request-check.e2e-spec.ts::another Coordinator can neither see the check nor decide (404)`<br>Integration: `test/events-change-request-check.e2e-spec.ts::is refused to %s (403)`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-1: shows the check when a pending request is opened`<br>Unit: `src/events/change-arrangement-check.service.spec.ts::moves nothing and checks nothing at a new time for an event with no dates` |
 
 ### TC-S3-114
 
@@ -1722,7 +1722,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-change-request-check.e2e-spec.ts::reports a venue still free at the new time as working`<br>Integration: `test/events-change-request-check.e2e-spec.ts::reports a clash with another event’s booking at the new time`<br>Integration: `test/events-change-request-check.e2e-spec.ts::reports a clash that exists only through setup or turnaround time`<br>Integration: `test/events-change-request-check.e2e-spec.ts::reports a venue blocked out as unavailable at the new time`<br>Integration: `test/events-change-request-check.e2e-spec.ts::warns — and still approves — when capacity is below the new attendance`<br>Integration: `test/events-change-request-check.e2e-spec.ts::checks several venues independently`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-2/AC-4: lists each conflict with its reason`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-5b: a capacity shortfall alone warns but keeps Approve enabled` |
+| Automated by | Integration: `test/events-change-request-check.e2e-spec.ts::reports a venue still free at the new time as working`<br>Integration: `test/events-change-request-check.e2e-spec.ts::reports a clash with another event’s booking at the new time`<br>Integration: `test/events-change-request-check.e2e-spec.ts::reports a clash that exists only through setup or turnaround time`<br>Integration: `test/events-change-request-check.e2e-spec.ts::reports a venue blocked out as unavailable at the new time`<br>Integration: `test/events-change-request-check.e2e-spec.ts::warns — and still approves — when capacity is below the new attendance`<br>Integration: `test/events-change-request-check.e2e-spec.ts::checks several venues independently`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-2/AC-4: lists each conflict with its reason`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-5b: a capacity shortfall alone warns but keeps Approve enabled`<br>Unit: `src/events/change-arrangement-check.spec.ts::reads without a name on a hold, a reason on a block, or a name on the venue` |
 
 ### TC-S3-115
 
@@ -1764,7 +1764,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-change-request-check.e2e-spec.ts::lists the valid and the conflicting arrangements`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-4: says everything still works, and lists it`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-2/AC-4: lists each conflict with its reason` |
+| Automated by | Integration: `test/events-change-request-check.e2e-spec.ts::lists the valid and the conflicting arrangements`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-4: says everything still works, and lists it`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-2/AC-4: lists each conflict with its reason`<br>Unit: `src/events/change-arrangement-check.spec.ts::reads without a name on a hold, a reason on a block, or a name on the venue` |
 
 ### TC-S3-117
 
@@ -1806,7 +1806,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-change-request-check.e2e-spec.ts::lists each venue booking and reservation that approval would rebook`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-6: shows what approval would move to the new details`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-5c: no conflicts — Approve enabled, with the preview of what moves` |
+| Automated by | Integration: `test/events-change-request-check.e2e-spec.ts::lists each venue booking and reservation that approval would rebook`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-6: shows what approval would move to the new details`<br>UI: `frontend/src/features/events/components/arrangement-check.test.tsx::US-48 AC-5c: no conflicts — Approve enabled, with the preview of what moves`<br>Unit: `src/events/change-arrangement-check.service.spec.ts::shows a reservation that is still requested as requested, not committed` |
 
 ### TC-S3-119
 
@@ -2222,7 +2222,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/booking-review-flags.e2e-spec.ts::US-51: the customer example — both bookings are listed with what they clash with`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: preview saves nothing`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: with 0/0 buffers the customer example does not clash`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: padded windows that only touch do not clash`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: preview validates like the save (whole numbers 0-480)`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51 AC-4: without confirmation, a clash is a 409 with the list, and nothing is saved`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: other Venue Staff cannot preview or save (404)`<br>UI: `frontend/src/features/venues/components/venue-buffers-card.test.tsx::US-51 AC-3: lists each clash — event, time, and what it clashes with — before saving`<br>UI: `frontend/src/features/venues/components/venue-buffers-card.test.tsx::US-51 AC-4: Cancel closes the list and saves nothing` |
+| Automated by | Integration: `test/booking-review-flags.e2e-spec.ts::US-51: the customer example — both bookings are listed with what they clash with`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: preview saves nothing`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: with 0/0 buffers the customer example does not clash`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: padded windows that only touch do not clash`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: preview validates like the save (whole numbers 0-480)`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51 AC-4: without confirmation, a clash is a 409 with the list, and nothing is saved`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: other Venue Staff cannot preview or save (404)`<br>UI: `frontend/src/features/venues/components/venue-buffers-card.test.tsx::US-51 AC-3: lists each clash — event, time, and what it clashes with — before saving`<br>UI: `frontend/src/features/venues/components/venue-buffers-card.test.tsx::US-51 AC-4: Cancel closes the list and saves nothing`<br>Unit: `src/bookings/buffer-clashes.spec.ts::US-51: orders same-time clashes by partner and then by booking` |
 
 ### TC-S3-138
 
@@ -2243,7 +2243,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/booking-review-flags.e2e-spec.ts::US-51 AC-5/AC-6: save anyway — buffers saved, both flagged, times and status unchanged`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: queue and calendar entries carry needsReview`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: manual resolve clears the flag and writes a BookingDecision`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: other Venue Staff get 404 and other roles 403; the flag stays`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: an unflagged booking cannot be resolved (409)`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: auto-clear — rejecting one booking of a clashing pair clears the other's flag`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: auto-clear — reversing an approval to rejected clears the other's flag`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: auto re-check keeps a flag that still clashes with something else`<br>UI: `frontend/src/features/venues/components/venue-buffers-card.test.tsx::US-51 AC-4/AC-5: Save anyway saves with confirmation and says how many were flagged`<br>UI: `frontend/src/features/bookings/components/review-flag-panel.test.tsx::US-51 AC-5: the badge reads "Conflict – needs review"`<br>UI: `frontend/src/features/bookings/components/review-flag-panel.test.tsx::US-51 AC-5: a flagged booking shows why it was flagged`<br>UI: `frontend/src/features/bookings/components/review-flag-panel.test.tsx::US-51: Mark resolved sends the optional note`<br>UI: `frontend/src/features/calendar/calendar-labels.test.tsx::US-51: the legend has a key for a conflict flag` |
+| Automated by | Integration: `test/booking-review-flags.e2e-spec.ts::US-51 AC-5/AC-6: save anyway — buffers saved, both flagged, times and status unchanged`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: queue and calendar entries carry needsReview`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: manual resolve clears the flag and writes a BookingDecision`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: other Venue Staff get 404 and other roles 403; the flag stays`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: an unflagged booking cannot be resolved (409)`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: auto-clear — rejecting one booking of a clashing pair clears the other's flag`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: auto-clear — reversing an approval to rejected clears the other's flag`<br>Integration: `test/booking-review-flags.e2e-spec.ts::US-51: auto re-check keeps a flag that still clashes with something else`<br>UI: `frontend/src/features/venues/components/venue-buffers-card.test.tsx::US-51 AC-4/AC-5: Save anyway saves with confirmation and says how many were flagged`<br>UI: `frontend/src/features/bookings/components/review-flag-panel.test.tsx::US-51 AC-5: the badge reads "Conflict – needs review"`<br>UI: `frontend/src/features/bookings/components/review-flag-panel.test.tsx::US-51 AC-5: a flagged booking shows why it was flagged`<br>UI: `frontend/src/features/bookings/components/review-flag-panel.test.tsx::US-51: Mark resolved sends the optional note`<br>UI: `frontend/src/features/calendar/calendar-labels.test.tsx::US-51: the legend has a key for a conflict flag`<br>Unit: `src/bookings/booking-review.service.spec.ts::US-51: names a partner with no event name as "Untitled event"`<br>Unit: `src/bookings/booking-review.service.spec.ts::US-51: re-checks with its own client and the current time when given neither`<br>Unit: `src/bookings/booking-review.service.spec.ts::US-51: a blank note is stored as no note` |
 
 ### TC-S3-139
 
@@ -2392,13 +2392,13 @@ All four use only the local test database (or none). None touches the shared Sup
 | **Test execution record** | |
 | Actual Result | Original RELEASED and linked on approval; flag cleared; kept while requested; kept with the flag after a rejection; other bookings untouched; a released booking could not be decided again; a later replacement refused. The page said it was released. |
 | Status | Pass |
-| Remarks | Attendees are not told of the venue change when the original is RELEASED: open bug #4, captured under TC-S3-40. |
+| Remarks | Attendees are told of the venue change when the replacement is confirmed (Story 38, TC-S3-40; audit gap #4, fixed 2026-10-28). |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
 | Automated by | Integration: `test/bookings-venue-unavailable.e2e-spec.ts::releases the original on approval, keeping the record and linking it`<br>Integration: `test/bookings-venue-unavailable.e2e-spec.ts::clears the "Venue unavailable" flag on confirmation`<br>Integration: `test/bookings-venue-unavailable.e2e-spec.ts::does not release the original while the replacement is only requested`<br>Integration: `test/bookings-venue-unavailable.e2e-spec.ts::keeps the original and the flag when the replacement is rejected, and allows another try`<br>Integration: `test/bookings-venue-unavailable.e2e-spec.ts::releases only the affected booking, never the event's other bookings`<br>Integration: `test/bookings-venue-unavailable.e2e-spec.ts::a released booking cannot be decided on again, and frees its slot`<br>Integration: `test/bookings-venue-unavailable.e2e-spec.ts::a later replacement once one is confirmed is refused`<br>UI: `frontend/src/features/bookings/components/venue-unavailable.test.tsx::shows it was released once a replacement was confirmed, and keeps its details` |
 
 **Story 52 AC ↔ code notes**
-- AC-5: when the original is released, Attendees are not told of the venue change (open bug #4, TC-S3-40).
+- AC-5: confirming the replacement also tells the event's Attendees of the venue change (Story 38 AC-1, TC-S3-40). This was audit gap #4, fixed 2026-10-28.
 
 ## Story 53 Multi-Venue Booking (Event Coordinator)
 
@@ -2573,7 +2573,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an expiry in the past is refused (400)`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an expiry at or after the event starts is refused (400)`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an expiry after the held slot starts is refused, even before the event (400)`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: other roles are refused (403); Venue Staff who do not manage the venue get not found (404)`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an event that is not at a planning stage cannot be held for (409)`<br>UI: `frontend/src/features/bookings/components/hold-panel.test.tsx::accepts an expiry in the future, before the event and the held time`<br>UI: `frontend/src/features/bookings/components/hold-panel.test.tsx::refuses a past expiry, one after the event starts, and one after the held time starts` |
+| Automated by | Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an expiry in the past is refused (400)`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an expiry at or after the event starts is refused (400)`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an expiry after the held slot starts is refused, even before the event (400)`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: other roles are refused (403); Venue Staff who do not manage the venue get not found (404)`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an event that is not at a planning stage cannot be held for (409)`<br>UI: `frontend/src/features/bookings/components/hold-panel.test.tsx::accepts an expiry in the future, before the event and the held time`<br>UI: `frontend/src/features/bookings/components/hold-panel.test.tsx::refuses a past expiry, one after the event starts, and one after the held time starts`<br>Unit: `src/bookings/holds.service.spec.ts::refuses to extend a hold to a time in the past, changing nothing` |
 
 ### TC-S3-154
 
@@ -2657,7 +2657,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an expired, unreleased hold does not block a request, and approving it succeeds despite the DB constraint`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an expired hold never shows as held or confirmed — calendar, availability and search`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: expiry releases due holds once, however many times or instances run it`<br>Unit: `src/bookings/hold-expiry.scheduler.spec.ts::releases due holds and sends warnings`<br>Unit: `src/bookings/hold-expiry.scheduler.spec.ts::still sends warnings when the expiry job fails, and logs the failure`<br>UI: `frontend/src/features/bookings/components/hold-panel.test.tsx::US-54 AC-5/AC-6: the actions are hidden once the hold has expired`<br>UI: `frontend/src/features/bookings/components/hold-panel.test.tsx::US-54: isLiveHold mirrors the server — HELD and not yet expired` |
+| Automated by | Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an expired, unreleased hold does not block a request, and approving it succeeds despite the DB constraint`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an expired hold never shows as held or confirmed — calendar, availability and search`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: expiry releases due holds once, however many times or instances run it`<br>Unit: `src/bookings/hold-expiry.scheduler.spec.ts::releases due holds and sends warnings`<br>Unit: `src/bookings/hold-expiry.scheduler.spec.ts::still sends warnings when the expiry job fails, and logs the failure`<br>UI: `frontend/src/features/bookings/components/hold-panel.test.tsx::US-54 AC-5/AC-6: the actions are hidden once the hold has expired`<br>UI: `frontend/src/features/bookings/components/hold-panel.test.tsx::US-54: isLiveHold mirrors the server — HELD and not yet expired`<br>Unit: `src/bookings/hold-expiry.spec.ts::releases across every venue, as of now, when called with no scope or time`<br>Unit: `src/bookings/booking-overlap.spec.ts::judges a hold against the current time when no time is given` |
 
 ### TC-S3-158
 
@@ -2678,7 +2678,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | The venue manager (US-40) and the Leads for an unassigned event are told as well. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: placing a hold notifies the event Coordinator`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an unassigned event notifies the Coordinator Leads instead`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: the 24-hour warning is sent once, to the Coordinator and the venue manager`<br>Unit: `src/bookings/hold-expiry.scheduler.spec.ts::releases due holds and sends warnings`<br>Unit: `src/bookings/hold-expiry.scheduler.spec.ts::still sends warnings when the expiry job fails, and logs the failure` |
+| Automated by | Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: placing a hold notifies the event Coordinator`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: an unassigned event notifies the Coordinator Leads instead`<br>Integration: `test/us54-venue-holds.e2e-spec.ts::US-54: the 24-hour warning is sent once, to the Coordinator and the venue manager`<br>Unit: `src/bookings/hold-expiry.scheduler.spec.ts::releases due holds and sends warnings`<br>Unit: `src/bookings/hold-expiry.scheduler.spec.ts::still sends warnings when the expiry job fails, and logs the failure`<br>Unit: `src/bookings/hold-expiry.spec.ts::sends warnings as of now when called with no time` |
 
 **Story 54 AC ↔ code notes**
 - AC-6: an expired hold is free at once to every query, and the every-minute job releases it and sends the notices; the job does not need to run for the slot to be available.
@@ -2810,7 +2810,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-assignment.e2e-spec.ts::removes the request from the queue and puts it in that Coordinator’s list`<br>Integration: `test/events-assignment.e2e-spec.ts::records who assigned it, to whom and when in the change history`<br>UI: `frontend/src/pages/lead-queue.test.tsx::shows the request, and assigns it to the chosen Coordinator` |
+| Automated by | Integration: `test/events-assignment.e2e-spec.ts::removes the request from the queue and puts it in that Coordinator’s list`<br>Integration: `test/events-assignment.e2e-spec.ts::records who assigned it, to whom and when in the change history`<br>UI: `frontend/src/pages/lead-queue.test.tsx::shows the request, and assigns it to the chosen Coordinator`<br>Unit: `src/events/events-assignment.service.spec.ts::lets an unexpected database error through, recording and notifying nothing` |
 
 ### TC-S3-165
 
@@ -2831,7 +2831,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | The card's open question (tell the Organiser?) is answered by US-65. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-assignment.e2e-spec.ts::notifies the assigned Coordinator` |
+| Automated by | Integration: `test/events-assignment.e2e-spec.ts::notifies the assigned Coordinator`<br>Unit: `src/events/events-assignment.service.spec.ts::still words every notice for an unnamed event and an unknown actor` |
 
 ### TC-S3-166
 
@@ -2873,7 +2873,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-assignment.e2e-spec.ts::blocks an already-assigned request and shows the current assignee`<br>Integration: `test/events-assignment.e2e-spec.ts::US-65 AC1: Given the event is already assigned, When a Lead assigns it again, Then the Organiser is not notified again`<br>Integration: `test/events-assignment.e2e-spec.ts::lets only one of two simultaneous assignments win`<br>UI: `frontend/src/pages/lead-queue.test.tsx::shows the current assignee when the request was already assigned` |
+| Automated by | Integration: `test/events-assignment.e2e-spec.ts::blocks an already-assigned request and shows the current assignee`<br>Integration: `test/events-assignment.e2e-spec.ts::US-65 AC1: Given the event is already assigned, When a Lead assigns it again, Then the Organiser is not notified again`<br>Integration: `test/events-assignment.e2e-spec.ts::lets only one of two simultaneous assignments win`<br>UI: `frontend/src/pages/lead-queue.test.tsx::shows the current assignee when the request was already assigned`<br>Unit: `src/events/events-assignment.service.spec.ts::reports a lost race as already assigned even when the request has gone` |
 
 **Story 55 AC ↔ code notes**
 - AC-7: the Organiser is also notified (US-65), answering the card's open question.
@@ -3046,7 +3046,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/events-assignment.e2e-spec.ts::notifies both the previous and the new Coordinator` |
+| Automated by | Integration: `test/events-assignment.e2e-spec.ts::notifies both the previous and the new Coordinator`<br>Unit: `src/events/events-assignment.service.spec.ts::still words every notice for an unnamed event and an unknown actor` |
 
 ### TC-S3-176
 
@@ -3093,7 +3093,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | Entry is through the Coordinator's Confirm (Story 42). The card's note marks the automatic trigger as an assumption; the event never enters before everything is approved and reserved. |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/safety-check.e2e-spec.ts::enters the queue when the Coordinator confirms the ready arrangements (US-42), not on its own`<br>Integration: `test/safety-check.e2e-spec.ts::waits while any booking is still pending`<br>Integration: `test/safety-check.e2e-spec.ts::waits for requested equipment to be reserved, then can be confirmed`<br>Integration: `test/safety-check.e2e-spec.ts::lists the longest-waiting event first`<br>Integration: `test/safety-check.e2e-spec.ts::takes an event back out if an approval is withdrawn before it is checked`<br>Integration: `test/safety-check.e2e-spec.ts::takes an event back out once its equipment is no longer reserved` |
+| Automated by | Integration: `test/safety-check.e2e-spec.ts::enters the queue when the Coordinator confirms the ready arrangements (US-42), not on its own`<br>Integration: `test/safety-check.e2e-spec.ts::waits while any booking is still pending`<br>Integration: `test/safety-check.e2e-spec.ts::waits for requested equipment to be reserved, then can be confirmed`<br>Integration: `test/safety-check.e2e-spec.ts::lists the longest-waiting event first`<br>Integration: `test/safety-check.e2e-spec.ts::takes an event back out if an approval is withdrawn before it is checked`<br>Integration: `test/safety-check.e2e-spec.ts::takes an event back out once its equipment is no longer reserved`<br>Unit: `src/safety/safety-readiness.service.spec.ts::names a venue with no name, reading from its own database client by default`<br>Unit: `src/safety/safety-readiness.service.spec.ts::leaves the event as someone else moved it when the status change loses a race`<br>Unit: `src/safety/safety-readiness.service.spec.ts::lets an unexpected failure through` |
 
 ### TC-S3-178
 
@@ -3114,7 +3114,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/safety-check.e2e-spec.ts::shows attendance, venue capacity, layout, accessibility, equipment and venue restrictions`<br>Integration: `test/safety-check.e2e-spec.ts::does not open an event that is not awaiting a check`<br>UI: `frontend/src/pages/safety-review.test.tsx::shows each venue's capacity, restrictions and blocks, and the requested equipment` |
+| Automated by | Integration: `test/safety-check.e2e-spec.ts::shows attendance, venue capacity, layout, accessibility, equipment and venue restrictions`<br>Integration: `test/safety-check.e2e-spec.ts::does not open an event that is not awaiting a check`<br>UI: `frontend/src/pages/safety-review.test.tsx::shows each venue's capacity, restrictions and blocks, and the requested equipment`<br>Unit: `src/safety/safety.service.spec.ts::shows no capacity margin when a number is missing, and only real blocks, each with a reason` |
 
 ### TC-S3-179
 
@@ -3156,7 +3156,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/safety-check.e2e-spec.ts::%s without a reason is refused and changes nothing`<br>Integration: `test/safety-check.e2e-spec.ts::requesting changes also needs the stage to return to`<br>Integration: `test/safety-check.e2e-spec.ts::refuses a decision on, or the history of, an event that does not exist (404)`<br>Integration: `test/safety-check.e2e-spec.ts::refuses a second decision on an event that has already been decided`<br>Integration: `test/safety-check.e2e-spec.ts::lets only one of two simultaneous decisions win`<br>UI: `frontend/src/pages/safety-review.test.tsx::requires a stage and a reason to request changes, then sends them with the factor comment` |
+| Automated by | Integration: `test/safety-check.e2e-spec.ts::%s without a reason is refused and changes nothing`<br>Integration: `test/safety-check.e2e-spec.ts::requesting changes also needs the stage to return to`<br>Integration: `test/safety-check.e2e-spec.ts::refuses a decision on, or the history of, an event that does not exist (404)`<br>Integration: `test/safety-check.e2e-spec.ts::refuses a second decision on an event that has already been decided`<br>Integration: `test/safety-check.e2e-spec.ts::lets only one of two simultaneous decisions win`<br>UI: `frontend/src/pages/safety-review.test.tsx::requires a stage and a reason to request changes, then sends them with the factor comment`<br>Unit: `src/safety/safety.service.spec.ts::refuses a decision once the arrangements are no longer ready, recording nothing`<br>Unit: `src/safety/safety.service.spec.ts::stores a missing reason or stage as none`<br>Unit: `src/safety/safety-decision.dto.spec.ts::rejects a reason that is not text` |
 
 ### TC-S3-181
 
@@ -3177,7 +3177,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/safety-check.e2e-spec.ts::confirms the event and records the decision, the Safety Officer and the time`<br>Integration: `test/safety-check.e2e-spec.ts::notifies the Coordinator` |
+| Automated by | Integration: `test/safety-check.e2e-spec.ts::confirms the event and records the decision, the Safety Officer and the time`<br>Integration: `test/safety-check.e2e-spec.ts::notifies the Coordinator`<br>Unit: `src/safety/safety.service.spec.ts::records the decision and notifies no one when the event has no Coordinator` |
 
 ### TC-S3-182
 
@@ -3198,7 +3198,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/safety-check.e2e-spec.ts::returns the event to the Coordinator in planning, flags the stage, changes no arrangement, and says why`<br>Integration: `test/safety-check.e2e-spec.ts::returning to technical planning flags the equipment and leaves it reserved`<br>Integration: `test/safety-check.e2e-spec.ts::is held out of the queue, however complete its arrangements are, until the Coordinator answers`<br>UI: `frontend/src/pages/safety-review.test.tsx::requires a stage and a reason to request changes, then sends them with the factor comment` |
+| Automated by | Integration: `test/safety-check.e2e-spec.ts::returns the event to the Coordinator in planning, flags the stage, changes no arrangement, and says why`<br>Integration: `test/safety-check.e2e-spec.ts::returning to technical planning flags the equipment and leaves it reserved`<br>Integration: `test/safety-check.e2e-spec.ts::is held out of the queue, however complete its arrangements are, until the Coordinator answers`<br>UI: `frontend/src/pages/safety-review.test.tsx::requires a stage and a reason to request changes, then sends them with the factor comment`<br>Unit: `src/safety/safety.service.spec.ts::stores a missing reason or stage as none` |
 
 ### TC-S3-183
 
@@ -3261,7 +3261,7 @@ All four use only the local test database (or none). None touches the shared Sup
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
 | Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/safety-check.e2e-spec.ts::refuses to resubmit an event nothing has changed on`<br>Integration: `test/safety-check.e2e-spec.ts::sends the event back to the Safety Officer once the plan has changed, as a re-check with the history kept`<br>Integration: `test/safety-check.e2e-spec.ts::lets the Coordinator tell the Safety Officer what changed, and shows it with the feedback it answers`<br>Integration: `test/safety-check.e2e-spec.ts::treats a blank comment as none, and the comment as optional`<br>Integration: `test/safety-check.e2e-spec.ts::refuses a comment that is too long and does not send the event back`<br>Integration: `test/safety-check.e2e-spec.ts::counts a changed booking as a change, and a new one that is not yet approved as not ready`<br>Integration: `test/safety-check.e2e-spec.ts::cannot be resubmitted twice`<br>Integration: `test/safety-check.e2e-spec.ts::cannot send back an event that was cancelled while the feedback waited`<br>Integration: `test/safety-check.e2e-spec.ts::has nothing to answer when there is no feedback`<br>Integration: `test/safety-check.e2e-spec.ts::is the assigned Coordinator’s alone`<br>Integration: `test/safety-check.e2e-spec.ts::is reworked by the Coordinator: resume planning, change the plan, send it back`<br>Integration: `test/safety-check.e2e-spec.ts::shows the checks and reasons to the event’s Coordinator, and to no other Coordinator` |
+| Automated by | Integration: `test/safety-check.e2e-spec.ts::refuses to resubmit an event nothing has changed on`<br>Integration: `test/safety-check.e2e-spec.ts::sends the event back to the Safety Officer once the plan has changed, as a re-check with the history kept`<br>Integration: `test/safety-check.e2e-spec.ts::lets the Coordinator tell the Safety Officer what changed, and shows it with the feedback it answers`<br>Integration: `test/safety-check.e2e-spec.ts::treats a blank comment as none, and the comment as optional`<br>Integration: `test/safety-check.e2e-spec.ts::refuses a comment that is too long and does not send the event back`<br>Integration: `test/safety-check.e2e-spec.ts::counts a changed booking as a change, and a new one that is not yet approved as not ready`<br>Integration: `test/safety-check.e2e-spec.ts::cannot be resubmitted twice`<br>Integration: `test/safety-check.e2e-spec.ts::cannot send back an event that was cancelled while the feedback waited`<br>Integration: `test/safety-check.e2e-spec.ts::has nothing to answer when there is no feedback`<br>Integration: `test/safety-check.e2e-spec.ts::is the assigned Coordinator’s alone`<br>Integration: `test/safety-check.e2e-spec.ts::is reworked by the Coordinator: resume planning, change the plan, send it back`<br>Integration: `test/safety-check.e2e-spec.ts::shows the checks and reasons to the event’s Coordinator, and to no other Coordinator`<br>Unit: `src/safety/safety.service.spec.ts::refuses a resubmit when the event is gone by the time it is locked` |
 
 ### TC-S3-186
 

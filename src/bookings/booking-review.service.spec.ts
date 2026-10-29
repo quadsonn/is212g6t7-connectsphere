@@ -110,6 +110,16 @@ describe('BookingReviewService (US-51)', () => {
         expect(data.needsReviewReason).toMatch(/30\/45/);
       }
     });
+
+    // TC-S3-138 · US-51 AC-4 · setup: none (unit) · fails if a clash with an event that has no name cannot be flagged
+    // Code: BookingReviewService.flag (partner name fallback)
+    it('US-51: names a partner with no event name as "Untitled event"', async () => {
+      const clash = { bookingId: 'a', clashesWith: { eventName: null, start: at('12:30'), end: at('14:00') } };
+
+      await service.flag(db as never, [clash] as never, { setupMinutes: 30, turnaroundMinutes: 45 });
+
+      expect(db.venueBooking.update.mock.calls[0][0].data.needsReviewReason).toContain('"Untitled event"');
+    });
   });
 
   describe('recheckReviewFlags', () => {
@@ -143,6 +153,13 @@ describe('BookingReviewService (US-51)', () => {
     it('US-51: does nothing when nothing is flagged', async () => {
       expect(await service.recheckReviewFlags('venue-1', db as never, NOW)).toEqual([]);
       expect(db.venueBooking.updateMany).not.toHaveBeenCalled();
+    });
+
+    // TC-S3-138 · US-51 AC-4 · setup: none (unit) · fails if the re-check cannot run with its own database client and the current time
+    // Code: BookingReviewService.recheckReviewFlags (default db and now)
+    it('US-51: re-checks with its own client and the current time when given neither', async () => {
+      expect(await service.recheckReviewFlags('venue-1')).toEqual([]);
+      expect(db.venueBooking.findMany).toHaveBeenCalled();
     });
   });
 
@@ -180,6 +197,16 @@ describe('BookingReviewService (US-51)', () => {
       db.venueBooking.findFirst.mockResolvedValue(row('a', '10:00', '12:00', { venueId: 'venue-1' }));
 
       await expect(service.resolveReview(manager, 'a', null, NOW)).rejects.toThrow(ConflictException);
+    });
+
+    // TC-S3-138 · US-51 AC-4 · setup: none (unit) · fails if resolving with a blank note stores the blank text instead of no note
+    // Code: BookingReviewService.resolveReview (note?.trim() || null)
+    it('US-51: a blank note is stored as no note', async () => {
+      db.venueBooking.findFirst.mockResolvedValue(row('a', '10:00', '12:00', { needsReview: true, venueId: 'venue-1' }));
+
+      await service.resolveReview(manager, 'a', '   ', NOW);
+
+      expect(db.bookingDecision.create.mock.calls[0][0].data.reason).toBeNull();
     });
   });
 });

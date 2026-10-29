@@ -13,6 +13,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { resetDb } from './helpers/reset-db';
 import { listenOnLoopback } from './listen-on-loopback';
 
 /**
@@ -155,15 +156,9 @@ describe('Equipment substitutions (e2e)', () => {
     return res.body.unavailableEquipment as Array<Record<string, any>>;
   };
 
-  const clear = async () => {
-    await prisma.equipmentRequirement.deleteMany();
-    await prisma.equipmentReservation.deleteMany();
-    await prisma.equipment.deleteMany();
-    await prisma.notification.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-  };
+  // Every table, whatever earlier test files left behind (localhost and a
+  // _test database only — resetDb checks before it deletes anything).
+  const clear = () => resetDb(prisma);
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({

@@ -46,7 +46,7 @@ Sprint 1 test evidence that Raye can explain in a live Q&A, where instructors ma
 1. ~~Whitespace-only text accepted in required fields (US-03 AC-3, US-08 AC-2, US-09 AC-1).~~ **Fixed in `93316fa`.** Regression tests: `test/events-decision.e2e-spec.ts` ("%s is blocked when the reason is whitespace-only", TC-S1-11), plus TC-S1-18 and TC-S1-27.
 2. ~~Simultaneous approve and reject can both succeed (US-07, US-08, US-11).~~ **Fixed in `61401ec`.** Regression test: `test/events-review.e2e-spec.ts` ("lets exactly one of a simultaneous approve and reject succeed, and stores that outcome", TC-S1-07). The loser now gets 409.
 3. ~~Two simultaneous clarification responses can both succeed (US-09 AC-4).~~ **Fixed** (the commit after `da1e278`). Regression test: `test/events-clarification.e2e-spec.ts` ("accepts exactly one of two simultaneous responses to the same question", TC-S1-63). The second response now gets 409.
-4. A venue replaced through the Story 52 replacement request does not notify the event's Attendees (Story 38 AC-1). **Still open.** `notifyAttendeesIfVenueReplaced` only finds an earlier booking that was approved then REJECTED; the Story 52 flow leaves it RELEASED. Captured as `it.failing` in `test/us38-attendee-change-notifications.e2e-spec.ts` (TC-S3-40).
+4. ~~A venue replaced through the Story 52 replacement request does not notify the event's Attendees (Story 38 AC-1).~~ **Fixed 2026-10-28.** `notifyAttendeesIfVenueReplaced` now checks the approved booking's `replacesBookingId` first, then falls back to the reversal lookup. Regression test: `test/us38-attendee-change-notifications.e2e-spec.ts` ("tells Registered Attendees when a Story 52 replacement request is approved", TC-S3-40), switched from `it.failing` to `it`.
 
 ## Sprint 1 stories
 

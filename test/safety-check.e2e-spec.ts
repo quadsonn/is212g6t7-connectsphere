@@ -326,7 +326,7 @@ describe('Safety check (e2e)', () => {
 
   describe('AC-6: request changes — back to the Coordinator', () => {
     // TC-S3-182 · US-57 AC-6 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event is not returned to the Coordinator in planning, the wrong arrangements are flagged or changed, the Coordinator is not told why, or it is requeued by itself
-    // Code: SafetyService.decide (CHANGES_REQUESTED, returnStage, affectedArrangements) -> notifyCoordinator; SafetyReadinessService.isHeld
+    // Code: SafetyService.decide (CHANGES_REQUESTED, returnStage, affectedArrangements) -> notifyCoordinator; SafetyReadinessService.syncEvent (never requeues)
     it('returns the event to the Coordinator in planning, flags the stage, changes no arrangement, and says why', async () => {
       const { event, booking } = await queuedEvent();
 
@@ -358,7 +358,7 @@ describe('Safety check (e2e)', () => {
     });
 
     // TC-S3-182 · US-57 AC-6 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-178-setup · fails if the event is not returned to the Coordinator in planning, the wrong arrangements are flagged or changed, the Coordinator is not told why, or it is requeued by itself
-    // Code: SafetyService.decide (CHANGES_REQUESTED, returnStage, affectedArrangements) -> notifyCoordinator; SafetyReadinessService.isHeld
+    // Code: SafetyService.decide (CHANGES_REQUESTED, returnStage, affectedArrangements) -> notifyCoordinator; SafetyReadinessService.syncEvent (never requeues)
     it('returning to technical planning flags the equipment and leaves it reserved', async () => {
       await given('tc-s3-177e-setup', 'tc-s3-178-setup');
       const [event, booking, reservation] = [careersFair, { id: 'BKG-163' }, { id: 'RSV-034' }];
@@ -380,7 +380,7 @@ describe('Safety check (e2e)', () => {
     });
 
     // TC-S3-182 · US-57 AC-6 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event is not returned to the Coordinator in planning, the wrong arrangements are flagged or changed, the Coordinator is not told why, or it is requeued by itself
-    // Code: SafetyService.decide (CHANGES_REQUESTED, returnStage, affectedArrangements) -> notifyCoordinator; SafetyReadinessService.isHeld
+    // Code: SafetyService.decide (CHANGES_REQUESTED, returnStage, affectedArrangements) -> notifyCoordinator; SafetyReadinessService.syncEvent (never requeues)
     it('is held out of the queue, however complete its arrangements are, until the Coordinator answers', async () => {
       const { event } = await queuedEvent();
       await decide(event.id, { outcome: 'CHANGES_REQUESTED', returnStage: 'VENUE', reason: 'Add an exit' }).expect(200);

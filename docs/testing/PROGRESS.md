@@ -302,8 +302,35 @@ Working log for Sprint 1 test cleanup on `sprint3-RAYE`. Item IDs refer to the "
 - **Coverage** (coverage-s3.md, "Story 38 to 47 at 100%"): **100% statements (572/572), 99.6% branches (245/246)**. The one branch cannot run and the reason is stated (`confirmation-readiness.rules.ts:65`, only live bookings reach it).
 - Sprint 3 coverage requirement now met for Story 38–57.
 
+## 2026-10-29: Sprint 4, Story 58 to 62 (TC-S4-58 to 89)
+
+- **New doc:** [sprint4-test-cases.md](sprint4-test-cases.md) (32 test cases, all Pass after the gap #5 fix) and [coverage-s4.md](coverage-s4.md).
+- **Story 58:** `events-clarification` already used the reset pattern; its 11 US-58 tests were marked "No TC ID yet" and are now tagged TC-S4-58 to 64. Added the list view to the AC-1 test. New browser test `e2e/us58-clarification-response.spec.ts` (reply with an updated detail) with `tc-s4-58-setup.sql`.
+- **Story 59:** had unit tests only. New integration file `test/us59-registration-notices.e2e-spec.ts` (7 tests; the sweeps are called with the moment to judge by; registrations, withdrawals and capacity changes go through the API). **Gap #5 found and fixed** (approved): the "opens" notice was sent on confirmation, before registration actually opens. `notifyOpened` now skips events not yet open (`resolveWindow`), as `notifyClosed` does. The first `it.failing` test judged at a date already after the opening time, so it proved the gap the wrong way; corrected to judge before (1 Sep) and after (2 Oct). The corrected test fails without the fix and passes with it.
+- **Story 60:** `us60-equipment-status-alerts` converted to reset + scripts (15 assertions identical; `tc-s4-73-setup.sql` adds Wei, Nadia and Omar).
+- **Story 61:** `us61-technical-support-assignment` converted (36 assertions identical); it loads its own users (`tc-s4-76-setup.sql`, instead of base-users) because it needs exactly two Technical Support members. 2 new integration tests (same or unknown member, cancelled event, removing with nobody assigned).
+- **Story 62:** its behaviour was already in `safety-check` under Story 57; 15 tests now carry both stories' TC IDs. 2 new integration tests (the Coordinator sees the stage and flagged arrangements; blocked while equipment is not reserved), new UI test `safety-history.test.tsx`, new browser test `e2e/us62-safety-resubmit.spec.ts` with `tc-s4-80-setup.sql`.
+- **Test-isolation fix:** converted files reset at the start, not the end, which broke four files that still deleted table by table (`event-submitted-notification`, `events-cancel-confirmation`, `events-required-facilities`, `us66-technical-support-notifications`; one hung for 23 minutes). Their clean-up now calls `resetDb`; no assertion changed. No test file now deletes users directly.
+- **New unit tests:** `events-technical-support.service.spec.ts` (3), `registration-notifications.scheduler.spec.ts` (1), and additions to the registration-notifications, equipment-status-notifier and events-clarification service specs (5).
+- Runs on `localhost` / `connectsphere_test`: full integration suite 69/69 files, 1437 tests; the converted and new files ×3; browser tests us58 and us62 ×3; touched unit specs 51/51 ×3; unit suite 1946/1946; new UI test 2/2.
+- **Coverage** (coverage-s4.md): Story 58–62 files **100% statements (309/309), 100% branches (106/106)**, from 94.5% / 80.2%.
+- 17 new scripts (`tc-s4-58` to `tc-s4-80`), listed in the fixture README with users USR-035 to USR-043.
+
+## 2026-10-29: Sprint 4, gap #5 fixed; Story 63 to 67 (TC-S4-90 to 110)
+
+- **Gap #5 fixed** (approved): see the Story 58–62 entry. TC-S4-65 Pass; all 32 Story 58–62 test cases Pass.
+- **Story 63:** `event-submitted-notification` converted to setup scripts (21 assertions unchanged; `tc-s4-90-setup.sql` adds a second Lead) and a new AC-6 test (the notice is recorded within the submission).
+- **Story 64:** already tested in `safety-check`; its 5 tests now tagged TC-S4-96 to 99.
+- **Story 65:** assignment notices tagged in `events-assignment`; `events-cancel-confirmation` converted (12 assertions identical; `tc-s4-102`, `102b`, `103`).
+- **Story 66:** `us66-technical-support-notifications` converted (24 assertions identical). It reuses `tc-s4-76-setup.sql` instead of base-users (the "pool" must be exactly Wei and Nadia); `tc-s4-104` to `105b` add the event and its variants through the same seed helpers, so no test body changed.
+- **Story 67:** Felecia's `equipment-substitutions` converted (59 assertions identical; `tc-s4-110` to `110q`). Writes made after a suggestion stay in the tests, marked "kept by design". New integration tests: answers that cannot stand (unknown or released reservation, both choices, unknown item), the dropdown leaving out a held item and ordering same-type items, acceptance refused once the reservation is released or the original is back in service, and (in `events-cancel-confirmation`) the Coordinator told when cancelling releases their equipment.
+- **New unit tests:** name fallbacks and failures in the equipment, safety-check, request and Technical Support notifiers (5), plus two existing equipment-notifier tests tagged for AC-3.
+- Runs on `localhost` / `connectsphere_test`: full integration suite 69/69 files, 1444 tests; converted and changed files ×3; touched unit specs ×3; unit suite 1951/1951.
+- **Coverage** (coverage-s4.md): Story 63–67 files **100% statements (496/496), 100% branches (157/157)**. Three backstops in the substitutions service that the app cannot reach (each guaranteed by an earlier check or a foreign key) are covered by unit tests with a mocked database, `equipment-substitutions.service.spec.ts` (3 tests, ×3). Story 58–62 still 100%. Unit suite 1954/1954.
+- **Test cases:** [sprint4-test-cases.md](sprint4-test-cases.md) now TC-S4-58 to 110, 53 in all, all Pass. 30 more scripts (`tc-s4-90` to `tc-s4-110q`) and users USR-044, USR-045 in the fixture README.
+
 ## Open
-- **TC IDs:** Sprint 1 TC-S1-01 to 62; Sprint 3 TC-S3-38 to 186 (Story 38 to 57). Story 45 is on hold while its code changes are under way.
+- **TC IDs:** Sprint 1 TC-S1-01 to 62; Sprint 3 TC-S3-38 to 186 (Story 38 to 57); Sprint 4 TC-S4-58 to 110 (Story 58 to 67).
 - **Integration files still to convert:** `access-control`, `events-assign`, `events-coordinator-view`, `venues`, `venues-update`, `venues-browse`.
 - **AC-5 window reading:** confirm fixed versus sliding with the team/customer.
 - **G1 (whitespace accepted):** fixed in `93316fa`. TC-S1-18 and TC-S1-27 tests were added in Step 3.

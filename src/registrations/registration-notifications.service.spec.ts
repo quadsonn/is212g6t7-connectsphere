@@ -190,4 +190,57 @@ describe('RegistrationNotificationsService', () => {
       expect(notifications.notifyMany).not.toHaveBeenCalled();
     });
   });
+
+  // TC-S4-65, TC-S4-67, TC-S4-69 · US-59 AC-1, AC-3, AC-5 · setup: none (unit) · fails if a notice cannot be worded for an event with no name, or "1 place" and "full" are worded wrongly
+  // Code: notifyOpened / notifyClosed / notifyNearCapacity messages (name fallbacks; place / places / full)
+  describe('wording', () => {
+    const messages = () => notifications.notifyMany.mock.calls.map(([inputs]) => inputs[0].message);
+    const unnamed = { id: 'EVT-4', name: null };
+
+    it('words every notice for an event with no name, and says "1 place" or "full"', async () => {
+      tx.user.findMany.mockResolvedValue([{ id: 'a9' }]);
+      tx.registration.findMany.mockResolvedValue([{ attendeeId: 'a1' }]);
+      tx.venueBooking.findMany.mockResolvedValue([{ venue: { capacity: 10 } }]);
+      prisma.eventRequest.findMany.mockResolvedValue([
+        { ...unnamed, proposedStart: new Date(Date.now() + 10 * DAY), registrationOpensAt: null, registrationClosesAt: new Date(Date.now() - DAY), withdrawalCutoffAt: null },
+      ]);
+
+      await service.notifyOpened();
+      await service.notifyClosed();
+      tx.registration.count.mockResolvedValueOnce(9); // 1 place left
+      await service.notifyNearCapacity();
+      tx.eventRequest.findUnique.mockResolvedValue({ ...unclaimed });
+      tx.registration.count.mockResolvedValueOnce(10); // full
+      await service.notifyNearCapacity();
+
+      expect(messages()).toEqual([
+        'Registration is now open for "an event".',
+        'Registration has closed for "an event".',
+        'Only 1 place left for "an event".',
+        '"An event" is now full.',
+      ]);
+    });
+  });
+
+  // TC-S4-67, TC-S4-71 · US-59 AC-3, AC-7 · setup: none (unit) · fails if a notice already claimed by another run (found once the row is locked) is sent again
+  // Code: claim (stamp set under the lock); notifyNearCapacity (stamp re-read under the lock)
+  describe('another run got there first', () => {
+    it('sends nothing when the stamp is found set once the row is locked', async () => {
+      const claimed = {
+        registrationOpenedNotifiedAt: new Date(),
+        registrationClosedNotifiedAt: new Date(),
+        registrationNearCapacityNotifiedAt: new Date(),
+      };
+      tx.eventRequest.findUnique.mockResolvedValue(claimed);
+      tx.venueBooking.findMany.mockResolvedValue([{ venue: { capacity: 10 } }]);
+      tx.registration.count.mockResolvedValue(9);
+      prisma.eventRequest.findMany.mockResolvedValue([
+        { id: 'EVT-5', name: 'Gala', proposedStart: new Date(Date.now() + 10 * DAY), registrationOpensAt: null, registrationClosesAt: new Date(Date.now() - DAY), withdrawalCutoffAt: null },
+      ]);
+
+      await expect(service.notifyClosed()).resolves.toEqual([]);
+      await expect(service.notifyNearCapacity()).resolves.toEqual([]);
+      expect(notifications.notifyMany).not.toHaveBeenCalled();
+    });
+  });
 });

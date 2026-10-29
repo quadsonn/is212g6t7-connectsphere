@@ -379,7 +379,7 @@ describe('Safety check (e2e)', () => {
       );
     });
 
-    // TC-S3-182 · US-57 AC-6 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event is not returned to the Coordinator in planning, the wrong arrangements are flagged or changed, the Coordinator is not told why, or it is requeued by itself
+    // TC-S3-182, TC-S4-80 · US-57 AC-6, US-62 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event is not returned to the Coordinator in planning, the wrong arrangements are flagged or changed, the Coordinator is not told why, or it is requeued by itself
     // Code: SafetyService.decide (CHANGES_REQUESTED, returnStage, affectedArrangements) -> notifyCoordinator; SafetyReadinessService.syncEvent (never requeues)
     it('is held out of the queue, however complete its arrangements are, until the Coordinator answers', async () => {
       const { event } = await queuedEvent();
@@ -410,7 +410,7 @@ describe('Safety check (e2e)', () => {
       return queued;
     };
 
-    // TC-S3-185 · US-57 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // TC-S3-185, TC-S4-83 · US-57 AC-9, US-62 AC-4 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
     // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('refuses to resubmit an event nothing has changed on', async () => {
       const { event } = await sentBack();
@@ -421,7 +421,7 @@ describe('Safety check (e2e)', () => {
       expect(await statusOf(event.id)).toBe(EventStatus.PLANNING);
     });
 
-    // TC-S3-185 · US-57 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // TC-S3-185, TC-S4-85 · US-57 AC-9, US-62 AC-6 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
     // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('sends the event back to the Safety Officer once the plan has changed, as a re-check with the history kept', async () => {
       const { event } = await sentBack();
@@ -443,7 +443,7 @@ describe('Safety check (e2e)', () => {
       expect(history.body.map((r: { outcome: string }) => r.outcome)).toEqual(['CHANGES_REQUESTED', 'APPROVED']);
     });
 
-    // TC-S3-185 · US-57 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // TC-S3-185, TC-S4-87 · US-57 AC-9, US-62 AC-8 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
     // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('lets the Coordinator tell the Safety Officer what changed, and shows it with the feedback it answers', async () => {
       const { event } = await sentBack();
@@ -465,7 +465,7 @@ describe('Safety check (e2e)', () => {
       expect(mine.body[0].resubmissionComment).toContain('second exit');
     });
 
-    // TC-S3-185 · US-57 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // TC-S3-185, TC-S4-86 · US-57 AC-9, US-62 AC-7 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
     // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('treats a blank comment as none, and the comment as optional', async () => {
       const { event } = await sentBack();
@@ -478,7 +478,7 @@ describe('Safety check (e2e)', () => {
       expect(opened.body.history[0].resubmittedAt).not.toBeNull();
     });
 
-    // TC-S3-185 · US-57 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // TC-S3-185, TC-S4-86 · US-57 AC-9, US-62 AC-7 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
     // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('refuses a comment that is too long and does not send the event back', async () => {
       const { event } = await sentBack();
@@ -489,7 +489,7 @@ describe('Safety check (e2e)', () => {
       expect(await statusOf(event.id)).toBe(EventStatus.PLANNING);
     });
 
-    // TC-S3-185 · US-57 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-177c-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // TC-S3-185, TC-S4-84 · US-57 AC-9, US-62 AC-5 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-177c-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
     // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('counts a changed booking as a change, and a new one that is not yet approved as not ready', async () => {
       const { event } = await sentBack();
@@ -500,7 +500,35 @@ describe('Safety check (e2e)', () => {
       expect(res.body.message).toMatch(/still pending/i);
     });
 
-    // TC-S3-185 · US-57 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // TC-S4-84 · US-62 AC-5 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-177d-setup · fails if an event is sent back while requested equipment is not fully reserved, or the unmet condition is not named
+    // Code: SafetyService.resubmit (readiness reasons: EQUIPMENT_NOT_RESERVED)
+    it('blocks a send-back while requested equipment is not fully reserved, and says so', async () => {
+      const { event } = await sentBack();
+      await given('tc-s3-177d-setup'); // 4 microphones needed, none reserved
+      await editPlan(event.id, { layoutNotes: 'Second exit added at the rear' }).expect(200);
+
+      const res = await resubmit(event.id).expect(409);
+
+      expect(res.body.message).toMatch(/requested equipment is not fully reserved/);
+      expect(await statusOf(event.id)).toBe(EventStatus.PLANNING);
+    });
+
+    // TC-S4-81 · US-62 AC-2 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the Coordinator cannot see the reason, the stage to rework or the arrangements flagged for re-review
+    // Code: SafetyService.getHistory (Coordinator scope) -> reason, returnStage, affectedArrangements
+    it("shows the Coordinator the reason, the stage to rework and what is flagged", async () => {
+      const { event } = await sentBack();
+
+      const [review] = (await reviews(event.id, 'coordinator').expect(200)).body;
+
+      expect(review).toMatchObject({
+        outcome: 'CHANGES_REQUESTED',
+        reason: 'Add an exit',
+        returnStage: 'VENUE',
+        affectedArrangements: ['VENUE_BOOKING'],
+      });
+    });
+
+    // TC-S3-185, TC-S4-88 · US-57 AC-9, US-62 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
     // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('cannot be resubmitted twice', async () => {
       const { event } = await sentBack();
@@ -510,7 +538,7 @@ describe('Safety check (e2e)', () => {
       await resubmit(event.id).expect(409);
     });
 
-    // TC-S3-185 · US-57 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-185-setup · fails if an event cancelled while feedback waits can be sent back for a check
+    // TC-S3-185, TC-S4-82 · US-57 AC-9, US-62 AC-3 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-185-setup · fails if an event cancelled while feedback waits can be sent back for a check
     // Code: SafetyService.resubmit (SAFETY_CHECK_ELIGIBLE_STATUSES)
     it('cannot send back an event that was cancelled while the feedback waited', async () => {
       const { event } = await sentBack();
@@ -521,7 +549,7 @@ describe('Safety check (e2e)', () => {
       expect(await statusOf(event.id)).toBe(EventStatus.CANCELLED);
     });
 
-    // TC-S3-185 · US-57 AC-9 · setup: base-users + tc-s3-177-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // TC-S3-185, TC-S4-88 · US-57 AC-9, US-62 AC-9 · setup: base-users + tc-s3-177-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
     // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('has nothing to answer when there is no feedback', async () => {
       const event = careersFair;
@@ -529,7 +557,7 @@ describe('Safety check (e2e)', () => {
       await resubmit(event.id).expect(409);
     });
 
-    // TC-S3-185 · US-57 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // TC-S3-185, TC-S4-89 · US-57 AC-9, US-62 AC-10 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
     // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('is the assigned Coordinator’s alone', async () => {
       const { event } = await sentBack();
@@ -544,7 +572,7 @@ describe('Safety check (e2e)', () => {
   });
 
   describe('AC-7: reject', () => {
-    // TC-S3-183 · US-57 AC-7 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if a rejected event is not blocked, stays queued, has its arrangements changed, or the Coordinator is not told why
+    // TC-S3-183, TC-S4-80 · US-57 AC-7, US-62 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if a rejected event is not blocked, stays queued, has its arrangements changed, or the Coordinator is not told why
     // Code: SafetyService.decide (REJECTED -> SAFETY_REJECTED) -> notifyCoordinator
     it('blocks the event, takes it out of the queue, leaves its arrangements alone and tells the Coordinator why', async () => {
       const { event, booking } = await queuedEvent();
@@ -567,7 +595,7 @@ describe('Safety check (e2e)', () => {
       expect(note.message).toContain('No safe route out');
     });
 
-    // TC-S3-183, TC-S3-185 · US-57 AC-7/AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if a rejected event can be resubmitted without returning to planning and changing, or is requeued by itself
+    // TC-S3-183, TC-S3-185, TC-S4-82 · US-57 AC-7/AC-9, US-62 AC-3 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if a rejected event can be resubmitted without returning to planning and changing, or is requeued by itself
     // Code: SafetyService.resubmit; start-planning from SAFETY_REJECTED
     it('is reworked by the Coordinator: resume planning, change the plan, send it back', async () => {
       const { event } = await queuedEvent();
@@ -692,7 +720,7 @@ describe('Safety check (e2e)', () => {
   });
 
   describe('history', () => {
-    // TC-S3-185 · US-57 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event's Coordinator cannot see earlier checks and reasons, or another Coordinator can
+    // TC-S3-185, TC-S4-81 · US-57 AC-9, US-62 AC-2 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event's Coordinator cannot see earlier checks and reasons, or another Coordinator can
     // Code: SafetyService.getHistory
     it('shows the checks and reasons to the event’s Coordinator, and to no other Coordinator', async () => {
       const { event } = await queuedEvent();
@@ -707,7 +735,6 @@ describe('Safety check (e2e)', () => {
     });
   });
 
-  // US-64 is not one of the Sprint 3 cards (38-57), so these carry no TC-S3 tag.
   describe('US-64: Safety Officers alerted when a check is due', () => {
     const safetyNotices = (eventId: string) =>
       prisma.notification.findMany({
@@ -724,6 +751,8 @@ describe('Safety check (e2e)', () => {
         timeZone: 'Asia/Singapore',
       }).format(d);
 
+    // TC-S4-96, TC-S4-99 · US-64 AC-1, AC-4 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if an event entering the Safety queue does not alert every Safety Officer exactly once, or alerts anyone else
+    // Code: EventConfirmationService.confirm -> SafetyCheckNotifier.notifyCheckDue (SAFETY_CHECK_DUE to every SAFETY_OFFICER)
     it('AC1: Given two Safety Officers, When the Coordinator confirms, Then each is alerted once, and nobody else', async () => {
       const { event } = await queuedEvent();
 
@@ -731,6 +760,8 @@ describe('Safety check (e2e)', () => {
       expect(notes.map((n) => n.recipientId).sort()).toEqual([ids.officer, ids.officer2].sort());
     });
 
+    // TC-S4-97 · US-64 AC-2 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the alert does not name the event and its date
+    // Code: SafetyCheckNotifier.notifyCheckDue (message: name and Singapore date)
     it('AC2: Given a dated event, When it enters the queue, Then the alert names the event and its date', async () => {
       const { event } = await queuedEvent();
 
@@ -740,6 +771,8 @@ describe('Safety check (e2e)', () => {
       }
     });
 
+    // TC-S4-96 · US-64 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-177b-setup · fails if an alert is sent when the event did not enter the queue
+    // Code: EventConfirmationService.confirm (alert only after the transaction commits)
     it('AC1: Given the confirmation is refused, Then nobody is alerted', async () => {
       await given('tc-s3-177b-setup'); // BKG-161 still REQUESTED, so not ready
       const event = careersFair;
@@ -749,6 +782,8 @@ describe('Safety check (e2e)', () => {
       expect(await safetyNotices(event.id)).toEqual([]);
     });
 
+    // TC-S4-96, TC-S4-99 · US-64 AC-1, AC-4 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if a resubmission into the queue does not alert every Safety Officer again, once each
+    // Code: SafetyService.resubmit -> SafetyCheckNotifier.notifyCheckDue
     it('AC1: Given feedback answered with a changed plan, When the Coordinator resubmits, Then every Safety Officer is alerted again', async () => {
       const { event } = await queuedEvent();
       await decide(event.id, { outcome: 'CHANGES_REQUESTED', returnStage: 'VENUE', reason: 'Add an exit' }).expect(200);
@@ -767,6 +802,8 @@ describe('Safety check (e2e)', () => {
       );
     });
 
+    // TC-S4-98 · US-64 AC-3 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if opening the alert does not take the Safety Officer to the event's safety check page
+    // Code: notification-view linkFor (SAFETY_OFFICER -> /safety/checks/:id)
     it('AC1: the alert is in the officer’s inbox, titled by type and linked to the existing safety check page', async () => {
       const { event } = await queuedEvent();
 

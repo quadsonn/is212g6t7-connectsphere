@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   EquipmentStatus,
@@ -6,15 +6,14 @@ import {
   NotificationType,
   PrismaClient,
   ReservationStatus,
-  Role,
   SubstitutionStatus,
 } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
 import { resetDb } from './helpers/reset-db';
-import { listenOnLoopback } from './listen-on-loopback';
 
 /**
  * Equipment substitutions e2e. When Technical Support takes an item out of
@@ -22,6 +21,15 @@ import { listenOnLoopback } from './listen-on-loopback';
  * replacement (or say there is none); earlier-stage events need nothing. The
  * event's Coordinator accepts, or declines and acknowledges. One describe per
  * rule so a failing test names the rule it breaks.
+ *
+ * Code under test: EquipmentService.changeStatus ->
+ * EquipmentSubstitutionsService (recordForStatusChange, candidatesFor,
+ * suggest, accept, decline, voidForRestoredItem) and EquipmentNotifier (US-67).
+ *
+ * Pre-condition for every test: reset the testDB, then run base-users.sql and
+ * tc-s4-110-setup.sql (wireless and lapel microphones, the CONFIRMED "gala"
+ * EVT-313 and its 2-microphone reservation RSV-038). The seed helpers below
+ * load the other events and items from tc-s4-110b to 110g.
  */
 describe('Equipment substitutions (e2e)', () => {
   let app: INestApplication;
@@ -29,7 +37,23 @@ describe('Equipment substitutions (e2e)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from base-users and tc-s4-110-setup; the seed helpers add the rest. */
+  const ids: Record<string, string> = {
+    tech: 'USR-009',
+    coordinator: 'USR-004',
+    otherCoordinator: 'USR-005',
+    organiser: 'USR-006',
+    mic: 'EQP-026',
+    lapel: 'EQP-027',
+    gala: 'EVT-313',
+    galaMic: 'RSV-038',
+  };
+  const LOGINS: Record<string, string> = {
+    tech: 'tech.support@example.com',
+    coordinator: 'coord.a@example.com',
+    otherCoordinator: 'coord.b@example.com',
+    organiser: 'organiser@example.com',
+  };
 
   // Far enough ahead to stay "upcoming" whenever the suite runs.
   const START = '2030-10-01T09:00:00.000Z';
@@ -67,77 +91,43 @@ describe('Equipment substitutions (e2e)', () => {
       .post(`/equipment-substitutions/${substitutionId}/${action}`)
       .set('Authorization', as(who));
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash: await bcrypt.hash(PASSWORD, 10),
-        name: key,
-        role,
-      },
-    });
-    const res = await http()
-      .post('/auth/login')
-      .send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-    ids[key] = user.id;
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
-  const seedEquipment = async (
-    key: string,
-    type: string,
-    totalQuantity: number,
-  ) => {
-    ids[key] = (
-      await prisma.equipment.create({
-        data: { type, totalQuantity, location: 'AV Store' },
-      })
-    ).id;
+  /** Extra items: [script, id]. tc-s4-110g also holds "broken", already out of service. */
+  const EQUIPMENT: Record<string, [string | null, string]> = {
+    scarce: ['tc-s4-110e-setup', 'EQP-028'],
+    pair: ['tc-s4-110f-setup', 'EQP-029'],
+    wireless2: ['tc-s4-110g-setup', 'EQP-030'],
+    broken: [null, 'EQP-031'],
+  };
+  const seedEquipment = async (key: string, _type: string, _totalQuantity: number) => {
+    const [script, id] = EQUIPMENT[key];
+    if (script) await given(script);
+    ids[key] = id;
   };
 
-  const seedEvent = async (
-    key: string,
-    status: EventStatus,
-    coordinator = 'coordinator',
-  ) => {
-    ids[key] = (
-      await prisma.eventRequest.create({
-        data: {
-          organiserId: ids.organiser,
-          coordinatorId: ids[coordinator],
-          name: key,
-          purpose: 'Purpose',
-          description: 'Description',
-          category: 'Conference',
-          proposedStart: new Date(START),
-          proposedEnd: new Date(END),
-          expectedAttendance: 100,
-          equipmentNeeds: 'Microphones.',
-          status,
-        },
-      })
-    ).id;
+  /** Extra events, each with its reservation: [script, event id, reservation key, reservation id]. */
+  const EVENTS: Record<string, [string, string, string, string]> = {
+    retreat: ['tc-s4-110b-setup', 'EVT-314', 'retreatMic', 'RSV-039'],
+    summit: ['tc-s4-110c-setup', 'EVT-315', 'summitMic', 'RSV-040'],
+    rival: ['tc-s4-110d-setup', 'EVT-316', 'rivalLapel', 'RSV-041'],
   };
-
+  const seedEvent = async (key: string, _status: EventStatus) => {
+    const [script, id, reservationKey, reservationId] = EVENTS[key];
+    await given(script);
+    ids[key] = id;
+    ids[reservationKey] = reservationId;
+  };
+  /** The reservation comes with its event's script (seedEvent); this only names it. */
   const seedReservation = async (
     key: string,
-    eventKey: string,
-    equipmentKey: string,
-    quantity: number,
-    status: ReservationStatus = ReservationStatus.APPROVED,
+    _eventKey: string,
+    _equipmentKey: string,
+    _quantity: number,
   ) => {
-    ids[key] = (
-      await prisma.equipmentReservation.create({
-        data: {
-          eventId: ids[eventKey],
-          equipmentId: ids[equipmentKey],
-          quantity,
-          start: new Date(START),
-          end: new Date(END),
-          status,
-        },
-      })
-    ).id;
+    if (!ids[key]) throw new Error(`seed the event for ${key} first`);
   };
 
   const substitutionFor = (reservationKey: string) =>
@@ -159,6 +149,12 @@ describe('Equipment substitutions (e2e)', () => {
   // Every table, whatever earlier test files left behind (localhost and a
   // _test database only — resetDb checks before it deletes anything).
   const clear = () => resetDb(prisma);
+  /** tc-s4-110i/j/k: the gala in a finished status. */
+  const FINISHED: Record<string, string> = {
+    [EventStatus.COMPLETED]: 'tc-s4-110i-setup',
+    [EventStatus.CANCELLED]: 'tc-s4-110j-setup',
+    [EventStatus.REJECTED]: 'tc-s4-110k-setup',
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -166,43 +162,32 @@ describe('Equipment substitutions (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, transform: true }),
-    );
-    await listenOnLoopback(app);
-
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await given('base-users');
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
-    await clear();
     await prisma.$disconnect();
     await app.close();
   });
 
   beforeEach(async () => {
     await clear();
-
-    await seedUser('tech', 'tech@example.com', Role.TECHNICAL_SUPPORT_STAFF);
-    await seedUser(
-      'coordinator',
-      'coordinator@example.com',
-      Role.EVENT_COORDINATOR,
-    );
-    await seedUser(
-      'otherCoordinator',
-      'other@example.com',
-      Role.EVENT_COORDINATOR,
-    );
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-
-    await seedEquipment('mic', 'Wireless microphone', 10);
-    await seedEquipment('lapel', 'Lapel microphone', 10);
-    await seedEvent('gala', EventStatus.CONFIRMED);
-    await seedReservation('galaMic', 'gala', 'mic', 2);
+    await given('base-users', 'tc-s4-110-setup');
   });
 
   describe('a confirmed event needs an answer before the item is taken out of use', () => {
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if an item reserved for a confirmed event can be taken out of use without a suggested replacement or a "no valid alternative" answer
+    // Code: EquipmentService.changeStatus -> EquipmentSubstitutionsService.recordForStatusChange
     it('400s with no substitution, and leaves the item in service with no change recorded', async () => {
       const res = await damage(ids.mic).expect(400);
 
@@ -215,6 +200,8 @@ describe('Equipment substitutions (e2e)', () => {
       expect(await prisma.equipmentSubstitution.count()).toBe(0);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if an item reserved for a confirmed event can be taken out of use without a suggested replacement or a "no valid alternative" answer
+    // Code: EquipmentService.changeStatus -> EquipmentSubstitutionsService.recordForStatusChange
     it('accepts a replacement from the catalogue and records it PENDING', async () => {
       await damage(ids.mic, [
         { reservationId: ids.galaMic, alternativeEquipmentId: ids.lapel },
@@ -232,6 +219,8 @@ describe('Equipment substitutions (e2e)', () => {
       expect(item.operationalStatus).toBe(EquipmentStatus.OUT_OF_SERVICE);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if an item reserved for a confirmed event can be taken out of use without a suggested replacement or a "no valid alternative" answer
+    // Code: EquipmentService.changeStatus -> EquipmentSubstitutionsService.recordForStatusChange
     it('accepts "no valid alternative" as an answer', async () => {
       await damage(ids.mic, [
         { reservationId: ids.galaMic, noAlternative: true },
@@ -243,15 +232,16 @@ describe('Equipment substitutions (e2e)', () => {
       });
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110h-setup · fails if an item reserved for a confirmed event can be taken out of use without a suggested replacement or a "no valid alternative" answer
+    // Code: EquipmentService.changeStatus -> EquipmentSubstitutionsService.recordForStatusChange
     it('also requires one for a merely requested reservation on a confirmed event', async () => {
-      await prisma.equipmentReservation.update({
-        where: { id: ids.galaMic },
-        data: { status: ReservationStatus.REQUESTED },
-      });
+      await given('tc-s4-110h-setup'); // the gala's reservation only requested
 
       await damage(ids.mic).expect(400);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if an item reserved for a confirmed event can be taken out of use without a suggested replacement or a "no valid alternative" answer
+    // Code: EquipmentService.changeStatus -> EquipmentSubstitutionsService.recordForStatusChange
     it.each([
       [
         'both an item and "no alternative"',
@@ -266,7 +256,22 @@ describe('Equipment substitutions (e2e)', () => {
     });
   });
 
+  describe('an answer naming an item that does not exist', () => {
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if taking an item out of use is accepted with a replacement that does not exist
+    // Code: EquipmentSubstitutionsService.recordForStatusChange -> lock (the item row; not found 404)
+    it('404s and leaves the item in service', async () => {
+      await damage(ids.mic, [{ reservationId: ids.galaMic, alternativeEquipmentId: 'EQP-999' }]).expect(404);
+
+      expect((await prisma.equipment.findUniqueOrThrow({ where: { id: ids.mic } })).operationalStatus).toBe(
+        EquipmentStatus.OPERATIONAL,
+      );
+      expect(await prisma.equipmentSubstitution.count()).toBe(0);
+    });
+  });
+
   describe('a finished event is left alone', () => {
+    // TC-S4-107 · US-67 AC-1 · setup: base-users + tc-s4-110-setup + tc-s4-110i-setup + tc-s4-110j-setup + tc-s4-110k-setup · fails if a completed, cancelled or rejected event is told, flagged or asked for a replacement
+    // Code: EquipmentService.changeStatus (upcoming committed reservations only)
     it.each([
       EventStatus.COMPLETED,
       EventStatus.CANCELLED,
@@ -274,10 +279,7 @@ describe('Equipment substitutions (e2e)', () => {
     ])(
       'a %s event gets no notice, no flag and needs no replacement',
       async (status) => {
-        await prisma.eventRequest.update({
-          where: { id: ids.gala },
-          data: { status },
-        });
+        await given(FINISHED[status]);
 
         const res = await damage(ids.mic).expect(200);
 
@@ -292,11 +294,10 @@ describe('Equipment substitutions (e2e)', () => {
       },
     );
 
+    // TC-S4-107 · US-67 AC-1 · setup: base-users + tc-s4-110-setup + tc-s4-110b-setup + tc-s4-110i-setup · fails if a live event with a committed reservation on the item is not told, while a finished one is
+    // Code: EquipmentService.changeStatus -> EquipmentNotifier.unavailable (upcoming committed reservations only)
     it('still warns about, and notifies, a live event using the same item', async () => {
-      await prisma.eventRequest.update({
-        where: { id: ids.gala },
-        data: { status: EventStatus.COMPLETED },
-      });
+      await given('tc-s4-110i-setup'); // the gala is over
       await seedEvent('retreat', EventStatus.PLANNING);
       await seedReservation('retreatMic', 'retreat', 'mic', 3);
 
@@ -314,6 +315,8 @@ describe('Equipment substitutions (e2e)', () => {
   });
 
   describe('an event before the confirmed stage needs no replacement', () => {
+    // TC-S4-107, TC-S4-110 · US-67 AC-1, AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110b-setup · fails if an event still in planning is not told the item is unavailable, or is wrongly asked for a replacement
+    // Code: EquipmentNotifier.unavailable; recordForStatusChange (CONFIRMED events only)
     it('marks the item unavailable without one, as before', async () => {
       await seedEvent('retreat', EventStatus.PLANNING);
       await seedReservation('retreatMic', 'retreat', 'mic', 3);
@@ -325,6 +328,8 @@ describe('Equipment substitutions (e2e)', () => {
       expect(await prisma.equipmentSubstitution.count()).toBe(0);
     });
 
+    // TC-S4-107, TC-S4-110 · US-67 AC-1, AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110b-setup · fails if an event still in planning is not told the item is unavailable, or is wrongly asked for a replacement
+    // Code: EquipmentNotifier.unavailable; recordForStatusChange (CONFIRMED events only)
     it('requires an answer only for the confirmed one when both are affected', async () => {
       await seedEvent('retreat', EventStatus.PLANNING);
       await seedReservation('retreatMic', 'retreat', 'mic', 3);
@@ -337,6 +342,8 @@ describe('Equipment substitutions (e2e)', () => {
       expect(await prisma.equipmentSubstitution.count()).toBe(1);
     });
 
+    // TC-S4-107, TC-S4-110 · US-67 AC-1, AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110b-setup · fails if an event still in planning is not told the item is unavailable, or is wrongly asked for a replacement
+    // Code: EquipmentNotifier.unavailable; recordForStatusChange (CONFIRMED events only)
     it('400s on an answer for a reservation that needs none', async () => {
       await seedEvent('retreat', EventStatus.PLANNING);
       await seedReservation('retreatMic', 'retreat', 'mic', 3);
@@ -350,6 +357,8 @@ describe('Equipment substitutions (e2e)', () => {
   });
 
   describe('the replacement must hold up', () => {
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110e-setup · fails if a replacement that cannot cover the same quantity, is itself out of service, is the same item, or is overdrawn is accepted
+    // Code: EquipmentSubstitutionsService.recordForStatusChange (equipment-substitution rules)
     it('409s, saving nothing, when the alternative cannot cover the same quantity', async () => {
       await seedEquipment('scarce', 'Handheld microphone', 1);
 
@@ -365,23 +374,26 @@ describe('Equipment substitutions (e2e)', () => {
       expect(await prisma.equipmentStatusChange.count()).toBe(0);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110l-setup · fails if a replacement that cannot cover the same quantity, is itself out of service, is the same item, or is overdrawn is accepted
+    // Code: EquipmentSubstitutionsService.recordForStatusChange (equipment-substitution rules)
     it('409s when the alternative is itself out of service', async () => {
-      await prisma.equipment.update({
-        where: { id: ids.lapel },
-        data: { operationalStatus: EquipmentStatus.UNDER_MAINTENANCE },
-      });
+      await given('tc-s4-110l-setup'); // the lapel microphones are under maintenance
 
       await damage(ids.mic, [
         { reservationId: ids.galaMic, alternativeEquipmentId: ids.lapel },
       ]).expect(409);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if a replacement that cannot cover the same quantity, is itself out of service, is the same item, or is overdrawn is accepted
+    // Code: EquipmentSubstitutionsService.recordForStatusChange (equipment-substitution rules)
     it('400s when an item is offered as its own replacement', async () => {
       await damage(ids.mic, [
         { reservationId: ids.galaMic, alternativeEquipmentId: ids.mic },
       ]).expect(400);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110f-setup + tc-s4-110c-setup · fails if a replacement that cannot cover the same quantity, is itself out of service, is the same item, or is overdrawn is accepted
+    // Code: EquipmentSubstitutionsService.recordForStatusChange (equipment-substitution rules)
     it('409s when two reservations would together overdraw the one alternative', async () => {
       await seedEquipment('pair', 'Handheld microphone', 3);
       await seedEvent('summit', EventStatus.CONFIRMED);
@@ -401,14 +413,40 @@ describe('Equipment substitutions (e2e)', () => {
   });
 
   describe('Technical Support picks from the dropdown', () => {
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110f-setup + tc-s4-110q-setup · fails if alternatives of the same type are listed in an unstable order
+    // Code: EquipmentSubstitutionsService.candidatesFor (sort: same type, then type, then id)
+    it('lists alternatives of one type by id, after sorting by type', async () => {
+      await seedEquipment('pair', 'Handheld microphone', 3);
+      await given('tc-s4-110q-setup'); // EQP-032, four more handheld microphones
+
+      const res = await http()
+        .get(`/equipment/reservations/${ids.galaMic}/alternatives`)
+        .set('Authorization', as('tech'))
+        .expect(200);
+
+      expect(res.body.map((c: { id: string }) => c.id)).toEqual([ids.pair, 'EQP-032', ids.lapel]);
+    });
+
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110d-setup · fails if an item another event holds too much of is offered, or an unknown reservation does not give 404
+    // Code: EquipmentSubstitutionsService.candidatesFor (other events' holdings; reservation not found)
+    it('leaves out an item another event holds too much of, and 404s an unknown reservation', async () => {
+      await seedEvent('rival', EventStatus.PLANNING); // holds 9 of the 10 lapel microphones
+      const alternatives = (reservationId: string) =>
+        http().get(`/equipment/reservations/${reservationId}/alternatives`).set('Authorization', as('tech'));
+
+      const res = await alternatives(ids.galaMic).expect(200);
+
+      expect(res.body.map((c: { id: string }) => c.id)).not.toContain(ids.lapel);
+      await alternatives('RSV-999').expect(404);
+    });
+
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110g-setup + tc-s4-110e-setup · fails if the alternatives list misses an item free in full, puts other types first, offers the item itself or one out of service, or is open to the Coordinator
+    // Code: EquipmentSubstitutionsService.candidatesFor
     it('lists items with the full quantity free, same type first, never the item itself', async () => {
       await seedEquipment('wireless2', 'wireless microphone', 5);
       await seedEquipment('scarce', 'Handheld microphone', 1);
       await seedEquipment('broken', 'Boundary microphone', 10);
-      await prisma.equipment.update({
-        where: { id: ids.broken },
-        data: { operationalStatus: EquipmentStatus.OUT_OF_SERVICE },
-      });
+      // "broken" is already out of service in tc-s4-110g-setup.
 
       const res = await http()
         .get(`/equipment/reservations/${ids.galaMic}/alternatives`)
@@ -425,6 +463,8 @@ describe('Equipment substitutions (e2e)', () => {
       });
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if the alternatives list misses an item free in full, puts other types first, offers the item itself or one out of service, or is open to the Coordinator
+    // Code: EquipmentSubstitutionsService.candidatesFor
     it('is closed to the Coordinator', async () => {
       await http()
         .get(`/equipment/reservations/${ids.galaMic}/alternatives`)
@@ -434,6 +474,8 @@ describe('Equipment substitutions (e2e)', () => {
   });
 
   describe('the Coordinator is told, and sees the proposal on the flag', () => {
+    // TC-S4-107, TC-S4-110 · US-67 AC-1, AC-4 · setup: base-users + tc-s4-110-setup · fails if the Coordinator is not told the item is unavailable with the suggestion, or cannot see it beside the flag
+    // Code: EquipmentNotifier.unavailable; event detail unavailableEquipment
     it('notifies the Coordinator with the suggestion and shows it beside the flag', async () => {
       await damage(ids.mic, [
         { reservationId: ids.galaMic, alternativeEquipmentId: ids.lapel },
@@ -457,6 +499,8 @@ describe('Equipment substitutions (e2e)', () => {
       });
     });
 
+    // TC-S4-107, TC-S4-110 · US-67 AC-1, AC-4 · setup: base-users + tc-s4-110-setup · fails if the Coordinator is not told the item is unavailable with the suggestion, or cannot see it beside the flag
+    // Code: EquipmentNotifier.unavailable; event detail unavailableEquipment
     it('says plainly when there is no valid alternative', async () => {
       await damage(ids.mic, [
         { reservationId: ids.galaMic, noAlternative: true },
@@ -484,6 +528,8 @@ describe('Equipment substitutions (e2e)', () => {
       ]).expect(200);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if accepting does not rebook on the alternative and release the original, repoint the requirement, clear the flag and tell Technical Support, or is allowed twice or when it no longer holds
+    // Code: EquipmentSubstitutionsService.accept -> EquipmentNotifier.substituteDecided
     it('rebooks the same quantity and window on the alternative and releases the original', async () => {
       const sub = (await substitutionFor('galaMic'))!;
 
@@ -518,7 +564,10 @@ describe('Equipment substitutions (e2e)', () => {
       });
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if accepting does not rebook on the alternative and release the original, repoint the requirement, clear the flag and tell Technical Support, or is allowed twice or when it no longer holds
+    // Code: EquipmentSubstitutionsService.accept -> EquipmentNotifier.substituteDecided
     it('repoints the matching required-equipment line at the alternative', async () => {
+      // Kept by design: written after the suggestion, as the scenario needs.
       const line = await prisma.equipmentRequirement.create({
         data: {
           eventId: ids.gala,
@@ -545,7 +594,10 @@ describe('Equipment substitutions (e2e)', () => {
       );
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if accepting does not rebook on the alternative and release the original, repoint the requirement, clear the flag and tell Technical Support, or is allowed twice or when it no longer holds
+    // Code: EquipmentSubstitutionsService.accept -> EquipmentNotifier.substituteDecided
     it('splits a larger line, moving only the swapped quantity to the alternative', async () => {
+      // Kept by design: written after the suggestion, as the scenario needs.
       await prisma.equipmentRequirement.create({
         data: {
           eventId: ids.gala,
@@ -568,7 +620,10 @@ describe('Equipment substitutions (e2e)', () => {
       ]);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if accepting does not rebook on the alternative and release the original, repoint the requirement, clear the flag and tell Technical Support, or is allowed twice or when it no longer holds
+    // Code: EquipmentSubstitutionsService.accept -> EquipmentNotifier.substituteDecided
     it('leaves the event ready to confirm: the new line counts as reserved', async () => {
+      // Kept by design: written after the suggestion, as the scenario needs.
       await prisma.equipmentRequirement.create({
         data: {
           eventId: ids.gala,
@@ -596,6 +651,8 @@ describe('Equipment substitutions (e2e)', () => {
       ).toBeGreaterThanOrEqual(requirement.quantity);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if accepting does not rebook on the alternative and release the original, repoint the requirement, clear the flag and tell Technical Support, or is allowed twice or when it no longer holds
+    // Code: EquipmentSubstitutionsService.accept -> EquipmentNotifier.substituteDecided
     it('clears the flag, and tells Technical Support', async () => {
       const sub = (await substitutionFor('galaMic'))!;
       await decide(sub.id, 'accept').expect(200);
@@ -610,6 +667,8 @@ describe('Equipment substitutions (e2e)', () => {
       expect(told.message).toContain('accepted the replacement');
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if accepting does not rebook on the alternative and release the original, repoint the requirement, clear the flag and tell Technical Support, or is allowed twice or when it no longer holds
+    // Code: EquipmentSubstitutionsService.accept -> EquipmentNotifier.substituteDecided
     it('cannot be decided twice', async () => {
       const sub = (await substitutionFor('galaMic'))!;
       await decide(sub.id, 'accept').expect(200);
@@ -618,6 +677,8 @@ describe('Equipment substitutions (e2e)', () => {
       await decide(sub.id, 'decline').expect(409);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110d-setup · fails if accepting does not rebook on the alternative and release the original, repoint the requirement, clear the flag and tell Technical Support, or is allowed twice or when it no longer holds
+    // Code: EquipmentSubstitutionsService.accept -> EquipmentNotifier.substituteDecided
     it('409s, staying PENDING, when the alternative has filled up since; declining still works', async () => {
       await seedEvent('rival', EventStatus.PLANNING);
       await seedReservation('rivalLapel', 'rival', 'lapel', 9);
@@ -640,7 +701,10 @@ describe('Equipment substitutions (e2e)', () => {
       await decide(sub.id, 'decline').expect(200);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if accepting does not rebook on the alternative and release the original, repoint the requirement, clear the flag and tell Technical Support, or is allowed twice or when it no longer holds
+    // Code: EquipmentSubstitutionsService.accept -> EquipmentNotifier.substituteDecided
     it('409s when the alternative has since gone out of service', async () => {
+      // Kept by design: the state changes after the suggestion was made.
       await prisma.equipment.update({
         where: { id: ids.lapel },
         data: { operationalStatus: EquipmentStatus.OUT_OF_SERVICE },
@@ -651,7 +715,10 @@ describe('Equipment substitutions (e2e)', () => {
       expect(res.body.message).toMatch(/no longer in service/);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if accepting does not rebook on the alternative and release the original, repoint the requirement, clear the flag and tell Technical Support, or is allowed twice or when it no longer holds
+    // Code: EquipmentSubstitutionsService.accept -> EquipmentNotifier.substituteDecided
     it('409s when the event is no longer confirmed', async () => {
+      // Kept by design: the state changes after the suggestion was made.
       await prisma.eventRequest.update({
         where: { id: ids.gala },
         data: { status: EventStatus.PLANNING },
@@ -660,9 +727,25 @@ describe('Equipment substitutions (e2e)', () => {
 
       await decide(sub.id, 'accept').expect(409);
     });
+
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if a replacement is accepted for a reservation released since, or an original item back in service since
+    // Code: EquipmentSubstitutionsService.accept (reservation no longer active; original back in service)
+    it('409s once the reservation is released, or the original item is back in service', async () => {
+      const sub = (await substitutionFor('galaMic'))!;
+
+      // Kept by design: the state changes after the suggestion was made.
+      await prisma.equipment.update({ where: { id: ids.mic }, data: { operationalStatus: EquipmentStatus.OPERATIONAL } });
+      expect((await decide(sub.id, 'accept').expect(409)).body.message).toMatch(/back in service/);
+
+      await prisma.equipmentReservation.update({ where: { id: ids.galaMic }, data: { status: ReservationStatus.RELEASED } });
+      expect((await decide(sub.id, 'accept').expect(409)).body.message).toMatch(/no longer active/);
+      expect(sub.status).toBe(SubstitutionStatus.PENDING);
+    });
   });
 
   describe('the Coordinator declines and acknowledges', () => {
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if declining changes the reservation, removes the flag, or can be undone
+    // Code: EquipmentSubstitutionsService.decline
     it('keeps the reservation, marks it DECLINED and leaves the flag with them', async () => {
       await damage(ids.mic, [
         { reservationId: ids.galaMic, alternativeEquipmentId: ids.lapel },
@@ -698,6 +781,8 @@ describe('Equipment substitutions (e2e)', () => {
       ).toBe(1);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if declining changes the reservation, removes the flag, or can be undone
+    // Code: EquipmentSubstitutionsService.decline
     it('is the only answer to "no valid alternative": accepting is refused', async () => {
       await damage(ids.mic, [
         { reservationId: ids.galaMic, noAlternative: true },
@@ -711,6 +796,8 @@ describe('Equipment substitutions (e2e)', () => {
       expect((await flagFor('gala'))[0].substitution.status).toBe('DECLINED');
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if declining changes the reservation, removes the flag, or can be undone
+    // Code: EquipmentSubstitutionsService.decline
     it('is final: it cannot be accepted afterwards, nor re-suggested', async () => {
       await damage(ids.mic, [
         { reservationId: ids.galaMic, noAlternative: true },
@@ -738,6 +825,8 @@ describe('Equipment substitutions (e2e)', () => {
       substitutionId = (await substitutionFor('galaMic'))!.id;
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if anyone but the event's own Coordinator can accept or decline
+    // Code: EquipmentSubstitutionsService.accept / decline (assigned Coordinator only)
     it.each(['accept', 'decline'] as const)(
       '%s: another Coordinator gets 404',
       async (action) => {
@@ -745,6 +834,8 @@ describe('Equipment substitutions (e2e)', () => {
       },
     );
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if anyone but the event's own Coordinator can accept or decline
+    // Code: EquipmentSubstitutionsService.accept / decline (assigned Coordinator only)
     it.each(['accept', 'decline'] as const)(
       '%s: other roles get 403',
       async (action) => {
@@ -753,6 +844,8 @@ describe('Equipment substitutions (e2e)', () => {
       },
     );
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if anyone but the event's own Coordinator can accept or decline
+    // Code: EquipmentSubstitutionsService.accept / decline (assigned Coordinator only)
     it('needs a login', async () => {
       await http()
         .post(`/equipment-substitutions/${substitutionId}/accept`)
@@ -761,6 +854,8 @@ describe('Equipment substitutions (e2e)', () => {
   });
 
   describe('the item comes back into service', () => {
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if a proposal or decline survives the item's return to service, so a later outage is not a fresh question
+    // Code: EquipmentSubstitutionsService.voidForRestoredItem
     it('voids a waiting proposal, and a later outage asks again', async () => {
       await damage(ids.mic, [
         { reservationId: ids.galaMic, noAlternative: true },
@@ -785,6 +880,8 @@ describe('Equipment substitutions (e2e)', () => {
       });
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup · fails if a proposal or decline survives the item's return to service, so a later outage is not a fresh question
+    // Code: EquipmentSubstitutionsService.voidForRestoredItem
     it('closes a decline too, so the next outage is a fresh question', async () => {
       await damage(ids.mic, [
         { reservationId: ids.galaMic, noAlternative: true },
@@ -805,12 +902,11 @@ describe('Equipment substitutions (e2e)', () => {
   describe('an item that is already out of service', () => {
     beforeEach(async () => {
       // Out of service before the event reached CONFIRMED: no answer was needed.
-      await prisma.equipment.update({
-        where: { id: ids.mic },
-        data: { operationalStatus: EquipmentStatus.OUT_OF_SERVICE },
-      });
+      await given('tc-s4-110m-setup');
     });
 
+    // TC-S4-107, TC-S4-110 · US-67 AC-1, AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110m-setup · fails if Technical Support cannot answer afterwards and tell the Coordinator, or can answer twice, for an event not confirmed, or for an item in service
+    // Code: EquipmentSubstitutionsService.suggest -> EquipmentNotifier.substituteSuggested
     it('lets Technical Support answer afterwards, and tells the Coordinator', async () => {
       const res = await http()
         .post(`/equipment/reservations/${ids.galaMic}/substitution`)
@@ -829,6 +925,23 @@ describe('Equipment substitutions (e2e)', () => {
       ).toBe(1);
     });
 
+    // TC-S4-110 · US-67 AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110m-setup + tc-s4-110p-setup · fails if an answer is accepted for an unknown or released reservation, with both or neither choice, or naming an item that does not exist
+    // Code: EquipmentSubstitutionsService.suggest (reservation or item not found 404; no longer active 409; substitutionPlanError 400)
+    it('refuses answers that cannot stand: unknown or released reservation, an unknown item, both choices', async () => {
+      const answer = (reservationId: string, body: object) =>
+        http().post(`/equipment/reservations/${reservationId}/substitution`).set('Authorization', as('tech')).send(body);
+
+      await answer('RSV-999', { noAlternative: true }).expect(404);
+      await answer(ids.galaMic, { alternativeEquipmentId: 'EQP-999' }).expect(404);
+      await answer(ids.galaMic, { alternativeEquipmentId: ids.lapel, noAlternative: true }).expect(400);
+      await given('tc-s4-110p-setup'); // the reservation is released
+      await answer(ids.galaMic, { noAlternative: true }).expect(409);
+
+      expect(await prisma.equipmentSubstitution.count()).toBe(0);
+    });
+
+    // TC-S4-107, TC-S4-110 · US-67 AC-1, AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110m-setup · fails if Technical Support cannot answer afterwards and tell the Coordinator, or can answer twice, for an event not confirmed, or for an item in service
+    // Code: EquipmentSubstitutionsService.suggest -> EquipmentNotifier.substituteSuggested
     it('409s a second answer for the same reservation', async () => {
       const post = () =>
         http()
@@ -839,11 +952,10 @@ describe('Equipment substitutions (e2e)', () => {
       await post().expect(409);
     });
 
+    // TC-S4-107, TC-S4-110 · US-67 AC-1, AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110m-setup + tc-s4-110n-setup · fails if Technical Support cannot answer afterwards and tell the Coordinator, or can answer twice, for an event not confirmed, or for an item in service
+    // Code: EquipmentSubstitutionsService.suggest -> EquipmentNotifier.substituteSuggested
     it('409s when the event is not confirmed', async () => {
-      await prisma.eventRequest.update({
-        where: { id: ids.gala },
-        data: { status: EventStatus.PLANNING },
-      });
+      await given('tc-s4-110n-setup'); // the gala is back in planning
 
       await http()
         .post(`/equipment/reservations/${ids.galaMic}/substitution`)
@@ -852,11 +964,10 @@ describe('Equipment substitutions (e2e)', () => {
         .expect(409);
     });
 
+    // TC-S4-107, TC-S4-110 · US-67 AC-1, AC-4 · setup: base-users + tc-s4-110-setup + tc-s4-110m-setup + tc-s4-110o-setup · fails if Technical Support cannot answer afterwards and tell the Coordinator, or can answer twice, for an event not confirmed, or for an item in service
+    // Code: EquipmentSubstitutionsService.suggest -> EquipmentNotifier.substituteSuggested
     it('409s when the item is in service', async () => {
-      await prisma.equipment.update({
-        where: { id: ids.mic },
-        data: { operationalStatus: EquipmentStatus.OPERATIONAL },
-      });
+      await given('tc-s4-110o-setup'); // back in service
 
       await http()
         .post(`/equipment/reservations/${ids.galaMic}/substitution`)

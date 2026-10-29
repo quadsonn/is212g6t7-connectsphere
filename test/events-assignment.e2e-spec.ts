@@ -313,7 +313,7 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(Date.parse(res.body.entries[0].createdAt)).not.toBeNaN();
     });
 
-    // TC-S3-165 · US-55 AC-7 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if the assigned Coordinator is not notified
+    // TC-S3-165, TC-S4-100 · US-55 AC-7, US-65 AC-1 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if the assigned Coordinator is not notified
     // Code: EventsAssignmentService.assign -> notifications (EVENT_ASSIGNED)
     it('notifies the assigned Coordinator', async () => {
       await given('tc-s3-160-setup');
@@ -333,7 +333,8 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       );
     });
 
-    // US-65 is not one of the Sprint 3 cards (38-57), so this carries no TC-S3 tag.
+    // TC-S4-100 · US-65 AC-1 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if the Organiser is not told, in their inbox, the name of the Coordinator assigned
+    // Code: EventsAssignmentService.assign -> notifySafely (COORDINATOR_ASSIGNED to the Organiser)
     it('US-65: tells the Organiser who their coordinator now is, in their inbox', async () => {
       await given('tc-s3-160-setup');
       const event = queuedEvent;
@@ -367,7 +368,7 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(stored.coordinatorId).toBe(ids.marcus);
     });
 
-    // TC-S3-167 · US-55 AC-9 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if a refused second assignment notifies anyone again
+    // TC-S3-167, TC-S4-100 · US-55 AC-9, US-65 AC-1 · setup: tc-s3-159-setup + tc-s3-160-setup · fails if a refused second assignment notifies anyone again
     // Code: EventsAssignmentService.assign -> alreadyAssigned (no notice)
     it('US-65 AC1: Given the event is already assigned, When a Lead assigns it again, Then the Organiser is not notified again', async () => {
       await given('tc-s3-160-setup');
@@ -613,7 +614,7 @@ describe('Event Coordinator Lead: queue, assignment and reassignment (e2e)', () 
       expect(res.body.entries[1].changedBy.id).toBe(ids.lead);
     });
 
-    // TC-S3-175 · US-56 AC-8 · setup: tc-s3-159-setup + tc-s3-170-setup · fails if the previous or new Coordinator is not notified
+    // TC-S3-175, TC-S4-101 · US-56 AC-8, US-65 AC-2 · setup: tc-s3-159-setup + tc-s3-170-setup · fails if the previous or new Coordinator is not notified
     // Code: EventsAssignmentService.reassign -> notifications (EVENT_REASSIGNED)
     it('notifies both the previous and the new Coordinator', async () => {
       await given('tc-s3-170-setup');

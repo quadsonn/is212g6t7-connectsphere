@@ -214,6 +214,18 @@ describe('EventsService clarification (US-09)', () => {
       );
     });
 
+    // TC-S4-62 · US-58 AC-5 · setup: none (unit) · fails if responding on a request with no name breaks the Coordinator's notice
+    // Code: EventsService.respondToClarification (name fallback in CLARIFICATION_ANSWERED)
+    it('US-58: words the Coordinator’s notice for a request with no name', async () => {
+      stored = event({ status: EventStatus.AWAITING_CLARIFICATION, name: null });
+
+      await service.respondToClarification(organiser, 'event-1', { response: '320 attendees' });
+
+      expect(notifications.notifySafely).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'The organiser has responded on "an event request".' }),
+      );
+    });
+
     it('skips the notification when no coordinator is assigned', async () => {
       stored = event({
         status: EventStatus.AWAITING_CLARIFICATION,

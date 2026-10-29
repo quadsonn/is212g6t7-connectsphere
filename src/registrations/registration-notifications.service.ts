@@ -46,9 +46,12 @@ export class RegistrationNotificationsService {
   ) {}
 
   /**
-   * AC — when an event first becomes visible to attendees (it is CONFIRMED
-   * with registration enabled), every ATTENDEE who is not registered for it is
-   * notified, with a link to the event. Returns the events notified.
+   * AC — when registration opens for an event (it is CONFIRMED with
+   * registration enabled, and its opening time has come), every ATTENDEE who is
+   * not registered for it is notified, with a link to the event. The opening
+   * time is US-34's (resolveWindow), the one registration itself enforces, so
+   * the notice never says "open" while Register still says "not yet open".
+   * Returns the events notified.
    */
   async notifyOpened(now: Date = new Date()): Promise<string[]> {
     const candidates = await this.prisma.eventRequest.findMany({
@@ -57,11 +60,22 @@ export class RegistrationNotificationsService {
         registrationEnabled: true,
         registrationOpenedNotifiedAt: null,
       },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        proposedStart: true,
+        registrationOpensAt: true,
+        registrationClosesAt: true,
+        withdrawalCutoffAt: true,
+      },
     });
 
     const notified: string[] = [];
     for (const event of candidates) {
+      const { opensAt } = resolveWindow(event);
+      // Not open yet — nothing to claim; a later sweep sends it once it opens.
+      if (opensAt && now < opensAt) continue;
+
       const sent = await this.prisma.$transaction(async (tx) => {
         if (!(await this.claim(tx, event.id, 'registrationOpenedNotifiedAt', now))) {
           return false;

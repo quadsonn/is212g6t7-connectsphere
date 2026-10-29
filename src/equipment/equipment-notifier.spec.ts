@@ -43,6 +43,8 @@ describe('EquipmentNotifier', () => {
       expect(first.message).toContain('Reason: Cracked lens');
     });
 
+    // TC-S4-109 · US-67 AC-3 · setup: none (unit) · fails if the Leads are not told when the event has no Coordinator
+    // Code: EquipmentNotifier.toCoordinator (Coordinator, else every Lead, else skip and log)
     it('falls back to every Coordinator Lead when the event is unassigned', async () => {
       tx.user.findMany.mockResolvedValue([{ id: 'USR-l1' }, { id: 'USR-l2' }]);
 
@@ -58,6 +60,8 @@ describe('EquipmentNotifier', () => {
       expect(recipients()).toEqual(['USR-l1', 'USR-l2']);
     });
 
+    // TC-S4-109 · US-67 AC-3 · setup: none (unit) · fails if an event with neither a Coordinator nor a Lead throws
+    // Code: EquipmentNotifier.toCoordinator (Coordinator, else every Lead, else skip and log)
     it('skips without throwing when there is no coordinator and no lead', async () => {
       tx.user.findMany.mockResolvedValue([]);
 
@@ -100,5 +104,28 @@ describe('EquipmentNotifier', () => {
       });
       expect(notifications.notify.mock.calls[0][0].message).toContain('unfulfillable');
     });
+  });
+
+  // TC-S4-107, TC-S4-108, TC-S4-110 · US-67 AC-1, AC-2, AC-4 · setup: none (unit) · fails if a notice cannot be worded for an event with no name
+  // Code: EquipmentNotifier.unavailable / substituteSuggested / substituteDecided / released (name fallback)
+  it('words every notice for an event with no name as "an event"', async () => {
+    const event = { id: 'EVT-1', name: null, coordinatorId: 'USR-c1' };
+    const line = { quantity: 2, originalType: 'Mic A', alternativeType: 'Mic B' };
+
+    await notifier.unavailable(run(), { type: 'Mic A', status: EquipmentStatus.OUT_OF_SERVICE, reason: 'x' }, [event]);
+    await notifier.substituteSuggested(run(), event, line);
+    await notifier.substituteDecided(run(), {
+      recipientIds: ['USR-t1'],
+      event,
+      line,
+      accepted: true,
+      coordinatorName: 'Cody',
+    });
+    await notifier.released(run(), { ...event, status: EventStatus.CANCELLED });
+
+    for (const [{ message }] of notifications.notify.mock.calls) {
+      expect(message).toContain('"an event"');
+    }
+    expect(notifications.notify).toHaveBeenCalledTimes(4);
   });
 });

@@ -86,6 +86,14 @@ describe('US-64 SafetyCheckNotifier', () => {
         'Safety check due: Untitled event on 13 Nov 2026',
       );
     });
+
+    // TC-S4-97 · US-64 AC-2 · setup: none (unit) · fails if an event with no date breaks the message
+    // Code: checkDueMessage (no proposedStart)
+    it('Given an event with no date, Then the message names the event alone', async () => {
+      await notifier.notifyCheckDue({ ...event, proposedStart: null });
+
+      expect(notifications.notifySafely.mock.calls[0][0].message).toBe('Safety check due: Careers Fair');
+    });
   });
 
   describe('best-effort: never fails the status change that triggered it', () => {
@@ -94,6 +102,14 @@ describe('US-64 SafetyCheckNotifier', () => {
 
       await expect(notifier.notifyCheckDue(event)).resolves.toBe(0);
       expect(notifications.notifySafely).not.toHaveBeenCalled();
+    });
+
+    // TC-S4-96 · US-64 AC-1 · setup: none (unit) · fails if a failure that is not an Error object escapes and breaks the status change
+    // Code: SafetyCheckNotifier.notifyCheckDue (logs String(error) for a non-Error)
+    it('Given a failure that is not an Error object, Then it is swallowed too', async () => {
+      prisma.user.findMany.mockRejectedValue('connection reset');
+
+      await expect(notifier.notifyCheckDue(event)).resolves.toBe(0);
     });
   });
 });

@@ -154,6 +154,7 @@ Every event is `USR-006`'s and assigned to `USR-004`. Times are UTC.
 | `BKG-002` | `VEN-038` Seminar Room | `EVT-167` "Past seminar", COMPLETED, 30 | 2020-01-01 08:00–18:00 | APPROVED | Finished: must not count |
 | `BKG-003` | `VEN-004` Rooftop Terrace | `EVT-168` "Rejected party", APPROVED, 100 | 2030-10-02 18:00–23:00 | REJECTED | Rejected: must not count |
 
+
 ## Browser tests (Playwright)
 
 The browser tests in `e2e/` load the same scripts through `e2e/support/db.ts` (`given('base-users', ...)`), which calls the same `resetDb` and `loadSql`. `playwright.config.ts` points the API it starts at the test database and refuses anything that isn't a local `_test` database.
@@ -476,3 +477,72 @@ Extra users added by Sprint 3 scripts (same password as the base users):
 | `USR-034` | mei.officer@example.com | Mei | SAFETY_OFFICER (`tc-s3-177-setup.sql`) |
 
 `tc-s3-159-setup.sql` is loaded **instead of** `base-users.sql` (Stories 55 and 56 need exactly two Coordinators). `tc-s3-177-setup.sql` must not be loaded with another script that adds a Safety Officer (such as `tc-s3-59-setup.sql`).
+
+
+## Sprint 4 scripts (`tc-s4-*`)
+
+Same rules as Sprint 3. "Used by" lists TC-S4 numbers.
+
+| Script | Creates | Used by (TC-S4-) |
+|---|---|---|
+| `tc-s4-58-setup.sql` | The Coordinator has asked a question on the Organiser's request | 58 to 62 |
+| `tc-s4-65-setup.sql` | A confirmed event open for registration, across two venues | 65 to 72 |
+| `tc-s4-65b-setup.sql` | A confirmed event whose registration has not opened yet | 65 |
+| `tc-s4-72-setup.sql` | Neither venue has a capacity recorded | 72 |
+| `tc-s4-73-setup.sql` | Three Technical Support colleagues and one item | 73 to 75 |
+| `tc-s4-73b-setup.sql` | The projector is already marked Damaged | 73 |
+| `tc-s4-76-setup.sql` | The people of the Technical Support assignment workflow | 76 to 79, 104 to 106 |
+| `tc-s4-76b-setup.sql` | An event in planning that needs on-site technical support | 76 to 79 |
+| `tc-s4-76c-setup.sql` | Wei is already assigned to the Town Hall | 76 |
+| `tc-s4-76d-setup.sql` | An event that does not need technical support | 76 |
+| `tc-s4-77-setup.sql` | Wei is busy on an overlapping event | 77 |
+| `tc-s4-77b-setup.sql` | Wei's earlier event ends as the Town Hall starts | 77 |
+| `tc-s4-77c-setup.sql` | Wei was assigned to an event that has since been cancelled | 76 to 78 |
+| `tc-s4-78-setup.sql` | The Town Hall's venue and equipment requirement | 78 |
+| `tc-s4-79-setup.sql` | Both Technical Support members are busy during the Town Hall | 79 |
+| `tc-s4-79b-setup.sql` | There are no Technical Support accounts at all | 79 |
+| `tc-s4-80-setup.sql` | The Safety Officer asked for venue changes, and the Coordinator has since edited the plan | 81, 85 to 87 |
+| `tc-s4-90-setup.sql` | A second Coordinator Lead | 90 to 95 |
+| `tc-s4-102-setup.sql` | A confirmed event holding a venue, equipment and one registration | 102, 103, 108 |
+| `tc-s4-102b-setup.sql` | The Careers Fair has already taken place | 102 |
+| `tc-s4-103-setup.sql` | The Organiser is also registered for her own event | 103 |
+| `tc-s4-104-setup.sql` | An event in planning with Wei assigned, a venue and projectors | 104 to 106 |
+| `tc-s4-104b-setup.sql` | Nobody is assigned to the Town Hall | 104 to 106 |
+| `tc-s4-104c-setup.sql` | Nadia, not Wei, is assigned to the Town Hall | 106 |
+| `tc-s4-104d-setup.sql` | 2 projectors reserved for the Town Hall | 104, 105 |
+| `tc-s4-104e-setup.sql` | A reservation already released | 104 |
+| `tc-s4-104f-setup.sql` | 3 projectors reserved for the Town Hall | 104 |
+| `tc-s4-104g-setup.sql` | Main Hall approved for the Town Hall | 104, 105 |
+| `tc-s4-105-setup.sql` | The Town Hall is confirmed | 105 |
+| `tc-s4-105b-setup.sql` | The Organiser asks to move the Town Hall a day later | 105 |
+| `tc-s4-110-setup.sql` | Two kinds of microphone, and a confirmed event using one | 107, 110 |
+| `tc-s4-110b-setup.sql` | An event still in planning using the same microphones | 107, 110 |
+| `tc-s4-110c-setup.sql` | A second confirmed event using the same microphones | 110 |
+| `tc-s4-110d-setup.sql` | Another event holding most of the lapel microphones | 110 |
+| `tc-s4-110e-setup.sql` | One handheld microphone | 110 |
+| `tc-s4-110f-setup.sql` | Three handheld microphones | 110 |
+| `tc-s4-110g-setup.sql` | More items for the replacement dropdown | 110 |
+| `tc-s4-110h-setup.sql` | The gala's microphone reservation is only requested | 110 |
+| `tc-s4-110i-setup.sql` | The gala is COMPLETED | 107 |
+| `tc-s4-110j-setup.sql` | The gala is CANCELLED | 107 |
+| `tc-s4-110k-setup.sql` | The gala is REJECTED | 107 |
+| `tc-s4-110l-setup.sql` | The lapel microphones are under maintenance | 110 |
+| `tc-s4-110m-setup.sql` | The wireless microphones were taken out of service before the gala was confirmed | 107, 110 |
+| `tc-s4-110n-setup.sql` | The gala is PLANNING | 107, 110 |
+| `tc-s4-110o-setup.sql` | The wireless microphones are back in service | 107, 110 |
+| `tc-s4-110p-setup.sql` | The gala's microphone reservation has been released | 110 |
+| `tc-s4-110q-setup.sql` | A second set of handheld microphones | 110 |
+
+Extra users added by Sprint 4 scripts (same password as the base users):
+
+| ID | Email | Name | Role |
+|---|---|---|---|
+| `USR-035` to `USR-037` | wei@ / nadia@ / omar@example.com | Wei / Nadia / Omar Technical | TECHNICAL_SUPPORT_STAFF (`tc-s4-73-setup.sql`) |
+| `USR-038` | olga.organiser@example.com | Olga Organiser | EVENT_ORGANISER (`tc-s4-76-setup.sql`) |
+| `USR-039`, `USR-040` | carla@ / coordinator2@example.com | Carla / Colin Coordinator | EVENT_COORDINATOR (`tc-s4-76-setup.sql`) |
+| `USR-041` | lena.lead@example.com | Lena Lead | EVENT_COORDINATOR_LEAD (`tc-s4-76-setup.sql`) |
+| `USR-042`, `USR-043` | wei.t@ / nadia.t@example.com | Wei / Nadia Technical | TECHNICAL_SUPPORT_STAFF (`tc-s4-76-setup.sql`) |
+| `USR-044` | lead2@example.com | Lars Lead | EVENT_COORDINATOR_LEAD (`tc-s4-90-setup.sql`) |
+| `USR-045` | vanessa@example.com | Vanessa Venue | VENUE_STAFF (`tc-s4-104-setup.sql`) |
+
+`tc-s4-76-setup.sql` is loaded **instead of** `base-users.sql` (Stories 61 and 66 need exactly two Technical Support members).

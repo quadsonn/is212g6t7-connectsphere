@@ -623,7 +623,8 @@ describe('US-09 clarification thread (e2e)', () => {
       (await http().get(`/events/mine/${eventId}`).set('Authorization', as('organiser')).expect(200))
         .body.clarifications;
 
-    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    // TC-S4-58 · US-58 AC-1 · setup: base-users + tc-s1-01-setup · fails if the Organiser cannot see which requests await clarification, or the question is not shown on the request
+    // Code: EventsService.findMyRequests / findMyRequest (status, clarificationRequested, clarificationRequest)
     it('AC1: Given a question was asked, Then the request shows as awaiting clarification with the question', async () => {
       const event = await awaitingEvent();
 
@@ -631,9 +632,17 @@ describe('US-09 clarification thread (e2e)', () => {
 
       expect(res.body.status).toBe('AWAITING_CLARIFICATION');
       expect(res.body.clarificationRequest).toBe('How many will attend, and how will they leave?');
+
+      // And in the Organiser's list of requests, so they can see which ones are waiting.
+      const list = await http().get('/events/mine').set('Authorization', as('organiser')).expect(200);
+      expect(list.body.find((e: { id: string }) => e.id === event.id)).toMatchObject({
+        status: 'AWAITING_CLARIFICATION',
+        clarificationRequested: true,
+      });
     });
 
-    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    // TC-S4-59, TC-S4-60, TC-S4-61, TC-S4-62 · US-58 AC-2/AC-3/AC-4/AC-5 · setup: base-users + tc-s1-01-setup · fails if a response with changes is not saved, its changes are not shown old -> new under the question, or the request does not return for review
+    // Code: EventsService.respondToClarification -> applyEdits (EventChange), setStatus(UNDER_REVIEW)
     it('AC3/AC4/AC5: Given changes, When the Organiser responds, Then they are saved, shown old -> new on the response, and the request returns for review', async () => {
       const event = await awaitingEvent();
 
@@ -659,7 +668,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(await prisma.eventChange.count({ where: { eventId: event.id } })).toBe(1);
     });
 
-    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    // TC-S4-61 · US-58 AC-4 · setup: base-users + tc-s1-01-setup · fails if the Coordinator cannot see the response's changes in the thread
+    // Code: EventsService.findAssignedRequest (clarifications with change)
     it('AC4: the Coordinator sees the response and its changes in the thread too', async () => {
       const event = await awaitingEvent();
       await respondWith(event.id, { response: 'About 400.', changes: { expectedAttendance: 400 } }).expect(201);
@@ -674,7 +684,8 @@ describe('US-09 clarification thread (e2e)', () => {
       ]);
     });
 
-    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    // TC-S4-64 · US-58 AC-7 · setup: base-users + tc-s1-01-setup · fails if an invalid detail is saved, or the status or thread changes
+    // Code: RespondClarificationDto changes validated like an edit; respondToClarification (one transaction)
     it('Given a field update that fails validation, Then 400, nothing is saved, and the status does not change', async () => {
       const event = await awaitingEvent();
 
@@ -689,7 +700,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(await thread(event.id)).toHaveLength(1);
     });
 
-    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    // TC-S4-60, TC-S4-64 · US-58 AC-3/AC-7 · setup: base-users + tc-s1-01-setup · fails if clearing a required field gives a server error or saves anything
+    // Code: RespondClarificationDto / event-change.rules (required fields)
     it('Given a change that clears a required field, Then 400 rather than a server error, and nothing is saved', async () => {
       const event = await awaitingEvent();
 
@@ -701,7 +713,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(after.status).toBe(EventStatus.AWAITING_CLARIFICATION);
     });
 
-    // No TC ID yet · setup: base-users + tc-s1-01-setup + tc-s1-22-setup
+    // TC-S4-59 · US-58 AC-2 · setup: base-users + tc-s1-01-setup + tc-s1-22-setup · fails if another Organiser can respond to, or change, the request
+    // Code: EventsService.respondToClarification (own requests only, 404)
     it('Given another Organiser’s event, When they respond with changes, Then 404 and nothing is saved', async () => {
       const event = await awaitingEvent();
       // tc-s1-22-setup: a second Organiser, unrelated to the request.
@@ -717,7 +730,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect((await stored(event.id)).expectedAttendance).toBe(320);
     });
 
-    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    // TC-S4-59 · US-58 AC-2 · setup: base-users + tc-s1-01-setup · fails if a response is accepted, or details change, when no question is waiting
+    // Code: EventsService.respondToClarification (AWAITING_CLARIFICATION only, 409)
     it('Given the request is not awaiting clarification, When the Organiser responds with changes, Then 409 and nothing is saved', async () => {
       const event = await submittedEvent();
 
@@ -726,7 +740,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect((await stored(event.id)).expectedAttendance).toBe(320);
     });
 
-    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    // TC-S4-63 · US-58 AC-6 · setup: base-users + tc-s1-01-setup · fails if a whitespace-only response is accepted, or its changes are saved
+    // Code: RespondClarificationDto (trimmed, @IsNotEmpty)
     it('AC6: Given a whitespace-only response, Then 400 and nothing changes', async () => {
       const event = await awaitingEvent();
 
@@ -737,7 +752,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(after.status).toBe(EventStatus.AWAITING_CLARIFICATION);
     });
 
-    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    // TC-S4-62 · US-58 AC-5 · setup: base-users + tc-s1-01-setup · fails if two simultaneous responses are both accepted
+    // Code: EventsService.respondToClarification (SELECT … FOR UPDATE on the request)
     it('Given two responses at once, Then exactly one is accepted', async () => {
       const event = await awaitingEvent();
 
@@ -750,7 +766,8 @@ describe('US-09 clarification thread (e2e)', () => {
       expect(await thread(event.id)).toHaveLength(2);
     });
 
-    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    // TC-S4-61 · US-58 AC-4 · setup: base-users + tc-s1-01-setup · fails if a later response loses or mixes up an earlier response's changes
+    // Code: clarification thread: each response linked to its own EventChange
     it('Given a second round, Then each response keeps its own changes', async () => {
       const event = await awaitingEvent();
       await respondWith(event.id, { response: 'About 400.', changes: { expectedAttendance: 400 } }).expect(201);
@@ -766,7 +783,8 @@ describe('US-09 clarification thread (e2e)', () => {
       ]);
     });
 
-    // No TC ID yet · setup: base-users + tc-s1-01-setup
+    // TC-S4-62 · US-58 AC-5 · setup: base-users + tc-s1-01-setup · fails if the assigned Coordinator is not told, or not told what changed
+    // Code: EventsService.respondToClarification -> notifySafely (CLARIFICATION_ANSWERED)
     it('Given changes, Then the Coordinator’s notification names the updated details', async () => {
       const event = await awaitingEvent();
 

@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { ChevronRight, Search, SlidersHorizontal } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, SlidersHorizontal } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { SidebarPortal } from '@/components/layout/sidebar-slot';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
+import { EmptyState, ErrorState } from '@/components/ui/states';
+import { VenueCard } from '@/features/venues/components/venue-card';
 import { VenueFilterPanel } from '@/features/venues/components/venue-filter-panel';
 import { useVenueSearch } from '@/features/venues/hooks/use-venues';
 import {
@@ -19,19 +19,11 @@ import {
 import { apiErrorMessage } from '@/lib/api-client';
 import { SIDEBAR_BREAKPOINT, useMediaQuery } from '@/lib/use-media-query';
 import { cn } from '@/lib/utils';
-import {
-  ACCESSIBILITY_FEATURE_LABELS,
-  FACILITY_LABELS,
-  type Venue,
-  type VenueSearchQuery,
-} from '@/types/api';
-
-/** Tags shown per result before collapsing the rest into "+N". */
-const MAX_TAGS = 4;
+import type { VenueSearchQuery } from '@/types/api';
 
 /**
  * REAL data — GET /venues/search (US-18). Published venues only, decided by
- * the server. Each row leads to the venue's detail page (US-17/US-20).
+ * the server. Each card leads to the venue's detail page (US-17/US-20).
  *
  * Filters are edited in a draft and applied with an explicit Search, so
  * picking chips or typing a capacity never fires a request by itself.
@@ -148,19 +140,19 @@ export function CoordinatorVenues() {
           </p>
         ) : null}
 
-        <Card>
-          {isPending ? <TableSkeleton /> : null}
+        {isPending ? <VenueGridSkeleton /> : null}
 
-          {isError ? (
-            <div className="p-5">
-              <ErrorState
-                message={apiErrorMessage(error, 'Could not search venues.')}
-              />
-            </div>
-          ) : null}
+        {isError ? (
+          <Card className="p-5">
+            <ErrorState
+              message={apiErrorMessage(error, 'Could not search venues.')}
+            />
+          </Card>
+        ) : null}
 
-          {/* AC-6: an explained empty state with a way out, never a blank list. */}
-          {venues && venues.length === 0 ? (
+        {/* AC-6: an explained empty state with a way out, never a blank list. */}
+        {venues && venues.length === 0 ? (
+          <Card>
             <EmptyState
               title={
                 filtering
@@ -180,103 +172,45 @@ export function CoordinatorVenues() {
                 ) : undefined
               }
             />
-          ) : null}
+          </Card>
+        ) : null}
 
-          {venues && venues.length > 0 ? (
-            <ul
-              className={cn(
-                'divide-y divide-ink-100',
-                isFetching && 'opacity-60',
-              )}
-            >
-              {venues.map((venue) => (
-                <VenueRow key={venue.id} venue={venue} applied={applied} />
-              ))}
-            </ul>
-          ) : null}
-        </Card>
+        {venues && venues.length > 0 ? (
+          <ul
+            className={cn(
+              'grid gap-4 sm:grid-cols-2 xl:grid-cols-3',
+              isFetching && 'opacity-60',
+            )}
+          >
+            {venues.map((venue) => (
+              <VenueCard key={venue.id} venue={venue} applied={applied} />
+            ))}
+          </ul>
+        ) : null}
       </section>
     </>
   );
 }
 
-/** One result. Tags the venue matched on come first and are emphasised. */
-function VenueRow({
-  venue,
-  applied,
-}: {
-  venue: Venue;
-  applied: VenueSearchFilters;
-}) {
-  const tags = [
-    ...venue.accessibilityFeatures.map((f) => ({
-      key: f,
-      label: ACCESSIBILITY_FEATURE_LABELS[f],
-      matched: applied.accessibility.includes(f),
-    })),
-    ...venue.facilities.map((f) => ({
-      key: f,
-      label: FACILITY_LABELS[f],
-      matched: applied.facilities.includes(f),
-    })),
-  ].sort((a, b) => Number(b.matched) - Number(a.matched));
-  const shown = tags.slice(0, MAX_TAGS);
-  const hidden = tags.length - shown.length;
-
+/** Card-shaped placeholders while the first search loads. */
+function VenueGridSkeleton() {
   return (
-    <li>
-      <Link
-        to={`/coordinator/venues/${venue.id}`}
-        className="flex items-center gap-4 px-4 py-3 hover:bg-ink-50"
-      >
-        {venue.imageUrls[0] ? (
-          <img
-            src={venue.imageUrls[0]}
-            alt=""
-            className="size-11 rounded-md object-cover"
-          />
-        ) : (
-          <div className="size-11 rounded-md bg-ink-100" aria-hidden="true" />
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2">
-            <span className="font-medium text-ink-900">{venue.name}</span>
-            <span className="text-sm text-ink-500">
-              {venue.location} · {venue.capacity} seats
-            </span>
+    <div
+      className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+      aria-hidden="true"
+    >
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div
+          key={index}
+          className="overflow-hidden rounded-card border border-ink-200 bg-white"
+        >
+          <div className="aspect-[16/10] animate-pulse bg-ink-100" />
+          <div className="space-y-2 p-4">
+            <div className="h-4 w-2/3 animate-pulse rounded bg-ink-100" />
+            <div className="h-3 w-1/2 animate-pulse rounded bg-ink-100" />
           </div>
-          {shown.length > 0 ? (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {shown.map((tag) => (
-                <span
-                  key={tag.key}
-                  className={cn(
-                    'rounded-full px-2 py-0.5 text-xs',
-                    tag.matched
-                      ? 'bg-brand-50 font-medium text-brand-800'
-                      : 'bg-ink-100 text-ink-600',
-                  )}
-                >
-                  {tag.matched ? (
-                    <span className="sr-only">Matches filter: </span>
-                  ) : null}
-                  {tag.label}
-                </span>
-              ))}
-              {hidden > 0 ? (
-                <span className="px-1 text-xs text-ink-400">
-                  +{hidden}
-                  <span className="sr-only"> more</span>
-                </span>
-              ) : null}
-            </div>
-          ) : null}
         </div>
-        <ChevronRight
-          className="size-4 shrink-0 text-ink-300"
-          aria-hidden="true"
-        />
-      </Link>
-    </li>
+      ))}
+    </div>
   );
 }

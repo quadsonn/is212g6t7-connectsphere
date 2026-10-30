@@ -8,7 +8,7 @@ import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { EventStatusBadge } from '@/features/events/components/event-status-badge';
 import { usePendingChangeRequests } from '@/features/events/hooks/use-events';
 import { apiErrorMessage } from '@/lib/api-client';
-import { formatDate } from '@/lib/utils';
+import { formatDate, STRETCHED_LINK } from '@/lib/utils';
 
 /**
  * US-38 AC-1 — change requests waiting on this Coordinator. The server returns
@@ -60,10 +60,13 @@ export function CoordinatorChangeRequests() {
         {requests && requests.length > 0 ? (
           <ul className="divide-y divide-ink-100">
             {requests.map((request) => (
-              <li key={request.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
+              <li
+                key={request.id}
+                className="group relative flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-ink-50"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2.5">
-                    <span className="truncate font-medium text-ink-900">
+                    <span className="truncate font-medium text-ink-900 group-hover:text-brand-700 group-hover:underline">
                       {request.event.name ?? 'Untitled event'}
                     </span>
                     <EventStatusBadge status={request.event.status} />
@@ -74,9 +77,23 @@ export function CoordinatorChangeRequests() {
                   </p>
                 </div>
 
-                <LinkButton to={`/coordinator/change-requests/${request.id}`} size="sm">
-                  Review
-                </LinkButton>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <LinkButton
+                    to={`/coordinator/events/${request.event.id}`}
+                    size="sm"
+                    variant="secondary"
+                    className={STRETCHED_LINK}
+                  >
+                    View details
+                  </LinkButton>
+                  <LinkButton
+                    to={`/coordinator/change-requests/${request.id}`}
+                    size="sm"
+                    className="relative z-10"
+                  >
+                    Review
+                  </LinkButton>
+                </div>
               </li>
             ))}
           </ul>

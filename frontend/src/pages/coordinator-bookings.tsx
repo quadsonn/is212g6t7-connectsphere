@@ -8,7 +8,7 @@ import { BookingStatusBadge } from '@/features/bookings/components/booking-statu
 import { useMyBookingRequests } from '@/features/bookings/hooks/use-bookings';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
-import { formatDate, formatDateRange } from '@/lib/utils';
+import { formatDate, formatDateRange, STRETCHED_LINK } from '@/lib/utils';
 
 /** US-21 AC-6 — every venue booking request this Coordinator has raised. */
 export function CoordinatorBookings() {
@@ -42,12 +42,13 @@ export function CoordinatorBookings() {
             {bookings.map((booking) => (
               <li
                 key={booking.id}
-                className="flex flex-wrap items-start justify-between gap-3 px-5 py-4"
+                className="group relative flex flex-wrap items-start justify-between gap-3 px-5 py-4 transition-colors hover:bg-ink-50"
               >
                 <div className="min-w-0 space-y-0.5">
+                  {/* Above the stretched link, so it still opens the event. */}
                   <Link
                     to={`/coordinator/events/${booking.eventId}`}
-                    className="font-medium text-ink-900 hover:text-brand-700 hover:underline"
+                    className="relative z-10 font-medium text-ink-900 group-hover:text-brand-700 group-hover:underline"
                   >
                     {booking.event.name ?? 'Untitled event'}
                   </Link>
@@ -68,6 +69,7 @@ export function CoordinatorBookings() {
                     to={`/coordinator/bookings/${booking.id}`}
                     variant="secondary"
                     size="sm"
+                    className={STRETCHED_LINK}
                   >
                     View details
                   </LinkButton>

@@ -71,8 +71,8 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
       [Resource.RESERVATION]: [
         g(Action.CREATE, Scope.ASSIGNED),
         g(Action.READ, Scope.ASSIGNED),
-        // Accept or decline Technical Support's replacement for equipment a
-        // confirmed event lost - on their own events only.
+        // US-45: accept or decline an alternative Technical Support suggested
+        // for a short reservation on an event they coordinate.
         g(Action.DECIDE, Scope.ASSIGNED),
       ],
       // Requirement change 6: the outcome and reasons of a safety check on an
@@ -123,6 +123,9 @@ export const PERMISSIONS: Readonly<Record<Role, ResourceGrants>> = Object.freeze
         g(Action.CREATE, Scope.ANY),
         g(Action.READ, Scope.ANY),
         g(Action.DECIDE, Scope.ANY),
+        // US-45: reduce or release a short reservation, or suggest an
+        // alternative item for it.
+        g(Action.UPDATE, Scope.ANY),
       ],
       [Resource.NOTIFICATION]: [g(Action.READ, Scope.OWN)],
     },

@@ -36,6 +36,9 @@ export const CHANGE_FIELD_LABELS: Record<FieldChange['field'], string> = {
   equipmentReservations: 'Equipment reservations',
   status: 'Status',
   cancellationReason: 'Cancellation reason',
+  // US-45: why Technical Support reduced or released a reservation, or the
+  // alternative the Coordinator accepted.
+  equipmentReservationReason: 'Reason',
 };
 
 /** US-25 AC-2 — the arrangement a flagged change puts at risk. */

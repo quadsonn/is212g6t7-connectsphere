@@ -54,10 +54,12 @@ describe('US-28 AC-1, AC-2: every item at a glance, each one opening its details
       'Wireless microphone',
       'Handheld UHF mic.',
       '24',
+      // US-45's Condition column: "—" while the item's condition is not loaded.
+      '—',
       'AV Store, Level 1',
     ]);
     const bare = screen.getByText('Folding table').closest('tr')!;
-    expect(within(bare).getAllByRole('cell').map((c) => c.textContent)).toEqual(['Folding table', '—', '40', '—']);
+    expect(within(bare).getAllByRole('cell').map((c) => c.textContent)).toEqual(['Folding table', '—', '40', '—', '—']);
   });
 
   // TC-S2-102 · US-28 AC-2 · fails if an item could only be opened with a mouse

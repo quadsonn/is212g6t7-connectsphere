@@ -19,15 +19,16 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { BrowseEquipmentDto } from './dto/browse-equipment.dto';
-import { ChangeEquipmentStatusDto } from './dto/change-equipment-status.dto';
+import {
+  ChangeEquipmentStatusDto,
+  ProposedStatusMoveDto,
+} from './dto/change-equipment-status.dto';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { CommitReservationDto } from './dto/commit-reservation.dto';
 import { RequirementsListQueryDto } from './dto/requirements-list-query.dto';
 import { EquipmentRequirementsService } from './equipment-requirements.service';
 import { EquipmentReservationsService } from './equipment-reservations.service';
 import { EquipmentService } from './equipment.service';
-import { EquipmentSubstitutionsService } from './equipment-substitutions.service';
-import { SuggestSubstitutionDto } from './dto/substitution-choice.dto';
 
 /**
  * US-29 to US-33, US-45 — Technical Support's equipment features.
@@ -49,7 +50,6 @@ export class EquipmentController {
     private readonly equipmentService: EquipmentService,
     private readonly requirementsService: EquipmentRequirementsService,
     private readonly reservationsService: EquipmentReservationsService,
-    private readonly substitutionsService: EquipmentSubstitutionsService,
   ) {}
 
   /** US-29 AC-1/AC-3 — the catalogue. */
@@ -126,35 +126,12 @@ export class EquipmentController {
     return this.reservationsService.findReleased(user);
   }
 
-  /**
-   * The items that could replace this reservation's equipment: in service, not
-   * the item itself, with the reservation's full quantity free. Fills the
-   * "alternative" dropdown.
-   */
-  @Get('reservations/:reservationId/alternatives')
+  /** US-45 — every item's units by condition, for the catalogue. */
+  @Get('condition')
   @Roles(Role.TECHNICAL_SUPPORT_STAFF)
   @Header('Cache-Control', 'no-store')
-  findAlternatives(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('reservationId') reservationId: string,
-  ) {
-    return this.substitutionsService.candidatesFor(user, reservationId);
-  }
-
-  /**
-   * Answer for a reservation after the status change - the item was already
-   * out of service. 201 with the substitution; 409 when the reservation does
-   * not need one or already has one.
-   */
-  @Post('reservations/:reservationId/substitution')
-  @Roles(Role.TECHNICAL_SUPPORT_STAFF)
-  @HttpCode(HttpStatus.CREATED)
-  suggestSubstitution(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('reservationId') reservationId: string,
-    @Body() dto: SuggestSubstitutionDto,
-  ) {
-    return this.substitutionsService.suggest(user, reservationId, dto);
+  findConditions(@CurrentUser() user: AuthenticatedUser) {
+    return this.equipmentService.findConditions(user);
   }
 
   /** US-29 AC-2 — one item's full detail, including operational status. */
@@ -180,10 +157,27 @@ export class EquipmentController {
     return this.equipmentService.checkAvailability(user, id, query);
   }
 
+  /** US-45 — this item's units: "8 available, 2 damaged, 0 under maintenance". */
+  @Get(':id/condition')
+  @Roles(Role.TECHNICAL_SUPPORT_STAFF)
+  @Header('Cache-Control', 'no-store')
+  findCondition(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.equipmentService.findCondition(user, id);
+  }
+
+  /** US-45 AC-2 — this item's status history, newest first, with quantities. */
+  @Get(':id/status-history')
+  @Roles(Role.TECHNICAL_SUPPORT_STAFF)
+  @Header('Cache-Control', 'no-store')
+  findStatusHistory(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.equipmentService.findStatusHistory(user, id);
+  }
+
   /**
-   * US-45 AC-5 — reservations of this item that have not ended yet: what
-   * marking it Damaged or Under Maintenance would affect. Read before the
-   * change so the warning is shown while it can still be cancelled.
+   * US-45 AC-5 — this item's committed reservations that have not ended yet,
+   * each with how many units it is short by now, and after a proposed move
+   * (?from=&to=&quantity=). Read before the change so the warning is shown
+   * while it can still be cancelled.
    */
   @Get(':id/upcoming-reservations')
   @Roles(Role.TECHNICAL_SUPPORT_STAFF)
@@ -191,14 +185,16 @@ export class EquipmentController {
   findUpcomingReservations(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
+    @Query() proposal: ProposedStatusMoveDto,
   ) {
-    return this.equipmentService.findUpcomingReservations(user, id);
+    return this.equipmentService.findUpcomingReservations(user, id, proposal);
   }
 
   /**
-   * US-45 AC-1/AC-2/AC-3 — mark an item Damaged or Under Maintenance, or back
-   * to Available, with a reason. 200 with the updated item and the affected
-   * reservations (AC-5); 409 when the item already has that status.
+   * US-45 AC-1/AC-2/AC-3 — move a quantity of an item's units to Damaged or
+   * Under Maintenance, or back to Available, with a reason. 200 with the
+   * updated item, its units by condition and the reservations made short
+   * (AC-5); 409 when more units are moved than are in the status they leave.
    */
   @Patch(':id/status')
   @Roles(Role.TECHNICAL_SUPPORT_STAFF)

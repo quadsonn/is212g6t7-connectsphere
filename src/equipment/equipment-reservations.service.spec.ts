@@ -395,7 +395,6 @@ describe('EquipmentReservationsService', () => {
             type: 'Laser projector',
             operationalStatus: EquipmentStatus.OUT_OF_SERVICE,
           },
-          substitutions: [],
         },
       ]);
 
@@ -414,7 +413,6 @@ describe('EquipmentReservationsService', () => {
           quantity: 2,
           start,
           end,
-          substitution: null,
         },
       ]);
     });

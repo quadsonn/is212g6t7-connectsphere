@@ -22,6 +22,7 @@ export const ID_PREFIX = {
   BookingDecision: 'BDC',
   VenueBlock: 'BLK',
   Equipment: 'EQP',
+  EquipmentSuggestion: 'ESG',
   EquipmentReservation: 'RSV',
   EquipmentRequirement: 'REQ',
   EventChange: 'CHG',
@@ -34,7 +35,6 @@ export const ID_PREFIX = {
   RevokedToken: 'RVT',
   ClarificationMessage: 'CLM',
   SafetyReview: 'SFR',
-  EquipmentSubstitution: 'SUB',
 } as const;
 
 export type ReadableIdModel = keyof typeof ID_PREFIX;

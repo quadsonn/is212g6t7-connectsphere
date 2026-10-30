@@ -106,26 +106,17 @@ describe('EquipmentNotifier', () => {
     });
   });
 
-  // TC-S4-107, TC-S4-108, TC-S4-110 · US-67 AC-1, AC-2, AC-4 · setup: none (unit) · fails if a notice cannot be worded for an event with no name
-  // Code: EquipmentNotifier.unavailable / substituteSuggested / substituteDecided / released (name fallback)
+  // TC-S4-107, TC-S4-108 · US-67 AC-1, AC-2 · setup: none (unit) · fails if a notice cannot be worded for an event with no name
+  // Code: EquipmentNotifier.unavailable / released (name fallback)
   it('words every notice for an event with no name as "an event"', async () => {
     const event = { id: 'EVT-1', name: null, coordinatorId: 'USR-c1' };
-    const line = { quantity: 2, originalType: 'Mic A', alternativeType: 'Mic B' };
 
     await notifier.unavailable(run(), { type: 'Mic A', status: EquipmentStatus.OUT_OF_SERVICE, reason: 'x' }, [event]);
-    await notifier.substituteSuggested(run(), event, line);
-    await notifier.substituteDecided(run(), {
-      recipientIds: ['USR-t1'],
-      event,
-      line,
-      accepted: true,
-      coordinatorName: 'Cody',
-    });
     await notifier.released(run(), { ...event, status: EventStatus.CANCELLED });
 
     for (const [{ message }] of notifications.notify.mock.calls) {
       expect(message).toContain('"an event"');
     }
-    expect(notifications.notify).toHaveBeenCalledTimes(4);
+    expect(notifications.notify).toHaveBeenCalledTimes(2);
   });
 });

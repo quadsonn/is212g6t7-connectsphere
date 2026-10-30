@@ -45,11 +45,20 @@ describe('US-60 Tech Support alerted when equipment is marked damaged/unavailabl
     for (const script of scripts) await loadSql(prisma, script);
   };
 
+  /**
+   * US-45: status is by quantity. These tests move the whole item (all 4
+   * projectors) — out of use, or back from Damaged to Available.
+   */
   const markAs = (status: EquipmentStatus, who = 'wei', reason = 'Cracked lens') =>
     http()
       .patch(`/equipment/${ids.projector}/status`)
       .set('Authorization', as(who))
-      .send({ status, reason });
+      .send({
+        from: status === EquipmentStatus.OPERATIONAL ? EquipmentStatus.OUT_OF_SERVICE : EquipmentStatus.OPERATIONAL,
+        to: status,
+        quantity: 4,
+        reason,
+      });
 
   const noticesTo = (who: string) =>
     prisma.notification.findMany({
@@ -95,7 +104,7 @@ describe('US-60 Tech Support alerted when equipment is marked damaged/unavailabl
         const notices = await noticesTo(who);
         expect(notices).toHaveLength(1);
         expect(notices[0]).toMatchObject({
-          message: 'Projector marked Damaged by Wei Technical. Reason: Cracked lens',
+          message: '4 of 4 Projector marked Damaged by Wei Technical. Reason: Cracked lens',
           relatedEquipmentId: ids.projector,
           relatedEventId: null,
           read: false,
@@ -109,7 +118,7 @@ describe('US-60 Tech Support alerted when equipment is marked damaged/unavailabl
       await markAs(EquipmentStatus.UNDER_MAINTENANCE, 'wei', 'Annual service').expect(200);
 
       const [notice] = await noticesTo('nadia');
-      expect(notice.message).toBe('Projector marked Under Maintenance by Wei Technical. Reason: Annual service');
+      expect(notice.message).toBe('4 of 4 Projector marked Under Maintenance by Wei Technical. Reason: Annual service');
     });
 
     // TC-S4-73 · US-60 AC-1 · setup: base-users + tc-s4-73-setup · fails if any other Technical Support member is not told, or the notice lacks the item name, the new status or the link to the item
@@ -122,7 +131,7 @@ describe('US-60 Tech Support alerted when equipment is marked damaged/unavailabl
       expect(body).toHaveLength(1);
       expect(body[0]).toMatchObject({
         type: NotificationType.EQUIPMENT_STATUS_CHANGED,
-        summary: 'Projector marked Damaged by Wei Technical.',
+        summary: '4 of 4 Projector marked Damaged by Wei Technical.',
         reason: 'Cracked lens',
         link: `/equipment/inventory/${ids.projector}`,
       });
@@ -183,7 +192,7 @@ describe('US-60 Tech Support alerted when equipment is marked damaged/unavailabl
 
     // TC-S4-73 · US-60 AC-1 · setup: base-users + tc-s4-73-setup · fails if an item returning to Available, or a refused change, notifies anyone
     // Code: EquipmentStatusNotifier (only OUT_OF_SERVICE / UNDER_MAINTENANCE, after commit)
-    it('US-60: a refused change (already that status) tells no one', async () => {
+    it('US-60: a refused change (no working units left to mark) tells no one', async () => {
       await markAs(EquipmentStatus.OUT_OF_SERVICE).expect(200);
       // Kept by design: clears the first change's notices, so only the refused one is counted.
       await prisma.notification.deleteMany();

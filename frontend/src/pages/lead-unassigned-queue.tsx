@@ -5,14 +5,16 @@ import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { useQueue } from '@/features/assignments/hooks/use-assignments';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
-import { formatDateRange, formatDateTime } from '@/lib/utils';
+import { formatDateRange, formatDateTime, STRETCHED_LINK } from '@/lib/utils';
 import type { QueueEntry } from '@/types/api';
 
 function QueueRow({ entry }: { entry: QueueEntry }) {
   return (
-    <li className="flex flex-wrap items-start justify-between gap-3 px-5 py-4">
+    <li className="group relative flex flex-wrap items-start justify-between gap-3 px-5 py-4 transition-colors hover:bg-ink-50">
       <div className="min-w-0 space-y-1">
-        <p className="font-medium text-ink-900">{entry.name ?? 'Untitled event'}</p>
+        <p className="font-medium text-ink-900 group-hover:text-brand-700 group-hover:underline">
+          {entry.name ?? 'Untitled event'}
+        </p>
         <p className="text-sm text-ink-700">
           {entry.organiser.name} · {entry.organisation ?? 'No organisation recorded'}
           {entry.category ? ` · ${entry.category}` : ''}
@@ -25,7 +27,7 @@ function QueueRow({ entry }: { entry: QueueEntry }) {
           Submitted {entry.submittedAt ? formatDateTime(entry.submittedAt) : '—'}
         </p>
       </div>
-      <LinkButton to={`/lead/unassigned/${entry.id}`} variant="secondary" size="sm">
+      <LinkButton to={`/lead/unassigned/${entry.id}`} variant="secondary" size="sm" className={STRETCHED_LINK}>
         Open
       </LinkButton>
     </li>

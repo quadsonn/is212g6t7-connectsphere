@@ -97,7 +97,7 @@ Every table's IDs are readable and prefixed: **`PREFIX-NNN`**, a 3-letter prefix
 | VenueBlock | `BLK` | | Registration | `REG` |
 | Equipment | `EQP` | | Notification | `NTF` |
 | ClarificationMessage | `CLM` | | RevokedToken | `RVT` |
-| SafetyReview | `SFR` | | EquipmentSubstitution | `SUB` |
+| SafetyReview | `SFR` | | EquipmentSuggestion | `ESG` |
 
 `IdCounter` holds one row per prefix and is keyed by the prefix itself.
 

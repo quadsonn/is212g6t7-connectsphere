@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { LinkButton } from '@/components/ui/link-button';
-import { formatDateRange } from '@/lib/utils';
+import { cn, formatDateRange, STRETCHED_LINK } from '@/lib/utils';
 import type { VenueBooking } from '@/types/api';
 import { BookingStatusBadge } from './booking-status-badge';
 
@@ -38,10 +38,20 @@ export function EventBookingsList({
         return (
           <li
             key={booking.id}
-            className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 text-sm"
+            className={cn(
+              'group flex flex-wrap items-start justify-between gap-3 px-4 py-3 text-sm',
+              detailPath && 'relative transition-colors hover:bg-ink-50',
+            )}
           >
             <div className="min-w-0 space-y-0.5">
-              <p className="font-medium text-ink-900">{booking.venue.name}</p>
+              <p
+                className={cn(
+                  'font-medium text-ink-900',
+                  detailPath && 'group-hover:text-brand-700 group-hover:underline',
+                )}
+              >
+                {booking.venue.name}
+              </p>
               {booking.venue.location ? (
                 <p className="text-ink-700">{booking.venue.location}</p>
               ) : null}
@@ -62,13 +72,19 @@ export function EventBookingsList({
             <div className="flex flex-wrap items-center gap-2">
               <BookingStatusBadge status={booking.status} />
               {detailPath ? (
-                <LinkButton to={detailPath(booking.id)} variant="secondary" size="sm">
+                <LinkButton
+                  to={detailPath(booking.id)}
+                  variant="secondary"
+                  size="sm"
+                  className={STRETCHED_LINK}
+                >
                   View details
                 </LinkButton>
               ) : null}
+              {/* Above the stretched link, so these stay clickable. */}
               {onRelease && (booking.status === 'REQUESTED' || booking.status === 'APPROVED') ? (
                 confirming === booking.id ? (
-                  <>
+                  <div className="relative z-10 flex gap-2">
                     <Button
                       type="button"
                       size="sm"
@@ -84,12 +100,13 @@ export function EventBookingsList({
                     <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(null)}>
                       Keep
                     </Button>
-                  </>
+                  </div>
                 ) : (
                   <Button
                     type="button"
                     size="sm"
                     variant="secondary"
+                    className="relative z-10"
                     onClick={() => setConfirming(booking.id)}
                   >
                     {booking.status === 'REQUESTED' ? 'Cancel request' : 'Release'}

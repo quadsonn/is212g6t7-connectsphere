@@ -3,12 +3,11 @@
 --
 -- Pre-condition for TC-S1-54 (US-06 AC-6, updated for Week 7 Change 5: the
 -- ASSIGNED Coordinator sees the values the Organiser entered). Load AFTER
--- base-users.sql. To be loaded by the US-12 integration tests when
--- events-coordinator-view.e2e-spec.ts is converted (group 3).
+-- base-users.sql. Also the fully filled-in request for the US-12 tests
+-- (events-coordinator-view.e2e-spec.ts) and the US-06 AC-6 tests.
 --
 --   EVT-153  SUBMITTED, raised by USR-006, assigned to USR-004.
---                       Values match the US-12 tests' expectations (equipment needs,
---                       registration enabled) so group 3 can load it unchanged.
+--                       Equipment needs and registration enabled are set for US-12 AC-2.
 
 INSERT INTO "EventRequest" (
   "id", "organiserId", "coordinatorId", "name", "purpose", "description", "category",

@@ -14,7 +14,12 @@ import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
 import { EquipmentService } from '../equipment/equipment.service';
 
-/** US-13 — venue drafts and publishing. */
+/**
+ * Unit tests for US-13 (Add a new venue with its key characteristics):
+ * VenuesService's draft, publish and visibility rules, with Prisma, access
+ * control and the booking lookup mocked. The same rules over HTTP and the test
+ * database are in test/venues.e2e-spec.ts.
+ */
 describe('VenuesService (US-13)', () => {
   let prisma: {
     venue: {
@@ -87,6 +92,8 @@ describe('VenuesService (US-13)', () => {
     );
   });
 
+  // TC-S1-96 · US-13 AC-1 · unit: saveDraft() with Prisma mocked · fails if a detail the AC names is
+  // dropped, or layouts stop using the shared US-06 list
   describe('AC-1: the full set of venue details', () => {
     it('accepts every detail field', async () => {
       await service.saveDraft(staff, {
@@ -126,6 +133,8 @@ describe('VenuesService (US-13)', () => {
     });
   });
 
+  // TC-S1-97 · US-13 AC-2 · unit: saveDraft()/updateDraft() with Prisma and access mocked · fails if
+  // an empty or partial venue is refused, or an edit overwrites fields it did not send
   describe('AC-2: an incomplete venue saves as a draft', () => {
     it('saves with no fields at all', async () => {
       const result = await service.saveDraft(staff, {} as VenueDraftDto);
@@ -165,6 +174,8 @@ describe('VenuesService (US-13)', () => {
     });
   });
 
+  // TC-S1-98 · US-13 AC-3 · unit: publish() with Prisma mocked · fails if an incomplete venue
+  // publishes, or the refusal does not name every missing field
   describe('AC-3: publishing is blocked until complete', () => {
     it('publishes a complete draft', async () => {
       const result = await service.publish(staff, 'venue-1');
@@ -239,6 +250,8 @@ describe('VenuesService (US-13)', () => {
     });
   });
 
+  // TC-S1-99 · US-13 AC-4 · unit: visibilityFilter() and findAllForUser() · fails if the filter
+  // admits someone else's draft, or is applied after loading rather than in the query
   describe('AC-4: drafts are visible only to their manager', () => {
     it('builds a filter admitting published entries and own drafts', () => {
       expect(service.visibilityFilter(staff)).toEqual({
@@ -283,6 +296,8 @@ describe('VenuesService (US-13)', () => {
     });
   });
 
+  // TC-S1-99 · US-13 AC-4 · unit: findManaged() · fails if a Venue Staff member can edit or publish
+  // a venue they do not manage
   describe('managing another staff member’s venue', () => {
     it('refuses to edit it, as not found', async () => {
       prisma.venue.findUnique.mockResolvedValue(venue({ managedById: 'staff-2' }));

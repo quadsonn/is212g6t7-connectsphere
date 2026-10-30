@@ -107,7 +107,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
     await given('base-users', 'tc-s2-142-setup', 'tc-s2-151-setup');
   });
 
-  describe('AC-1: the withdraw option is available on active registrations before the cutoff', () => {
+  describe('US-35 AC-1: the withdraw option is available on active registrations before the cutoff', () => {
     // TC-S2-151 · US-35 AC-1 · setup: base-users + tc-s2-142-setup + tc-s2-151-setup · fails if an active registration before its cutoff didn't offer withdrawal
     // Code: evaluateWithdrawal() gives canWithdraw true for REGISTERED before the cutoff, with the cutoff.
     it('offers withdrawal, showing the cutoff', async () => {
@@ -132,7 +132,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
     });
   });
 
-  describe('AC-2: withdrawal requires confirmation; cancelling leaves it unchanged', () => {
+  describe('US-35 AC-2: withdrawal requires confirmation; cancelling leaves it unchanged', () => {
     // TC-S2-152 · US-35 AC-2 · setup: base-users + tc-s2-142-setup + tc-s2-151-setup · fails if a withdrawal went through without an explicit confirmation
     // Code: WithdrawDto requires confirm to equal true; anything else is 400 before the service runs.
     it.each([
@@ -147,7 +147,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
     });
   });
 
-  describe('AC-3: on confirmation, the status changes to Withdrawn', () => {
+  describe('US-35 AC-3: on confirmation, the status changes to Withdrawn', () => {
     // TC-S2-153 · US-35 AC-3 · setup: base-users + tc-s2-142-setup + tc-s2-151-setup · fails if a confirmed withdrawal didn't change the status to Withdrawn, record when, or confirm it
     // Code: withdraw() sets WITHDRAWN and withdrawnAt, and sends REGISTRATION_WITHDRAWN.
     it('changes the status to WITHDRAWN and records when', async () => {
@@ -173,7 +173,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
     });
   });
 
-  describe("AC-4: the event's registration count drops by one and the place is free for others", () => {
+  describe("US-35 AC-4: the event's registration count drops by one and the place is free for others", () => {
     // TC-S2-154 · US-35 AC-4 · setup: base-users + tc-s2-142-setup + tc-s2-151-setup · fails if a withdrawn place still counted, or another Attendee still couldn't take it
     // Code: places are counted from REGISTERED rows only, so the next count is
     // one lower and Story 33's capacity check lets someone else in.
@@ -193,7 +193,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
     });
   });
 
-  describe('AC-5: after the cutoff, withdrawal is unavailable and the cutoff is shown', () => {
+  describe('US-35 AC-5: after the cutoff, withdrawal is unavailable and the cutoff is shown', () => {
     // TC-S2-155 · US-35 AC-5 · setup: base-users + tc-s2-142-setup + tc-s2-151-setup · fails if a registration past its cutoff offered withdrawal, or the cutoff wasn't shown
     // Code: at or after the cutoff, evaluateWithdrawal() gives canWithdraw false with the cutoff in the reason.
     it('withholds the option and shows the cutoff', async () => {
@@ -216,7 +216,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
     });
   });
 
-  describe('AC-6: withdrawn registrations have no withdraw option; re-registering follows Story 33', () => {
+  describe('US-35 AC-6: withdrawn registrations have no withdraw option; re-registering follows Story 33', () => {
     // TC-S2-156 · US-35 AC-6 · setup: base-users + tc-s2-142-setup + tc-s2-151-setup · fails if a withdrawn registration still offered withdrawal, or could be withdrawn again
     // Code: evaluateWithdrawal() gives canWithdraw false for anything but REGISTERED; withdraw() answers 409.
     it('offers no withdraw option, and refuses withdrawing again (409)', async () => {
@@ -243,7 +243,7 @@ describe('Story 35 withdraw my registration (integration)', () => {
     });
   });
 
-  describe("access: only my own registrations, Attendees only", () => {
+  describe("US-35 access: only my own registrations, Attendees only", () => {
     // TC-S2-157 · US-35 · setup: base-users + tc-s2-142-setup + tc-s2-151-setup · fails if an Attendee could withdraw someone else's registration
     // Code: loadOwned() answers 403 when the registration isn't the caller's.
     it("refuses to withdraw another Attendee's registration (403)", async () => {

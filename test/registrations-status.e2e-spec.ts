@@ -93,7 +93,7 @@ describe('Story 34 view my registration status (integration)', () => {
     await given('base-users', 'base-venues', 'tc-s2-142-setup');
   });
 
-  describe('AC-1: each registration with event name, date/time, venue and status', () => {
+  describe('US-34 AC-1: each registration with event name, date/time, venue and status', () => {
     // TC-S2-145 · US-34 AC-1 · setup: base-users + base-venues + tc-s2-142-setup + tc-s2-145-setup · fails if a registration was missing, or lacked its event name, times, venue or status
     // Code: findMine() returns every registration of the caller, active ones
     // first and withdrawn ones below them, soonest event first within each
@@ -131,7 +131,7 @@ describe('Story 34 view my registration status (integration)', () => {
     });
   });
 
-  describe('US-34: a registration whose event is cancelled stays listed, with nothing left to do', () => {
+  describe('US-34 AC-1, AC-2: a registration whose event is cancelled stays listed, with nothing left to do', () => {
     // The state a cancellation leaves behind (US-43/US-44): the event is
     // CANCELLED and its approved booking RELEASED. The registration itself is
     // untouched, so it is still REGISTERED.
@@ -140,6 +140,8 @@ describe('Story 34 view my registration status (integration)', () => {
       await prisma.venueBooking.update({ where: { id: 'BKG-056' }, data: { status: 'RELEASED' } });
     };
 
+    // TC-S2-189 · US-34 AC-1, AC-2, US-35 AC-1 · setup: base-users + base-venues + tc-s2-142-setup + tc-s2-145-setup · fails if a registration vanished when its event was cancelled, didn't show the event as cancelled, or still offered withdrawal
+    // Code: listMine() keeps REGISTERED rows whatever the event's status; withdrawalCheck() answers "This event has been cancelled."; a RELEASED booking gives no venue.
     it('US-34: the cancelled registration is still listed, marked cancelled, with withdrawal off', async () => {
       await given('tc-s2-145-setup');
       await cancelConcert();
@@ -159,6 +161,8 @@ describe('Story 34 view my registration status (integration)', () => {
       );
     });
 
+    // TC-S2-189 · US-35 AC-1 · setup: base-users + base-venues + tc-s2-142-setup + tc-s2-145-setup · fails if a registration on a cancelled event could still be withdrawn through the API
+    // Code: withdraw() runs the same withdrawalCheck() and answers 409; nothing is written or sent.
     it('US-34: the server refuses to withdraw a registration on a cancelled event (409), changing nothing', async () => {
       await given('tc-s2-145-setup');
       await cancelConcert();
@@ -173,6 +177,8 @@ describe('Story 34 view my registration status (integration)', () => {
       ).toBe(0);
     });
 
+    // TC-S2-189 · US-34 AC-1, US-35 AC-1 · setup: base-users + base-venues + tc-s2-142-setup + tc-s2-145-setup · fails if the cancelled-event handling also changed a confirmed event's venue or withdrawal
+    // Code: only CANCELLED changes withdrawalCheck(); an APPROVED booking gives the venue.
     it('US-34: a confirmed event still works normally: venue shown, and withdrawal allowed', async () => {
       await given('tc-s2-145-setup');
 
@@ -189,7 +195,7 @@ describe('Story 34 view my registration status (integration)', () => {
     });
   });
 
-  describe('AC-2: event details are always the current ones', () => {
+  describe('US-34 AC-2: event details are always the current ones', () => {
     // TC-S2-146 · US-34 AC-2 · setup: base-users + base-venues + tc-s2-142-setup + tc-s2-145-setup · fails if the list showed event details as they were at registration instead of now
     // Code: REGISTRATION_VIEW_SELECT reads the event through the relation on
     // every call; nothing is copied onto the registration.
@@ -233,7 +239,7 @@ describe('Story 34 view my registration status (integration)', () => {
     });
   });
 
-  describe('AC-3: "No Events Registered" when there are none', () => {
+  describe('US-34 AC-3: "No Events Registered" when there are none', () => {
     // TC-S2-147 · US-34 AC-3 · setup: base-users + base-venues + tc-s2-142-setup · fails if an Attendee with no registrations got an empty list without the message
     // Code: findMine() sets message to NO_REGISTRATIONS_MESSAGE when the list is empty.
     it('says "No Events Registered"', async () => {
@@ -243,7 +249,7 @@ describe('Story 34 view my registration status (integration)', () => {
     });
   });
 
-  describe("AC-4: only my own registrations; another Attendee's is denied", () => {
+  describe("US-34 AC-4: only my own registrations; another Attendee's is denied", () => {
     // TC-S2-148 · US-34 AC-4 · setup: base-users + base-venues + tc-s2-142-setup + tc-s2-145-setup · fails if my list included another Attendee's registrations
     // Code: findMine() filters by attendeeId = the caller.
     it("never lists another Attendee's registrations", async () => {
@@ -277,7 +283,7 @@ describe('Story 34 view my registration status (integration)', () => {
     });
   });
 
-  describe('access: Attendees only', () => {
+  describe('US-34 access: Attendees only', () => {
     // TC-S2-149 · US-34 · setup: base-users + base-venues + tc-s2-142-setup · fails if a staff member or Organiser could read registrations through these routes
     // Code: the routes are @Roles(ATTENDEE), so RolesGuard answers 403.
     it.each(['organiser', 'coordinator', 'tech', 'venueStaff'] as const)('refuses %s (403)', async (who) => {

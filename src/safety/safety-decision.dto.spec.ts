@@ -37,6 +37,12 @@ describe('SafetyDecisionDto', () => {
       expect(await errorsFor({ outcome: 'REJECTED' })).toContain('reason');
     });
 
+    // TC-S3-180 · US-57 AC-4 · setup: none (unit) · fails if a reason that is not text gets past the trim and is accepted
+    // Code: SafetyDecisionDto trim (non-string left as is) + @IsString
+    it('rejects a reason that is not text', async () => {
+      expect(await errorsFor({ outcome: 'REJECTED', reason: 42 })).toContain('reason');
+    });
+
     it('rejects a blank reason', async () => {
       expect(await errorsFor({ outcome: 'REJECTED', reason: '   ' })).toContain('reason');
     });

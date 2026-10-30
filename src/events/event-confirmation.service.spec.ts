@@ -5,6 +5,7 @@ import {
   EventStatus,
   NotificationType,
   Role,
+  SafetyOutcome,
 } from '@prisma/client';
 
 import { AuthenticatedUser } from '../auth/jwt.strategy';
@@ -196,5 +197,43 @@ describe('US-42 EventConfirmationService', () => {
       BadRequestException,
     );
     expect(prisma.equipmentRequirement.update).not.toHaveBeenCalled();
+  });
+
+  // TC-S3-73 · US-42 AC-4 · setup: none (unit) · fails if Confirm bypasses unanswered safety feedback, or blocks an event whose feedback was answered
+  // Code: EventConfirmationService.confirm (latest safety review not yet resubmitted)
+  it('US-42 / US-57: refuses Confirm while safety feedback waits for an answer, and allows it once answered', async () => {
+    const waiting = build([{ status: BookingStatus.APPROVED, needsReview: false }]);
+    waiting.tx.safetyReview.findFirst.mockResolvedValue({ outcome: SafetyOutcome.CHANGES_REQUESTED, resubmittedAt: null });
+
+    await expect(waiting.service.confirm(coordinator, 'event-1')).rejects.toThrow(
+      'this event has safety feedback waiting for an answer; send it back for a safety check instead',
+    );
+    expect(waiting.events.setStatus).not.toHaveBeenCalled();
+
+    const answered = build([{ status: BookingStatus.APPROVED, needsReview: false }]);
+    answered.tx.safetyReview.findFirst.mockResolvedValue({ outcome: SafetyOutcome.REJECTED, resubmittedAt: new Date() });
+
+    await answered.service.confirm(coordinator, 'event-1');
+    expect(answered.events.setStatus).toHaveBeenCalled();
+  });
+
+  // TC-S3-71, TC-S3-74 · US-42 AC-2, AC-5 · setup: none (unit) · fails if a nameless venue or event breaks the checklist or the Organiser's notice
+  // Code: EventConfirmationService.loadFacts (venue name fallback), confirm (event name fallback)
+  it('US-42: words the checklist and the notice for a nameless venue and event', async () => {
+    const { service, tx, events, notifications } = build([{ status: BookingStatus.REQUESTED, needsReview: false }]);
+    tx.venueBooking.findMany.mockImplementation(({ distinct }) =>
+      Promise.resolve(distinct ? [] : [{ status: BookingStatus.REQUESTED, needsReview: false, venue: { name: null } }]),
+    );
+
+    const readiness = await service.getConfirmationReadiness('event-1', tx as never);
+    expect(readiness.items[0].label).toBe('Venue booking at an unnamed venue still pending');
+
+    tx.venueBooking.findMany.mockResolvedValue([]);
+    events.setStatus.mockResolvedValue({ ...event, name: null, status: EventStatus.AWAITING_SAFETY_CHECK });
+    jest.spyOn(service, 'getConfirmationReadiness').mockResolvedValue({ ready: true, items: [] } as never);
+    await service.confirm(coordinator, 'event-1');
+    expect(notifications.notifySafely).toHaveBeenCalledWith(
+      expect.objectContaining({ message: '"Your event": Arrangements confirmed - awaiting safety review.' }),
+    );
   });
 });

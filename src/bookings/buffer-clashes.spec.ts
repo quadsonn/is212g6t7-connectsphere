@@ -61,6 +61,24 @@ describe('buffer clashes (US-51)', () => {
   });
 
   describe('newClashes', () => {
+    // TC-S3-137 · US-51 AC-3 · setup: none (unit) · fails if two pending requests at the same time, both clashing with a later booking, are listed in an unstable order
+    // Code: newClashes sort (start, then partner start, then booking id)
+    it('US-51: orders same-time clashes by partner and then by booking', () => {
+      const clashes = newClashes(
+        [booking('p2', '10:00', '12:00'), booking('p1', '10:00', '12:00'), booking('x', '12:30', '14:00')],
+        NONE,
+        CUSTOMER,
+        NOW,
+      );
+
+      expect(clashes.map((c) => `${c.bookingId}>${c.clashesWith.bookingId}`)).toEqual([
+        'p1>x',
+        'p2>x',
+        'x>p2',
+        'x>p1',
+      ]);
+    });
+
     it('US-51: lists both bookings of the customer example, each against the other', () => {
       const clashes = newClashes(
         [booking('a', '10:00', '12:00'), booking('b', '12:30', '14:00')],

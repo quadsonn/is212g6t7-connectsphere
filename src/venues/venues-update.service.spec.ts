@@ -14,7 +14,12 @@ import { VenueDraftDto } from './dto/venue-draft.dto';
 import { VenuesService } from './venues.service';
 import { EquipmentService } from '../equipment/equipment.service';
 
-/** US-14 — updating an existing venue. */
+/**
+ * Unit tests for US-14 (Update a venue's details as facilities change):
+ * VenuesService.updateDraft() and its booking-impact warning, with Prisma, the
+ * booking lookup and notifications mocked. Over HTTP and the test database:
+ * test/venues-update.e2e-spec.ts.
+ */
 describe('VenuesService update (US-14)', () => {
   let prisma: { venue: { update: jest.Mock; findUnique: jest.Mock; create: jest.Mock; findMany: jest.Mock; findFirst: jest.Mock } };
   let access: { requireScope: jest.Mock };
@@ -76,6 +81,8 @@ describe('VenuesService update (US-14)', () => {
     );
   });
 
+  // TC-S1-103 · US-14 AC-1 · unit: updateDraft() with Prisma mocked · fails if a detail cannot be
+  // edited, or untouched fields change
   describe('AC-1: any detail can be edited', () => {
     it.each([
       ['capacity', { capacity: 500 }],
@@ -98,6 +105,8 @@ describe('VenuesService update (US-14)', () => {
     });
   });
 
+  // TC-S1-104 · US-14 AC-2 · unit: updateDraft() · fails if the saved record is not returned, or a
+  // harmless edit carries a warning
   describe('AC-2: the change persists', () => {
     it('returns the updated record', async () => {
       const result = await service.updateDraft(staff, 'venue-1', {
@@ -116,6 +125,9 @@ describe('VenuesService update (US-14)', () => {
     });
   });
 
+  // TC-S1-105 · US-14 AC-3 · unit: assessBookingImpact() with the booking lookup and notifications
+  // mocked · fails if a suitability-affecting change under live bookings gives no warning or
+  // notification, or a harmless one does
   describe('AC-3: bookings that may need review', () => {
     it('warns when capacity is reduced and bookings exist', async () => {
       bookings.findLiveBookingsForVenue.mockResolvedValue([aBooking()]);
@@ -230,6 +242,8 @@ describe('VenuesService update (US-14)', () => {
     });
   });
 
+  // TC-S1-106 · US-14 AC-4 · unit: updateDraft() · fails if a required field can be blanked on a
+  // published venue, or a draft cannot be left incomplete
   describe('AC-4: a required field cannot be blanked on a published venue', () => {
     it.each([
       ['name', { name: null }],
@@ -275,6 +289,7 @@ describe('VenuesService update (US-14)', () => {
     });
   });
 
+  // TC-S1-103 · US-14 AC-1 · unit: findManaged() · fails if another manager's venue can be edited
   describe('ownership', () => {
     it('refuses another manager’s venue', async () => {
       prisma.venue.findUnique.mockResolvedValue(venue({ managedById: 'staff-2' }));

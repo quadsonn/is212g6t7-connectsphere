@@ -9,7 +9,11 @@ import { loadSql } from './helpers/load-sql';
 import { resetDb } from './helpers/reset-db';
 
 /**
- * US-08 e2e — reject and return as distinct decisions.
+ * US-08 (Reject or return a request with a reason), integration tests: the real Nest app over HTTP
+ * (Supertest) and the local test database, one describe per acceptance
+ * criterion. Code under test: POST /events/:id/reject and /return (RejectRequestDto,
+ * ReturnRequestDto: reason @Trim @IsNotEmpty) -> decide(): assertIsAssignedTo,
+ * claimForDecision, setStatus(REJECTED | RETURNED), reason kept on the request.
  *
  * Pre-condition for every test: reset the testDB, then run
  * test/fixtures/sql/base-users.sql; each test then loads the tc-s1 script its
@@ -95,7 +99,9 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
   });
 
   describe('AC-1: reject and return are separate actions', () => {
-    // TC-S1-08 · setup: base-users + tc-s1-02-setup · fails if Reject and Return produced the same outcome
+    // TC-S1-08 · US-08 AC-1, AC-3 · setup: base-users + tc-s1-02-setup · fails if Reject and Return produced the same outcome
+    // Code: POST /events/:id/reject -> REJECTED with decisionReason; POST /events/:id/return ->
+    // RETURNED with clarificationRequest (both via decide()).
     it('reject and return are different endpoints with different outcomes', async () => {
       await given('tc-s1-02-setup');
       const toReject = EVENT.submitted;
@@ -118,7 +124,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       expect(rejected.body.status).not.toBe(returned.body.status);
     });
 
-    // TC-S1-13 · setup: base-users + tc-s1-01-setup · fails if a rejected request could still be edited
+    // TC-S1-13 · US-08 AC-1 · setup: base-users + tc-s1-01-setup · fails if a rejected request could still be edited
+    // Code: assertIsEditable() allows only DRAFT and RETURNED, so editing REJECTED is 409.
     it('rejecting does not leave the request amendable', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -136,6 +143,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
         .expect(409);
     });
 
+    // TC-S1-08 · US-08 AC-1 · setup: base-users + tc-s1-01-setup · fails if a returned request could not be amended
+    // Code: RETURNED is in EDITABLE_STATUSES, so updateDraft() accepts it.
     it('returning does leave the request amendable', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -153,7 +162,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
         .expect(200);
     });
 
-    // TC-S1-13 · setup: base-users + tc-s1-01-setup · fails if a rejection could be overturned by a Return
+    // TC-S1-13 · US-08 AC-1 · setup: base-users + tc-s1-01-setup · fails if a rejection could be overturned by a Return
+    // Code: REJECTED -> RETURNED is not an edge in the status machine (409).
     it('a rejected request cannot then be returned', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -173,7 +183,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
   });
 
   describe('AC-2: a reason is mandatory', () => {
-    // TC-S1-09 · setup: base-users + tc-s1-01-setup · fails if a decision was accepted without a reason
+    // TC-S1-09 · US-08 AC-2 · setup: base-users + tc-s1-01-setup · fails if a decision was accepted without a reason
+    // Code: RejectRequestDto / ReturnRequestDto: reason is @IsNotEmpty (400) before decide() runs.
     it.each(['reject', 'return'])(
       '%s is blocked when the reason is missing',
       async (action) => {
@@ -197,7 +208,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       },
     );
 
-    // TC-S1-10 · setup: base-users + tc-s1-01-setup · fails if an empty reason was accepted
+    // TC-S1-10 · US-08 AC-2 · setup: base-users + tc-s1-01-setup · fails if an empty reason was accepted
+    // Code: @IsNotEmpty refuses "" (400).
     it.each(['reject', 'return'])(
       '%s is blocked when the reason is an empty string',
       async (action) => {
@@ -217,8 +229,9 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       },
     );
 
-    // TC-S1-11 · setup: base-users + tc-s1-01-setup · fails if a whitespace-only reason is accepted again
-    // Fixed in 93316fa; regression test for audit gap #1
+    // TC-S1-11 · US-08 AC-2 · setup: base-users + tc-s1-01-setup · fails if a whitespace-only reason is accepted again
+    // Code: @Trim() runs before @IsNotEmpty, so "   " becomes "" and is refused (audit gap #1,
+    // fixed in 93316fa).
     it.each(['reject', 'return'])(
       '%s is blocked when the reason is whitespace-only',
       async (action) => {
@@ -240,7 +253,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       },
     );
 
-    // TC-S1-09 · setup: base-users + tc-s1-01-setup · fails if a refused decision still wrote a status or reason
+    // TC-S1-09 · US-08 AC-2 · setup: base-users + tc-s1-01-setup · fails if a refused decision still wrote a status or reason
+    // Code: validation fails before decide(), so the row is untouched.
     it('nothing is written when the reason is missing', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -260,6 +274,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
   });
 
   describe('AC-3: status updates accordingly', () => {
+    // TC-S1-08 · US-08 AC-3 · setup: base-users + tc-s1-01-setup · fails if Reject did not store REJECTED
+    // Code: decide(REJECTED) -> setStatus(REJECTED).
     it('reject sets REJECTED', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -276,6 +292,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       expect(stored.status).toBe(EventStatus.REJECTED);
     });
 
+    // TC-S1-08 · US-08 AC-3 · setup: base-users + tc-s1-01-setup · fails if Return did not store RETURNED
+    // Code: decide(RETURNED) -> setStatus(RETURNED).
     it('return sets RETURNED', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -292,6 +310,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       expect(stored.status).toBe(EventStatus.RETURNED);
     });
 
+    // TC-S1-08 · US-08 AC-3 · setup: base-users + tc-s1-02-setup · fails if a request under review could not be rejected or returned
+    // Code: the status machine allows UNDER_REVIEW -> REJECTED and -> RETURNED.
     it('both work from UNDER_REVIEW', async () => {
       await given('tc-s1-02-setup');
       const a = EVENT.underReview;
@@ -309,6 +329,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
         .expect(200);
     });
 
+    // TC-S1-08 · US-08 AC-3 · setup: base-users + tc-s1-02-setup · fails if a draft (never submitted) could be rejected
+    // Code: DRAFT -> REJECTED is not an edge, so 409.
     it('refuses to reject a DRAFT', async () => {
       await given('tc-s1-02-setup');
       const event = EVENT.draft;
@@ -322,7 +344,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
   });
 
   describe('AC-4: the decision and reason are retained and surfaced', () => {
-    // TC-S1-12 · setup: base-users + tc-s1-01-setup · fails if the rejection reason was not saved or not shown to the Organiser
+    // TC-S1-12 · US-08 AC-4, US-05 AC-2 · setup: base-users + tc-s1-01-setup · fails if the rejection reason was not saved or not shown to the Organiser
+    // Code: decisionReason is saved with the status and surfaced in statusView.decision.
     it('shows the rejection reason in the Organiser’s view (US-05 AC-2)', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -344,7 +367,9 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       );
     });
 
-    // TC-S1-12 · setup: base-users + tc-s1-01-setup · fails if the return reason was not saved or not shown
+    // TC-S1-12 · US-08 AC-4, US-05 AC-3 · setup: base-users + tc-s1-01-setup · fails if the return reason was not saved or not shown
+    // Code: a return's reason is stored as clarificationRequest and surfaced in
+    // statusView.clarification.
     it('shows the return reason as an outstanding clarification (US-05 AC-3)', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -365,7 +390,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       expect(mine.body.clarificationRequest).toMatch(/attendance figure/);
     });
 
-    // TC-S1-12 · setup: base-users + tc-s1-01-setup · fails if the reason was lost after the first read
+    // TC-S1-12 · US-08 AC-4 · setup: base-users + tc-s1-01-setup · fails if the reason was lost after the first read
+    // Code: the reason is a column on the request, not a one-off response field.
     it('retains the reason across later reads', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -389,6 +415,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       expect(second.body.decisionReason).toBe('Venue capacity insufficient');
     });
 
+    // TC-S1-12 · US-08 AC-4 · setup: base-users + tc-s1-01-setup · fails if a rejected request still showed an old clarification question
+    // Code: reject() sets clarificationRequest to null with decisionReason.
     it('a rejection clears an earlier clarification', async () => {
       await given('tc-s1-02-setup');
       const event = EVENT.withQuestion;
@@ -408,6 +436,9 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
   });
 
   describe('the return round trip', () => {
+    // TC-S1-08 · US-08 AC-1, AC-3, with US-04 AC-4 and US-07 AC-3 · setup: base-users + tc-s1-01-setup · fails if a returned request could not go round the amend-resubmit-approve loop
+    // Code: RETURNED is editable (updateDraft), submitDraft() moves it back to SUBMITTED,
+    // approve() to APPROVED.
     it('returns, is amended, resubmitted and then approved', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -450,7 +481,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
   });
 
   describe('assignment ownership and role', () => {
-    // TC-S1-14 · setup: base-users + tc-s1-01-setup · fails if a Coordinator could decide another Coordinator's event
+    // TC-S1-14 · US-08 AC-1, US-02 AC-6 · setup: base-users + tc-s1-01-setup · fails if a Coordinator could decide another Coordinator's event
+    // Code: assertEventAccess(REVIEW) under ASSIGNED scope finds nothing, so 404.
     it.each(['reject', 'return'])(
       '%s refuses a Coordinator assigned elsewhere',
       async (action) => {
@@ -465,6 +497,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
       },
     );
 
+    // TC-S1-14 · US-08 AC-1, US-02 AC-6 · setup: base-users + tc-s1-02-setup · fails if a Coordinator could reject a request nobody assigned to them
+    // Code: coordinatorId is NULL, so ASSIGNED scope never matches (Week 7 Change 5).
     it('refuses to decide an unassigned request from the pool', async () => {
       await given('tc-s1-02-setup');
       const event = EVENT.unassigned;
@@ -476,7 +510,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
         .expect(404);
     });
 
-    // TC-S1-14 · setup: base-users + tc-s1-01-setup · fails if an Organiser or Attendee could reject
+    // TC-S1-14 · US-08 AC-1, US-02 AC-3 · setup: base-users + tc-s1-01-setup · fails if an Organiser or Attendee could reject
+    // Code: POST /events/:id/reject is @Roles(EVENT_COORDINATOR); RolesGuard answers 403.
     it.each(['organiser', 'attendee'])('refuses %s at the role gate', async (who) => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -488,6 +523,8 @@ describe('US-08 reject / return with a mandatory reason (e2e)', () => {
         .expect(403);
     });
 
+    // TC-S1-14 · US-08 AC-1, US-02 AC-8 · setup: base-users + tc-s1-01-setup · fails if a request could be rejected without signing in
+    // Code: JwtAuthGuard answers 401.
     it('refuses an unauthenticated caller', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;

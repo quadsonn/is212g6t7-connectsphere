@@ -86,6 +86,8 @@ describe('EventsService review (US-07)', () => {
     );
   });
 
+  // TC-S1-02 · US-07 AC-1 · unit: findAssignedRequest() with Prisma and access mocked · fails if the
+  // Coordinator sees a status other than the stored one
   describe('AC-1: current status is reported', () => {
     // One row per distinct status-view outcome: no decision, a rejection with
     // its reason, a return with its reason, and a terminal status. The statuses
@@ -160,6 +162,7 @@ describe('EventsService review (US-07)', () => {
     });
   });
 
+  // TC-S1-03 · US-07 AC-2 · unit · fails if a detail is dropped from the Coordinator's view
   describe('AC-2: all details are shown', () => {
     it('returns name, purpose, description and proposed dates', async () => {
       const result = await service.findAssignedRequest(coordinator, 'event-1');
@@ -174,6 +177,8 @@ describe('EventsService review (US-07)', () => {
     });
   });
 
+  // TC-S1-01, TC-S1-04, TC-S1-05 · US-07 AC-3 · unit: approve() · fails if approval skips setStatus,
+  // approves an illegal state, or errors on a repeat
   describe('AC-3: approving moves the request to APPROVED', () => {
     it('sets status APPROVED', async () => {
       const result = await service.approve(coordinator, 'event-1');
@@ -256,6 +261,8 @@ describe('EventsService review (US-07)', () => {
     });
   });
 
+  // TC-S1-06 · US-07 AC-3, US-02 AC-6 · unit · fails if a Coordinator who is not assigned can
+  // approve
   describe('assignment ownership', () => {
     it('refuses a Coordinator who is not the assigned one', async () => {
       access.isAssignedCoordinator.mockReturnValue(false);

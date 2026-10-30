@@ -115,6 +115,8 @@ describe('EquipmentReservationsService', () => {
     );
   });
 
+  // TC-S2-122, TC-S2-123, TC-S2-124 · US-31 AC-1 · unit: commit() with Prisma mocked · fails if the reservation is
+  // not over the event's window, the grant is skipped, or an unknown or not-live event is accepted
   describe('US-31 AC-1: commit an item and quantity to an event for its date and time', () => {
     it('creates a committed (APPROVED) reservation over the event’s own window', async () => {
       const result = await commit(4);
@@ -171,8 +173,19 @@ describe('EquipmentReservationsService', () => {
       await expect(commit(1)).rejects.toThrow(ConflictException);
       expect(tx.equipmentReservation.create).not.toHaveBeenCalled();
     });
+
+    // TC-S2-122 · US-31 AC-1 · unit: commit() with Prisma mocked · fails if a commitment is made for an event with no date and time
+    // Code: EquipmentReservationsService.lockEvent (no window, 409). Unreachable in the app: the completeness CHECK requires both dates on every non-draft event.
+    it('refuses an event with no date and time to commit for', async () => {
+      tx.eventRequest.findUniqueOrThrow.mockResolvedValue({ ...event, proposedStart: null });
+
+      await expect(commit(1)).rejects.toThrow(new ConflictException('the event has no date and time to commit for'));
+      expect(tx.equipmentReservation.create).not.toHaveBeenCalled();
+    });
   });
 
+  // TC-S2-126, TC-S2-127 · US-31 AC-2 · unit: commit() locking · fails if the rows are not locked, or overlapping
+  // committed units are not counted
   describe('US-31 AC-2: the committed quantity is locked against overlapping commitments', () => {
     it('runs the transaction with room to wait for the row lock', async () => {
       await commit(1);
@@ -216,6 +229,8 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
+  // TC-S2-128 · US-31 AC-3 · unit: commit() and rejectionReason() · fails if an over-commit is accepted, or the
+  // reason lacks the counts
   describe('US-31 AC-3: a quantity already locked elsewhere is rejected with the reason', () => {
     it('rejects one unit above what is free, and says why', async () => {
       tx.equipmentReservation.findMany.mockResolvedValue([{ quantity: 4, start, end }]);
@@ -267,7 +282,9 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
-  describe('US-31 AC-4: the assigned Coordinator is notified once the commitment is confirmed', () => {
+  // TC-S2-129 · US-31 (not in the ACs) · unit: commit() · fails if the Coordinator is not told, or told before
+  // the commitment is saved
+  describe("US-31, beyond the story's ACs: the assigned Coordinator is notified once the commitment is confirmed", () => {
     it('notifies the assigned Coordinator after the transaction commits', async () => {
       await commit(2);
 
@@ -292,6 +309,8 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
+  // TC-S2-130, TC-S2-131, TC-S2-134 · US-32 AC-1, AC-4 · unit: releaseForCancelledEvent() · fails if a held
+  // reservation is missed, another event's is touched, or a released one is released again
   describe('US-32 AC-1/AC-4: releasing a cancelled event’s reservations', () => {
     it('releases only that event’s still-held reservations, stamping when', async () => {
       const count = await service.releaseForCancelledEvent(
@@ -353,6 +372,7 @@ describe('EquipmentReservationsService', () => {
     });
   });
 
+  // TC-S2-133 · US-32 AC-3 · unit: findReleased() · fails if the list lacks the equipment or the cancelled event
   describe('US-32 AC-3: which reservations were released, for which event', () => {
     it('lists RELEASED reservations with their event and equipment, newest first', async () => {
       await service.findReleased(tech);

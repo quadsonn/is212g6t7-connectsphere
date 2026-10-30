@@ -14,7 +14,11 @@ import { SortOrder, VenueSortField } from './dto/browse-venues.dto';
 import { VenuesService } from './venues.service';
 import { EquipmentService } from '../equipment/equipment.service';
 
-/** US-15 — browsing the catalogue. */
+/**
+ * Unit tests for US-15 (Browse the full catalogue of venues):
+ * VenuesService.findAllForUser()'s visibility, search and sort, with Prisma
+ * mocked. Over HTTP and the test database: test/venues-browse.e2e-spec.ts.
+ */
 describe('VenuesService browse (US-15)', () => {
   let prisma: { venue: { findMany: jest.Mock; findFirst: jest.Mock; findUnique: jest.Mock; create: jest.Mock; update: jest.Mock } };
   let access: { requireScope: jest.Mock };
@@ -52,6 +56,8 @@ describe('VenuesService browse (US-15)', () => {
     );
   });
 
+  // TC-S1-108 · US-15 AC-1 · unit: findAllForUser() with Prisma mocked · fails if the list ignores
+  // the US-13 visibility rule or has no default order
   describe('AC-1: the list is scoped and ordered sensibly', () => {
     it('applies the US-13 visibility rule', async () => {
       await service.findAllForUser(coordinator);
@@ -88,6 +94,8 @@ describe('VenuesService browse (US-15)', () => {
     });
   });
 
+  // TC-S1-110 · US-15 AC-3 · unit: findAllForUser() search and orderBy() · fails if lookup by name
+  // or sorting is wrong, or a search widens what the caller may see
   describe('AC-3: finding one venue without scrolling', () => {
     it('filters by a case-insensitive name substring', async () => {
       await service.findAllForUser(coordinator, { search: 'audit' });
@@ -150,7 +158,9 @@ describe('VenuesService browse (US-15)', () => {
     });
   });
 
-  describe('AC-4: no stale data', () => {
+  // TC-S1-100, TC-S1-104 · US-13 AC-5, US-14 AC-2 · unit: findAllForUser() · fails if a result is
+  // reused instead of reading the database each time
+  describe('US-13 AC-5 / US-14 AC-2: no stale data', () => {
     it('queries the database on every call', async () => {
       await service.findAllForUser(coordinator);
       await service.findAllForUser(coordinator);

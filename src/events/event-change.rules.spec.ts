@@ -4,6 +4,8 @@ import { affectedArrangements, diffEventFields } from './event-change.rules';
 
 /** US-24 AC-2 / US-25 AC-2 — what counts as a change, and which need review. */
 describe('event change rules (US-24, US-25)', () => {
+  // TC-S2-75, TC-S2-79 · US-25 AC-1, AC-2 · unit: diffEventFields() · fails if a change loses its previous or
+  // new value, or a save that changed nothing counts as a change
   describe('diffEventFields', () => {
     const before = {
       name: 'Orientation',
@@ -71,6 +73,8 @@ describe('event change rules (US-24, US-25)', () => {
     });
   });
 
+  // TC-S2-71, TC-S2-72, TC-S2-73 · US-24 AC-2 · unit: affectedArrangements() · fails if a change to a
+  // confirmed arrangement's inputs is not flagged, or an ordinary edit is
   describe('affectedArrangements', () => {
     const change = (field: string) =>
       diffEventFields({}, { [field]: field === 'expectedAttendance' ? 1 : 'x' });

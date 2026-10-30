@@ -12,6 +12,8 @@ import { CreateEventRequestDto } from './dto/create-event-request.dto';
  * a past date, an end not after the start, a non-positive attendance and an
  * empty required field are blocked, each flagged on its own field.
  */
+// TC-S1-27 · US-03 AC-3 · unit: CreateEventRequestDto run through class-validator, clock frozen ·
+// fails if a value just inside or just outside a limit is judged wrongly
 describe('CreateEventRequestDto boundaries (TC-S1-27, US-03 AC-3)', () => {
   const NOW = new Date('2030-06-01T12:00:00.000Z');
   const iso = (offsetMs: number) => new Date(NOW.getTime() + offsetMs).toISOString();

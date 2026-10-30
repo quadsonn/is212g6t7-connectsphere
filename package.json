@@ -42,7 +42,8 @@
     "prisma:seed:equip-unavailable": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/seed-equipment-unavailable.ts",
     "notices:trigger": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} scripts/trigger-registration-notices.ts",
     "venues:vocabulary-review": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} prisma/review-venue-vocabulary.ts",
-    "check:equip-unavailable": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} scripts/check-equipment-unavailable.ts"
+    "check:equip-unavailable": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} scripts/check-equipment-unavailable.ts",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -66,6 +67,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@playwright/test": "1.55.0",
     "@prisma/client": "^6.19.3",
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",

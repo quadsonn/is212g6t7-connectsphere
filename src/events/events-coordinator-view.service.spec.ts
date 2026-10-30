@@ -84,6 +84,8 @@ describe('EventsService coordinator view (US-12)', () => {
     );
   });
 
+  // TC-S1-84 · US-12 AC-1 · unit: findAssignedRequest() with Prisma and access mocked · fails if a
+  // core detail is missing from the Coordinator's view
   describe('AC-1: core details are all present', () => {
     it('returns name, purpose, description, dates and attendance', async () => {
       const result = await service.findAssignedRequest(coordinator, 'event-1');
@@ -117,6 +119,8 @@ describe('EventsService coordinator view (US-12)', () => {
     });
   });
 
+  // TC-S1-85 · US-12 AC-2 · unit · fails if equipment or registration requirements are not shown
+  // with the core details
   describe('AC-2: equipment and registration requirements', () => {
     it('returns the equipment needs alongside the core details', async () => {
       const result = await service.findAssignedRequest(coordinator, 'event-1');
@@ -146,6 +150,7 @@ describe('EventsService coordinator view (US-12)', () => {
     });
   });
 
+  // TC-S1-86 · US-12 AC-3 · unit · fails if a caller who is not assigned gets any event data
   describe('AC-3: unauthorised callers get no data', () => {
     it('propagates the access layer’s denial', async () => {
       access.assertEventAccess.mockRejectedValue(new NotFoundException());
@@ -174,6 +179,8 @@ describe('EventsService coordinator view (US-12)', () => {
     });
   });
 
+  // TC-S1-86 · US-12 AC-3, US-02 AC-6 · unit · fails if the view stops going through
+  // AccessControlService
   describe('reuses the US-02 ownership helper', () => {
     it('scopes the queue through scopedEventFilter', async () => {
       await service.findAssignedRequests(coordinator);
@@ -196,6 +203,7 @@ describe('EventsService coordinator view (US-12)', () => {
     });
   });
 
+  // TC-S1-84 · US-12 · unit · fails if viewing the details could change the request
   describe('read-only', () => {
     it('never writes', async () => {
       await service.findAssignedRequests(coordinator);
@@ -206,6 +214,8 @@ describe('EventsService coordinator view (US-12)', () => {
     });
   });
 
+  // TC-S1-84, TC-S1-92 · US-12 AC-1, US-10 AC-3 · unit · fails if the view stops naming the
+  // Organiser or the assigned Coordinator
   describe('contacts', () => {
     it('resolves both parties to contact details', async () => {
       await service.findAssignedRequest(coordinator, 'event-1');

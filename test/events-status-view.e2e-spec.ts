@@ -9,7 +9,11 @@ import { loadSql } from './helpers/load-sql';
 import { resetDb } from './helpers/reset-db';
 
 /**
- * US-05 e2e — one describe per acceptance criterion.
+ * US-05 (View current status of my event request), integration tests: the real Nest app over HTTP
+ * (Supertest) and the local test database, one describe per acceptance
+ * criterion. Code under test: GET /events/mine and GET /events/mine/:id
+ * (@Roles EVENT_ORGANISER) -> EventsService.findMyRequests()/toOrganiserView(),
+ * which builds statusView (status, decision reason, clarification question).
  *
  * Pre-condition for every test: reset the testDB, then run
  * test/fixtures/sql/base-users.sql; a test that needs more loads the tc-s1
@@ -102,7 +106,9 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
   });
 
   describe('AC-1: each request shows its current status', () => {
-    // TC-S1-39 · setup: base-users + tc-s1-39-setup · fails if a request showed a status other than its own
+    // TC-S1-39 · US-05 AC-1 · setup: base-users + tc-s1-39-setup · fails if a request showed a status other than its own
+    // Code: GET /events/mine (findMyRequests, @Roles EVENT_ORGANISER) returns each request with
+    // its stored status.
     it('reports every status in the lifecycle', async () => {
       await given('tc-s1-39-setup');
 
@@ -120,7 +126,8 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       }
     });
 
-    // TC-S1-40 · setup: base-users · fails if an Organiser with no requests got an error instead of an empty list
+    // TC-S1-40 · US-05 AC-1 · setup: base-users · fails if an Organiser with no requests got an error instead of an empty list
+    // Code: findMyRequests() filters by organiserId and returns [] when nothing matches.
     it('returns an empty list when the Organiser has none', async () => {
       const res = await http()
         .get('/events/mine')
@@ -130,6 +137,8 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(res.body).toEqual([]);
     });
 
+    // TC-S1-79 · US-05 AC-5, US-02 AC-3 · setup: base-users · fails if another role could read the Organiser's own-requests view
+    // Code: GET /events/mine is @Roles(EVENT_ORGANISER); RolesGuard answers 403.
     it('refuses a non-Organiser', async () => {
       await http()
         .get('/events/mine')
@@ -137,13 +146,16 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
         .expect(403);
     });
 
+    // TC-S1-79 · US-05 AC-5, US-02 AC-8 · setup: base-users · fails if the status view answered without a token
+    // Code: JwtAuthGuard answers 401 before the controller.
     it('refuses an unauthenticated caller', async () => {
       await http().get('/events/mine').expect(401);
     });
   });
 
   describe('AC-2: a rejected request shows the Coordinator’s reason', () => {
-    // TC-S1-41 · setup: base-users + tc-s1-41-setup · fails if a rejected request's reason was missing
+    // TC-S1-41 · US-05 AC-2 · setup: base-users + tc-s1-41-setup · fails if a rejected request's reason was missing
+    // Code: toOrganiserView() puts decisionReason in statusView.decision for a REJECTED request.
     it('includes decisionReason on a rejected request', async () => {
       await given('tc-s1-41-setup');
 
@@ -156,7 +168,8 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(res.body[0].decisionReason).toBe('Clashes with the examination period');
     });
 
-    // TC-S1-41 · setup: base-users + tc-s1-41-setup · fails if a rejected request's reason was missing
+    // TC-S1-41 · US-05 AC-2 · setup: base-users + tc-s1-41-setup · fails if a rejected request's reason was missing
+    // Code: GET /events/mine/:id builds the same statusView for one request.
     it('includes it when opening the request directly', async () => {
       await given('tc-s1-41-setup');
       const seeded = EVENT.rejectedDirect;
@@ -171,7 +184,8 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
   });
 
   describe('AC-3: clarification is shown, with the question', () => {
-    // TC-S1-42 · setup: base-users + tc-s1-42-setup · fails if an outstanding clarification or its question was not shown
+    // TC-S1-42 · US-05 AC-3 · setup: base-users + tc-s1-42-setup · fails if an outstanding clarification or its question was not shown
+    // Code: statusView.clarification carries clarificationRequest, the Coordinator's question.
     it('flags clarification and shows what is asked', async () => {
       await given('tc-s1-42-setup');
 
@@ -184,7 +198,8 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(res.body[0].clarificationRequest).toMatch(/expected attendance/);
     });
 
-    // TC-S1-42 · setup: base-users + tc-s1-42-setup · fails if an outstanding clarification or its question was not shown
+    // TC-S1-42 · US-05 AC-3 · setup: base-users + tc-s1-42-setup · fails if an outstanding clarification or its question was not shown
+    // Code: a RETURNED request reports its question; a plain DRAFT reports no clarification.
     it('distinguishes a returned request from an ordinary draft', async () => {
       await given('tc-s1-42-setup');
 
@@ -204,7 +219,8 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(byName['Returned for clarification']).toBe(true);
     });
 
-    // TC-S1-43 · setup: base-users + tc-s1-01-setup · fails if a clarification flag appeared when nothing was asked
+    // TC-S1-43 · US-05 AC-3 · setup: base-users + tc-s1-01-setup · fails if a clarification flag appeared when nothing was asked
+    // Code: statusView.clarification is null when clarificationRequest is null.
     it('reports no clarification when none was asked', async () => {
       await given('tc-s1-01-setup');
 
@@ -219,7 +235,9 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
   });
 
   describe('AC-4: the displayed status is the most recent valid state', () => {
-    // TC-S1-44 · setup: base-users · fails if the list showed a stale status after a transition
+    // TC-S1-44 · US-05 AC-4 · setup: base-users · fails if the list showed a stale status after a transition
+    // Code: POST /events/:id/submit -> setStatus(SUBMITTED); the next GET /events/mine reads it
+    // from the database.
     it('reflects a transition made through the real submit endpoint', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -245,14 +263,25 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(after.body[0].status).toBe(EventStatus.SUBMITTED);
     });
 
+    // TC-S1-44 · US-05 AC-4 · setup: base-users + tc-s1-01-setup · fails if the list missed a SUBMITTED -> UNDER_REVIEW change
+    // Code: askClarification() sets AWAITING_CLARIFICATION and respondToClarification() sets
+    // UNDER_REVIEW, both via setStatus().
     it('reflects a later submitted -> under review change', async () => {
       await given('tc-s1-01-setup');
       const seeded = EVENT.submitted;
 
-      await prisma.eventRequest.update({
-        where: { id: seeded.id },
-        data: { status: EventStatus.UNDER_REVIEW },
-      });
+      // The only action that moves a request to UNDER_REVIEW: the assigned
+      // Coordinator asks a question and the Organiser answers it.
+      await http()
+        .post(`/events/${seeded.id}/clarifications`)
+        .set('Authorization', as('coordinator'))
+        .send({ question: 'How many speakers?' })
+        .expect(201);
+      await http()
+        .post(`/events/${seeded.id}/clarifications/responses`)
+        .set('Authorization', as('organiser'))
+        .send({ response: 'Three' })
+        .expect(201);
 
       const res = await http()
         .get('/events/mine')
@@ -262,7 +291,8 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(res.body[0].status).toBe(EventStatus.UNDER_REVIEW);
     });
 
-    // TC-S1-45 · setup: base-users + tc-s1-45-setup · fails if a repeated read served a cached status
+    // TC-S1-45 · US-05 AC-4 · setup: base-users + tc-s1-45-setup · fails if a repeated read served a cached status
+    // Code: nothing caches findMyRequests(); every read queries the database.
     it('does not serve a stale status on a repeated read', async () => {
       await given('tc-s1-45-setup');
       const seeded = EVENT.approvedOnly;
@@ -284,7 +314,8 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
   });
 
   describe('AC-5: another Organiser’s requests never appear', () => {
-    // TC-S1-46 · setup: base-users + tc-s1-22-setup + tc-s1-46-setup · fails if another Organiser's request or reason leaked
+    // TC-S1-46 · US-05 AC-5 · setup: base-users + tc-s1-22-setup + tc-s1-46-setup · fails if another Organiser's request or reason leaked
+    // Code: findMyRequests() filters on organiserId = caller in the query.
     it('excludes them from the list', async () => {
       await given('tc-s1-22-setup', 'tc-s1-46-setup');
 
@@ -297,7 +328,8 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(res.body[0].name).toBe('Mine');
     });
 
-    // TC-S1-46 · setup: base-users + tc-s1-22-setup + tc-s1-46-setup · fails if another Organiser's request or reason leaked
+    // TC-S1-46 · US-05 AC-5 · setup: base-users + tc-s1-22-setup + tc-s1-46-setup · fails if another Organiser's request or reason leaked
+    // Code: GET /events/mine/:id looks up by id AND organiserId, so another's is 404.
     it('denies fetching another Organiser’s request by id', async () => {
       await given('tc-s1-22-setup', 'tc-s1-46-setup');
       const theirs = EVENT.theirs;
@@ -310,7 +342,9 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
       expect(res.body.name).toBeUndefined();
     });
 
-    // TC-S1-46 · setup: base-users + tc-s1-22-setup + tc-s1-46-setup · fails if another Organiser's request or reason leaked
+    // TC-S1-46 · US-05 AC-5 · setup: base-users + tc-s1-22-setup + tc-s1-46-setup · fails if another Organiser's request or reason leaked
+    // Code: the same owner filter applies to the list and the single view, so the reason never
+    // leaves.
     it('does not leak a rejection reason belonging to someone else', async () => {
       await given('tc-s1-22-setup', 'tc-s1-46-setup');
       const theirs = EVENT.theirsRejected;
@@ -330,6 +364,8 @@ describe('US-05 organiser views status of own requests (e2e)', () => {
   });
 
   describe('route resolution', () => {
+    // TC-S1-79 · US-05 AC-1 · setup: base-users + tc-s1-01-setup · fails if GET /events/mine were routed to GET /events/:id
+    // Code: @Get('mine') is declared before @Get(':id') in EventsController.
     it('does not treat "mine" as an event id', async () => {
       // GET /events/mine is declared before GET /events/:id; if that order
       // ever changes this returns 404 instead of the list.

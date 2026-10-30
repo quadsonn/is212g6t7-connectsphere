@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, OnModuleInit } from '@nestjs/common';
-import { EventStatus, Prisma, ReservationStatus, SafetyOutcome } from '@prisma/client';
+import { EventStatus, Prisma, ReservationStatus } from '@prisma/client';
 
 import {
   ArrangementsListener,
@@ -90,25 +90,6 @@ export class SafetyReadinessService implements ArrangementsListener, OnModuleIni
   async evaluate(eventId: string, client: Db = this.prisma): Promise<Readiness> {
     const { ready, items } = evaluateConfirmationReadiness(await this.loadFacts(eventId, client));
     return { ready, reasons: ready ? [] : reasonsFor(items) };
-  }
-
-  /**
-   * True while the latest review is feedback the Coordinator has not answered:
-   * changes requested or a rejection, not yet resubmitted. Held events wait for
-   * the Coordinator rather than being queued on their own.
-   */
-  async isHeld(eventId: string, client: Db = this.prisma): Promise<boolean> {
-    const latest = await client.safetyReview.findFirst({
-      where: { eventId },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      select: { outcome: true, resubmittedAt: true },
-    });
-
-    return (
-      latest !== null &&
-      latest.outcome !== SafetyOutcome.APPROVED &&
-      latest.resubmittedAt === null
-    );
   }
 
   /**

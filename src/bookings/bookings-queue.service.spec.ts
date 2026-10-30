@@ -41,6 +41,8 @@ describe('BookingsService findQueue (US-21)', () => {
     );
   });
 
+  // TC-S2-41 · US-21 AC-1 · unit: findQueue() with Prisma mocked · fails if the queue reads other
+  // managers' venues or decided requests
   describe('AC-1: pending requests for venues I manage', () => {
     it('defaults to pending requests on venues managed by the caller', async () => {
       await service.findQueue(staff, {}, now);
@@ -61,6 +63,8 @@ describe('BookingsService findQueue (US-21)', () => {
     });
   });
 
+  // TC-S2-42 · US-21 AC-2 · unit: findQueue() · fails if an entry lacks the event, venue, times,
+  // attendance or requester
   describe('AC-2: each entry carries what is needed to review it', () => {
     it('includes venue, event, organiser and requester', async () => {
       await service.findQueue(staff, {}, now);
@@ -73,6 +77,8 @@ describe('BookingsService findQueue (US-21)', () => {
     });
   });
 
+  // TC-S2-43 · US-21 AC-3 · unit: findQueue() · fails if the event-date or submission-date order is
+  // wrong
   describe('AC-3: sorting', () => {
     it('sorts pending by event date, soonest first, by default', async () => {
       await service.findQueue(staff, {}, now);
@@ -91,6 +97,8 @@ describe('BookingsService findQueue (US-21)', () => {
     });
   });
 
+  // TC-S2-44 · US-21 AC-4 · unit: findQueue() · fails if a venue, date-range or status filter is
+  // dropped
   describe('AC-4: filtering', () => {
     it('filters by venue', async () => {
       await service.findQueue(staff, { venueId: 'venue-9' }, now);
@@ -124,6 +132,8 @@ describe('BookingsService findQueue (US-21)', () => {
     });
   });
 
+  // TC-S2-45 · US-21 AC-5 · unit: findQueue() · fails if a request under a week away is not flagged
+  // and moved up
   describe('AC-5: requests nearing their event date are flagged and prioritised', () => {
     it('flags pending requests starting within 7 days and puts them first', async () => {
       prisma.venueBooking.findMany.mockResolvedValue([
@@ -165,6 +175,7 @@ describe('BookingsService findQueue (US-21)', () => {
     });
   });
 
+  // TC-S2-47 · US-21 AC-7 · unit: findQueue() · fails if a decided request stays in the pending view
   describe('AC-7: decided requests leave the pending view', () => {
     it('US-44: the decided view lists approved, rejected and released, newest submission first', async () => {
       await service.findQueue(staff, { view: QueueView.DECIDED }, now);

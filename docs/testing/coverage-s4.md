@@ -63,6 +63,8 @@ Measured on 2026-10-29. Unit: `npx jest --coverage` (1954 tests). Integration: t
 | 67 | equipment/equipment-substitutions.controller.ts | 100.0% | — |
 | 67 | equipment/dto/substitution-choice.dto.ts | 100.0% | — |
 
+> **Superseded for Story 67 on 2026-10-30.** The four substitution files and their tests were removed when `sprint4-main` retired the substitution flow (PR #30). Story 67 is now measured with Story 45; see "Story 45, 60 and 67 after the Sprint 4 rebuild" below.
+
 **Nothing is left uncovered.** Three backstops in `equipment/equipment-substitutions.service.ts` cannot be reached through the running app, because a check or constraint before them already guarantees the outcome. They are covered by unit tests with a mocked database (`equipment/equipment-substitutions.service.spec.ts`), so each still behaves as meant if its guarantee is ever lost:
 
 | Line | Backstop | Why the app never reaches it |
@@ -81,4 +83,52 @@ Measured on 2026-10-29. Unit: `npx jest --coverage` (1954 tests). Integration: t
 | A Safety Officer alert for an event with no date; a failure that is not an Error | `notifications/safety-check-notifier.service.spec.ts` |
 | A change notice for an unnamed event | `events/events-request-notifier.service.spec.ts` |
 | A requirements change for an event that has gone | `equipment/technical-support-notifier.spec.ts` |
+
+## Story 45, 60 and 67 after the Sprint 4 rebuild
+
+Measured on 2026-10-30, after merging `sprint4-main` (Story 45 by quantity; substitutions retired). Unit: `npx jest --coverage` (1959 tests). Integration: the full suite, all 71 files (1479 tests), on `localhost` / `connectsphere_test`. Combined, same method as above.
+
+| | Statements | Branches |
+|---|---|---|
+| After the merge, before the new tests | 98.9% (645/652) | 90.7% (195/215) |
+| **Combined, with the new integration and backstop unit tests** | **100% (652/652)** | **100% (215/215)** |
+
+| Story | File | Statements | Branches |
+|---|---|---|---|
+| 45 | equipment/equipment-status.ts | 100.0% | 100.0% |
+| 45 | equipment/equipment-availability.ts | 100.0% | 100.0% |
+| 45 | equipment/equipment-shortage.ts | 100.0% | 100.0% |
+| 45 | equipment/equipment-shortage.service.ts | 100.0% | 100.0% |
+| 45, 67 | events/equipment-shortage-actions.service.ts | 100.0% | 100.0% |
+| 45 | events/equipment-shortage.controller.ts | 100.0% | — |
+| 45 | events/dto/equipment-shortage.dto.ts | 100.0% | 100.0% |
+| 45 | equipment/dto/change-equipment-status.dto.ts | 100.0% | 100.0% |
+| 45 | equipment/equipment.controller.ts | 100.0% | — |
+| 45 | equipment/equipment.service.ts | 100.0% | 100.0% |
+| 45 | equipment/equipment-reservations.service.ts | 100.0% | 100.0% |
+| 60 | equipment/equipment-status-notifier.ts | 100.0% | 100.0% |
+| 67 | equipment/equipment-notifier.ts | 100.0% | 100.0% |
+
+**New tests that closed the gaps (reachable through the app):**
+
+| Path | Test |
+|---|---|
+| A reason that is not text (both DTOs) | `equipment-status::400s for a reason that is not text, changing nothing`; `equipment-shortage::a reason that is not text is refused` |
+| Sending more units to maintenance than are damaged | `equipment-status::refuses sending more units to maintenance than are damaged, with a clear message` |
+| An unknown item's breakdown; an unknown event's reservations; an unknown reservation's alternatives (404) | `equipment-status`, `equipment-shortage` |
+| An affected event with no Coordinator: the Leads are told (seeded directly, `tc-s4-109-setup.sql`) | `equipment-status::an event with no Coordinator yet — the Coordinator Leads are told` |
+| Other events' reservations of an alternative item | `equipment-shortage::counts what other events hold of an item, offering it only up to its free units` |
+| Suggesting more units than are reserved | `equipment-shortage::never more units than the reservation holds` |
+| Accepting after the event was cancelled | `equipment-shortage::becomes invalid if the event is cancelled before the Coordinator decides` |
+
+**Backstops the app cannot reach**, covered by unit tests with a mocked database so each still behaves as meant if its guarantee is ever lost:
+
+| Code | Backstop | Why the app never reaches it | Test |
+|---|---|---|---|
+| `equipment-shortage-actions.service.ts` (reduce, release, noAlternative, suggest, accept, decline) | `name ?? 'an event'` in each notice | The database requires a name on every event that is not a draft (`EventRequest_complete_unless_draft`), and suggestions are only for confirmed events. | `events/equipment-shortage-actions.service.spec.ts` |
+| `equipment-shortage-actions.service.ts:392` | Accepting when the reservation holds fewer units than suggested | Reducing a reservation closes every open suggestion for more than it keeps (`invalidateSuggestions`). | same |
+| `equipment-shortage-actions.service.ts:539` | The alternative item missing inside the transaction | A suggestion's foreign key keeps its item. | same |
+| `equipment.service.ts:288` | Two changes recorded at the same instant (ID tie-break) | Each request records its own time. | `equipment/equipment-condition.service.spec.ts` |
+| `equipment.service.ts:314` | No proposed move passed at all | The controller always passes the query object. | same |
+| `equipment-reservations.service.ts:476` | Committing for an event with no date and time (Sprint 2 code) | The completeness CHECK requires both dates on every non-draft event. | `equipment/equipment-reservations.service.spec.ts` |
 

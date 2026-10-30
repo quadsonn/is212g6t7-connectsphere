@@ -356,10 +356,20 @@ Named after the first Sprint 3 test case that needs them; a second script for th
 | `tc-s3-86-setup.sql` | The Gala's pending East Annex booking (`BKG-106`). After `tc-s3-55`. | 86 |
 | `tc-s3-87-setup.sql` | "Other"'s approved Main Hall booking 08:00–12:00 (`BKG-107`). After `tc-s3-55`. | 87 |
 | `tc-s3-87b-setup.sql` | Main Hall with 30-minute buffers; the Gala and "Other" flagged for clashing within them (`BKG-108`, `BKG-109`) | 87 |
-| `tc-s3-88-setup.sql` | Story 45: Wireless microphone (`EQP-016`, 10) and "Conference" (`EVT-213`). After `base-users`. | 88 to 94 |
-| `tc-s3-93-setup.sql` | "Later" and "Sooner" with upcoming microphone reservations (`EVT-214`, `EVT-215`, `RSV-021`, `RSV-022`) | 93 |
-| `tc-s3-93b-setup.sql` | Reservations the warning leaves out: released, rejected, past, another item (`EVT-216`, `EQP-017`, `RSV-023` to `RSV-026`) | 93 |
-| `tc-s3-93c-setup.sql` | 2 microphones approved for the Conference (`RSV-027`) | 93, 94 |
+| `tc-s3-88-setup.sql` | Story 45 users: tech, tech2, coordinator, coordinator2, otherCoordinator, organiser (`USR-046` to `USR-051`). Loaded on its own, not with `base-users`. | 88 to 98; Story 60/67 |
+| `tc-s3-88b-setup.sql` | Wireless microphone `EQP-033`, 10 working | 88 to 93 |
+| `tc-s3-92-setup.sql` | "Gala" (`EVT-317`), in planning, 1 Oct 2030 | 92, 93 |
+| `tc-s3-92b-setup.sql` | Gala holds 3 microphones (`RSV-042`) | 92 |
+| `tc-s3-92c-setup.sql` | A second item, Projector x4 (`EQP-037`) | 92 |
+| `tc-s3-92d-setup.sql` | "Conference" (`EVT-321`), confirmed, for a change request check | 92 |
+| `tc-s3-93-setup.sql` | Gala holds 9 microphones (`RSV-043`) | 93 |
+| `tc-s3-93b-setup.sql` | "Fair" the next day (`EVT-318`) holding 5 (`RSV-044`) | 93 |
+| `tc-s3-93c-setup.sql` | "Last year" (`EVT-319`), over, holding all 10 (`RSV-045`) | 93 |
+| `tc-s3-93d-setup.sql` | Gala's released, rejected and requested reservations (`RSV-046` to `RSV-048`) | 93 |
+| `tc-s3-94-setup.sql` | Projector x10, Laser projector x4, Screen x1 (`EQP-034` to `036`); "Gala" and "Fair" (`EVT-322`, `EVT-323`), confirmed, 5 projectors each (`RSV-052`, `RSV-053`). After `tc-s3-88`. | 94 to 98 |
+| `tc-s3-94b-setup.sql` | "Last year" (`EVT-324`), completed, holding 10 projectors (`RSV-054`) | 94 |
+| `tc-s3-97-setup.sql` | Fair holds 2 of the 4 laser projectors (`RSV-056`) | 95, 97 |
+| `tc-s3-98b-setup.sql` | "Last year" (`EVT-325`), completed, holding 4 projectors (`RSV-055`) | 98 |
 | `tc-s3-99-setup.sql` | Story 46: Attendees a1 to a8 (`USR-020` to `USR-027`). After `base-users`. Dates in the Story 46 scripts are fixed against a frozen "now" of 1 Mar 2030. | 99 to 106 |
 | `tc-s3-99b-setup.sql` | An event for each period and capacity case (`EVT-217` to `EVT-228`) | 99 to 104, 106 |
 | `tc-s3-99c-setup.sql` | Browse list: open, full, closed, not yet open (`EVT-229` to `EVT-232`) | Story 33 browse test (kept) |
@@ -515,23 +525,9 @@ Same rules as Sprint 3. "Used by" lists TC-S4 numbers.
 | `tc-s4-104g-setup.sql` | Main Hall approved for the Town Hall | 104, 105 |
 | `tc-s4-105-setup.sql` | The Town Hall is confirmed | 105 |
 | `tc-s4-105b-setup.sql` | The Organiser asks to move the Town Hall a day later | 105 |
-| `tc-s4-110-setup.sql` | Two kinds of microphone, and a confirmed event using one | 107, 110 |
-| `tc-s4-110b-setup.sql` | An event still in planning using the same microphones | 107, 110 |
-| `tc-s4-110c-setup.sql` | A second confirmed event using the same microphones | 110 |
-| `tc-s4-110d-setup.sql` | Another event holding most of the lapel microphones | 110 |
-| `tc-s4-110e-setup.sql` | One handheld microphone | 110 |
-| `tc-s4-110f-setup.sql` | Three handheld microphones | 110 |
-| `tc-s4-110g-setup.sql` | More items for the replacement dropdown | 110 |
-| `tc-s4-110h-setup.sql` | The gala's microphone reservation is only requested | 110 |
-| `tc-s4-110i-setup.sql` | The gala is COMPLETED | 107 |
-| `tc-s4-110j-setup.sql` | The gala is CANCELLED | 107 |
-| `tc-s4-110k-setup.sql` | The gala is REJECTED | 107 |
-| `tc-s4-110l-setup.sql` | The lapel microphones are under maintenance | 110 |
-| `tc-s4-110m-setup.sql` | The wireless microphones were taken out of service before the gala was confirmed | 107, 110 |
-| `tc-s4-110n-setup.sql` | The gala is PLANNING | 107, 110 |
-| `tc-s4-110o-setup.sql` | The wireless microphones are back in service | 107, 110 |
-| `tc-s4-110p-setup.sql` | The gala's microphone reservation has been released | 110 |
-| `tc-s4-110q-setup.sql` | A second set of handheld microphones | 110 |
+| `tc-s4-107-setup.sql` | "Fair" (`EVT-320`), coordinator2's, at the same time as Gala; Gala holds 6 (`RSV-049`), Fair 4 (`RSV-050`). After `tc-s3-92`. | 107 |
+| `tc-s4-107b-setup.sql` | Gala holds 5 microphones (`RSV-051`) | 107 |
+| `tc-s4-109-setup.sql` | An event with no Coordinator (`EVT-326`) holding 9 microphones (`RSV-057`), and a Lead (`USR-052`). Seeded directly: the app cannot reach it. | 109 |
 
 Extra users added by Sprint 4 scripts (same password as the base users):
 
@@ -544,5 +540,7 @@ Extra users added by Sprint 4 scripts (same password as the base users):
 | `USR-042`, `USR-043` | wei.t@ / nadia.t@example.com | Wei / Nadia Technical | TECHNICAL_SUPPORT_STAFF (`tc-s4-76-setup.sql`) |
 | `USR-044` | lead2@example.com | Lars Lead | EVENT_COORDINATOR_LEAD (`tc-s4-90-setup.sql`) |
 | `USR-045` | vanessa@example.com | Vanessa Venue | VENUE_STAFF (`tc-s4-104-setup.sql`) |
+| `USR-046` to `USR-051` | tech@, tech2@, coordinator@, coordinator2@, other@, organiser@example.com | tech, tech2, coordinator, coordinator2, otherCoordinator, organiser | Technical Support x2, Coordinator x3, Organiser (`tc-s3-88-setup.sql`) |
+| `USR-052` | lead.s4@example.com | Lee Lead | EVENT_COORDINATOR_LEAD (`tc-s4-109-setup.sql`) |
 
 `tc-s4-76-setup.sql` is loaded **instead of** `base-users.sql` (Stories 61 and 66 need exactly two Technical Support members).

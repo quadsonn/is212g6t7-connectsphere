@@ -173,6 +173,15 @@ describe('EquipmentReservationsService', () => {
       await expect(commit(1)).rejects.toThrow(ConflictException);
       expect(tx.equipmentReservation.create).not.toHaveBeenCalled();
     });
+
+    // TC-S2-122 · US-31 AC-1 · unit: commit() with Prisma mocked · fails if a commitment is made for an event with no date and time
+    // Code: EquipmentReservationsService.lockEvent (no window, 409). Unreachable in the app: the completeness CHECK requires both dates on every non-draft event.
+    it('refuses an event with no date and time to commit for', async () => {
+      tx.eventRequest.findUniqueOrThrow.mockResolvedValue({ ...event, proposedStart: null });
+
+      await expect(commit(1)).rejects.toThrow(new ConflictException('the event has no date and time to commit for'));
+      expect(tx.equipmentReservation.create).not.toHaveBeenCalled();
+    });
   });
 
   // TC-S2-126, TC-S2-127 · US-31 AC-2 · unit: commit() locking · fails if the rows are not locked, or overlapping

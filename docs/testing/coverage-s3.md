@@ -169,7 +169,7 @@ Measured on 2026-10-29, after merging `sprint4-main` and `sprint4-marilyn`. Unit
 | Confirm refused while safety feedback waits, allowed once answered; a nameless venue and event | `events/event-confirmation.service.spec.ts` |
 | Cancelling an event with no name | `events/events-cancellation.service.spec.ts` |
 | A cancel reason that is not text | `events/dto/cancel-event.dto.spec.ts` (new) |
-| Marking an item out of service without the substitutions service, on an event with no Coordinator | `equipment/equipment-change-status.service.spec.ts` (new) |
+| Marking an item out of service without the substitutions service, on an event with no Coordinator | `equipment/equipment-change-status.service.spec.ts` (removed 2026-10-30 with the substitutions; the no-Coordinator path is now an integration test, see below) |
 | An event with no start date: only the times set on it | `registrations/registration-rules.spec.ts` |
 | Registering for an event with no name | `registrations/registrations.service.spec.ts` |
 | A Coordinator who is not assigned; an event with no name | `events/events-unfulfillable.service.spec.ts` (new) |
@@ -229,3 +229,8 @@ Measured on 2026-10-29. Unit: `npx jest --coverage` (1916 tests). Integration: `
 | Missing capacity or attendance and a block row without its block in the review; arrangements that stop being ready under the lock; a decision with no reason or stage; no Coordinator to notify; an event gone before a resubmit locks it | `safety/safety.service.spec.ts` |
 | A nameless venue in the readiness facts; a lost race and an unexpected failure leaving the queue | `safety/safety-readiness.service.spec.ts` |
 | A reason that is not text | `safety/safety-decision.dto.spec.ts` |
+
+## Story 45 (reopened) at 100%
+
+Story 45 was rebuilt in Sprint 4 (status by quantity, shortages, alternatives, reduce and release). Its files were measured with Story 60 and 67 on 2026-10-30: **100% statements (652/652), 100% branches (215/215)**. The per-file table, the new tests and the backstops are in [coverage-s4.md](coverage-s4.md), "Story 45, 60 and 67 after the Sprint 4 rebuild". The earlier Story 45 rows above measured the old whole-item code.
+

@@ -35,6 +35,8 @@ const renderActions = (canSuggest = true, noAlternative: { id: string; reason: s
 beforeEach(() => vi.resetAllMocks());
 
 describe('US-45 resolving a shortage (Technical Support)', () => {
+  // TC-S3-98 · US-45 AC-11 · fails if a reservation can be reduced without a reason, or the new quantity is not sent
+  // Code: ReservationActions (reduce)
   it('US-45 AC-6: reducing a reservation needs a reason, then sends the new quantity', async () => {
     api.reduceReservation.mockResolvedValue({});
     renderActions();
@@ -53,6 +55,8 @@ describe('US-45 resolving a shortage (Technical Support)', () => {
     );
   });
 
+  // TC-S3-98 · US-45 AC-11 · fails if a reservation can be released without a reason
+  // Code: ReservationActions (release)
   it('US-45 AC-6: releasing a reservation needs a reason', async () => {
     api.releaseReservation.mockResolvedValue({});
     renderActions();
@@ -69,6 +73,8 @@ describe('US-45 resolving a shortage (Technical Support)', () => {
     );
   });
 
+  // TC-S3-95 · US-45 AC-8 · fails if an item not free in the needed quantity is offered, or the suggestion is not sent
+  // Code: ReservationActions (useAlternatives, suggest)
   it('US-45 AC-7: offers only items available in the needed quantity, and sends the suggestion', async () => {
     api.listAlternatives.mockResolvedValue([
       { equipmentId: 'EQP-002', type: 'Laser projector', location: null, availableQuantity: 4 },
@@ -100,11 +106,15 @@ describe('US-45 resolving a shortage (Technical Support)', () => {
     );
   });
 
+  // TC-S3-95 · US-45 AC-8 · fails if a suggestion is offered before the event is confirmed
+  // Code: ReservationActions (CONFIRMED only)
   it('US-45 AC-7: no suggestion is offered for an event that is not confirmed', () => {
     renderActions(false);
     expect(screen.queryByRole('button', { name: 'Suggest alternative' })).not.toBeInTheDocument();
   });
 
+  // TC-S3-95 · US-45 AC-8 · fails if "no valid alternative" can be sent without a reason
+  // Code: ReservationActions (noAlternative)
   it('US-45 AC-7: "no valid alternative" needs a reason, then is recorded', async () => {
     api.recordNoAlternative.mockResolvedValue({});
     renderActions();
@@ -121,6 +131,8 @@ describe('US-45 resolving a shortage (Technical Support)', () => {
     );
   });
 
+  // TC-S3-95 · US-45 AC-8 · fails if a recorded "no valid alternative" is not shown, or is offered again
+  // Code: ReservationActions
   it('US-45 AC-7: once recorded, shows it and does not offer it again', () => {
     renderActions(true, { id: 'ESG-002', reason: 'Nothing that bright', createdAt: '2030-09-01T00:00:00.000Z' });
     expect(screen.getByText('No valid alternative recorded: Nothing that bright')).toBeInTheDocument();
@@ -129,6 +141,8 @@ describe('US-45 resolving a shortage (Technical Support)', () => {
     expect(screen.getByRole('button', { name: 'Suggest alternative' })).toBeInTheDocument();
   });
 
+  // TC-S3-95 · US-45 AC-8 · fails if "no valid alternative" is offered before the event is confirmed
+  // Code: ReservationActions (CONFIRMED only)
   it('US-45 AC-7: "no valid alternative" is not offered for an event that is not confirmed', () => {
     renderActions(false);
     expect(screen.queryByRole('button', { name: 'No valid alternative' })).not.toBeInTheDocument();

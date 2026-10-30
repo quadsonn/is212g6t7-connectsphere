@@ -2,7 +2,7 @@
 
 Written test cases for the Sprint 3 user stories (Story 38 onwards), traced from story → acceptance criterion → test case → automated test. Stories and ACs use the numbers in the Sprint 3 user-story document; in the code, Sprint 3 labels match those numbers (`US-40` is Story 40). ACs are numbered in the order the card lists them.
 
-Done: **Story 38 to 57** (TC-S3-38 to 186). Story 45 is on hold while its code changes are under way; its test cases stand as written.
+Done: **Story 38 to 57** (TC-S3-38 to 186). Story 45 was reopened and rebuilt in Sprint 4; its test cases (TC-S3-88 to 98) were rewritten against the new code on 2026-10-30.
 
 ## How to read this file
 
@@ -1145,19 +1145,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S3-88 |
 | Story/AC ref | Story 45 AC-1 |
 | Test Scenario | Mark a quantity of an item as Damaged or Under Maintenance (e.g. 2 of 10), leaving the rest available |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-88-setup.sql on testDB (reset before test). Wireless microphone `EQP-016`, 10 in stock; "Conference" `EVT-213`. Logged in as tech.support@example.com. |
-| Test Steps | 1. Toby marks 2 of the 10 microphones Damaged. |
-| Test Data | 2 of 10 |
-| Expected Result | 2 are Damaged and 8 stay available. |
+| Pre-conditions | Run test/fixtures/sql/tc-s3-88-setup.sql + tc-s3-88b-setup.sql on testDB (reset before test). Users tech, tech2 (Technical Support), coordinator, coordinator2, otherCoordinator, organiser (`USR-046` to `051`); Wireless microphone `EQP-033`, 10 working. Logged in as tech@example.com. |
+| Test Steps | 1. tech marks 2 of the 10 microphones Damaged.<br>2. Then 3 Under Maintenance; moves damaged units to maintenance; marks all 10.<br>3. Sends a bad quantity or status, an unknown item; other roles try; no token. |
+| Test Data | 2 of 10; 0, -1, 1.5, "two" |
+| Expected Result | 2 are Damaged and 8 stay available; damaged and under maintenance are separate counts; bad input refused; Technical Support only. |
 | Created By | Raye Yap |
-| Date of Creation | 2026-10-27 |
+| Date of Creation | 2026-10-30 |
 | **Test execution record** | |
-| Actual Result | Only the whole item can be marked: it becomes Damaged (or Under Maintenance) and all 10 are unavailable. Marking whole items works and is limited to Technical Support (others 403, no token 401). |
-| Status | Fail |
-| Remarks | **Code gap.** Equipment status is per item, not per unit: an item is Available, Damaged or Under Maintenance as a whole. |
+| Actual Result | 8 working, 2 damaged, 0 under maintenance, and the item stays lendable (Available while any unit works); 3 more under maintenance gave 5/2/3; 4 damaged then 3 to maintenance gave 6/1/3; with every unit out of use the item reads Under Maintenance, then Damaged. Bad quantities and an unknown status 400, an unknown item 404, Coordinator and Organiser 403, no token 401. |
+| Status | Pass |
+| Remarks | The reopened story numbers this AC-1 too (`US-45 AC-1` in the test names). |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/equipment-status.e2e-spec.ts::sets the status to %s and returns the updated item`<br>Integration: `test/equipment-status.e2e-spec.ts::moves a damaged item into maintenance`<br>Integration: `test/equipment-status.e2e-spec.ts::shows the new status in the item detail the catalogue opens`<br>Integration: `test/equipment-status.e2e-spec.ts::is refused to %s — Technical Support only`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 equipment status rules US-45 AC-1/AC-3: which changes are allowed` |
+| Date of Execution | 2026-10-30 |
+| Automated by | Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: mark 2 of 10 damaged — the other 8 stay available`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: damaged and under maintenance are separate counts`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: damaged units can be sent to maintenance`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: with every unit out of use, the item reads as Damaged or Under Maintenance`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: 400s for a quantity of %p`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: 400s for a status that does not exist`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: 404s for an item that does not exist`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: only Technical Support may change it (%s is refused)`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: is refused without a token`<br>Unit: `src/equipment/equipment-status.spec.ts::uses the story's names for the stored values`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-1: mark 2 of 10 damaged`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-1: under maintenance is a separate count`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-1: units can move from damaged to under maintenance`<br>UI: `frontend/src/features/equipment/components/equipment-status-panel.test.tsx::US-45 AC-1/AC-2: mark 2 of 10 damaged — the quantity and trimmed reason are sent` |
 
 ### TC-S3-89
 
@@ -1166,19 +1166,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S3-89 |
 | Story/AC ref | Story 45 AC-2 |
 | Test Scenario | A reason must be entered; the change cannot be saved without one |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-88-setup.sql on testDB (reset before test). Wireless microphone `EQP-016`, 10 in stock; "Conference" `EVT-213`. Logged in as tech.support@example.com. |
-| Test Steps | 1. Toby changes the status with a missing, empty, blank or non-text reason.<br>2. With "  Cracked casing.  ". |
+| Pre-conditions | Run test/fixtures/sql/tc-s3-88-setup.sql + tc-s3-88b-setup.sql on testDB (reset before test). Users tech, tech2 (Technical Support), coordinator, coordinator2, otherCoordinator, organiser (`USR-046` to `051`); Wireless microphone `EQP-033`, 10 working. Logged in as tech@example.com. |
+| Test Steps | 1. tech changes the status with a missing, empty, blank or non-text reason.<br>2. With "  Cracked lens  ".<br>3. Reads the history; writes around the API. |
 | Test Data | — |
-| Expected Result | Without a reason it is refused and nothing changes; the reason is saved with who and when. |
+| Expected Result | Without a reason it is refused and nothing changes; the reason is saved with the quantity, who and when. |
 | Created By | Raye Yap |
-| Date of Creation | 2026-10-27 |
+| Date of Creation | 2026-10-30 |
 | **Test execution record** | |
-| Actual Result | 400 "a reason is required to change the status" each time, nothing recorded; with a reason the change saved "Cracked casing." (trimmed), from/to, Toby and the time. The database also refuses a blank reason. |
+| Actual Result | 400 each time, nothing recorded; with a reason the history entry held from/to, quantity 2, "Cracked lens" (trimmed), tech and the time, with a readable `ESC-` ID; newest first (ties by ID). The database refuses a blank reason, a zero quantity and a non-readable ID. A token whose user was deleted 401s and changes nothing. |
 | Status | Pass |
 | Remarks | — |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/equipment-status.e2e-spec.ts::400s when the reason is %s, and changes nothing`<br>Integration: `test/equipment-status.e2e-spec.ts::records the change: from, to, trimmed reason, who and when`<br>Integration: `test/equipment-status.e2e-spec.ts::the database refuses a blank reason written around the API`<br>Integration: `test/equipment-status.e2e-spec.ts::shows the latest reason in the item detail`<br>Unit: `src/equipment/equipment-change-status.service.spec.ts::records the change and flags the affected event, with no Coordinator to name` |
+| Date of Execution | 2026-10-30 |
+| Automated by | Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: 401s, changing nothing, when the token's user no longer exists`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-2: 400s without a reason (%p), changing nothing`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-2: records the quantity, status, trimmed reason, who and when`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-2: the history lists every change, newest first`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-2: the database refuses a blank reason or a zero quantity written around the API`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-2: the database refuses an ID that is not in the readable format`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-2: 400s for a reason that is not text, changing nothing`<br>Unit: `src/equipment/equipment-condition.service.spec.ts::lists changes recorded at the same instant newest entry first, by ID`<br>UI: `frontend/src/features/equipment/components/equipment-status-panel.test.tsx::US-45 AC-1/AC-2: mark 2 of 10 damaged — the quantity and trimmed reason are sent` |
 
 ### TC-S3-90
 
@@ -1187,19 +1187,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S3-90 |
 | Story/AC ref | Story 45 AC-3 |
 | Test Scenario | Set a quantity of units back to Available once repaired |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-88-setup.sql on testDB (reset before test). Wireless microphone `EQP-016`, 10 in stock; "Conference" `EVT-213`. Logged in as tech.support@example.com. |
-| Test Steps | 1. Toby marks the microphones Damaged, then sets 2 of them back. |
-| Test Data | 2 units |
-| Expected Result | 2 units become available again. |
+| Pre-conditions | Run test/fixtures/sql/tc-s3-88-setup.sql + tc-s3-88b-setup.sql on testDB (reset before test). Users tech, tech2 (Technical Support), coordinator, coordinator2, otherCoordinator, organiser (`USR-046` to `051`); Wireless microphone `EQP-033`, 10 working. Logged in as tech@example.com. |
+| Test Steps | 1. tech marks 4 damaged, then sets 3 back with a reason.<br>2. Sets units back without a reason. |
+| Test Data | 3 of 4 damaged |
+| Expected Result | 3 units become available again; a reason is required. |
 | Created By | Raye Yap |
-| Date of Creation | 2026-10-27 |
+| Date of Creation | 2026-10-30 |
 | **Test execution record** | |
-| Actual Result | The whole item can be set back to Available (with a reason); individual units cannot. |
-| Status | Fail |
-| Remarks | **Code gap.** Equipment status is per item, not per unit: an item is Available, Damaged or Under Maintenance as a whole. |
+| Actual Result | Availability rose from 6 to 9 free; 9 working, 1 damaged. Without a reason 400 and nothing changed. |
+| Status | Pass |
+| Remarks | — |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/equipment-status.e2e-spec.ts::moves %s back to OPERATIONAL, with a reason`<br>Integration: `test/equipment-status.e2e-spec.ts::requires a reason to set it back too`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 equipment status rules US-45 AC-1/AC-3: which changes are allowed` |
+| Date of Execution | 2026-10-30 |
+| Automated by | Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-3: repairing a quantity restores availability by that amount`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-3: requires a reason to set them back too`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-3: repairing a quantity restores working units`<br>UI: `frontend/src/features/equipment/components/equipment-status-panel.test.tsx::US-45 AC-3: repair a quantity of damaged units` |
 
 ### TC-S3-91
 
@@ -1207,20 +1207,20 @@ All four use only the local test database (or none). None touches the shared Sup
 |---|---|
 | Test Case ID | TC-S3-91 |
 | Story/AC ref | Story 45 AC-4 |
-| Test Scenario | Cannot mark more units than are working, or set back more than are damaged or under maintenance |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-88-setup.sql on testDB (reset before test). Wireless microphone `EQP-016`, 10 in stock; "Conference" `EVT-213`. Logged in as tech.support@example.com. |
-| Test Steps | 1. Toby marks 11 of 10 Damaged.<br>2. He sets back more than are damaged. |
-| Test Data | 11 of 10 |
-| Expected Result | Both are refused. |
+| Test Scenario | Cannot mark more units than are working, or set back or move more than are damaged or under maintenance |
+| Pre-conditions | Run test/fixtures/sql/tc-s3-88-setup.sql + tc-s3-88b-setup.sql on testDB (reset before test). Users tech, tech2 (Technical Support), coordinator, coordinator2, otherCoordinator, organiser (`USR-046` to `051`); Wireless microphone `EQP-033`, 10 working. Logged in as tech@example.com. |
+| Test Steps | 1. With 8 working, tech marks 9 damaged.<br>2. Sets back 3 of 2 damaged; 1 of 0 under maintenance; sends 3 of 2 damaged to maintenance; a move to the same status.<br>3. Two changes at the same time; a write around the API. |
+| Test Data | 9 of 8 working; 3 of 2 damaged |
+| Expected Result | Each is refused with a clear message and nothing changes; simultaneous changes cannot together exceed the limits. |
 | Created By | Raye Yap |
-| Date of Creation | 2026-10-27 |
+| Date of Creation | 2026-10-30 |
 | **Test execution record** | |
-| Actual Result | Not testable: there are no unit counts. The nearest rule: setting an item to the status it already has is refused (409 "this item is already Available"). |
-| Status | Fail |
-| Remarks | **Code gap.** Equipment status is per item, not per unit: an item is Available, Damaged or Under Maintenance as a whole. |
+| Actual Result | 409 "Only 8 of 10 Wireless microphone are working, so 9 can't be marked damaged." (nothing recorded); "Only 2 … are damaged, so 3 can't be set back to available."; "… so 3 can't be moved to under maintenance."; "the units are already Available". Of two simultaneous marks of 6, or repairs of the same 3, exactly one succeeded; a mark and a reservation together never over-committed. The database refuses counts over the total (`Equipment_out_of_use_within_total`). |
+| Status | Pass |
+| Remarks | — |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/equipment-status.e2e-spec.ts::409s when the item already has that status, and records nothing` |
+| Date of Execution | 2026-10-30 |
+| Automated by | Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: refuses marking more units than are working, with a clear message, and records nothing`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: refuses a move to the same status`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-3: refuses repairing more than are damaged, with a clear message`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-3: refuses repairing more than are under maintenance, with a clear message`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-1: refuses sending more units to maintenance than are damaged, with a clear message`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-8: two simultaneous marks of 6 of 10 — exactly one succeeds`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-8: two simultaneous repairs of the same 3 damaged units — exactly one succeeds`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-8: a mark and a reservation at the same time never over-commit the working units`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-8: the database itself refuses counts over the total`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-1: refuses marking more units than are working, with a clear message`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-1: marking exactly every working unit is allowed`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-3: refuses repairing more than are damaged, with a clear message`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-3: refuses repairing more than are under maintenance, with a clear message`<br>UI: `frontend/src/features/equipment/components/equipment-status-panel.test.tsx::US-45 AC-1/AC-3: offers only moves with units to move`<br>UI: `frontend/src/features/equipment/components/equipment-status-panel.test.tsx::US-45 AC-1: shows the server refusing more units than are working` |
 
 ### TC-S3-92
 
@@ -1229,19 +1229,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S3-92 |
 | Story/AC ref | Story 45 AC-5 |
 | Test Scenario | Damaged or under-maintenance units are excluded from availability checks and reservations; the catalogue shows the breakdown (e.g. "8 available, 2 damaged") |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-88-setup.sql on testDB (reset before test). Wireless microphone `EQP-016`, 10 in stock; "Conference" `EVT-213`. Logged in as tech.support@example.com. |
-| Test Steps | 1. Toby marks the item Damaged, then Under Maintenance.<br>2. He checks availability and tries to reserve one.<br>3. He sets it back and tries again. |
-| Test Data | 1 and 10 units |
-| Expected Result | Unavailable units are excluded, reservations refused, and the breakdown shown. |
+| Pre-conditions | Run test/fixtures/sql/tc-s3-88-setup.sql + tc-s3-88b-setup.sql on testDB (reset before test). Users tech, tech2 (Technical Support), coordinator, coordinator2, otherCoordinator, organiser (`USR-046` to `051`); Wireless microphone `EQP-033`, 10 working. Logged in as tech@example.com. + tc-s3-92-setup.sql ("Gala" `EVT-317`, in planning) and tc-s3-92b/c/d-setup.sql as each step needs. |
+| Test Steps | 1. Gala holds 3; tech marks 2 damaged and 1 under maintenance; checks availability.<br>2. Reserves 8, then 7.<br>3. Marks all 10 damaged and reserves 1.<br>4. Reads the catalogue breakdown; a change request check. |
+| Test Data | — |
+| Expected Result | Only working units are available or reservable; each item shows its breakdown. |
 | Created By | Raye Yap |
-| Date of Creation | 2026-10-27 |
+| Date of Creation | 2026-10-30 |
 | **Test execution record** | |
-| Actual Result | Excluded: `availableQuantity: 0`, `unavailableQuantity: 10`, and reserving got 409 "Wireless microphone is damaged (out of service)…"; once Available, 10 were free and could be reserved. No per-unit breakdown exists. |
-| Status | Fail |
-| Remarks | **Code gap.** Equipment status is per item, not per unit: an item is Available, Damaged or Under Maintenance as a whole. The exclusion part passes; the "8 available, 2 damaged" breakdown cannot exist. |
+| Actual Result | Availability: 10 total, 3 out of use, 3 reserved, 4 free. Reserving 8 got 409 "Only 7 of the 8 … are free … 2 are damaged, 1 under maintenance …"; 7 was reserved. With none working, 409 "… none of it can be committed." The catalogue listed 10/8/2/0 and the other item 4/4/0/0 (Technical Support only, unknown item 404); the UI shows "8 available, 2 damaged, 0 under maintenance". A change request for 9 was "Only 8 of 9 … free"; 8 fitted. |
+| Status | Pass |
+| Remarks | — |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/equipment-status.e2e-spec.ts::a %s item has no free units and cannot be committed`<br>Integration: `test/equipment-status.e2e-spec.ts::is available and committable again once set back to Available` |
+| Date of Execution | 2026-10-30 |
+| Automated by | Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-4 / US-29: the availability check subtracts each by its own amount`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-4 / US-31: a new reservation cannot use damaged or under-maintenance units`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-4 / US-31: every unit out of use is still refused outright`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-4: the catalogue shows each item's breakdown`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-4: the breakdown is Technical Support only`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-4: 404s for an unknown item's breakdown`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-4 / US-48: a change request check counts only working units`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45: working = total - damaged - under maintenance`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-4: marking 2 damaged reduces availability by 2, not all 10`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-4: under maintenance reduces it by its own count`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-4: damaged, under maintenance and reserved all come off`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45: an item known only by a whole-item status counts all its units out`<br>UI: `frontend/src/features/equipment/components/equipment-status-panel.test.tsx::US-45: shows the units by condition, e.g. "8 available, 2 damaged, 0 under maintenance"` |
 
 ### TC-S3-93
 
@@ -1250,19 +1250,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S3-93 |
 | Story/AC ref | Story 45 AC-6 |
 | Test Scenario | A warning lists existing reservations affected by the change, including how many units each is short |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-88-setup.sql on testDB (reset before test). Wireless microphone `EQP-016`, 10 in stock; "Conference" `EVT-213`. Logged in as tech.support@example.com. + tc-s3-93-setup.sql / tc-s3-93b-setup.sql / tc-s3-93c-setup.sql. |
-| Test Steps | 1. Toby previews and then makes a status change with upcoming reservations of the item. |
-| Test Data | 2 and 3 microphones reserved |
-| Expected Result | Each affected reservation is listed, soonest first, with how many units it is short. |
+| Pre-conditions | Run test/fixtures/sql/tc-s3-88-setup.sql + tc-s3-88b-setup.sql on testDB (reset before test). Users tech, tech2 (Technical Support), coordinator, coordinator2, otherCoordinator, organiser (`USR-046` to `051`); Wireless microphone `EQP-033`, 10 working. Logged in as tech@example.com. + tc-s3-92-setup.sql + tc-s3-93-setup.sql (Gala holds 9), tc-s3-93b/c/d-setup.sql as each step needs. |
+| Test Steps | 1. tech previews marking 2 damaged with Gala holding 9 and Fair (next day) 5.<br>2. Saves it.<br>3. With past, released, rejected and requested reservations. |
+| Test Data | 2 of 10 |
+| Expected Result | Each reservation the change would leave short is listed, with how many short; nothing changes until saved. |
 | Created By | Raye Yap |
-| Date of Creation | 2026-10-27 |
+| Date of Creation | 2026-10-30 |
 | **Test execution record** | |
-| Actual Result | Live, upcoming reservations of the item were listed soonest first (event, coordinator, quantity, status); released, rejected, past and other items' were left out; nothing listed when setting back; the preview matched. There is no "short by" count (the whole item is out). |
-| Status | Fail |
-| Remarks | **Code gap.** Equipment status is per item, not per unit: an item is Available, Damaged or Under Maintenance as a whole. The list part passes; "how many units each is short" is missing. |
+| Actual Result | Preview: Gala 9, short by 1 after the change; Fair 5, not short; nothing changed. After saving, Gala came back short by 1 and stayed APPROVED. Past, released, rejected and requested reservations were neither listed nor counted. Technical Support only; unknown item 404. The UI lists them before and after saving. |
+| Status | Pass |
+| Remarks | — |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/equipment-status.e2e-spec.ts::lists live, upcoming reservations of the item, soonest first`<br>Integration: `test/equipment-status.e2e-spec.ts::leaves out reservations that are released, rejected, already over, or for another item`<br>Integration: `test/equipment-status.e2e-spec.ts::lists nothing when an item is set back to Available`<br>Integration: `test/equipment-status.e2e-spec.ts::shows the same list before the change is saved, for the warning`<br>Integration: `test/equipment-status.e2e-spec.ts::the preview is Technical Support only, and 404s for an unknown item`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 equipment status rules US-45 AC-5: which changes affect reservations` |
+| Date of Execution | 2026-10-30 |
+| Automated by | Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-5: before saving, the warning lists the reservations the change would leave short`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-5: after saving, the reservations made short come back, and none is cancelled`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-5: past reservations are neither listed nor counted`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-5: released, rejected and requested reservations hold nothing and are not listed`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-5: the preview is Technical Support only, and 404s for an unknown item`<br>Unit: `src/equipment/equipment-condition.service.spec.ts::reads the reservations with no move proposed, and 404s for an unknown item`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-5: overlapping reservations over the working units are each short by the excess`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-5: a reservation is short by at most its own quantity`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-5: reservations that never overlap are judged apart`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-5: back-to-back reservations do not overlap (half-open)`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-5: past reservations are ignored`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-5: only the remaining part of an ongoing reservation counts`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-5: looks only at committed reservations of this item that have not ended, on events still going ahead`<br>UI: `frontend/src/features/equipment/components/equipment-status-panel.test.tsx::US-45 AC-5: before saving, lists the reservations the change would leave short, with how many`<br>UI: `frontend/src/features/equipment/components/equipment-status-panel.test.tsx::US-45 AC-5: a reservation already short by as much is not listed as affected`<br>UI: `frontend/src/features/equipment/components/equipment-status-panel.test.tsx::US-45 AC-5: after saving, shows the reservations the server found short` |
 
 ### TC-S3-94
 
@@ -1271,19 +1271,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S3-94 |
 | Story/AC ref | Story 45 AC-7 |
 | Test Scenario | Affected reservations are flagged as short until they fit again, without any being cancelled automatically |
-| Pre-conditions | Run test/fixtures/sql/base-users.sql + tc-s3-88-setup.sql on testDB (reset before test). Wireless microphone `EQP-016`, 10 in stock; "Conference" `EVT-213`. Logged in as tech.support@example.com. + tc-s3-93c-setup.sql. |
-| Test Steps | 1. Toby marks the item Damaged with 2 reserved.<br>2. Read the reservation. |
+| Pre-conditions | Run test/fixtures/sql/tc-s3-88-setup.sql + tc-s3-94-setup.sql on testDB (reset before test). Projector `EQP-034` x10, Laser projector `EQP-035` x4, Screen `EQP-036` x1; "Gala" (`EVT-322`) and "Fair" (`EVT-323`), confirmed, coordinator's (`USR-048`), tech2 assigned, 5 projectors each (`RSV-052`, `RSV-053`) at the same time. Technical Support marks 3 projectors damaged first (7 work for 10 reserved: each short by 3). |
+| Test Steps | 1. Read the Coordinator's, Organiser's and Technical Support's views.<br>2. Repair 3, or reduce Fair to 2.<br>3. A finished event's reservation. |
 | Test Data | — |
-| Expected Result | The reservation is kept and flagged as short. |
+| Expected Result | Each short reservation is flagged "Short by N" until it fits; none is cancelled. |
 | Created By | Raye Yap |
-| Date of Creation | 2026-10-27 |
+| Date of Creation | 2026-10-30 |
 | **Test execution record** | |
-| Actual Result | The reservation stayed APPROVED (not cancelled). No "short" flag exists. |
-| Status | Fail |
-| Remarks | **Code gap.** Equipment status is per item, not per unit: an item is Available, Damaged or Under Maintenance as a whole. The "not cancelled" part passes. |
+| Actual Result | Gala flagged short by 3 on the Coordinator's and Organiser's event pages and on Technical Support's event and item screens (unknown event 404); nothing flagged while the units covered every reservation; the flag cleared by itself after a repair or a reduction; a finished event's reservation was never flagged. Reservations stayed APPROVED. |
+| Status | Pass |
+| Remarks | — |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | Integration: `test/equipment-status.e2e-spec.ts::warns without changing the reservations themselves` |
+| Date of Execution | 2026-10-30 |
+| Automated by | Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-5: on the Coordinator's event page, with how many short`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-5: on the Organiser's event page too`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-5: on Technical Support's event and item screens`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-5: Technical Support's event screen 404s for an unknown event`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-5: nothing is flagged while the working units cover every reservation`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-5: the flag clears by itself after a repair`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-5: the flag clears by itself once a reservation is reduced to fit`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-5: a reservation already over is never flagged`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-5: after saving, the reservations made short come back, and none is cancelled`<br>Integration: `test/equipment-status.e2e-spec.ts::US-45 AC-8: a mark and a reservation at the same time never over-commit the working units`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-5: none is short while working units cover them`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-5: overlapping reservations over the working units are each short by the excess`<br>Unit: `src/equipment/equipment-status.spec.ts::US-45 AC-5: the flag clears once the reservations fit the working units again`<br>UI: `frontend/src/features/equipment/components/equipment-status-panel.test.tsx::US-45 AC-5: after saving, shows the reservations the server found short`<br>UI: `frontend/src/features/events/components/equipment-shortage-card.test.tsx::US-45 AC-5: flags each short reservation "Short by N"`<br>UI: `frontend/src/features/events/components/equipment-shortage-card.test.tsx::US-45 AC-5: renders nothing once nothing is short (the flag clears)` |
 
 ### TC-S3-95
 
@@ -1292,19 +1292,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S3-95 |
 | Story/AC ref | Story 45 AC-8 |
 | Test Scenario | Suggest an alternative item for an affected confirmed event, choosing only from items available in the needed quantity for its date and time |
-| Pre-conditions | — |
-| Test Steps | — |
-| Test Data | — |
-| Expected Result | Only available items can be suggested. |
+| Pre-conditions | Run test/fixtures/sql/tc-s3-88-setup.sql + tc-s3-94-setup.sql on testDB (reset before test). Projector `EQP-034` x10, Laser projector `EQP-035` x4, Screen `EQP-036` x1; "Gala" (`EVT-322`) and "Fair" (`EVT-323`), confirmed, coordinator's (`USR-048`), tech2 assigned, 5 projectors each (`RSV-052`, `RSV-053`) at the same time. Technical Support marks 3 projectors damaged first (7 work for 10 reserved: each short by 3). tc-s3-97-setup.sql: Fair also holds 2 laser projectors. |
+| Test Steps | 1. tech lists alternatives for Gala's 3.<br>2. Suggests 3 laser projectors with a reason; tries the screen, the projector itself, 6 units, a planning event, a reservation not short, a second open suggestion.<br>3. Records "no valid alternative" instead. |
+| Test Data | 3 × Laser projector |
+| Expected Result | Only other items free in that quantity are offered and accepted; one open suggestion at a time; "no valid alternative" can be recorded with a reason. |
 | Created By | Raye Yap |
-| Date of Creation | 2026-10-27 |
+| Date of Creation | 2026-10-30 |
 | **Test execution record** | |
-| Actual Result | Not testable: not built. There is no equipment suggestion, accept/decline, or reduce/release of a reservation. |
-| Status | Fail |
-| Remarks | **Code gap.** Nothing in `src/equipment` implements it. |
+| Actual Result | Only Laser projector (4 free) was listed; with 2 held by Fair, only up to 2. The suggestion was recorded (`ESG-`) and the Coordinator told. Refused: no reason 400, Screen 409 "only 1 Screen are free…", the short item 400, more than reserved 400, not confirmed 409, not short 409, a second open one 409 (the database allows only one); unknown reservation 404. "No valid alternative" recorded with its reason and the Coordinator told; refused while a suggestion is open, twice in a row, for a planning event or a reservation not short; a later suggestion replaces it. |
+| Status | Pass |
+| Remarks | — |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | — |
+| Date of Execution | 2026-10-30 |
+| Automated by | Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: offers only other items free in the needed quantity`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: counts what other events hold of an item, offering it only up to its free units`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: 404s for the alternatives of an unknown reservation`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: suggesting needs a reason`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: a suggestion is recorded, readable ID and all, and the Coordinator is told`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: only from items available in that quantity for the event's time`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: never the short item itself`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: never more units than the reservation holds`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: only for a confirmed event`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: only for a reservation that is short`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: only one open suggestion per short reservation at a time`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: the database itself allows only one open suggestion per reservation`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: "no valid alternative" needs a reason (%p)`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: "no valid alternative" is recorded, and the Coordinator is told`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: Technical Support's screens show it too`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: "no valid alternative" only for a confirmed event`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: "no valid alternative" only for a reservation that is short`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: not while a suggestion is open — the Coordinator decides that first`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: not recorded twice in a row`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: an alternative can still be suggested later, and then replaces it on the page`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: only Technical Support may record it`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: the database requires a "no valid alternative" record to name no item`<br>Unit: `src/events/equipment-shortage-actions.service.spec.ts::words every notice for an event with no name as "an event"`<br>UI: `frontend/src/features/equipment/components/reservation-actions.test.tsx::US-45 AC-7: offers only items available in the needed quantity, and sends the suggestion`<br>UI: `frontend/src/features/equipment/components/reservation-actions.test.tsx::US-45 AC-7: no suggestion is offered for an event that is not confirmed`<br>UI: `frontend/src/features/equipment/components/reservation-actions.test.tsx::US-45 AC-7: "no valid alternative" needs a reason, then is recorded`<br>UI: `frontend/src/features/equipment/components/reservation-actions.test.tsx::US-45 AC-7: once recorded, shows it and does not offer it again`<br>UI: `frontend/src/features/equipment/components/reservation-actions.test.tsx::US-45 AC-7: "no valid alternative" is not offered for an event that is not confirmed` |
 
 ### TC-S3-96
 
@@ -1313,19 +1313,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S3-96 |
 | Story/AC ref | Story 45 AC-9 |
 | Test Scenario | The Coordinator sees the suggestion on the event, with the reason, and accepts or declines it |
-| Pre-conditions | — |
-| Test Steps | — |
+| Pre-conditions | Run test/fixtures/sql/tc-s3-88-setup.sql + tc-s3-94-setup.sql on testDB (reset before test). Projector `EQP-034` x10, Laser projector `EQP-035` x4, Screen `EQP-036` x1; "Gala" (`EVT-322`) and "Fair" (`EVT-323`), confirmed, coordinator's (`USR-048`), tech2 assigned, 5 projectors each (`RSV-052`, `RSV-053`) at the same time. Technical Support marks 3 projectors damaged first (7 work for 10 reserved: each short by 3). tech has suggested 3 laser projectors (or recorded "no valid alternative"). |
+| Test Steps | 1. coordinator opens Gala; organiser opens it too.<br>2. Another Coordinator and Technical Support try to decide.<br>3. A second decision. |
 | Test Data | — |
-| Expected Result | The Coordinator can accept or decline. |
+| Expected Result | The event's Coordinator sees it with the reason and can accept or decline; only they can, once. |
 | Created By | Raye Yap |
-| Date of Creation | 2026-10-27 |
+| Date of Creation | 2026-10-30 |
 | **Test execution record** | |
-| Actual Result | Not testable: not built. There is no equipment suggestion, accept/decline, or reduce/release of a reservation. |
-| Status | Fail |
-| Remarks | **Code gap.** Nothing in `src/equipment` implements it. |
+| Actual Result | The Coordinator saw 3 × Laser projector with "Same brightness" (or "no valid alternative" with its reason) on the event page, with Accept and Decline; the Organiser saw the shortage but no suggestion. Another Coordinator 404, Technical Support 403; a second decision 409; nothing to accept or decline on "no valid alternative" (409). |
+| Status | Pass |
+| Remarks | — |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | — |
+| Date of Execution | 2026-10-30 |
+| Automated by | Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: the Coordinator sees it on the event page; the Organiser does not`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: a suggestion cannot be decided twice`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: only the event's own Coordinator decides; Technical Support cannot`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: the Coordinator sees it on the event page; the Organiser does not`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: an alternative can still be suggested later, and then replaces it on the page`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: there is nothing to accept or decline on "no valid alternative"`<br>UI: `frontend/src/features/events/components/equipment-shortage-card.test.tsx::US-45 AC-6: the Organiser sees the shortage but no suggestion to decide`<br>UI: `frontend/src/features/events/components/equipment-shortage-card.test.tsx::US-45 AC-6: the Coordinator sees the suggestion and accepts it`<br>UI: `frontend/src/features/events/components/equipment-shortage-card.test.tsx::US-45 AC-6: the Coordinator declines it`<br>UI: `frontend/src/features/events/components/equipment-shortage-card.test.tsx::US-45 AC-7: the Coordinator sees that Technical Support found no valid alternative, with the reason`<br>UI: `frontend/src/features/events/components/equipment-shortage-card.test.tsx::US-45 AC-7: the Organiser does not see it` |
 
 ### TC-S3-97
 
@@ -1334,19 +1334,19 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S3-97 |
 | Story/AC ref | Story 45 AC-10 |
 | Test Scenario | On accept the alternative is reserved and the short reservation reduced or released; on decline the original is kept |
-| Pre-conditions | — |
-| Test Steps | — |
+| Pre-conditions | Run test/fixtures/sql/tc-s3-88-setup.sql + tc-s3-94-setup.sql on testDB (reset before test). Projector `EQP-034` x10, Laser projector `EQP-035` x4, Screen `EQP-036` x1; "Gala" (`EVT-322`) and "Fair" (`EVT-323`), confirmed, coordinator's (`USR-048`), tech2 assigned, 5 projectors each (`RSV-052`, `RSV-053`) at the same time. Technical Support marks 3 projectors damaged first (7 work for 10 reserved: each short by 3). tech has suggested 3 laser projectors; tc-s3-97-setup.sql for the "no longer free" step. |
+| Test Steps | 1. coordinator accepts.<br>2. Accepts a suggestion for every unit.<br>3. Declines.<br>4. Accepts after the laser projectors were taken, the reservation released, or the event cancelled. |
 | Test Data | — |
-| Expected Result | Accept and decline behave as described. |
+| Expected Result | Accept reserves the alternative and reduces or releases the short reservation in one step; decline keeps it; an accept that can no longer stand is refused. |
 | Created By | Raye Yap |
-| Date of Creation | 2026-10-27 |
+| Date of Creation | 2026-10-30 |
 | **Test execution record** | |
-| Actual Result | Not testable: not built. There is no equipment suggestion, accept/decline, or reduce/release of a reservation. |
-| Status | Fail |
-| Remarks | **Code gap.** Nothing in `src/equipment` implements it. |
+| Actual Result | Accepting reserved 3 laser projectors for the same period and reduced Gala to 2 (no longer short), recorded in the history and told Technical Support; for every unit the reservation was released. Declining kept 5 projectors and reserved nothing. When the alternative was no longer free, or the event was cancelled first, 409 "This suggestion is no longer valid: …" and the suggestion became INVALID; releasing the reservation closed it. A simultaneous accept and decline: exactly one won. |
+| Status | Pass |
+| Remarks | — |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | — |
+| Date of Execution | 2026-10-30 |
+| Automated by | Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: accepting reserves the alternative and reduces the short reservation, in one step`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: accepting records the change in the history and tells Technical Support`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: accepting a suggestion for every unit releases the short reservation`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: declining keeps the original reservation unchanged, and tells Technical Support`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: becomes invalid if the alternative is no longer available when accepted`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: a simultaneous accept and decline — exactly one wins`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: releasing the short reservation closes its open suggestion`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-7: becomes invalid if the event is cancelled before the Coordinator decides`<br>Unit: `src/events/equipment-shortage-actions.service.spec.ts::words every notice for an event with no name as "an event"`<br>Unit: `src/events/equipment-shortage-actions.service.spec.ts::refuses to accept, closing the suggestion, when the reservation now holds fewer units than suggested`<br>Unit: `src/events/equipment-shortage-actions.service.spec.ts::404s when the alternative item cannot be found inside the transaction`<br>UI: `frontend/src/features/events/components/equipment-shortage-card.test.tsx::US-45 AC-6: the Coordinator sees the suggestion and accepts it`<br>UI: `frontend/src/features/events/components/equipment-shortage-card.test.tsx::US-45 AC-6: the Coordinator declines it`<br>UI: `frontend/src/features/events/components/equipment-shortage-card.test.tsx::US-45 AC-6: shows why an accept was refused (no longer valid)` |
 
 ### TC-S3-98
 
@@ -1355,22 +1355,23 @@ All four use only the local test database (or none). None touches the shared Sup
 | Test Case ID | TC-S3-98 |
 | Story/AC ref | Story 45 AC-11 |
 | Test Scenario | Reduce or release an affected reservation, with a reason, to resolve a shortage |
-| Pre-conditions | — |
-| Test Steps | — |
-| Test Data | — |
-| Expected Result | The reservation can be reduced or released with a reason. |
+| Pre-conditions | Run test/fixtures/sql/tc-s3-88-setup.sql + tc-s3-94-setup.sql on testDB (reset before test). Projector `EQP-034` x10, Laser projector `EQP-035` x4, Screen `EQP-036` x1; "Gala" (`EVT-322`) and "Fair" (`EVT-323`), confirmed, coordinator's (`USR-048`), tech2 assigned, 5 projectors each (`RSV-052`, `RSV-053`) at the same time. Technical Support marks 3 projectors damaged first (7 work for 10 reserved: each short by 3). |
+| Test Steps | 1. tech reduces Gala to 2 with a reason; releases it.<br>2. Without a reason; to the same or more; again after release; a finished reservation; other roles; an unknown reservation. |
+| Test Data | 2 of 5 |
+| Expected Result | The reservation can be reduced or released with a reason; the Coordinator is told. |
 | Created By | Raye Yap |
-| Date of Creation | 2026-10-27 |
+| Date of Creation | 2026-10-30 |
 | **Test execution record** | |
-| Actual Result | Not testable: not built. There is no equipment suggestion, accept/decline, or reduce/release of a reservation. |
-| Status | Fail |
-| Remarks | **Code gap.** Nothing in `src/equipment` implements it. |
+| Actual Result | Reduced to 2: 7 reserved, none free, history recorded, Coordinator told "… from 5 to 2. Reason: …". Released: the record kept as RELEASED, 2 free, history and notice. Refused: no reason or a non-text reason 400, the same or more 400 ("… release the reservation"), already released 409, already over 409, Coordinator and Organiser 403, unknown 404. |
+| Status | Pass |
+| Remarks | — |
 | Executed By | Raye Yap (automated) |
-| Date of Execution | 2026-10-27 |
-| Automated by | — |
+| Date of Execution | 2026-10-30 |
+| Automated by | Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-6: reducing needs a reason (%p)`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-6: a reason that is not text is refused`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-6: reduce to fewer units — availability, history and the Coordinator all follow`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-6: reducing to the same or more units is refused — release it instead`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-6: releasing needs a reason (%p)`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-6: release — the units are freed, the record is kept, history and the Coordinator follow`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-6: a released reservation cannot be adjusted again`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-6: a reservation already over cannot be adjusted`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-6: only Technical Support may adjust (%s is refused)`<br>Integration: `test/equipment-shortage.e2e-spec.ts::US-45 AC-6: 404s for a reservation that does not exist`<br>Unit: `src/events/equipment-shortage-actions.service.spec.ts::words every notice for an event with no name as "an event"`<br>UI: `frontend/src/features/equipment/components/reservation-actions.test.tsx::US-45 AC-6: reducing a reservation needs a reason, then sends the new quantity`<br>UI: `frontend/src/features/equipment/components/reservation-actions.test.tsx::US-45 AC-6: releasing a reservation needs a reason` |
 
 **Story 45 AC ↔ code notes**
-- **Code gap (AC-1, AC-3 to AC-11):** status is per item, not per unit, and there are no shortage counts, flags, alternative suggestions or reduce/release. Reasons (AC-2), exclusion from availability (AC-5) and the list of affected reservations (AC-6) work for whole items.
+- Reopened and rebuilt in Sprint 4 (pamikalim, `sprint4-main` PR #30): status by quantity, shortages, alternatives and "no valid alternative". The earlier code gaps are closed; all eleven ACs pass.
+- **Numbering:** the tests name the reopened story's ACs (AC-1 to 8). Map: AC-1 → TC-S3-88, 91; AC-2 → TC-S3-89; AC-3 → TC-S3-90, 91; AC-4 → TC-S3-92; AC-5 → TC-S3-93, 94; AC-6 → TC-S3-98; AC-7 → TC-S3-95 to 97; AC-8 (simultaneous changes) → TC-S3-91. Each test's tag names both.
 
 ---
 

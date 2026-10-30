@@ -162,7 +162,7 @@ export function ChangeRequestForm({
         <legend className="sr-only">Date and time</legend>
 
         <Field label="Start date" htmlFor="cr-start-date">
-          <DatePicker label="Start date" value={startDate} onChange={setStartDate} min={today} />
+          <DatePicker id="cr-start-date" label="Start date" value={startDate} onChange={setStartDate} min={today} />
         </Field>
         <Field label="Start time" htmlFor="cr-start-time" errors={show(errors.start)}>
           <Select
@@ -180,7 +180,7 @@ export function ChangeRequestForm({
         </Field>
 
         <Field label="End date" htmlFor="cr-end-date">
-          <DatePicker label="End date" value={endDate} onChange={setEndDate} min={startDate || today} />
+          <DatePicker id="cr-end-date" label="End date" value={endDate} onChange={setEndDate} min={startDate || today} />
         </Field>
         <Field label="End time" htmlFor="cr-end-time" errors={show(errors.end)}>
           <Select

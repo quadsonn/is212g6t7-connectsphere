@@ -115,7 +115,7 @@ describe('Story 36 request an event change (integration)', () => {
     await given('base-users', 'tc-s2-159-setup');
   });
 
-  describe('AC-1: the form shows the current date, time, attendance and equipment, from the catalogue', () => {
+  describe('US-36 AC-1: the form shows the current date, time, attendance and equipment, from the catalogue', () => {
     // TC-S2-159 · US-36 AC-1 · setup: base-users + tc-s2-159-setup · fails if the Organiser couldn't see the event's current date, time, attendance or equipment to edit
     // Code: GET /events/:id for the Organiser includes the dates, attendance and equipment lines.
     it("shows the event's current values", async () => {
@@ -152,7 +152,7 @@ describe('Story 36 request an event change (integration)', () => {
     });
   });
 
-  describe('AC-1: a reason is required', () => {
+  describe('US-36 AC-1: a reason is required', () => {
     // TC-S2-160 · US-36 AC-1 · setup: base-users + tc-s2-159-setup · fails if a change request without a real reason were accepted
     // Code: CreateChangeRequestDto trims the reason, then requires it.
     it.each([
@@ -167,7 +167,7 @@ describe('Story 36 request an event change (integration)', () => {
     });
   });
 
-  describe('AC-2: at least one field must differ from the current value', () => {
+  describe('US-36 AC-2: at least one field must differ from the current value', () => {
     // TC-S2-161 · US-36 AC-2 · setup: base-users + tc-s2-159-setup · fails if a request that changes nothing were accepted
     // Code: evaluateChangeRequest() compares each sent field with the event and
     // adds NO_DIFFERENCE_MESSAGE when none differs. Equipment is compared as a
@@ -185,7 +185,7 @@ describe('Story 36 request an event change (integration)', () => {
     });
   });
 
-  describe('AC-3: proposed dates cannot be in the past, and the end must be after the start', () => {
+  describe('US-36 AC-3: proposed dates cannot be in the past, and the end must be after the start', () => {
     // TC-S2-162 · US-36 AC-3 · setup: base-users + tc-s2-159-setup · fails if a date in the past, or an end not after the start, were accepted
     // Code: the DTO checks valid dates and end after a sent start; the rules
     // check the past, and the end against the start the event would have.
@@ -214,7 +214,7 @@ describe('Story 36 request an event change (integration)', () => {
     });
   });
 
-  describe('AC-4: expected attendance must be a positive whole number', () => {
+  describe('US-36 AC-4: expected attendance must be a positive whole number', () => {
     // TC-S2-163 · US-36 AC-4 · setup: base-users + tc-s2-159-setup · fails if a zero, negative, fractional or non-numeric attendance were accepted
     // Code: CreateChangeRequestDto (@IsInt, @IsPositive) answers 400.
     it.each([0, -5, 2.5, 'lots'])('refuses %p (400)', async (proposedAttendance) => {
@@ -224,7 +224,7 @@ describe('Story 36 request an event change (integration)', () => {
     });
   });
 
-  describe('AC-5: equipment changes can add items, remove items and change quantities', () => {
+  describe('US-36 AC-5: equipment changes can add items, remove items and change quantities', () => {
     // TC-S2-164 · US-36 AC-5 · setup: base-users + tc-s2-159-setup · fails if adding an item and changing a quantity in one request weren't saved as the new list
     // Code: `equipment` is the complete new list; it differs from the current set, so it is stored line by line.
     it('saves a new list that changes a quantity and adds an item', async () => {
@@ -253,7 +253,7 @@ describe('Story 36 request an event change (integration)', () => {
     });
   });
 
-  describe('AC-6: equipment items are selected from the catalogue', () => {
+  describe('US-36 AC-6: equipment items are selected from the catalogue', () => {
     // TC-S2-165 · US-36 AC-6 · setup: base-users + tc-s2-159-setup · fails if an item not in the catalogue could be requested
     // Code: assertInCatalogue() answers 400 naming each unknown item.
     it('refuses an item that is not in the catalogue (400)', async () => {
@@ -277,7 +277,7 @@ describe('Story 36 request an event change (integration)', () => {
     });
   });
 
-  describe('AC-7: equipment quantities must be positive whole numbers', () => {
+  describe('US-36 AC-7: equipment quantities must be positive whole numbers', () => {
     // TC-S2-166 · US-36 AC-7 · setup: base-users + tc-s2-159-setup · fails if an equipment line with a zero, negative or fractional quantity were accepted
     // Code: ChangeRequestEquipmentDto (@IsInt, @IsPositive) answers 400.
     it.each([0, -1, 1.5])('refuses a quantity of %p (400)', async (quantity) => {
@@ -287,7 +287,7 @@ describe('Story 36 request an event change (integration)', () => {
     });
   });
 
-  describe('AC-8: a submitted request is saved as Pending and linked to the event', () => {
+  describe('US-36 AC-8: a submitted request is saved as Pending and linked to the event', () => {
     // TC-S2-167 · US-36 AC-8 · setup: base-users + tc-s2-159-setup · fails if the request wasn't saved as PENDING on the event, or stored fields that didn't change
     // Code: request() creates an EventChangeRequest with status PENDING, the
     // reason, and only the fields that differ (the unchanged start is null).
@@ -327,7 +327,7 @@ describe('Story 36 request an event change (integration)', () => {
     });
   });
 
-  describe('AC-9: the original details still show, with the pending request alongside', () => {
+  describe('US-36 AC-9: the original details still show, with the pending request alongside', () => {
     // TC-S2-168 · US-36 AC-9 · setup: base-users + tc-s2-159-setup · fails if requesting a change edited the event, or the pending request wasn't shown beside it
     // Code: request() never writes the event; GET /events/:id adds pendingChangeRequest for the Organiser.
     it('keeps the event as it was and shows the request beside it', async () => {
@@ -348,7 +348,7 @@ describe('Story 36 request an event change (integration)', () => {
     });
   });
 
-  describe('AC-10: only for submitted or confirmed events, not cancelled, completed or rejected ones', () => {
+  describe('US-36 AC-10: only for submitted or confirmed events, not cancelled, completed or rejected ones', () => {
     // TC-S2-169 · US-36 AC-10 · setup: base-users + tc-s2-159-setup + tc-s2-169-setup · fails if a confirmed event couldn't have a change requested
     // Code: CONFIRMED is in CHANGEABLE_STATUSES.
     it('accepts a request for a confirmed event', async () => {
@@ -368,7 +368,7 @@ describe('Story 36 request an event change (integration)', () => {
     });
   });
 
-  describe('AC-11: Organisers can only request changes to their own events', () => {
+  describe('US-36 AC-11: Organisers can only request changes to their own events', () => {
     // TC-S2-170 · US-36 AC-11 · setup: base-users + tc-s2-159-setup + tc-s2-170-setup · fails if an Organiser could request a change to someone else's event
     // Code: assertEventAccess() with the Organiser's OWN scope hides other events as 404.
     it("hides another Organiser's event (404)", async () => {
@@ -380,7 +380,7 @@ describe('Story 36 request an event change (integration)', () => {
 
     // TC-S2-170 · US-36 AC-11 · setup: base-users + tc-s2-159-setup + tc-s2-170-setup · fails if an Organiser couldn't request a change to their own event
     // Code: the same check passes for the Organiser's own event.
-    it('accepts the Organiser\'s own event', async () => {
+    it("accepts the Organiser's own event", async () => {
       await given('tc-s2-170-setup');
 
       await requestChange({ proposedAttendance: 150 }, 'oscar', 'EVT-070').expect(201);

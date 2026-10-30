@@ -46,6 +46,8 @@ describe('AccessControlService (US-02)', () => {
     service = new AccessControlService(prisma as unknown as PrismaService);
   });
 
+  // TC-S1-67 · US-02 AC-1 · unit: AccessControlService.requireScope() with Prisma mocked · fails if
+  // a role with no grant gets a scope
   describe('requireScope', () => {
     it('returns the scope for a granted action (AC-2)', () => {
       expect(
@@ -60,6 +62,8 @@ describe('AccessControlService (US-02)', () => {
     });
   });
 
+  // TC-S1-71 · US-02 AC-5 · unit: scopedEventFilter()/assertEventAccess() · fails if the OWN filter
+  // is applied after the query rather than in it
   describe('AC-5: Organiser sees only their own', () => {
     it('narrows the list query to their own events', () => {
       expect(
@@ -90,6 +94,8 @@ describe('AccessControlService (US-02)', () => {
     });
   });
 
+  // TC-S1-72 · US-02 AC-6 · unit · fails if the ASSIGNED filter lets in an event assigned to someone
+  // else or nobody
   describe('AC-6: Coordinator sees only assigned', () => {
     it('narrows the list query to events assigned to this Coordinator only', () => {
       // The unassigned queue belongs to the Lead: a request with no
@@ -133,6 +139,8 @@ describe('AccessControlService (US-02)', () => {
     });
   });
 
+  // TC-S1-73 · US-02 AC-7 · unit: projectEvent() · fails if the Attendee projection keeps any
+  // internal planning field
   describe('AC-7: Attendee sees only registration-facing info', () => {
     it('restricts the list to events past review', () => {
       // The set itself lives in the US-11 state machine; this asserts the
@@ -245,6 +253,7 @@ describe('AccessControlService (US-02)', () => {
     });
   });
 
+  // TC-S1-67 · US-02 AC-1 · unit · fails if a role with no EVENT grant can read events
   describe('roles with no event grant', () => {
     it('refuses to build a filter for an action Venue Staff do not hold', () => {
       expect(() =>

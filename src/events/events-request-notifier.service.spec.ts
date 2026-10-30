@@ -110,6 +110,16 @@ describe('EventsRequestNotifier', () => {
       // AC-4: a change notice says a change was requested.
       expect(sent()[0].message).toMatch(/change/i);
     });
+
+    // TC-S4-93 · US-63 AC-4 · setup: none (unit) · fails if a change notice cannot be worded for an event with no name
+    // Code: EventsRequestNotifier.changeRequested (name fallback)
+    it('words a change notice for an event with no name', async () => {
+      leadsAre('lead-1');
+
+      await notifier.changeRequested({ id: 'EVT-012', name: null, coordinatorId: null });
+
+      expect(sent()[0].message).toBe('A change has been requested for "an event".');
+    });
   });
 
   describe('best-effort: a recording failure never propagates', () => {

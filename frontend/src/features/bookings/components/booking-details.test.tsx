@@ -52,6 +52,8 @@ const renderDetails = (view: VenueBooking) =>
 const valueOf = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling!;
 
 describe('Story 20 AC-2: technical requirements on the booking request', () => {
+  // TC-S2-35 · US-20 AC-2 · fails if Venue Staff could not see each equipment line on the request
+  // Code: BookingDetails lists equipmentRequirements with quantity and notes.
   it('Given the request carries equipment lines, Then each is listed with its quantity and notes', () => {
     renderDetails(booking());
 
@@ -59,6 +61,8 @@ describe('Story 20 AC-2: technical requirements on the booking request', () => {
     expect(lines.map((li) => li.textContent)).toEqual(['2 × Projector (HDMI)', '1 × Fog machine']);
   });
 
+  // TC-S2-35 · US-20 AC-2 · fails if the technical support, facilities or notes were missing from the request
+  // Code: BookingDetails shows technicalSupportNeeds, requiredFacilities and equipmentNeeds.
   it('Then the technical support, required facilities and free-text notes are shown', () => {
     renderDetails(booking());
 
@@ -67,6 +71,8 @@ describe('Story 20 AC-2: technical requirements on the booking request', () => {
     expect(valueOf('Equipment notes').textContent).toBe('Bring spare batteries');
   });
 
+  // TC-S2-35 · US-20 AC-2 · fails if "none recorded" looked like a blank
+  // Code: empty lists and nulls render as "None recorded".
   it('Given none were recorded, Then each says so', () => {
     renderDetails(
       booking({ equipmentRequirements: [], technicalSupportNeeds: null, requiredFacilities: [], equipmentNeeds: null }),
@@ -77,6 +83,8 @@ describe('Story 20 AC-2: technical requirements on the booking request', () => {
     expect(valueOf('Required facilities').textContent).toBe('None recorded');
   });
 
+  // TC-S2-35 · US-20 AC-2 · fails if an older request seemed to have no requirements
+  // Code: equipmentRequirements null renders as not recorded on this request.
   it('Given a request made before these were attached, Then it says they were not recorded on it', () => {
     renderDetails(booking({ equipmentRequirements: null, technicalSupportNeeds: null, requiredFacilities: [] }));
 

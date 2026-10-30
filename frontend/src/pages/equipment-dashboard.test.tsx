@@ -8,6 +8,14 @@ import { equipmentApi } from '@/features/equipment/api/equipment.api';
 import type { EventRequirements, EventStatus } from '@/types/api';
 import { EquipmentDashboard } from './equipment-dashboard';
 
+/**
+ * UI tests for US-30 (View equipment and technical requirements described for
+ * an event): Technical Support's Event requirements list, rendered with React
+ * Testing Library, API mocked. Which events the server lists is proven by
+ * test/equipment-requirements.e2e-spec.ts; the browser journey by
+ * e2e/us28-us31-equipment.spec.ts.
+ */
+
 vi.mock('@/features/equipment/api/equipment.api', () => ({
   equipmentApi: { listRequirements: vi.fn() },
 }));
@@ -56,6 +64,8 @@ beforeEach(() => {
 });
 
 describe('US-30 AC-4: finished events are left off the requirements list by default', () => {
+  // TC-S2-115 · US-30 AC-4 · fails if the list asked for finished events by default, or showed them
+  // Code: useEventRequirementsList(false) -> GET /equipment/requirements without includeFinished.
   it('US-30 AC-4: asks for active events only, with the toggle off', async () => {
     renderPage();
 
@@ -67,6 +77,8 @@ describe('US-30 AC-4: finished events are left off the requirements list by defa
     }
   });
 
+  // TC-S2-115 · US-30 AC-4 · fails if turning on finished events hid an active one, or marked it finished
+  // Code: only FINISHED_EVENT_STATUSES are marked "Finished"; SAFETY_REJECTED can return to planning.
   it('US-30 AC-4: active events are always shown, including Safety rejected', async () => {
     renderPage();
     const user = userEvent.setup();
@@ -80,6 +92,8 @@ describe('US-30 AC-4: finished events are left off the requirements list by defa
     expect(within(listItem('Town Hall')).queryByText(/Finished/)).not.toBeInTheDocument();
   });
 
+  // TC-S2-115 · US-30 AC-4 · fails if a finished event, once shown, read as work still to do
+  // Code: a finished event gets its status badge and "Finished · no equipment needed".
   it.each([
     ['Old Gala', 'Rejected'],
     ['Called Off', 'Cancelled'],
@@ -95,5 +109,34 @@ describe('US-30 AC-4: finished events are left off the requirements list by defa
     expect(api.listRequirements).toHaveBeenLastCalledWith(true);
     expect(within(listItem(name)).getByText(badge)).toBeInTheDocument();
     expect(within(listItem(name)).getByText('Finished · no equipment needed')).toBeInTheDocument();
+  });
+});
+
+describe('US-30 AC-1, AC-2, AC-3: each event shows what was asked for', () => {
+  // TC-S2-120 · US-30 AC-1, AC-2 · fails if the list only said an event has requirements, without what they are or who recorded them
+  // Code: requirementSummary() gives one line per source: Organiser, Coordinator (N × type), Technical support.
+  it('US-30 AC-2: lists what each source asked for', async () => {
+    api.listRequirements.mockResolvedValue([
+      {
+        ...row('EVT-115', 'All Three', 'PLANNING'),
+        coordinatorRequirements: [{ id: 'REQ-001', equipmentType: 'Portable PA system', quantity: 1, notes: null }],
+        technicalSupportNeeds: 'Hybrid setup with Zoom.',
+      } as EventRequirements,
+    ]);
+    renderPage();
+
+    const item = within((await screen.findByText('All Three')).closest('li') as HTMLElement);
+    expect(item.getByText('Two projectors.')).toBeInTheDocument();
+    expect(item.getByText('1 × Portable PA system')).toBeInTheDocument();
+    expect(item.getByText('Hybrid setup with Zoom.')).toBeInTheDocument();
+  });
+
+  // TC-S2-120 · US-30 AC-3 · fails if an empty list was left blank
+  // Code: no events shows "No requirements recorded" with why.
+  it('US-30 AC-3: says so when no event has requirements', async () => {
+    api.listRequirements.mockResolvedValue([]);
+    renderPage();
+
+    expect(await screen.findByText('No requirements recorded')).toBeInTheDocument();
   });
 });

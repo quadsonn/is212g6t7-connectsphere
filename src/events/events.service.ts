@@ -34,6 +34,10 @@ import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { ArrangementsRegistry } from '../common/arrangements/arrangements.registry';
 import { TechnicalSupportNotifier } from '../equipment/technical-support-notifier';
 import {
+  EquipmentShortageService,
+  EventReservationShortage,
+} from '../equipment/equipment-shortage.service';
+import {
   EquipmentReservationsService,
   UnavailableReservation,
 } from '../equipment/equipment-reservations.service';
@@ -174,6 +178,11 @@ export type OrganiserRequestView = EventRequest & {
    * needs attention; empty when all is well. Set on single-event reads only.
    */
   unavailableEquipment?: UnavailableReservation[];
+  /**
+   * US-45 — upcoming reservations short of working units, each with how many
+   * it is short by. Derived live; empty when all is covered.
+   */
+  equipmentShortages?: EventReservationShortage[];
 };
 
 /** US-37 — a change request with its equipment resolved to catalogue names. */
@@ -271,6 +280,8 @@ export class EventsService {
     @Optional() private readonly technicalSupport?: TechnicalSupportNotifier,
     // Tells Coordinator Leads when a request is submitted or resubmitted.
     @Optional() private readonly requestNotifier?: EventsRequestNotifier,
+    // US-45: which of the event's reservations are short of working units.
+    @Optional() private readonly equipmentShortages?: EquipmentShortageService,
   ) {}
 
   /**
@@ -583,6 +594,8 @@ export class EventsService {
     return {
       ...this.toOrganiserView(inOrder),
       unavailableEquipment: await this.equipmentReservations.findUnavailableForEvent(id),
+      // US-45: the Coordinator sees open alternative suggestions to decide.
+      equipmentShortages: await this.shortagesFor(id, true),
     };
   }
 
@@ -1483,7 +1496,22 @@ export class EventsService {
       pendingChangeRequest: await this.findPendingChangeRequest(id),
       latestChangeDecision: await this.findLatestChangeDecision(id),
       unavailableEquipment: await this.equipmentReservations.findUnavailableForEvent(id),
+      equipmentShortages: await this.shortagesFor(id, false),
     };
+  }
+
+  /**
+   * US-45 — the event's reservations that are short of working units, shown as
+   * "Short by N" on the event page. Technical Support's answers (a suggestion
+   * to decide, or "no valid alternative") are for the Coordinator, so only
+   * their view carries them.
+   */
+  private async shortagesFor(
+    eventId: string,
+    withSuggestions: boolean,
+  ): Promise<EventReservationShortage[]> {
+    const short = (await this.equipmentShortages?.findEventReservations(eventId, { onlyShort: true })) ?? [];
+    return withSuggestions ? short : short.map((r) => ({ ...r, openSuggestion: null, noAlternative: null }));
   }
 
   /** US-38 AC-5 — the event's most recently decided change request, or null. */

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { NotificationsModule } from '../notifications/notifications.module';
 import { EquipmentNotifier } from './equipment-notifier';
+import { EquipmentShortageService } from './equipment-shortage.service';
 import { EquipmentRequirementsService } from './equipment-requirements.service';
 import { EquipmentReservationsService } from './equipment-reservations.service';
 import { EquipmentController } from './equipment.controller';
@@ -34,9 +35,10 @@ import { TechnicalSupportAssignmentsService } from './technical-support-assignme
     // US-66: tells an event's assigned Technical Support member.
     TechnicalSupportNotifier,
     EquipmentNotifier,
+    EquipmentShortageService,
   ],
   // US-66: TechnicalSupportNotifier, so EventsService can tell Technical
   // Support when an event's requirements change.
-  exports: [EquipmentService, EquipmentReservationsService, TechnicalSupportNotifier],
+  exports: [EquipmentService, EquipmentReservationsService, TechnicalSupportNotifier, EquipmentNotifier, EquipmentShortageService],
 })
 export class EquipmentModule {}

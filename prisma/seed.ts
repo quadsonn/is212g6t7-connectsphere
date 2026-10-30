@@ -23,6 +23,8 @@ import {
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
+import { photosForVenue } from './venue-photos';
+
 const prisma = new PrismaClient();
 
 const PASSWORD = '12345678';
@@ -193,13 +195,14 @@ async function main() {
     { name: 'Campus Green', location: 'Outdoor, adjacent to Library', capacity: 800, status: VenueStatus.DRAFT },
   ];
 
-  for (const venue of venues) {
+  for (const [index, venue] of venues.entries()) {
     const existing = await prisma.venue.findFirst({ where: { name: venue.name } });
     if (existing) continue;
 
     await prisma.venue.create({
       data: {
         ...venue,
+        imageUrls: photosForVenue(venue.name, index),
         facilities: ['POWER_OUTLETS'],
         accessibilityFeatures: ['STEP_FREE_ACCESS'],
         supportedLayouts: [RoomLayout.THEATRE],
@@ -366,6 +369,8 @@ async function main() {
         equipmentId: item.id,
         fromStatus: EquipmentStatus.OPERATIONAL,
         toStatus: change.to,
+        // The whole item was marked, so every unit moved.
+        quantity: item.totalQuantity,
         reason: change.reason,
         changedById: tech.id,
       },

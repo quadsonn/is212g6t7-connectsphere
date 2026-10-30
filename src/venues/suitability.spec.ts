@@ -26,6 +26,8 @@ describe('US-19 venue suitability', () => {
     ...overrides,
   });
 
+  // TC-S2-28, TC-S2-29 · US-19 AC-1 · unit: checkCapacity() · fails if attendance over capacity is
+  // not flagged, or exactly at capacity is
   describe('AC-1: capacity', () => {
     it('US-19: passes when attendance equals capacity', () => {
       const result = assessSuitability(venue(), event({ expectedAttendance: 100 }));
@@ -60,6 +62,8 @@ describe('US-19 venue suitability', () => {
     });
   });
 
+  // TC-S2-29 · US-19 AC-2 · unit: checkAccessibility() · fails if unmet requirements are lumped
+  // together instead of listed one by one
   describe('AC-2: accessibility, one flag per requirement', () => {
     it('US-19: flags each requirement individually, naming the missing one', () => {
       const result = assessSuitability(
@@ -105,6 +109,8 @@ describe('US-19 venue suitability', () => {
     });
   });
 
+  // TC-S2-28 · US-19 (no AC: layout) · unit: checkLayout() · fails if the preferred layout is
+  // checked wrongly
   describe('layout (beyond the listed ACs)', () => {
     it('US-19: flags a preferred layout the venue does not support', () => {
       const result = assessSuitability(venue(), event({ preferredLayout: RoomLayout.BANQUET }));
@@ -119,6 +125,8 @@ describe('US-19 venue suitability', () => {
     });
   });
 
+  // TC-S2-30 · US-19 AC-3 · unit: checkFacilities() · fails if a missing facility passes or is not
+  // named
   describe('AC-3: facilities cover the technical requirements', () => {
     it('Given every required facility is at the venue, Then facilities are met, one flag each', () => {
       const result = assessSuitability(
@@ -158,6 +166,8 @@ describe('US-19 venue suitability', () => {
     });
   });
 
+  // TC-S2-184 · US-19 AC-3 · unit: checkEquipment() · fails if equipment short of the request
+  // passes, or an unlinked line reads as met
   describe('AC-3: the equipment asked for is available', () => {
     const line = (item: string, requestedQuantity: number, availableQuantity: number | null) => ({
       item,
@@ -235,6 +245,8 @@ describe('US-19 venue suitability', () => {
     });
   });
 
+  // TC-S2-28 · US-19 AC-4 · unit: assessSuitability() · fails if a venue meeting every
+  // check gets no explicit SUITABLE verdict
   describe('AC-4: overall indicator', () => {
     it('US-19: is suitable only when every check passes', () => {
       const result = assessSuitability(venue(), event());

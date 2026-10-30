@@ -98,6 +98,8 @@ describe('EventsService reject / return (US-08)', () => {
     );
   });
 
+  // TC-S1-08, TC-S1-13 · US-08 AC-1, AC-3 · unit: reject()/returnForAmendment() with Prisma mocked ·
+  // fails if the two actions produce the same status or store the reason in the same place
   describe('AC-1 / AC-3: the two actions are distinct', () => {
     it('reject produces REJECTED', async () => {
       const result = await service.reject(coordinator, 'event-1', {
@@ -163,6 +165,7 @@ describe('EventsService reject / return (US-08)', () => {
     });
   });
 
+  // TC-S1-08 · US-08 AC-3, US-11 · unit · fails if a decision writes the status column directly
   describe('AC-3: status changes go through setStatus', () => {
     it('writes status exactly once, on its own', async () => {
       await service.reject(coordinator, 'event-1', { reason: 'No' });
@@ -202,6 +205,7 @@ describe('EventsService reject / return (US-08)', () => {
     });
   });
 
+  // TC-S1-12 · US-08 AC-4 · unit · fails if the reason is not saved with the decision
   describe('AC-4: the reason is retained', () => {
     it('keeps the rejection reason on the returned record', async () => {
       const result = await service.reject(coordinator, 'event-1', {
@@ -229,6 +233,8 @@ describe('EventsService reject / return (US-08)', () => {
     });
   });
 
+  // TC-S1-14 · US-08 AC-1, US-02 AC-6 · unit · fails if a Coordinator who is not assigned can reject
+  // or return
   describe('assignment ownership', () => {
     it.each([
       ['reject', (s: EventsService) => s.reject(coordinator, 'event-1', { reason: 'No' })],

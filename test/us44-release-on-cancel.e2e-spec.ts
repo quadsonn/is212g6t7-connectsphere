@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   BookingDecisionKind,
@@ -8,23 +8,29 @@ import {
   NotificationType,
   PrismaClient,
   ReservationStatus,
-  Role,
-  VenueStatus,
 } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { BookingsService } from '../src/bookings/bookings.service';
+import { configureApp } from '../src/configure-app';
 import { EventsService } from '../src/events/events.service';
-import { listenOnLoopback } from './listen-on-loopback';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
 /**
  * US-44 e2e — releasing venue bookings when their event is cancelled.
  *
  * The cancel endpoint is US-43's and does not exist yet; every path that
  * cancels goes through EventsService.setStatus(event, CANCELLED), which is
- * what these tests call.
+ * what these tests call. (US-43's endpoint now exists and is tested in
+ * us43-cancel-event.e2e-spec.ts; these tests keep calling setStatus directly,
+ * as every cancelling path does.)
+ *
+ * Pre-condition for every test: reset the testDB, then run base-users.sql,
+ * base-venues.sql, tc-s3-54-setup.sql (the "Gala", EVT-194; Sam, USR-016,
+ * managing East Annex) and tc-s3-83-setup.sql ("Other" EVT-211 and "Next"
+ * EVT-212). Each test loads the booking scripts its test case names.
  */
 describe('US-44 release venue bookings on event cancellation (e2e)', () => {
   let app: INestApplication;
@@ -32,63 +38,36 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from base-users, base-venues and tc-s3-54-setup. */
+  const ids: Record<string, string> = {
+    staffA: 'USR-010',
+    staffB: 'USR-016',
+    organiser: 'USR-006',
+    coordinator: 'USR-004',
+    hall: 'VEN-002',
+    annex: 'VEN-039',
+  };
+  const LOGINS: Record<string, string> = {
+    staffA: 'venue.staff@example.com',
+    staffB: 'sam.staff@example.com',
+    organiser: 'organiser@example.com',
+    coordinator: 'coord.a@example.com',
+  };
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
 
   const at = (time: string, day = '2030-10-01') => new Date(`${day}T${time}:00Z`);
-  const fromNow = (hours: number) => new Date(Date.now() + hours * 3_600_000);
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
+  /** Loads a test case's setup script(s) on top of the base scripts. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
-  const seedVenue = (name: string, managedById: string) =>
-    prisma.venue.create({
-      data: { name, location: 'Level 1', capacity: 300, status: VenueStatus.PUBLISHED, managedById },
-    });
-
+  /** The events as stored: the Gala (EVT-194), "Other" (EVT-211), "Next" (EVT-212). */
+  const EVENTS: Record<string, string> = { Gala: 'EVT-194', Other: 'EVT-211', Next: 'EVT-212' };
   const seedEvent = (name = 'Gala') =>
-    prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinator,
-        name,
-        purpose: 'Celebrate',
-        description: 'An evening',
-        category: 'Social',
-        proposedStart: at('18:00'),
-        proposedEnd: at('22:00'),
-        expectedAttendance: 120,
-        status: EventStatus.PLANNING,
-      },
-    });
-
-  const seedBooking = (
-    eventId: string,
-    status: BookingStatus,
-    { venueId = ids.hall, start = at('18:00'), end = at('22:00'), needsReview = false } = {},
-  ) =>
-    prisma.venueBooking.create({
-      data: {
-        eventId,
-        venueId,
-        start,
-        end,
-        status,
-        needsReview,
-        needsReviewReason: needsReview ? 'Clashes under new buffers.' : null,
-        requestedById: ids.coordinator,
-        expectedAttendance: 120,
-        ...(status === BookingStatus.HELD ? { holdExpiresAt: fromNow(48), heldById: ids.staffA } : {}),
-      },
-    });
+    prisma.eventRequest.findUniqueOrThrow({ where: { id: EVENTS[name] } });
 
   const cancel = (event: EventRequest, actorId?: string) =>
     app.get(EventsService).setStatus(event, EventStatus.CANCELLED, undefined, actorId);
@@ -101,10 +80,19 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s3-54-setup');
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
@@ -114,33 +102,20 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
 
   beforeEach(async () => {
     jest.restoreAllMocks();
-    await prisma.notification.deleteMany();
-    await prisma.bookingDecision.deleteMany();
-    await prisma.venueBooking.deleteMany();
-    await prisma.venueBlock.deleteMany();
-    await prisma.venue.deleteMany();
-    await prisma.equipmentReservation.deleteMany();
-    await prisma.equipment.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('staffA', 'staff.a@example.com', Role.VENUE_STAFF);
-    await seedUser('staffB', 'staff.b@example.com', Role.VENUE_STAFF);
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
-
-    ids.hall = (await seedVenue('Main Hall', ids.staffA)).id;
-    ids.annex = (await seedVenue('East Annex', ids.staffB)).id;
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'base-venues');
+    await loadSql(prisma, 'tc-s3-54-setup');
+    await loadSql(prisma, 'tc-s3-83-setup');
   });
 
   describe('AC-1/AC-3/AC-4: every live booking is released, and kept', () => {
+    // TC-S3-83, TC-S3-85 · US-44 AC-1/AC-3 · setup: base-users + base-venues + tc-s3-54-setup + tc-s3-83-setup + tc-s3-83b-setup · fails if a pending, held or confirmed booking is not released, the reason or time is missing, a rejected one is touched, or a row is deleted
+    // Code: EventsService.setStatus(CANCELLED) -> BookingsService.releaseForCancelledEvent
     it('US-44: pending, held and confirmed bookings become RELEASED with the reason and a timestamp; rejected ones are untouched', async () => {
+      await given('tc-s3-83b-setup');
       const event = await seedEvent();
-      const pending = await seedBooking(event.id, BookingStatus.REQUESTED, { start: at('09:00'), end: at('10:00') });
-      const held = await seedBooking(event.id, BookingStatus.HELD, { start: at('11:00'), end: at('12:00') });
-      const confirmed = await seedBooking(event.id, BookingStatus.APPROVED);
-      const rejected = await seedBooking(event.id, BookingStatus.REJECTED, { start: at('13:00'), end: at('14:00') });
+      const [pending, held, confirmed, rejected] = [{ id: 'BKG-100' }, { id: 'BKG-101' }, { id: 'BKG-102' }, { id: 'BKG-103' }];
       const before = new Date();
 
       await cancel(event);
@@ -155,9 +130,12 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
       expect(await prisma.venueBooking.count({ where: { eventId: event.id } })).toBe(4);
     });
 
+    // TC-S3-85 · US-44 AC-3 · setup: base-users + base-venues + tc-s3-54-setup + tc-s3-83-setup + tc-s3-55-setup + tc-s3-83c-setup · fails if a release is not recorded in the booking's history, or names the wrong actor
+    // Code: releaseForCancelledEvent -> BookingDecision(kind RELEASE)
     it('US-44: each release is recorded in the booking history, by the system or by the canceller', async () => {
+      await given('tc-s3-55-setup', 'tc-s3-83c-setup');
       const event = await seedEvent();
-      const a = await seedBooking(event.id, BookingStatus.APPROVED);
+      const a = { id: 'BKG-079' };
 
       await cancel(event);
 
@@ -171,14 +149,17 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
       ]);
 
       const other = await seedEvent('Other');
-      const b = await seedBooking(other.id, BookingStatus.REQUESTED, { start: at('09:00'), end: at('10:00') });
+      const b = { id: 'BKG-104' };
       await cancel(other, ids.organiser);
       expect((await prisma.bookingDecision.findFirstOrThrow({ where: { bookingId: b.id } })).decidedById).toBe(ids.organiser);
     });
 
+    // TC-S3-83 · US-44 AC-1 · setup: base-users + base-venues + tc-s3-54-setup + tc-s3-83-setup + tc-s3-83d-setup · fails if a flagged booking stays held or keeps its flag
+    // Code: releaseForCancelledEvent clears needsReview
     it('US-44: a booking flagged "Conflict - needs review" is released too, and its flag cleared', async () => {
+      await given('tc-s3-83d-setup');
       const event = await seedEvent();
-      const flagged = await seedBooking(event.id, BookingStatus.APPROVED, { needsReview: true });
+      const flagged = { id: 'BKG-105' };
 
       await cancel(event);
 
@@ -187,10 +168,13 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
   });
 
   describe('AC-5/AC-6: managers are told; other bookings are not touched', () => {
+    // TC-S3-83, TC-S3-86 · US-44 AC-1/AC-4 · setup: base-users + base-venues + tc-s3-54-setup + tc-s3-83-setup + tc-s3-55-setup + tc-s3-86-setup · fails if a venue of a multi-venue event stays booked, or a manager is not told (or told twice)
+    // Code: releaseForCancelledEvent -> VenueActivityNotifier.eventCancelled
     it('US-44: an event on two venues releases both, and tells each manager once', async () => {
+      await given('tc-s3-55-setup', 'tc-s3-86-setup');
       const event = await seedEvent();
-      const onHall = await seedBooking(event.id, BookingStatus.APPROVED);
-      const onAnnex = await seedBooking(event.id, BookingStatus.REQUESTED, { venueId: ids.annex });
+      const onHall = { id: 'BKG-079' };
+      const onAnnex = { id: 'BKG-106' };
 
       await cancel(event);
 
@@ -210,11 +194,12 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
       );
     });
 
+    // TC-S3-87 · US-44 AC-5 · setup: base-users + base-venues + tc-s3-54-setup + tc-s3-83-setup + tc-s3-55-setup + tc-s3-87-setup · fails if cancelling one event touches another event's booking
+    // Code: releaseForCancelledEvent scopes to the event
     it("US-44: another event's booking on the same venue is unchanged", async () => {
+      await given('tc-s3-55-setup', 'tc-s3-87-setup');
       const event = await seedEvent();
-      const other = await seedEvent('Other');
-      await seedBooking(event.id, BookingStatus.APPROVED);
-      const neighbour = await seedBooking(other.id, BookingStatus.APPROVED, { start: at('08:00'), end: at('12:00') });
+      const neighbour = { id: 'BKG-107' }; // "Other", Main Hall 08:00-12:00
 
       await cancel(event);
 
@@ -223,9 +208,11 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
   });
 
   describe('AC-2: the slot is available straight away', () => {
+    // TC-S3-84 · US-44 AC-2 · setup: base-users + base-venues + tc-s3-54-setup + tc-s3-83-setup + tc-s3-55-setup · fails if a released slot still shows as taken anywhere, or cannot be booked again
+    // Code: calendar, venue availability and search ignore RELEASED bookings
     it('US-44: calendar, availability and search show it free, and a new request for it succeeds and can be approved', async () => {
+      await given('tc-s3-55-setup');
       const event = await seedEvent();
-      await seedBooking(event.id, BookingStatus.APPROVED);
       const next = await seedEvent('Next');
 
       await cancel(event);
@@ -257,9 +244,12 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
       await http().post(`/bookings/${req.body.id}/approve`).set('Authorization', as('staffA')).send({}).expect(200);
     });
 
+    // TC-S3-85 · US-44 AC-3 · setup: base-users + base-venues + tc-s3-54-setup + tc-s3-83-setup + tc-s3-55-setup · fails if the release is missing from the queue history
+    // Code: BookingsService queue view=decided includes RELEASED
     it('US-44: the release shows in the Venue Staff queue history as Released', async () => {
+      await given('tc-s3-55-setup');
       const event = await seedEvent();
-      const released = await seedBooking(event.id, BookingStatus.APPROVED);
+      const released = { id: 'BKG-079' };
 
       await cancel(event);
 
@@ -276,13 +266,12 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
   });
 
   describe('US-33 and US-51 alongside', () => {
+    // TC-S3-83 · US-44 AC-1 (with US-33) · setup: base-users + base-venues + tc-s3-54-setup + tc-s3-83-setup + tc-s3-55-setup + tc-s3-83e-setup · fails if releasing venues stops the equipment being released
+    // Code: setStatus(CANCELLED) -> EquipmentReservationsService.releaseForCancelledEvent
     it("US-44: the event's equipment is still released (US-33)", async () => {
+      await given('tc-s3-55-setup', 'tc-s3-83e-setup');
       const event = await seedEvent();
-      await seedBooking(event.id, BookingStatus.APPROVED);
-      const mic = await prisma.equipment.create({ data: { type: 'Wireless microphone', totalQuantity: 10 } });
-      const reservation = await prisma.equipmentReservation.create({
-        data: { eventId: event.id, equipmentId: mic.id, quantity: 2, start: at('18:00'), end: at('22:00'), status: ReservationStatus.APPROVED },
-      });
+      const reservation = { id: 'RSV-020' }; // 2 wireless microphones
 
       await cancel(event);
 
@@ -291,12 +280,12 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
       );
     });
 
+    // TC-S3-87 · US-44 AC-5 (with US-51) · setup: base-users + base-venues + tc-s3-54-setup + tc-s3-83-setup + tc-s3-87b-setup · fails if the other event's booking keeps a review flag that no longer applies, or is changed otherwise
+    // Code: releaseForCancelledEvent -> recheckReviewFlags
     it("US-44: releasing one of a clashing pair clears the other's review flag (US-51)", async () => {
-      await prisma.venue.update({ where: { id: ids.hall }, data: { setupMinutes: 30, turnaroundMinutes: 30 } });
+      await given('tc-s3-87b-setup'); // 30-minute buffers; the Gala 10:00-12:00 and Other 12:30-14:00 both flagged
       const event = await seedEvent();
-      const other = await seedEvent('Other');
-      await seedBooking(event.id, BookingStatus.APPROVED, { start: at('10:00'), end: at('12:00'), needsReview: true });
-      const partner = await seedBooking(other.id, BookingStatus.APPROVED, { start: at('12:30'), end: at('14:00'), needsReview: true });
+      const partner = { id: 'BKG-109' };
 
       await cancel(event);
 
@@ -305,13 +294,13 @@ describe('US-44 release venue bookings on event cancellation (e2e)', () => {
   });
 
   describe('Rollback', () => {
+    // TC-S3-83 · US-44 AC-1 · setup: base-users + base-venues + tc-s3-54-setup + tc-s3-83-setup + tc-s3-55-setup + tc-s3-83e-setup · fails if a failed release leaves the event cancelled, or something released or notified
+    // Code: setStatus runs the releases in the cancellation's transaction
     it('US-44: if the release fails, the event is not cancelled and nothing is released or sent', async () => {
+      await given('tc-s3-55-setup', 'tc-s3-83e-setup');
       const event = await seedEvent();
-      const approved = await seedBooking(event.id, BookingStatus.APPROVED);
-      const mic = await prisma.equipment.create({ data: { type: 'Wireless microphone', totalQuantity: 10 } });
-      const reservation = await prisma.equipmentReservation.create({
-        data: { eventId: event.id, equipmentId: mic.id, quantity: 2, start: at('18:00'), end: at('22:00'), status: ReservationStatus.APPROVED },
-      });
+      const approved = { id: 'BKG-079' };
+      const reservation = { id: 'RSV-020' };
       const bookings = app.get(BookingsService);
       const original = bookings.releaseForCancelledEvent.bind(bookings);
       jest.spyOn(bookings, 'releaseForCancelledEvent').mockImplementation(async (...args) => {

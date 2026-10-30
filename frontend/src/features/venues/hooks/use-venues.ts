@@ -14,6 +14,7 @@ import type {
 } from '@/types/api';
 import { bookingKeys } from '@/features/bookings/hooks/use-bookings';
 import { calendarKeys } from '@/features/calendar/hooks/use-calendar';
+import { notificationKeys } from '@/features/notifications/hooks/use-notifications';
 import { venuesApi } from '../api/venues.api';
 
 export const venueKeys = {
@@ -182,7 +183,14 @@ export function useUpdateVenue() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: VenueDraftPayload }) =>
       venuesApi.update(id, payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: venueKeys.all }),
+    onSuccess: (updated) => {
+      void queryClient.invalidateQueries({ queryKey: venueKeys.all });
+      // US-14 AC-3: an edit that may affect bookings also notifies the editor,
+      // so the bell is refreshed now rather than at its next poll.
+      if (updated.warnings?.length) {
+        void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      }
+    },
   });
 }
 

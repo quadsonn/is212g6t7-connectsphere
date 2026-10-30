@@ -1,23 +1,24 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  AccessibilityFeature,
-  BookingStatus,
-  EventStatus,
-  PrismaClient,
-  Role,
-  RoomLayout,
-  VenueStatus,
-} from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { BookingStatus, PrismaClient, RoomLayout } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
 /**
  * US-53 e2e — one event, several venue bookings (Week 7 change 3). One
  * describe per acceptance criterion, named "US-53 AC-n".
+ *
+ * Code under test: BookingsService.request (per-venue timing and requirements,
+ * defaults copied from the event), per-venue decisions, GET
+ * /bookings/events/:id(/arrangement) and POST /bookings/:id/release.
+ *
+ * Pre-condition for every test: reset the testDB, then run base-users.sql,
+ * tc-s1-96-setup.sql (Vince, USR-013) and tc-s3-146-setup.sql (mainHall,
+ * breakoutA, breakoutB and the "Summit" EVT-274).
  */
 describe('US-53 multi-venue booking (e2e)', () => {
   let app: INestApplication;
@@ -25,35 +26,31 @@ describe('US-53 multi-venue booking (e2e)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from base-users, tc-s1-96-setup and tc-s3-146-setup. */
+  const ids: Record<string, string> = {
+    organiser: 'USR-006',
+    coordinator: 'USR-004',
+    otherCoordinator: 'USR-005',
+    hallStaff: 'USR-010',
+    roomStaff: 'USR-013',
+    tech: 'USR-009',
+    mainHall: 'VEN-076',
+    breakoutA: 'VEN-077',
+    breakoutB: 'VEN-078',
+    summit: 'EVT-274',
+  };
+  const LOGINS: Record<string, string> = {
+    organiser: 'organiser@example.com',
+    coordinator: 'coord.a@example.com',
+    otherCoordinator: 'coord.b@example.com',
+    hallStaff: 'venue.staff@example.com',
+    roomStaff: 'venue.staff2@example.com',
+    tech: 'tech.support@example.com',
+  };
 
   const at = (hhmm: string) => `2030-10-01T${hhmm}:00.000Z`;
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
-
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-  };
-
-  const seedVenue = async (key: string, managedBy: string) => {
-    const venue = await prisma.venue.create({
-      data: {
-        name: key,
-        location: 'Campus',
-        capacity: 300,
-        facilities: [],
-        accessibilityFeatures: [],
-        status: VenueStatus.PUBLISHED,
-        managedById: ids[managedBy],
-      },
-    });
-    ids[key] = venue.id;
-  };
 
   const book = (venue: string, body: Record<string, unknown> = {}, who = 'coordinator') =>
     http()
@@ -80,73 +77,42 @@ describe('US-53 multi-venue booking (e2e)', () => {
   const eventBookings = (who = 'coordinator') =>
     http().get(`/bookings/events/${ids.summit}`).set('Authorization', as(who));
 
-  const clear = async () => {
-    await prisma.notification.deleteMany();
-    await prisma.bookingSuggestion.deleteMany();
-    await prisma.bookingDecision.deleteMany();
-    await prisma.venueBooking.updateMany({ data: { replacesBookingId: null, replacedByBookingId: null } });
-    await prisma.venueBooking.deleteMany();
-    await prisma.venueBlock.deleteMany();
-    await prisma.venue.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-  };
-
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s1-96-setup');
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
-    await clear();
     await prisma.$disconnect();
     await app.close();
   });
 
   beforeEach(async () => {
-    await clear();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('otherCoordinator', 'other@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('hallStaff', 'hall.staff@example.com', Role.VENUE_STAFF);
-    await seedUser('roomStaff', 'room.staff@example.com', Role.VENUE_STAFF);
-    await seedUser('tech', 'tech@example.com', Role.TECHNICAL_SUPPORT_STAFF);
-
-    // Each venue has its own staff, who decide on it alone.
-    await seedVenue('mainHall', 'hallStaff');
-    await seedVenue('breakoutA', 'roomStaff');
-    await seedVenue('breakoutB', 'roomStaff');
-
-    const event = await prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinator,
-        name: 'Summit',
-        purpose: 'p',
-        description: 'd',
-        category: 'c',
-        proposedStart: new Date(at('09:00')),
-        proposedEnd: new Date(at('17:00')),
-        expectedAttendance: 200,
-        preferredLayout: RoomLayout.THEATRE,
-        accessibilityRequirements: [AccessibilityFeature.STEP_FREE_ACCESS],
-        equipmentNeeds: 'PA system',
-        status: EventStatus.PLANNING,
-      },
-    });
-    ids.summit = event.id;
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s1-96-setup');
+    await loadSql(prisma, 'tc-s3-146-setup');
   });
 
   describe('US-53 AC-1/AC-2: several bookings on one event, each with its own timing and requirements', () => {
+    // TC-S3-146, TC-S3-147 · US-53 AC-1/AC-2 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if an event cannot hold several bookings, or each cannot have its own timing and requirements
+    // Code: BookingsService.request (per-venue fields, defaults from the event)
     it('adds three bookings to one event with different times and requirements', async () => {
       const hall = await book('mainHall').expect(201);
       const a = await book('breakoutA', {
@@ -198,6 +164,8 @@ describe('US-53 multi-venue booking (e2e)', () => {
       expect(event).toMatchObject({ preferredLayout: 'THEATRE', equipmentNeeds: 'PA system' });
     });
 
+    // TC-S3-146, TC-S3-147 · US-53 AC-1/AC-2 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if an event cannot hold several bookings, or each cannot have its own timing and requirements
+    // Code: BookingsService.request (per-venue fields, defaults from the event)
     it('rejects an unknown layout or accessibility value', async () => {
       await book('breakoutA', { preferredLayout: 'TREEHOUSE' }).expect(400);
       await book('breakoutA', { accessibilityRequirements: ['JETPACK'] }).expect(400);
@@ -205,42 +173,25 @@ describe('US-53 multi-venue booking (e2e)', () => {
   });
 
   describe('US-53 AC-3: each venue goes through its own availability and conflict check', () => {
+    // TC-S3-148 · US-53 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup + tc-s3-148-setup · fails if one venue's clash affects the others, the event's own bookings clash with each other, or a venue is decided by someone else's staff
+    // Code: BookingsService.conflictsFor per venue; decide (venue manager only)
     it("one venue's clash refuses that request only; the event's others go ahead", async () => {
       // breakoutA is held by another event in the afternoon.
-      const other = await prisma.eventRequest.create({
-        data: {
-          organiserId: ids.organiser,
-          coordinatorId: ids.otherCoordinator,
-          name: 'Other',
-          purpose: 'p',
-          description: 'd',
-          category: 'c',
-          status: EventStatus.PLANNING,
-          proposedStart: new Date(at('13:00')),
-          proposedEnd: new Date(at('14:00')),
-          expectedAttendance: 10,
-        },
-      });
-      await prisma.venueBooking.create({
-        data: {
-          eventId: other.id,
-          venueId: ids.breakoutA,
-          start: new Date(at('13:00')),
-          end: new Date(at('14:00')),
-          status: BookingStatus.APPROVED,
-        },
-      });
-
+      await loadSql(prisma, 'tc-s3-148-setup'); // "Other" holds breakoutA 13:00-14:00
       await book('mainHall').expect(201);
       await book('breakoutA', { start: at('13:30'), end: at('15:00') }).expect(409);
       await book('breakoutB', { start: at('13:30'), end: at('15:00') }).expect(201);
     });
 
+    // TC-S3-148 · US-53 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if one venue's clash affects the others, the event's own bookings clash with each other, or a venue is decided by someone else's staff
+    // Code: BookingsService.conflictsFor per venue; decide (venue manager only)
     it("the event's own bookings at different venues never conflict with each other", async () => {
       await book('mainHall').expect(201);
       await book('breakoutA').expect(201); // same times, different venue
     });
 
+    // TC-S3-148 · US-53 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if one venue's clash affects the others, the event's own bookings clash with each other, or a venue is decided by someone else's staff
+    // Code: BookingsService.conflictsFor per venue; decide (venue manager only)
     it('each is decided independently by its own venue staff', async () => {
       const hall = await book('mainHall').expect(201);
       const a = await book('breakoutA').expect(201);
@@ -261,6 +212,8 @@ describe('US-53 multi-venue booking (e2e)', () => {
   });
 
   describe('US-53 AC-4: each booking\'s approval status is shown separately on the event', () => {
+    // TC-S3-149 · US-53 AC-4 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if the event does not show each booking's own status, or another Coordinator sees them
+    // Code: GET /bookings/events/:id
     it('lists every booking on the event with its own status and decision', async () => {
       const hall = await book('mainHall').expect(201);
       const a = await book('breakoutA').expect(201);
@@ -289,6 +242,8 @@ describe('US-53 multi-venue booking (e2e)', () => {
       );
     });
 
+    // TC-S3-149 · US-53 AC-4 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if the event does not show each booking's own status, or another Coordinator sees them
+    // Code: GET /bookings/events/:id
     it('is not shown to another Coordinator', async () => {
       await book('mainHall').expect(201);
       await eventBookings('otherCoordinator').expect(200).expect([]);
@@ -296,6 +251,8 @@ describe('US-53 multi-venue booking (e2e)', () => {
   });
 
   describe('US-53 AC-5: venue arranged only when all required venues are approved', () => {
+    // TC-S3-150 · US-53 AC-5 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if the venue counts as arranged before every live booking is approved, or a rejected or released one still counts
+    // Code: GET /bookings/events/:id/arrangement
     it('is false with no bookings, false until all approved, true after, false again on a new request', async () => {
       await arrangement().expect(200).expect((res) => expect(res.body.arranged).toBe(false));
 
@@ -321,6 +278,8 @@ describe('US-53 multi-venue booking (e2e)', () => {
       expect((await arrangement().expect(200)).body.arranged).toBe(false);
     });
 
+    // TC-S3-150 · US-53 AC-5 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if the venue counts as arranged before every live booking is approved, or a rejected or released one still counts
+    // Code: GET /bookings/events/:id/arrangement
     it('does not count a rejected or released booking as required', async () => {
       const hall = await book('mainHall').expect(201);
       const a = await book('breakoutA').expect(201);
@@ -332,6 +291,8 @@ describe('US-53 multi-venue booking (e2e)', () => {
       expect((await arrangement().expect(200)).body).toMatchObject({ arranged: true, activeBookings: 1 });
     });
 
+    // TC-S3-150 · US-53 AC-5 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if the venue counts as arranged before every live booking is approved, or a rejected or released one still counts
+    // Code: GET /bookings/events/:id/arrangement
     it("is refused for another Coordinator's event (404) and other roles (403)", async () => {
       await arrangement('otherCoordinator').expect(404);
       await arrangement('hallStaff').expect(403);
@@ -340,6 +301,8 @@ describe('US-53 multi-venue booking (e2e)', () => {
   });
 
   describe('US-53 AC-6: cancel or release one booking without affecting the others', () => {
+    // TC-S3-151 · US-53 AC-6 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if releasing one booking affects the others or the event, deletes the record, or is allowed for the wrong user or status
+    // Code: POST /bookings/:id/release
     it('releases one approved booking, keeps its record, and leaves the others and the event alone', async () => {
       const hall = await book('mainHall').expect(201);
       const a = await book('breakoutA').expect(201);
@@ -363,12 +326,16 @@ describe('US-53 multi-venue booking (e2e)', () => {
       expect(await prisma.eventRequest.findUniqueOrThrow({ where: { id: ids.summit } })).toEqual(eventBefore);
     });
 
+    // TC-S3-151 · US-53 AC-6 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if releasing one booking affects the others or the event, deletes the record, or is allowed for the wrong user or status
+    // Code: POST /bookings/:id/release
     it('cancels a pending request the same way', async () => {
       const a = await book('breakoutA').expect(201);
 
       await release(a.body.id).expect(200).expect((res) => expect(res.body.status).toBe('RELEASED'));
     });
 
+    // TC-S3-151 · US-53 AC-6 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if releasing one booking affects the others or the event, deletes the record, or is allowed for the wrong user or status
+    // Code: POST /bookings/:id/release
     it('frees the slot: the venue can be booked again for that time', async () => {
       const a = await book('breakoutA').expect(201);
       await decide(a.body.id, 'approve', 'roomStaff').expect(200);
@@ -377,6 +344,8 @@ describe('US-53 multi-venue booking (e2e)', () => {
       await book('breakoutA').expect(201);
     });
 
+    // TC-S3-151 · US-53 AC-6 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if releasing one booking affects the others or the event, deletes the record, or is allowed for the wrong user or status
+    // Code: POST /bookings/:id/release
     it('refuses to release a rejected or already released booking', async () => {
       const a = await book('breakoutA').expect(201);
       const b = await book('breakoutB').expect(201);
@@ -388,6 +357,8 @@ describe('US-53 multi-venue booking (e2e)', () => {
       await release(b.body.id).expect(409);
     });
 
+    // TC-S3-151 · US-53 AC-6 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if releasing one booking affects the others or the event, deletes the record, or is allowed for the wrong user or status
+    // Code: POST /bookings/:id/release
     it("another Coordinator cannot release the event's booking (404); other roles get 403", async () => {
       const a = await book('breakoutA').expect(201);
 
@@ -400,6 +371,8 @@ describe('US-53 multi-venue booking (e2e)', () => {
       );
     });
 
+    // TC-S3-151 · US-53 AC-6 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if releasing one booking affects the others or the event, deletes the record, or is allowed for the wrong user or status
+    // Code: POST /bookings/:id/release
     it('US-52 interplay: a released booking no longer shows as needing a replacement', async () => {
       const a = await book('breakoutA').expect(201);
       await prisma.venueBooking.update({
@@ -415,6 +388,8 @@ describe('US-53 multi-venue booking (e2e)', () => {
       await flagged().expect(200).expect([]);
     });
 
+    // TC-S3-151 · US-53 AC-6 · setup: base-users + tc-s1-96-setup + tc-s3-146-setup · fails if releasing one booking affects the others or the event, deletes the record, or is allowed for the wrong user or status
+    // Code: POST /bookings/:id/release
     it("another Coordinator cannot add a booking to the event (404)", async () => {
       await book('breakoutA', {}, 'otherCoordinator').expect(404);
     });

@@ -94,7 +94,9 @@ describe('Story 21 venue booking request queue (integration)', () => {
   });
 
   describe('AC-1: only pending requests for venues I manage', () => {
-    // TC-S2-41 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-41-setup · fails if the queue showed another staff member's venue or an already-decided request
+    // TC-S2-41 · US-21 AC-1 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-41-setup · fails if the queue showed another staff member's venue or an already-decided request
+    // Code: GET /bookings/queue -> findQueue(): venue.managedById = the caller, and the pending view
+    // reads REQUESTED only.
     it("excludes other staff's venues and decided requests", async () => {
       await given('tc-s2-01-setup', 'tc-s2-41-setup');
 
@@ -103,14 +105,17 @@ describe('Story 21 venue booking request queue (integration)', () => {
       expect(names(res.body)).toEqual(['Mine pending']);
     });
 
-    // TC-S2-41 · setup: base-users + base-venues · fails if a Coordinator could read the Venue Staff queue
+    // TC-S2-41 · US-21 AC-1 · setup: base-users + base-venues · fails if a Coordinator could read the Venue Staff queue
+    // Code: GET /bookings/queue is @RequirePermission(BOOKING, DECIDE), which only Venue Staff hold.
     it('is denied to a Coordinator (403)', async () => {
       await queue({}, 'coordinator').expect(403);
     });
   });
 
   describe('AC-2: each entry shows what is needed to review it', () => {
-    // TC-S2-42 · setup: base-users + base-venues + tc-s2-42-setup · fails if an entry lacked the event, venue, times, attendance, requester or organiser
+    // TC-S2-42 · US-21 AC-2 · setup: base-users + base-venues + tc-s2-42-setup · fails if an entry lacked the event, venue, times, attendance, requester or organiser
+    // Code: each entry includes the event (name, organiser), venue, start, end, expectedAttendance
+    // and requestedBy (BOOKING_INCLUDE).
     it('carries event, venue, times, attendance, requester and organiser', async () => {
       await given('tc-s2-42-setup');
 
@@ -128,14 +133,16 @@ describe('Story 21 venue booking request queue (integration)', () => {
   });
 
   describe('AC-3: sorting', () => {
-    // TC-S2-43 · setup: base-users + base-venues + tc-s2-43-setup · fails if the default order were not soonest event first
+    // TC-S2-43 · US-21 AC-3 · setup: base-users + base-venues + tc-s2-43-setup · fails if the default order were not soonest event first
+    // Code: the pending view defaults to sortBy eventDate, ascending (orderBy start).
     it('sorts by event date, soonest first, by default', async () => {
       await given('tc-s2-43-setup');
 
       expect(names((await queue().expect(200)).body)).toEqual(['Sooner', 'Later']);
     });
 
-    // TC-S2-43 · setup: base-users + base-venues + tc-s2-43-setup · fails if descending event-date order were ignored
+    // TC-S2-43 · US-21 AC-3 · setup: base-users + base-venues + tc-s2-43-setup · fails if descending event-date order were ignored
+    // Code: sortOrder=desc reverses the event-date order.
     it('sorts by event date, latest first, when asked', async () => {
       await given('tc-s2-43-setup');
 
@@ -144,7 +151,8 @@ describe('Story 21 venue booking request queue (integration)', () => {
       expect(names(res.body)).toEqual(['Later', 'Sooner']);
     });
 
-    // TC-S2-43 · setup: base-users + base-venues + tc-s2-43-setup · fails if sorting by submission date sorted by event date instead
+    // TC-S2-43 · US-21 AC-3 · setup: base-users + base-venues + tc-s2-43-setup · fails if sorting by submission date sorted by event date instead
+    // Code: sortBy=submitted orders by createdAt.
     it('sorts by submission date when asked', async () => {
       // In tc-s2-43 "Sooner" was submitted after "Later", so this order
       // differs from the event-date order above.
@@ -155,21 +163,25 @@ describe('Story 21 venue booking request queue (integration)', () => {
       expect(names(res.body)).toEqual(['Sooner', 'Later']);
     });
 
-    // TC-S2-43 · setup: base-users + base-venues · fails if an unknown sort field were silently ignored
+    // TC-S2-43 · US-21 AC-3 · setup: base-users + base-venues · fails if an unknown sort field were silently ignored
+    // Code: BookingQueueQueryDto.sortBy is @IsEnum(QueueSortField): eventDate or submitted (400
+    // otherwise).
     it('rejects an unknown sort field (400)', async () => {
       await queue({ sortBy: 'banana' }).expect(400);
     });
   });
 
   describe('AC-4: filtering', () => {
-    // TC-S2-44 · setup: base-users + base-venues + tc-s2-44-setup · fails if the venue filter let another venue's requests through
+    // TC-S2-44 · US-21 AC-4 · setup: base-users + base-venues + tc-s2-44-setup · fails if the venue filter let another venue's requests through
+    // Code: venueId adds the venue to the where clause, still within the caller's venues.
     it('filters by venue', async () => {
       await given('tc-s2-44-setup');
 
       expect(names((await queue({ venueId: VENUE.room }).expect(200)).body)).toEqual(['In room']);
     });
 
-    // TC-S2-44 · setup: base-users + base-venues + tc-s2-44-setup · fails if requests outside the date range were shown
+    // TC-S2-44 · US-21 AC-4 · setup: base-users + base-venues + tc-s2-44-setup · fails if requests outside the date range were shown
+    // Code: from/to keep bookings overlapping the range (end >= from, start <= to).
     it('filters by date range', async () => {
       await given('tc-s2-44-setup');
 
@@ -181,7 +193,9 @@ describe('Story 21 venue booking request queue (integration)', () => {
       expect(names(res.body)).toEqual(['Inside']);
     });
 
-    // TC-S2-44 · setup: base-users + base-venues + tc-s2-44-setup · fails if the decided view ignored the status filter
+    // TC-S2-44 · US-21 AC-4 · setup: base-users + base-venues + tc-s2-44-setup · fails if the decided view ignored the status filter
+    // Code: view=decided reads APPROVED, REJECTED and RELEASED (US-44); status narrows it to one of
+    // them.
     it('filters the decided view by status', async () => {
       await given('tc-s2-44-setup');
 
@@ -192,7 +206,9 @@ describe('Story 21 venue booking request queue (integration)', () => {
   });
 
   describe('AC-5: requests nearing their event date are flagged and prioritised', () => {
-    // TC-S2-45 · setup: base-users + base-venues + tc-s2-45-setup · fails if a request under a week away (or already started) weren't flagged and moved to the top
+    // TC-S2-45 · US-21 AC-5 · setup: base-users + base-venues + tc-s2-45-setup · fails if a request under a week away (or already started) weren't flagged and moved to the top
+    // Code: findQueue() marks a REQUESTED booking starting within URGENT_WINDOW_DAYS (7) as urgent,
+    // with daysUntilStart, and sorts urgent entries first.
     it('puts requests under a week away at the top, flagged', async () => {
       await given('tc-s2-45-setup');
 
@@ -206,7 +222,9 @@ describe('Story 21 venue booking request queue (integration)', () => {
       ]);
     });
 
-    // TC-S2-45 · setup: base-users + base-venues + tc-s2-45-setup · fails if an undecided request whose event had started were dropped or unflagged
+    // TC-S2-45 · US-21 AC-5 · setup: base-users + base-venues + tc-s2-45-setup · fails if an undecided request whose event had started were dropped or unflagged
+    // Code: a start in the past is still under the window, so it stays urgent; daysUntilStart is
+    // negative.
     it('still flags a request whose event has started, with a negative day count', async () => {
       await given('tc-s2-45-setup');
 
@@ -219,7 +237,9 @@ describe('Story 21 venue booking request queue (integration)', () => {
   });
 
   describe('AC-6: an entry opens the full request detail', () => {
-    // TC-S2-46 · setup: base-users + base-venues + tc-s2-42-setup · fails if opening an entry didn't show its layout, accessibility and equipment requirements
+    // TC-S2-46 · US-21 AC-6 · setup: base-users + base-venues + tc-s2-42-setup · fails if opening an entry didn't show its layout, accessibility and equipment requirements
+    // Code: GET /bookings/:id -> findOneForUser() returns the booking with its layout, accessibility
+    // and equipment requirements.
     it('GET /bookings/:id returns it with its requirements', async () => {
       await given('tc-s2-42-setup');
       const [entry] = (await queue().expect(200)).body;
@@ -237,7 +257,9 @@ describe('Story 21 venue booking request queue (integration)', () => {
   });
 
   describe('AC-7: decided requests move to the decided view', () => {
-    // TC-S2-47 · setup: base-users + base-venues + tc-s2-47-setup · fails if an approved or rejected request stayed in Pending or never reached Decided
+    // TC-S2-47 · US-21 AC-7 · setup: base-users + base-venues + tc-s2-47-setup · fails if an approved or rejected request stayed in Pending or never reached Decided
+    // Code: approve and reject move the status off REQUESTED, and the pending view reads REQUESTED
+    // only.
     it('moves a request out of Pending as soon as it is approved or rejected', async () => {
       await given('tc-s2-47-setup');
       expect(names((await queue().expect(200)).body).sort()).toEqual(['Will approve', 'Will reject']);
@@ -256,7 +278,9 @@ describe('Story 21 venue booking request queue (integration)', () => {
       ]);
     });
 
-    // TC-S2-47 · setup: base-users + base-venues + tc-s2-44-setup · fails if a decided request appeared in Pending, or a pending one in Decided
+    // TC-S2-47 · US-21 AC-7 · setup: base-users + base-venues + tc-s2-44-setup · fails if a decided request appeared in Pending, or a pending one in Decided
+    // Code: view=decided reads APPROVED, REJECTED and RELEASED; the pending view reads REQUESTED
+    // only.
     it('shows approved and rejected requests only under view=decided', async () => {
       await given('tc-s2-44-setup');
 

@@ -29,6 +29,8 @@ describe('RolesGuard (US-02)', () => {
     guard = new RolesGuard(reflector as unknown as Reflector);
   });
 
+  // TC-S1-67 · US-02 AC-1 · unit: RolesGuard with Reflector stubbed · fails if a route that declares
+  // nothing is allowed
   describe('AC-1: default-deny', () => {
     it('denies a route that declares no permission or roles', () => {
       declare({});
@@ -54,6 +56,7 @@ describe('RolesGuard (US-02)', () => {
     });
   });
 
+  // TC-S1-68 · US-02 AC-2 · unit · fails if a declared role or matrix permission is refused
   describe('AC-2: granted actions pass', () => {
     it('allows a role holding the declared permission', () => {
       declare({
@@ -85,6 +88,8 @@ describe('RolesGuard (US-02)', () => {
     });
   });
 
+  // TC-S1-74 · US-02 AC-8 · unit · fails if a request with no user is treated as forbidden (403)
+  // rather than unauthenticated (401)
   describe('AC-8: unauthenticated requests', () => {
     it('rejects when no principal was established', () => {
       declare({

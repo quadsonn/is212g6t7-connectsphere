@@ -100,6 +100,34 @@ describe('US-48 change request arrangement check rules', () => {
         'The booked venue is already booked for "another event" at the new time (setup and turnaround included).',
       ]);
     });
+
+    // TC-S3-114, TC-S3-116 · US-48 AC-2, AC-4 · setup: none (unit) · fails if a nameless hold, a block with no reason, or a nameless venue breaks the check's wording
+    // Code: venueConflicts (hold and block fallbacks), summarise (venue name fallback)
+    it('reads without a name on a hold, a reason on a block, or a name on the venue', () => {
+      expect(
+        venueConflicts(
+          'Main Hall',
+          {
+            ...report,
+            hardConflicts: [{ bookingId: 'hold', eventName: null, status: BookingStatus.HELD, ...window }],
+            blocks: [{ blockId: 'x', reason: null, ...window }],
+          } as never,
+          new Set(),
+        ),
+      ).toEqual([
+        'Main Hall has a tentative hold for "another event" at the new time (setup and turnaround included).',
+        'Main Hall is unavailable at the new time.',
+      ]);
+
+      const check = summarise({
+        newWindow: window,
+        venueBookings: [venue({ venueName: null })],
+        equipmentReservations: [],
+        equipment: [],
+        warnings: [],
+      });
+      expect(check.works[0].label).toBe('Venue booking at the booked venue');
+    });
   });
 
   describe('US-48 AC-3: equipment shortfalls', () => {

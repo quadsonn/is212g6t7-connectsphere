@@ -297,6 +297,21 @@ enum NotificationType {
   // (RELEASED).
   EQUIPMENT_UNAVAILABLE
   EQUIPMENT_RELEASED
+  // US-45: Technical Support reduced or released a reservation to resolve a
+  // shortage; sent to the event's Coordinator with the reason.
+  EQUIPMENT_RESERVATION_ADJUSTED
+  // US-45: an alternative item was suggested for a short reservation on a
+  // confirmed event (to the Coordinator), and accepted or declined (to the
+  // Technical Support member who suggested it).
+  EQUIPMENT_ALTERNATIVE_SUGGESTED
+  EQUIPMENT_ALTERNATIVE_DECIDED
+  // US-45: Technical Support found no valid alternative for a short
+  // reservation on a confirmed event; sent to the Coordinator with the reason.
+  EQUIPMENT_NO_ALTERNATIVE
+  // From the retired substitution flow (20261026090000), replaced by US-45's
+  // suggestions. No longer sent; kept so stored notices keep their type.
+  EQUIPMENT_SUBSTITUTE_SUGGESTED
+  EQUIPMENT_SUBSTITUTE_DECIDED
   // Sent to all Coordinator Leads when a new (or resubmitted) event request is
   // submitted, so incoming work finds them without polling the queue.
   EVENT_SUBMITTED
@@ -353,6 +368,9 @@ model User {
   venueBlocks                VenueBlock[]
   // US-45: equipment status changes this user recorded.
   equipmentStatusChanges     EquipmentStatusChange[]
+  // US-45: alternatives suggested for a short reservation, and decided.
+  suggestedEquipment         EquipmentSuggestion[]   @relation("SuggestionAuthor")
+  decidedSuggestions         EquipmentSuggestion[]   @relation("SuggestionDecider")
   // US-51: booking conflict reviews this user resolved by hand.
   resolvedBookingReviews     VenueBooking[]          @relation("BookingReviewResolver")
   // US-54: tentative holds this Venue Staff member placed.
@@ -462,8 +480,8 @@ model EventRequest {
   // notice has been sent, so the sweep that detects these moments fires each
   // exactly once per event and never retroactively re-announces. Null means
   // not yet sent. See registration-notifications.ts.
-  registrationOpenedNotifiedAt      DateTime?
-  registrationClosedNotifiedAt      DateTime?
+  registrationOpenedNotifiedAt       DateTime?
+  registrationClosedNotifiedAt       DateTime?
   registrationNearCapacityNotifiedAt DateTime?
 
   // US-05 AC-2: why a Coordinator rejected the request. Written by the review
@@ -721,17 +739,32 @@ model Equipment {
   technicalSpecs String?
 
   // US-29 AC-2: shown only in an item's full detail view.
+  //
+  // US-45: derived from the two counts below by a database trigger
+  // (20261026100000_us45_equipment_quantity_status) — OPERATIONAL while any
+  // unit works, otherwise OUT_OF_SERVICE if any are damaged, else
+  // UNDER_MAINTENANCE. Kept because US-29, US-31, US-48 and US-67 read it. A
+  // write of this field alone is read as the whole item (all units in that
+  // state); application code changes the counts instead.
   operationalStatus EquipmentStatus @default(OPERATIONAL)
+
+  // US-45: units taken out of use, by condition. Available for a period is
+  // totalQuantity - damaged - under maintenance - reserved. CHECKs keep both
+  // at or above 0 and their sum within totalQuantity.
+  damagedQuantity     Int @default(0)
+  maintenanceQuantity Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  reservations       EquipmentReservation[]
-  requirements       EquipmentRequirement[]
-  changeRequestLines EventChangeRequestEquipment[]
-  statusChanges      EquipmentStatusChange[]
+  reservations           EquipmentReservation[]
+  requirements           EquipmentRequirement[]
+  changeRequestLines     EventChangeRequestEquipment[]
+  statusChanges          EquipmentStatusChange[]
   // US-60: status-change notices about this item.
-  notifications      Notification[]
+  notifications          Notification[]
+  // US-45: suggested as the alternative for another item's short reservation.
+  suggestedAsAlternative EquipmentSuggestion[]
 
   @@index([type])
 }
@@ -746,8 +779,12 @@ model EquipmentStatusChange {
   equipmentId String
   equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
 
+  // US-45: `quantity` units moved from fromStatus to toStatus, e.g. 2 units
+  // OPERATIONAL → OUT_OF_SERVICE. Positive (CHECK). Rows recorded before
+  // counts existed moved the whole item, so they carry its total.
   fromStatus EquipmentStatus
   toStatus   EquipmentStatus
+  quantity   Int
 
   // AC-2: required — a CHECK constraint also rejects a blank one.
   reason String
@@ -759,6 +796,59 @@ model EquipmentStatusChange {
 
   @@index([equipmentId, changedAt])
   @@index([changedById])
+}
+
+/// US-45: where a suggested alternative stands.
+enum EquipmentSuggestionStatus {
+  OPEN
+  ACCEPTED
+  DECLINED
+  // The alternative was no longer available in the quantity when the
+  // Coordinator accepted, or the short reservation no longer held anything.
+  INVALID
+  // Technical Support found no valid alternative. Nothing to accept: the
+  // Coordinator is told, and sees it on the event page.
+  NO_ALTERNATIVE
+}
+
+/// US-45: for a confirmed event whose reservation is short, Technical Support
+/// suggests another item, which the Coordinator accepts or declines — or
+/// records that there is no valid alternative. Accepting
+/// reserves `quantity` of the alternative and takes the same number off the
+/// short reservation (releasing it if none are left), in one transaction.
+model EquipmentSuggestion {
+  // Readable ID, e.g. ESG-001 (CLAUDE.md, "IDs"), issued by the database.
+  id String @id @default(dbgenerated("next_readable_id('ESG'::text)"))
+
+  reservationId String
+  reservation   EquipmentReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  // Both null for NO_ALTERNATIVE, and only then (CHECK).
+  alternativeEquipmentId String?
+  alternativeEquipment   Equipment? @relation(fields: [alternativeEquipmentId], references: [id], onDelete: Restrict)
+
+  // Positive and at most the reservation's quantity (enforced by the service;
+  // positivity also by CHECK).
+  quantity Int?
+
+  // Required — a CHECK also rejects a blank one.
+  reason String
+
+  status EquipmentSuggestionStatus @default(OPEN)
+
+  suggestedById String
+  suggestedBy   User   @relation("SuggestionAuthor", fields: [suggestedById], references: [id], onDelete: Restrict)
+
+  decidedById String?
+  decidedBy   User?     @relation("SuggestionDecider", fields: [decidedById], references: [id], onDelete: Restrict)
+  decidedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  // One OPEN suggestion per reservation: a partial unique index in the
+  // migration (Prisma cannot express the WHERE).
+  @@index([reservationId, status])
+  @@index([alternativeEquipmentId])
 }
 
 model EquipmentReservation {
@@ -785,6 +875,9 @@ model EquipmentReservation {
   replacedById String?               @unique
   replacedBy   EquipmentReservation? @relation("ReservationReplacement", fields: [replacedById], references: [id], onDelete: SetNull)
   replaces     EquipmentReservation? @relation("ReservationReplacement")
+
+  // US-45: alternatives Technical Support suggested while this was short.
+  suggestions EquipmentSuggestion[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

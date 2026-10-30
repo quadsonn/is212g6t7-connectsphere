@@ -14,6 +14,7 @@ import {
     ROOM_LAYOUTS,
     type VenueDraftPayload,
     type VenueStatus,
+    type VenueUpdateWarning,
 } from '@/types/api';
 
 import { useCreateVenueDraft, usePublishVenue, useUpdateVenue } from '../hooks/use-venues';
@@ -151,6 +152,8 @@ export function VenueDraftForm({
     const [savedId, setSavedId] = useState<string | null>(venueId ?? null);
     const [status, setStatus] = useState<VenueStatus>(initialStatus ?? 'DRAFT');
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    // US-14 AC-3: bookings the last save may have affected, from the API.
+    const [warnings, setWarnings] = useState<VenueUpdateWarning[]>([]);
 
     const createDraft = useCreateVenueDraft();
     const update = useUpdateVenue();
@@ -185,7 +188,8 @@ export function VenueDraftForm({
     /** Creates the venue if it doesn't exist yet, or updates it if it does. */
     const persist = async (): Promise<string> => {
         if (savedId) {
-            await update.mutateAsync({ id: savedId, payload: form });
+            const updated = await update.mutateAsync({ id: savedId, payload: form });
+            setWarnings(updated.warnings ?? []);
             return savedId;
         }
         const venue = await createDraft.mutateAsync(form);
@@ -198,6 +202,7 @@ export function VenueDraftForm({
         setErrors({});
         setGeneralError(null);
         setSuccessMessage(null);
+        setWarnings([]);
         const wasNew = !savedId;
         try {
             await persist();
@@ -213,6 +218,7 @@ export function VenueDraftForm({
         setErrors({});
         setGeneralError(null);
         setSuccessMessage(null);
+        setWarnings([]);
         try {
             const id = await persist();
             await publish.mutateAsync(id);
@@ -409,6 +415,19 @@ export function VenueDraftForm({
 
             {/* At the bottom, next to the buttons that caused it — not at the top,
           which would need scrolling back up to see on a long form. */}
+            {/* US-14 AC-3: the change is saved, but the bookings it may affect
+          are named here as well as in the notifications inbox. */}
+            {warnings.map((warning) => (
+                <div
+                    key={warning.code}
+                    role="alert"
+                    className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800"
+                >
+                    <p className="font-medium">Existing bookings may need review</p>
+                    <p>{warning.message}</p>
+                </div>
+            ))}
+
             {successMessage ? (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-green-50 px-3 py-2">
                     <p role="status" className="text-sm text-green-700">

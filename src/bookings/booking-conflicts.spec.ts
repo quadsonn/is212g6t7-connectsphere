@@ -22,6 +22,8 @@ describe('US-23 overlapping booking detection', () => {
     end: at(to),
   });
 
+  // TC-S2-56, TC-S2-57 · US-23 AC-1 to AC-4 · unit: classifyConflicts() · fails if a confirmed
+  // overlap is not hard, a pending one not soft, or a rejected one counted
   describe('classifyConflicts', () => {
     it('US-23 AC-2: an APPROVED overlap is a hard conflict', () => {
       const report = classifyConflicts('self', [row('a', BookingStatus.APPROVED)], []);
@@ -98,6 +100,8 @@ describe('US-23 overlapping booking detection', () => {
     });
   });
 
+  // TC-S2-64 · US-23 AC-5 · unit: the exclusion-constraint error mapping · fails if a double booking
+  // caught by the database is not reported as a conflict
   describe('database backstop (SQLSTATE 23P01)', () => {
     const staff: AuthenticatedUser = { userId: 'staff-1', role: Role.VENUE_STAFF, jti: 'j' };
     const booking = { id: 'b1', venueId: 'v1', start: at(9), end: at(12), status: BookingStatus.REQUESTED };

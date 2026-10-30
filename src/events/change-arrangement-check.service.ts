@@ -4,6 +4,7 @@ import { BookingStatus, Prisma, ReservationStatus } from '@prisma/client';
 import { rescheduleWindow, TimeWindow, windowMoved } from '../bookings/booking-reschedule';
 import { BookingsService } from '../bookings/bookings.service';
 import {
+  AVAILABILITY_EQUIPMENT_SELECT,
   computeItemAvailability,
   holdingReservationsWhere,
 } from '../equipment/equipment-availability';
@@ -210,7 +211,7 @@ export class ChangeArrangementCheckService {
         status: true,
         start: true,
         end: true,
-        equipment: { select: { id: true, type: true, totalQuantity: true, operationalStatus: true } },
+        equipment: { select: AVAILABILITY_EQUIPMENT_SELECT },
       },
     });
 
@@ -260,7 +261,7 @@ export class ChangeArrangementCheckService {
       lines.map(async (line) => {
         const equipment = await db.equipment.findUniqueOrThrow({
           where: { id: line.equipmentId },
-          select: { id: true, type: true, totalQuantity: true, operationalStatus: true },
+          select: AVAILABILITY_EQUIPMENT_SELECT,
         });
         const availability = computeItemAvailability({
           equipment,

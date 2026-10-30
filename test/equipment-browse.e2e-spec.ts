@@ -87,7 +87,7 @@ describe('Story 28 view the equipment catalogue (integration)', () => {
     await given('base-users', 'tc-s2-97-setup');
   });
 
-  describe('AC-1: every item is listed with type, description, quantity and location', () => {
+  describe('US-28 AC-1: every item is listed with type, description, quantity and location', () => {
     // TC-S2-97 · US-28 AC-1 · setup: base-users + tc-s2-97-setup · fails if an item was missing, or the list lacked type, description, quantity or location
     // Code: the list response maps each Equipment row to { id, type, description, location, totalQuantity }.
     it('returns every item with its key details', async () => {
@@ -115,7 +115,7 @@ describe('Story 28 view the equipment catalogue (integration)', () => {
     });
   });
 
-  describe('access: Technical Support only', () => {
+  describe('US-28 access: Technical Support only', () => {
     // TC-S2-98 · US-28 · setup: base-users + tc-s2-97-setup · fails if another role could browse the catalogue
     // Code: GET /equipment is @Roles(TECHNICAL_SUPPORT_STAFF), so RolesGuard answers 403.
     it.each(['coordinator', 'organiser', 'attendee'] as const)('refuses %s (403)', async (who) => {
@@ -129,7 +129,7 @@ describe('Story 28 view the equipment catalogue (integration)', () => {
     });
   });
 
-  describe("AC-2: selecting an item shows its full details, including operational status", () => {
+  describe("US-28 AC-2: selecting an item shows its full details, including operational status", () => {
     // TC-S2-99 · US-28 AC-2 · setup: base-users + tc-s2-97-setup · fails if an item's detail lacked its operational status
     // Code: GET /equipment/:id returns the item with operationalStatus, which the list leaves out.
     it('includes the operational status', async () => {
@@ -162,7 +162,7 @@ describe('Story 28 view the equipment catalogue (integration)', () => {
     });
   });
 
-  describe('AC-3: an item can be found without scrolling the whole list', () => {
+  describe('US-28 AC-3: an item can be found without scrolling the whole list', () => {
     // TC-S2-100 · US-28 AC-3 · setup: base-users + tc-s2-97-setup · fails if looking up by part of a type, in any case, missed the item or returned others
     // Code: `search` filters type with a case-insensitive contains.
     it('looks up by a case-insensitive part of the type', async () => {
@@ -202,7 +202,7 @@ describe('Story 28 view the equipment catalogue (integration)', () => {
     });
   });
 
-  describe('AC-4: the catalogue reflects the latest saved data', () => {
+  describe('US-28 AC-4: the catalogue reflects the latest saved data', () => {
     // TC-S2-101 · US-28 AC-4 · setup: base-users + tc-s2-97-setup · fails if a newly saved item didn't appear on the next load, or the list could be cached
     // Code: every request reads the table, and the response is Cache-Control: no-store.
     it('shows a newly saved item on the next load, and is not cached', async () => {

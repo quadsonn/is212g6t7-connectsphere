@@ -1,6 +1,6 @@
 import { AlertTriangle, ArrowLeft, CheckCircle2, Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 
 import { PageHeader } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import { PlanningEditForm } from '@/features/events/components/planning-edit-for
 import { RejectUnfulfillable } from '@/features/events/components/reject-unfulfillable';
 import { TechnicalRequirementsCard } from '@/features/events/components/technical-requirements';
 import { TechnicalSupportCard } from '@/features/events/components/technical-support-card';
+import { EquipmentShortageCard } from '@/features/events/components/equipment-shortage-card';
 import { EquipmentUnavailableNotice } from '@/features/events/components/equipment-unavailable-notice';
 import { ARRANGEMENT_LABELS } from '@/features/events/lib/change-format';
 import { BookingRequestForm } from '@/features/bookings/components/booking-request-form';
@@ -42,7 +43,7 @@ import {
 import type { PlanningUpdateResult } from '@/types/api';
 import { formatDateRange, formatDateTime, humanise } from '@/lib/utils';
 import type { EventStatus } from '@/types/api';
-import { FACILITY_LABELS } from '@/types/api';
+import { ACCESSIBILITY_FEATURE_LABELS, FACILITY_LABELS } from '@/types/api';
 
 /** Mirrors BOOKABLE_EVENT_STATUSES in the backend's booking.types.ts (US-21). */
 const BOOKABLE_EVENT_STATUSES: EventStatus[] = ['APPROVED', 'PLANNING', 'AWAITING_ARRANGEMENTS'];
@@ -60,6 +61,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function CoordinatorEventDetail() {
   const { id } = useParams<{ id: string }>();
+  // US-19/US-20: "Request this venue" on a venue's page arrives with ?venueId=.
+  const [searchParams] = useSearchParams();
   const { session } = useAuth();
   const { data: event, isPending, isError, error } = useAssignedRequest(id ?? '');
   const { approve, requestClarification, reject, returnForAmendment } = useReviewEvent();
@@ -381,7 +384,8 @@ export function CoordinatorEventDetail() {
                 <div className="flex flex-wrap gap-2">
                   {event.accessibilityRequirements.map((feature) => (
                     <Badge key={feature} className="bg-ink-100 text-ink-700 ring-ink-300">
-                      {humanise(feature)}
+                      {/* The same wording the Organiser chose from (US-06 AC-6). */}
+                      {ACCESSIBILITY_FEATURE_LABELS[feature]}
                     </Badge>
                   ))}
                 </div>
@@ -411,7 +415,28 @@ export function CoordinatorEventDetail() {
               )}
             </CardContent>
           </Card>
-          <EquipmentUnavailableNotice items={event.unavailableEquipment} />
+          <EquipmentShortageCard items={event.equipmentShortages} canDecide={isAssignedToMe} />
+          {/* US-67's notice, less what the shortage card above already lists. */}
+          <EquipmentUnavailableNotice
+            items={event.unavailableEquipment?.filter(
+              (u) => !event.equipmentShortages?.some((s) => s.reservationId === u.reservationId),
+            )}
+          />
+
+          {/* US-12 AC-2: the Organiser's own description of the equipment they need,
+              shown with the core details (the structured list is the card below). */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Equipment needs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {event.equipmentNeeds?.trim() ? (
+                <p className="whitespace-pre-line text-sm text-ink-800">{event.equipmentNeeds}</p>
+              ) : (
+                <p className="text-sm text-ink-500">None recorded.</p>
+              )}
+            </CardContent>
+          </Card>
 
           <TechnicalRequirementsCard event={event} editable={inPlanning && isAssignedToMe} />
 
@@ -499,7 +524,9 @@ export function CoordinatorEventDetail() {
                     message={apiErrorMessage(releaseBooking.error, 'Could not release this booking.')}
                   />
                 ) : null}
-                {canBook ? <BookingRequestForm event={event} /> : null}
+                {canBook ? (
+                  <BookingRequestForm event={event} initialVenueId={searchParams.get('venueId') ?? ''} />
+                ) : null}
               </CardContent>
             </Card>
           ) : null}

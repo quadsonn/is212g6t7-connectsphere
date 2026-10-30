@@ -31,6 +31,8 @@ export async function technicalSupportStaffIds(
 export interface RecordedStatusChange {
   equipmentId: string;
   toStatus: EquipmentStatus;
+  /** US-45: how many units moved. */
+  quantity: number;
   reason: string;
   /** The Technical Support member who made the change. */
   actorId: string;
@@ -45,8 +47,8 @@ export interface RecordedStatusChange {
  * AC-2: never the actor. AC-3: inventory-wide — nothing here reads events or
  * assignments, so it fires whether or not anyone is assigned to anything.
  *
- * Only Damaged and Under Maintenance are announced; an item returning to
- * Available frees units rather than withdrawing them. Coordinators whose
+ * Only Damaged and Under Maintenance are announced, with the number of units
+ * (US-45); units returning to Available free stock rather than withdraw it. Coordinators whose
  * events are affected are US-67's, not this story's.
  *
  * Called after the status change has committed, best-effort, like US-31's
@@ -63,14 +65,18 @@ export class EquipmentStatusNotifier {
     if (isLendable(change.toStatus)) return 0;
 
     const [item, actor, recipients] = await Promise.all([
-      this.prisma.equipment.findUnique({ where: { id: change.equipmentId }, select: { type: true } }),
+      this.prisma.equipment.findUnique({
+        where: { id: change.equipmentId },
+        select: { type: true, totalQuantity: true },
+      }),
       this.prisma.user.findUnique({ where: { id: change.actorId }, select: { name: true } }),
       technicalSupportStaffIds(this.prisma, change.actorId),
     ]);
     if (!item) return 0;
 
     const message =
-      `${item.type} marked ${EQUIPMENT_STATUS_LABELS[change.toStatus]}` +
+      // US-45: how many of how many, e.g. "2 of 10 Projector marked Damaged".
+      `${change.quantity} of ${item.totalQuantity} ${item.type} marked ${EQUIPMENT_STATUS_LABELS[change.toStatus]}` +
       ` by ${actor?.name ?? 'a colleague'}. Reason: ${change.reason}`;
 
     await Promise.all(

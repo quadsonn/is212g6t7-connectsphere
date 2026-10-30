@@ -31,6 +31,7 @@ describe('US-17 venue availability aggregation', () => {
     range = OCTOBER,
   ) => aggregateAvailability(range, bookings).find((d) => d.date === day)?.status;
 
+  // TC-S2-12 · US-17 AC-1 · unit: aggregateAvailability() · fails if a day in the range is missing
   describe('AC-1: every day in the range is reported', () => {
     it('returns one entry per day, in order, free when nothing is booked', () => {
       const days = aggregateAvailability(OCTOBER, []);
@@ -47,6 +48,8 @@ describe('US-17 venue availability aggregation', () => {
     });
   });
 
+  // TC-S2-14 · US-17 AC-3 · unit: aggregateAvailability() · fails if a confirmed day is not booked,
+  // or carries more than date and status
   describe('AC-3: a confirmed booking marks the day booked', () => {
     it('marks a day with only an APPROVED booking as booked', () => {
       const bookings = [
@@ -87,6 +90,8 @@ describe('US-17 venue availability aggregation', () => {
     });
   });
 
+  // TC-S2-15 · US-17 AC-4 · unit: aggregateAvailability() · fails if a pending-only day reads as
+  // free or booked
   describe('AC-4: pending-only days are tentative', () => {
     it('marks a day with only a REQUESTED booking as tentative', () => {
       const bookings = [
@@ -105,6 +110,8 @@ describe('US-17 venue availability aggregation', () => {
     });
   });
 
+  // TC-S2-182 · US-17 AC-1 · unit: aggregateAvailability() with blocks · fails if a blocked day
+  // reads as anything else
   describe('AC-1: blocked-off periods are shown', () => {
     /** A block given in Singapore local time. */
     const block = (start: string, end: string) => ({
@@ -164,6 +171,8 @@ describe('US-17 venue availability aggregation', () => {
     });
   });
 
+  // TC-S2-12 · US-17 AC-1 · unit: aggregateAvailability() · fails if a booking over midnight or a
+  // month end marks the wrong days
   describe('bookings that cross day and month boundaries', () => {
     it('marks both days of a booking that spans midnight', () => {
       const bookings = [
@@ -232,6 +241,8 @@ describe('US-17 venue availability aggregation', () => {
     });
   });
 
+  // TC-S2-12, TC-S2-13 · US-17 AC-1, AC-2 · unit: resolveRange() · fails if the default is not this
+  // month and next, a month is not one month, or a bad range is accepted
   describe('resolveRange', () => {
     const NOW = new Date('2026-10-15T12:00:00+08:00');
 
@@ -277,6 +288,8 @@ describe('US-17 venue availability aggregation', () => {
     });
   });
 
+  // TC-S2-12 · US-17 AC-1 · unit: rangeBounds() · fails if day keys turn into the wrong Singapore-
+  // time instants
   describe('rangeBounds', () => {
     it('spans Singapore midnight to the midnight after the last day', () => {
       const { from, to } = rangeBounds({ from: '2026-10-01', to: '2026-10-31' });

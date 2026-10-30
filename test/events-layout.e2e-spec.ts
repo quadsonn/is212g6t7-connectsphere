@@ -9,7 +9,12 @@ import { loadSql } from './helpers/load-sql';
 import { resetDb } from './helpers/reset-db';
 
 /**
- * US-06 e2e — layout and accessibility preferences.
+ * US-06 (Specify preferred room layout and accessibility requirements), integration tests: the real Nest app over HTTP
+ * (Supertest) and the local test database, one describe per acceptance
+ * criterion. Code under test: the layout and accessibility fields of
+ * CreateEventRequestDto / DraftEventRequestDto (RoomLayout and
+ * AccessibilityFeature enums), saved by createAndSubmit()/saveDraft()/updateDraft(),
+ * and the assigned Coordinator's view.
  *
  * Pre-condition for every test: reset the testDB, then run
  * test/fixtures/sql/base-users.sql; a test that needs more loads the tc-s1
@@ -90,7 +95,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
   });
 
   describe('AC-1: layout comes from a predefined list', () => {
-    // TC-S1-47 · setup: base-users · fails if a predefined layout was refused or not saved
+    // TC-S1-47 · US-06 AC-1 · setup: base-users · fails if a predefined layout was refused or not saved
+    // Code: preferredLayout is @IsEnum(RoomLayout); each listed layout is stored as given.
     it.each(['THEATRE', 'CLASSROOM', 'BANQUET', 'BOARDROOM'])(
       'accepts %s',
       async (layout) => {
@@ -104,7 +110,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       },
     );
 
-    // TC-S1-48 · setup: base-users · fails if a layout outside the list was accepted
+    // TC-S1-48 · US-06 AC-1 · setup: base-users · fails if a layout outside the list was accepted
+    // Code: @IsEnum(RoomLayout) answers 400 "preferredLayout must be one of: ...".
     it('rejects a layout outside the list and names the valid options', async () => {
       const res = await http()
         .post('/events')
@@ -117,7 +124,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       expect(messages).toMatch(/THEATRE.*CLASSROOM.*BANQUET.*BOARDROOM/);
     });
 
-    // TC-S1-48 · setup: base-users · fails if a layout outside the list was accepted
+    // TC-S1-48 · US-06 AC-1 · setup: base-users · fails if a layout outside the list was accepted
+    // Code: free text is not a RoomLayout value, so 400; the notes field is layoutNotes.
     it('rejects a free-text layout, which belongs in layoutNotes', async () => {
       await http()
         .post('/events')
@@ -128,7 +136,9 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
   });
 
   describe('AC-2: optional free-text notes alongside the selection', () => {
-    // TC-S1-49 · setup: base-users · fails if layout notes were dropped
+    // TC-S1-49 · US-06 AC-2 · setup: base-users · fails if layout notes were dropped
+    // Code: layoutNotes is an optional @Trim @MaxLength(2000) string saved alongside
+    // preferredLayout.
     it('stores notes with a selection', async () => {
       const res = await http()
         .post('/events')
@@ -144,7 +154,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       expect(res.body.layoutNotes).toMatch(/centre aisle/);
     });
 
-    // TC-S1-49 · setup: base-users · fails if layout notes were dropped
+    // TC-S1-49 · US-06 AC-2 · setup: base-users · fails if layout notes were dropped
+    // Code: preferredLayout is @IsOptional, so notes alone are accepted.
     it('stores notes with no selection, for a layout not on the list', async () => {
       const res = await http()
         .post('/events')
@@ -158,7 +169,9 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
   });
 
   describe('AC-3: accessibility requirements with optional notes', () => {
-    // TC-S1-50 · setup: base-users · fails if accessibility requirements or notes were not saved as entered
+    // TC-S1-50 · US-06 AC-3 · setup: base-users · fails if accessibility requirements or notes were not saved as entered
+    // Code: accessibilityRequirements is an array of AccessibilityFeature (@IsEnum each), stored
+    // as a Postgres enum array.
     it('records multiple requirements', async () => {
       const res = await http()
         .post('/events')
@@ -175,7 +188,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       ]);
     });
 
-    // TC-S1-50 · setup: base-users · fails if accessibility requirements or notes were not saved as entered
+    // TC-S1-50 · US-06 AC-3 · setup: base-users · fails if accessibility requirements or notes were not saved as entered
+    // Code: accessibilityNotes is saved next to the structured list.
     it('records requirements with notes', async () => {
       const res = await http()
         .post('/events')
@@ -191,7 +205,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       expect(res.body.accessibilityNotes).toMatch(/same floor/);
     });
 
-    // TC-S1-50 · setup: base-users · fails if accessibility requirements or notes were not saved as entered
+    // TC-S1-50 · US-06 AC-3 · setup: base-users · fails if accessibility requirements or notes were not saved as entered
+    // Code: the AccessibilityFeature enum (shared with venues) includes the later additions.
     it('accepts the newer features added to the list', async () => {
       const added = [
         'WHEELCHAIR_ACCESSIBLE_LIFT',
@@ -208,7 +223,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       expect(res.body.accessibilityRequirements).toEqual(added);
     });
 
-    // TC-S1-51 · setup: base-users · fails if an unknown or duplicate requirement was accepted
+    // TC-S1-51 · US-06 AC-3 · setup: base-users · fails if an unknown or duplicate requirement was accepted
+    // Code: @IsEnum(AccessibilityFeature, { each: true }) answers 400 naming the allowed values.
     it('rejects an unrecognised requirement', async () => {
       const res = await http()
         .post('/events')
@@ -224,7 +240,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       );
     });
 
-    // TC-S1-51 · setup: base-users · fails if an unknown or duplicate requirement was accepted
+    // TC-S1-51 · US-06 AC-3 · setup: base-users · fails if an unknown or duplicate requirement was accepted
+    // Code: @ArrayUnique() answers 400.
     it('rejects duplicates', async () => {
       await http()
         .post('/events')
@@ -236,7 +253,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
         .expect(400);
     });
 
-    // TC-S1-50 · setup: base-users · fails if accessibility requirements or notes were not saved as entered
+    // TC-S1-50 · US-06 AC-3 · setup: base-users · fails if accessibility requirements or notes were not saved as entered
+    // Code: both fields are @IsOptional, so notes alone are kept.
     it('accepts notes with no structured requirement selected', async () => {
       const res = await http()
         .post('/events')
@@ -253,7 +271,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
   });
 
   describe('AC-4: values persist on draft and submitted, and survive reopening', () => {
-    // TC-S1-52 · setup: base-users · fails if layout/accessibility values were lost on save, submit or edit
+    // TC-S1-52 · US-06 AC-4 · setup: base-users · fails if layout/accessibility values were lost on save, submit or edit
+    // Code: saveDraft() stores them; GET /events/:id returns them.
     it('persists on a draft and is there when reopened', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -281,7 +300,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       });
     });
 
-    // TC-S1-52 · setup: base-users · fails if layout/accessibility values were lost on save, submit or edit
+    // TC-S1-52 · US-06 AC-4 · setup: base-users · fails if layout/accessibility values were lost on save, submit or edit
+    // Code: submitDraft() changes only the status (setStatus), leaving the preferences untouched.
     it('survives the draft being submitted', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -312,7 +332,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       });
     });
 
-    // TC-S1-52 · setup: base-users · fails if layout/accessibility values were lost on save, submit or edit
+    // TC-S1-52 · US-06 AC-4 · setup: base-users · fails if layout/accessibility values were lost on save, submit or edit
+    // Code: updateDraft() replaces the given fields and keeps the rest.
     it('can be edited on a draft before submission', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -340,7 +361,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
   });
 
   describe('AC-5: leaving them empty still saves', () => {
-    // TC-S1-53 · setup: base-users · fails if empty layout/accessibility blocked saving or submitting
+    // TC-S1-53 · US-06 AC-5 · setup: base-users · fails if empty layout/accessibility blocked saving or submitting
+    // Code: CreateEventRequestDto marks all four preference fields @IsOptional.
     it('submits a request with neither recorded', async () => {
       const res = await http()
         .post('/events')
@@ -355,7 +377,8 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       expect(res.body.status).toBe(EventStatus.SUBMITTED);
     });
 
-    // TC-S1-53 · setup: base-users · fails if empty layout/accessibility blocked saving or submitting
+    // TC-S1-53 · US-06 AC-5 · setup: base-users · fails if empty layout/accessibility blocked saving or submitting
+    // Code: DraftEventRequestDto has no required fields.
     it('saves an empty draft with neither recorded', async () => {
       const res = await http()
         .post('/events/drafts')
@@ -366,7 +389,9 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
       expect(res.body.accessibilityRequirements).toEqual([]);
     });
 
-    // TC-S1-53 · setup: base-users · fails if empty layout/accessibility blocked saving or submitting
+    // TC-S1-53 · US-06 AC-5 · setup: base-users · fails if empty layout/accessibility blocked saving or submitting
+    // Code: assertReadyForSubmission() checks CreateEventRequestDto, where the preferences are
+    // optional.
     it('submits a completed draft that omits them', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -382,74 +407,53 @@ describe('US-06 layout and accessibility preferences (e2e)', () => {
   });
 
   describe('AC-6: a Coordinator reviewing the request sees both', () => {
-    const submitWithPreferences = async () => {
-      const res = await http()
-        .post('/events')
-        .set('Authorization', as('organiser'))
-        .send({
-          ...completeFields,
+    /** tc-s1-54-setup.sql: SUBMITTED, assigned to USR-004, with both recorded. */
+    const REVIEWED = 'EVT-153';
+
+    // TC-S1-54 · US-06 AC-6 · setup: base-users + tc-s1-54-setup · fails if the assigned Coordinator's list lost the layout or accessibility values
+    // Code: GET /events (ASSIGNED scope) returns the full event row to its Coordinator, preferences included.
+    it('shows layout and accessibility in the Coordinator’s list of assigned requests', async () => {
+      await given('tc-s1-54-setup');
+
+      const list = await http().get('/events').set('Authorization', as('coordinator')).expect(200);
+
+      expect(list.body).toEqual([
+        expect.objectContaining({
+          id: REVIEWED,
           preferredLayout: 'THEATRE',
-          layoutNotes: 'Centre aisle required',
+          layoutNotes: 'Centre aisle, front row reserved',
           accessibilityRequirements: ['STEP_FREE_ACCESS', 'HEARING_LOOP'],
           accessibilityNotes: 'Ramp access to the stage',
-        })
-        .expect(201);
-      // The Lead's assignment is a separate story; here the request is simply
-      // already in this Coordinator's hands.
-      await prisma.eventRequest.update({
-        where: { id: res.body.id },
-        data: { coordinatorId: ids.coordinator },
-      });
-      return res.body.id as string;
-    };
+        }),
+      ]);
+    });
 
-    it('shows layout and accessibility in the review queue', async () => {
-      await submitWithPreferences();
+    // TC-S1-54 · US-06 AC-6 · setup: base-users + tc-s1-54-setup · fails if opening the request for review hid the preferences
+    // Code: GET /events/:id for the assigned Coordinator returns the same full row (assertEventAccess, ASSIGNED).
+    it('shows them when the Coordinator opens the request', async () => {
+      await given('tc-s1-54-setup');
 
-      const queue = await http()
-        .get('/events')
-        .set('Authorization', as('coordinator'))
-        .expect(200);
+      const opened = await http().get(`/events/${REVIEWED}`).set('Authorization', as('coordinator')).expect(200);
 
-      expect(queue.body[0]).toMatchObject({
+      expect(opened.body).toMatchObject({
         preferredLayout: 'THEATRE',
-        layoutNotes: 'Centre aisle required',
+        layoutNotes: 'Centre aisle, front row reserved',
         accessibilityRequirements: ['STEP_FREE_ACCESS', 'HEARING_LOOP'],
         accessibilityNotes: 'Ramp access to the stage',
       });
     });
 
-    it('shows them when the Coordinator opens the request', async () => {
-      const id = await submitWithPreferences();
-
-      const opened = await http()
-        .get(`/events/${id}`)
-        .set('Authorization', as('coordinator'))
-        .expect(200);
-
-      expect(opened.body.preferredLayout).toBe('THEATRE');
-      expect(opened.body.accessibilityRequirements).toEqual([
-        'STEP_FREE_ACCESS',
-        'HEARING_LOOP',
-      ]);
-    });
-
+    // TC-S1-54 · US-06 AC-6, with US-02 AC-7 · setup: base-users + tc-s1-54-setup · fails if an Attendee received the layout or accessibility planning
+    // Code: an Attendee reads only CONFIRMED events open for registration, through the public projection
+    // (projectEvent), so a request under review is invisible and planning fields never leave the server.
     it('still hides them from an Attendee — they are internal planning', async () => {
-      await submitWithPreferences();
+      await given('tc-s1-54-setup');
 
-      const list = await http()
-        .get('/events')
-        .set('Authorization', as('attendee'))
-        .expect(200);
+      const list = await http().get('/events').set('Authorization', as('attendee')).expect(200);
+      const opened = await http().get(`/events/${REVIEWED}`).set('Authorization', as('attendee')).expect(404);
 
-      for (const event of list.body) {
-        expect(event).not.toHaveProperty('preferredLayout');
-        expect(event).not.toHaveProperty('layoutNotes');
-        expect(event).not.toHaveProperty('accessibilityRequirements');
-        expect(event).not.toHaveProperty('accessibilityNotes');
-        // US-19 AC-3: internal planning too.
-        expect(event).not.toHaveProperty('requiredFacilities');
-      }
+      expect(list.body.map((e: { id: string }) => e.id)).not.toContain(REVIEWED);
+      expect(JSON.stringify(list.body) + JSON.stringify(opened.body)).not.toMatch(/Centre aisle|Ramp access|THEATRE/);
     });
   });
 });

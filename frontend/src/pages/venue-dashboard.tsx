@@ -11,6 +11,7 @@ import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { useDeleteVenue, useVenues } from '@/features/venues/hooks/use-venues';
 import { apiErrorMessage } from '@/lib/api-client';
 import { VENUE_STATUS_STYLES } from '@/lib/status';
+import { humanise } from '@/lib/utils';
 import type { BrowseVenuesQuery } from '@/types/api';
 
 /** REAL data — GET /venues (US-13, US-15). */
@@ -169,7 +170,7 @@ export function VenueDashboard() {
                 {venues.map((venue) => {
                   const style = VENUE_STATUS_STYLES[venue.status];
                   return (
-                    <tr key={venue.id} className="hover:bg-ink-50">
+                    <tr key={venue.id} className="transition-colors hover:bg-ink-50">
                       <td className="px-5 py-3.5">
                         {venue.imageUrls.length > 0 ? (
                           <img
@@ -192,7 +193,7 @@ export function VenueDashboard() {
                         </span>
                         {venue.supportedLayouts.length > 0 ? (
                           <span className="mt-0.5 block text-xs text-ink-500">
-                            {venue.supportedLayouts.join(' · ')}
+                            {venue.supportedLayouts.map(humanise).join(' · ')}
                           </span>
                         ) : null}
                       </td>

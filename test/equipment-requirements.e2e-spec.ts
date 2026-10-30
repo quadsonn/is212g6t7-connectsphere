@@ -110,7 +110,7 @@ describe('Story 30 view equipment and technical requirements for an event (integ
     await given('base-users', 'tc-s2-114-setup');
   });
 
-  describe('AC-1: requirements are visible, whether from the Organiser or the Coordinator', () => {
+  describe('US-30 AC-1: requirements are visible, whether from the Organiser or the Coordinator', () => {
     // TC-S2-114 · US-30 AC-1 · setup: base-users + tc-s2-114-setup · fails if the Organiser's submitted equipment needs weren't shown
     // Code: the requirements view returns equipmentNeeds as organiserEquipmentNeeds, alongside the two Coordinator sources.
     it("shows the Organiser's equipment needs on their own", async () => {
@@ -171,7 +171,7 @@ describe('Story 30 view equipment and technical requirements for an event (integ
     });
   });
 
-  describe('AC-4: the list holds only submitted events with at least one requirement', () => {
+  describe('US-30 AC-4: the list holds only submitted events with at least one requirement', () => {
     // TC-S2-115 · US-30 AC-1, AC-4 · setup: base-users + tc-s2-114-setup · fails if an event with any one source were missing from the list, or one with none or a draft were in it
     // Code: REQUIREMENTS_VISIBLE_WHERE: a non-draft status and at least one non-blank source.
     it('lists exactly the non-draft events with at least one source', async () => {
@@ -186,7 +186,7 @@ describe('Story 30 view equipment and technical requirements for an event (integ
     });
   });
 
-  describe('AC-4: events that will not go ahead are left off the list by default', () => {
+  describe('US-30 AC-4: events that will not go ahead are left off the list by default', () => {
     // Moves one listed event to a finished status. Test setup only: the app
     // reaches these statuses through its transition methods.
     const finish = (eventId: string, status: EventStatus) =>
@@ -244,7 +244,7 @@ describe('Story 30 view equipment and technical requirements for an event (integ
     );
   });
 
-  describe('AC-2: what was requested is shown, not just that a request exists', () => {
+  describe('US-30 AC-2: what was requested is shown, not just that a request exists', () => {
     // TC-S2-116 · US-30 AC-2 · setup: base-users + tc-s2-114-setup · fails if the list only flagged that an event has requirements without saying what they are
     // Code: each list entry carries the same three sources as the single-event view.
     it('carries the requirement content in the list itself', async () => {
@@ -268,7 +268,7 @@ describe('Story 30 view equipment and technical requirements for an event (integ
     });
   });
 
-  describe('AC-3: no requirements recorded is clearly indicated', () => {
+  describe('US-30 AC-3: no requirements recorded is clearly indicated', () => {
     // TC-S2-117 · US-30 AC-3 · setup: base-users + tc-s2-114-setup · fails if an event with nothing recorded showed an empty view without saying so
     // Code: hasRequirements is false and the view carries NONE as its message.
     it('says so for a submitted event with nothing recorded', async () => {
@@ -295,7 +295,7 @@ describe('Story 30 view equipment and technical requirements for an event (integ
     });
   });
 
-  describe('access: Technical Support only', () => {
+  describe('US-30 access: Technical Support only', () => {
     // TC-S2-118 · US-30 · setup: base-users + tc-s2-114-setup · fails if another role could read any requirements route
     // Code: every route is @Roles(TECHNICAL_SUPPORT_STAFF), so RolesGuard answers 403.
     it.each(OTHER_ROLES)('refuses %s on the list, requirements and details routes (403)', async (who) => {
@@ -312,7 +312,7 @@ describe('Story 30 view equipment and technical requirements for an event (integ
     });
   });
 
-  describe('"View more details": the full event, for any non-draft event', () => {
+  describe('US-30 AC-1, "View more details": the full event, for any non-draft event', () => {
     // TC-S2-119 · US-30 (supports AC-1) · setup: base-users + tc-s2-114-setup · fails if the details view lacked the event's planning details or its Coordinator
     // Code: the details route returns the planning fields and the Coordinator's name and email.
     it('returns the full event details', async () => {

@@ -64,14 +64,14 @@ export function CoordinatorChangeRequests() {
                 key={request.id}
                 className="group relative flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-ink-50"
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2.5">
-                    <span className="truncate font-medium text-ink-900 group-hover:text-brand-700 group-hover:underline">
+                <div className="min-w-0 flex-[1_1_16rem]">
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <span className="min-w-0 break-words font-medium text-ink-900 group-hover:text-brand-700 group-hover:underline">
                       {request.event.name ?? 'Untitled event'}
                     </span>
                     <EventStatusBadge status={request.event.status} />
                   </div>
-                  <p className="mt-1 line-clamp-1 text-sm text-ink-600">{request.reason}</p>
+                  <p className="mt-1 line-clamp-2 break-words text-sm text-ink-600 sm:line-clamp-1">{request.reason}</p>
                   <p className="mt-1 text-xs text-ink-500">
                     Requested by {request.requestedBy.name} · {formatDate(request.createdAt)}
                   </p>

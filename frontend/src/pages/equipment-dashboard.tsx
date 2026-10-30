@@ -100,11 +100,11 @@ export function EquipmentDashboard() {
                     finished && 'bg-ink-50/60',
                   )}
                 >
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-[1_1_16rem]">
                     <div className="flex flex-wrap items-center gap-2.5">
                       <span
                         className={cn(
-                          'font-medium group-hover:text-brand-700 group-hover:underline',
+                          'min-w-0 break-words font-medium group-hover:text-brand-700 group-hover:underline',
                           finished ? 'text-ink-500' : 'text-ink-900',
                         )}
                       >

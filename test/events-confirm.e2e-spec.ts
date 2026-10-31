@@ -1,113 +1,53 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  BookingStatus,
-  EventStatus,
-  NotificationType,
-  PrismaClient,
-  ReservationStatus,
-  Role,
-  VenueStatus,
-} from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { BookingStatus, EventStatus, NotificationType, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
-/** US-42 e2e — the Coordinator confirms an event once its arrangements are ready. */
+/**
+ * US-42 e2e — the Coordinator confirms an event once its arrangements are ready.
+ *
+ * Code under test: EventConfirmationService (readiness, confirm, manual
+ * confirmation of free-text lines) and confirmation-readiness.rules.ts.
+ *
+ * Pre-condition for every test: reset the testDB, then run base-users.sql and
+ * tc-s3-70-setup.sql (the "Graduation showcase", EVT-203, in PLANNING, with
+ * nothing booked). Each test loads the tc-s3 scripts its test case names (see
+ * docs/testing/sprint3-test-cases.md).
+ */
 describe('US-42 confirm event when arrangements are ready (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from base-users. */
+  const ids: Record<string, string> = {
+    coordinator: 'USR-004',
+    otherCoordinator: 'USR-005',
+    organiser: 'USR-006',
+    staff: 'USR-010',
+  };
+  const LOGINS: Record<string, string> = {
+    coordinator: 'coord.a@example.com',
+    otherCoordinator: 'coord.b@example.com',
+    organiser: 'organiser@example.com',
+    staff: 'venue.staff@example.com',
+  };
+  /** The Graduation showcase (tc-s3-70-setup). */
+  const EVENT = { id: 'EVT-203' } as const;
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
 
-  const START = new Date('2030-11-01T10:00:00Z');
-  const END = new Date('2030-11-01T14:00:00Z');
-
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
+  /** Loads a test case's setup script(s) on top of the base scripts. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
-
-  const seedEvent = (status: EventStatus = EventStatus.PLANNING) =>
-    prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinator,
-        name: 'Graduation showcase',
-        purpose: 'Celebration',
-        description: 'Final-year projects on show',
-        category: 'Academic',
-        proposedStart: START,
-        proposedEnd: END,
-        expectedAttendance: 120,
-        status,
-      },
-    });
-
-  const seedVenue = (name: string) =>
-    prisma.venue.create({
-      data: {
-        name,
-        location: 'School of Computing',
-        capacity: 300,
-        status: VenueStatus.PUBLISHED,
-        managedById: ids.staff,
-      },
-    });
-
-  const seedBooking = async (
-    eventId: string,
-    venueName: string,
-    status: BookingStatus = BookingStatus.APPROVED,
-    needsReview = false,
-  ) => {
-    const venue = await seedVenue(venueName);
-    return prisma.venueBooking.create({
-      data: {
-        eventId,
-        venueId: venue.id,
-        start: START,
-        end: END,
-        status,
-        needsReview,
-        requestedById: ids.coordinator,
-      },
-    });
-  };
-
-  const seedEquipment = (type: string, totalQuantity = 10) =>
-    prisma.equipment.create({ data: { type, totalQuantity } });
-
-  const seedRequirement = (
-    eventId: string,
-    equipmentType: string,
-    quantity: number,
-    equipmentId: string | null = null,
-  ) =>
-    prisma.equipmentRequirement.create({
-      data: { eventId, equipmentType, quantity, equipmentId },
-    });
-
-  const seedReservation = (
-    eventId: string,
-    equipmentId: string,
-    quantity: number,
-    status: ReservationStatus = ReservationStatus.APPROVED,
-  ) =>
-    prisma.equipmentReservation.create({
-      data: { eventId, equipmentId, quantity, start: START, end: END, status },
-    });
 
   const readiness = (eventId: string, who = 'coordinator') =>
     http().get(`/events/${eventId}/confirmation-readiness`).set('Authorization', as(who));
@@ -136,10 +76,18 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
@@ -148,28 +96,16 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.notification.deleteMany();
-    await prisma.bookingDecision.deleteMany();
-    await prisma.venueBooking.deleteMany();
-    await prisma.venueBlock.deleteMany();
-    await prisma.venue.deleteMany();
-    await prisma.equipmentReservation.deleteMany();
-    await prisma.equipmentRequirement.deleteMany();
-    await prisma.equipment.deleteMany();
-    await prisma.eventChange.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('otherCoordinator', 'other.coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('staff', 'staff@example.com', Role.VENUE_STAFF);
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s3-70-setup');
   });
 
   describe('AC-1/AC-2: readiness checklist — venues', () => {
+    // TC-S3-71 · US-42 AC-2 · setup: base-users + tc-s3-70-setup · fails if the checklist does not say no venue is booked
+    // Code: EventConfirmationService.readiness -> confirmation-readiness.rules
     it('US-42 AC-2: no venue booked', async () => {
-      const ev = await seedEvent();
+      const ev = EVENT;
 
       const res = await readiness(ev.id).expect(200);
 
@@ -177,9 +113,11 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(outstanding(res.body)).toEqual(['No venue booked']);
     });
 
+    // TC-S3-71 · US-42 AC-2 · setup: base-users + tc-s3-70-setup + tc-s3-71-setup · fails if a pending booking is not listed as outstanding
+    // Code: EventConfirmationService.readiness -> confirmation-readiness.rules
     it('US-42 AC-2: one REQUESTED booking is still pending', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Hall A', BookingStatus.REQUESTED);
+      const ev = EVENT;
+      await given('tc-s3-71-setup'); // Hall A only requested
 
       const res = await readiness(ev.id).expect(200);
 
@@ -187,9 +125,11 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(outstanding(res.body)).toEqual(['Venue booking at Hall A still pending']);
     });
 
+    // TC-S3-71 · US-42 AC-2 · setup: base-users + tc-s3-70-setup + tc-s3-71b-setup · fails if a booking flagged for review counts as ready
+    // Code: EventConfirmationService.readiness -> confirmation-readiness.rules
     it('US-42 AC-2: an APPROVED booking flagged for review needs conflict review', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Room 2', BookingStatus.APPROVED, true);
+      const ev = EVENT;
+      await given('tc-s3-71b-setup'); // Room 2 approved but flagged for review
 
       const res = await readiness(ev.id).expect(200);
 
@@ -197,10 +137,11 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(outstanding(res.body)).toEqual(['Venue booking at Room 2 needs conflict review']);
     });
 
+    // TC-S3-70 · US-42 AC-1 · setup: base-users + tc-s3-70-setup + tc-s3-70b-setup + tc-s3-70c-setup · fails if one approved venue is enough while another is pending
+    // Code: EventConfirmationService.readiness -> confirmation-readiness.rules
     it('US-42 AC-1: two venues with one pending is not ready', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Hall A');
-      await seedBooking(ev.id, 'Room 2', BookingStatus.REQUESTED);
+      const ev = EVENT;
+      await given('tc-s3-70b-setup', 'tc-s3-70c-setup'); // Hall A approved, Room 2 pending
 
       const res = await readiness(ev.id).expect(200);
 
@@ -208,11 +149,11 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(outstanding(res.body)).toEqual(['Venue booking at Room 2 still pending']);
     });
 
+    // TC-S3-70 · US-42 AC-1 · setup: base-users + tc-s3-70-setup + tc-s3-70b-setup + tc-s3-70d-setup · fails if an event with every venue approved and no equipment is not ready, or a rejected booking still counts
+    // Code: EventConfirmationService.readiness -> confirmation-readiness.rules
     it('US-42 AC-1: every booking APPROVED and no equipment is ready', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Hall A');
-      await seedBooking(ev.id, 'Room 2');
-      await seedBooking(ev.id, 'Annex', BookingStatus.REJECTED);
+      const ev = EVENT;
+      await given('tc-s3-70b-setup', 'tc-s3-70d-setup'); // Hall A and Room 2 approved; Annex rejected
 
       const res = await readiness(ev.id).expect(200);
 
@@ -227,12 +168,11 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
   });
 
   describe('AC-1/AC-2: readiness checklist — equipment', () => {
+    // TC-S3-71 · US-42 AC-2 · setup: base-users + tc-s3-70-setup + tc-s3-70b-setup + tc-s3-71c-setup · fails if an under-reserved item is not listed with how many are missing
+    // Code: EventConfirmationService.readiness -> confirmation-readiness.rules
     it('US-42 AC-2: a linked line under-reserved reads 1 of 2', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Hall A');
-      const projector = await seedEquipment('Projector');
-      await seedRequirement(ev.id, 'Projector', 2, projector.id);
-      await seedReservation(ev.id, projector.id, 1);
+      const ev = EVENT;
+      await given('tc-s3-70b-setup', 'tc-s3-71c-setup'); // 2 projectors needed, 1 reserved
 
       const res = await readiness(ev.id).expect(200);
 
@@ -240,22 +180,22 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(outstanding(res.body)).toEqual(['Projector not reserved (1 of 2)']);
     });
 
+    // TC-S3-70 · US-42 AC-1 · setup: base-users + tc-s3-70-setup + tc-s3-70b-setup + tc-s3-70e-setup · fails if a reservation still awaiting approval counts as reserved
+    // Code: EventConfirmationService.readiness -> confirmation-readiness.rules
     it('US-42: only a REQUESTED reservation does not satisfy the line', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Hall A');
-      const projector = await seedEquipment('Projector');
-      await seedRequirement(ev.id, 'Projector', 2, projector.id);
-      await seedReservation(ev.id, projector.id, 2, ReservationStatus.REQUESTED);
+      const ev = EVENT;
+      await given('tc-s3-70b-setup', 'tc-s3-70e-setup'); // 2 projectors needed, 2 only requested
 
       const res = await readiness(ev.id).expect(200);
 
       expect(outstanding(res.body)).toEqual(['Projector not reserved (0 of 2)']);
     });
 
+    // TC-S3-71 · US-42 AC-2 · setup: base-users + tc-s3-70-setup + tc-s3-70b-setup + tc-s3-71d-setup · fails if a free-text item nobody checked counts as ready
+    // Code: EventConfirmationService.readiness -> confirmation-readiness.rules
     it('US-42 AC-2: an unticked free-text line needs a manual check', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Hall A');
-      await seedRequirement(ev.id, 'Stage lighting rig', 1);
+      const ev = EVENT;
+      await given('tc-s3-70b-setup', 'tc-s3-71d-setup'); // a free-text line, unticked
 
       const res = await readiness(ev.id).expect(200);
 
@@ -267,13 +207,12 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       });
     });
 
+    // TC-S3-70 · US-42 AC-1 · setup: base-users + tc-s3-70-setup + tc-s3-70b-setup + tc-s3-70f-setup + tc-s3-71d-setup · fails if an event with everything reserved and checked is not ready
+    // Code: EventConfirmationService.readiness -> confirmation-readiness.rules
     it('US-42: a fully reserved line and a ticked free-text line are ready', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Hall A');
-      const projector = await seedEquipment('Projector');
-      await seedRequirement(ev.id, 'Projector', 2, projector.id);
-      await seedReservation(ev.id, projector.id, 2);
-      const rig = await seedRequirement(ev.id, 'Stage lighting rig', 1);
+      const ev = EVENT;
+      await given('tc-s3-70b-setup', 'tc-s3-70f-setup', 'tc-s3-71d-setup'); // projectors fully reserved; a free-text line
+      const rig = { id: 'REQ-011' };
 
       await manualConfirm(ev.id, rig.id).expect(200);
       const res = await readiness(ev.id).expect(200);
@@ -281,8 +220,10 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(res.body.ready).toBe(true);
     });
 
+    // TC-S3-72 · US-42 AC-3 · setup: base-users + tc-s3-70-setup · fails if another Coordinator or the Organiser can read the checklist
+    // Code: EventConfirmationService.readiness -> AccessControlService (404 / 403)
     it('US-42: readiness is for the assigned Coordinator only', async () => {
-      const ev = await seedEvent();
+      const ev = EVENT;
 
       // Lead assignment story: another Coordinator cannot see the event at all.
       await readiness(ev.id, 'otherCoordinator').expect(404);
@@ -291,9 +232,12 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
   });
 
   describe('manual confirmation of free-text lines', () => {
+    // TC-S3-71 · US-42 AC-2 · setup: base-users + tc-s3-70-setup + tc-s3-71d-setup · fails if ticking a free-text item does not record who and when, or undo leaves it ticked
+    // Code: EventConfirmationService.manualConfirm / undoManualConfirm
     it('US-42: ticking records who and when; undo clears it', async () => {
-      const ev = await seedEvent();
-      const rig = await seedRequirement(ev.id, 'Stage lighting rig', 1);
+      const ev = EVENT;
+      await given('tc-s3-71d-setup');
+      const rig = { id: 'REQ-011' };
 
       const res = await manualConfirm(ev.id, rig.id).expect(200);
       expect(res.body.manuallyConfirmedById).toBe(ids.coordinator);
@@ -307,35 +251,45 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(row.manuallyConfirmedAt).toBeNull();
     });
 
+    // TC-S3-72 · US-42 AC-3 · setup: base-users + tc-s3-70-setup + tc-s3-71d-setup · fails if someone other than the assigned Coordinator can tick an item
+    // Code: EventConfirmationService.manualConfirm -> AccessControlService
     it('US-42: a Coordinator not assigned to the event cannot see it (404); its Organiser gets 403', async () => {
-      const ev = await seedEvent();
-      const rig = await seedRequirement(ev.id, 'Stage lighting rig', 1);
+      const ev = EVENT;
+      await given('tc-s3-71d-setup');
+      const rig = { id: 'REQ-011' };
 
       await manualConfirm(ev.id, rig.id, 'otherCoordinator').expect(404);
       await undoManualConfirm(ev.id, rig.id, 'otherCoordinator').expect(404);
       await manualConfirm(ev.id, rig.id, 'organiser').expect(403);
     });
 
+    // TC-S3-71 · US-42 AC-2 · setup: base-users + tc-s3-70-setup + tc-s3-71c-setup · fails if a catalogue item can be ticked instead of reserved
+    // Code: EventConfirmationService.manualConfirm: free-text lines only
     it('US-42: a catalogue-linked line cannot be ticked (400)', async () => {
-      const ev = await seedEvent();
-      const projector = await seedEquipment('Projector');
-      const line = await seedRequirement(ev.id, 'Projector', 2, projector.id);
+      const ev = EVENT;
+      await given('tc-s3-71c-setup');
+      const line = { id: 'REQ-009' }; // a catalogue-linked line
 
       await manualConfirm(ev.id, line.id).expect(400);
       await undoManualConfirm(ev.id, line.id).expect(400);
     });
 
+    // TC-S3-71 · US-42 AC-2 · setup: base-users + tc-s3-70-setup + tc-s3-71e-setup · fails if an item of another event can be ticked through this one
+    // Code: EventConfirmationService.manualConfirm scopes the line to the event
     it('US-42: a line from another event is not found', async () => {
-      const ev = await seedEvent();
-      const other = await seedEvent();
-      const rig = await seedRequirement(other.id, 'Stage lighting rig', 1);
+      const ev = EVENT;
+      await given('tc-s3-71e-setup');
+      const rig = { id: 'REQ-013' }; // belongs to another event
 
       await manualConfirm(ev.id, rig.id).expect(404);
     });
 
+    // TC-S3-71 · US-42 AC-2 · setup: base-users + tc-s3-70-setup + tc-s3-71d-setup · fails if editing the requirements clears a tick on an unchanged item
+    // Code: EventsService.setTechnicalRequirements keeps unchanged rows
     it('US-42: a tick survives an edit that leaves the line unchanged', async () => {
-      const ev = await seedEvent();
-      const rig = await seedRequirement(ev.id, 'Stage lighting rig', 1);
+      const ev = EVENT;
+      await given('tc-s3-71d-setup');
+      const rig = { id: 'REQ-011' };
       await manualConfirm(ev.id, rig.id).expect(200);
 
       await http()
@@ -357,9 +311,12 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
   });
 
   describe('AC-3/AC-4: confirming', () => {
+    // TC-S3-73 · US-42 AC-4 · setup: base-users + tc-s3-70-setup + tc-s3-73b-setup + tc-s3-70b-setup · fails if confirming does not change the status or record who and when
+    // Code: EventConfirmationService.confirm -> setStatus(AWAITING_SAFETY_CHECK)
     it('US-42 AC-4: a ready event moves to AWAITING_SAFETY_CHECK with who and when', async () => {
-      const ev = await seedEvent(EventStatus.AWAITING_ARRANGEMENTS);
-      await seedBooking(ev.id, 'Hall A');
+      await given('tc-s3-73b-setup');
+      const ev = EVENT;
+      await given('tc-s3-70b-setup'); // Hall A approved
       const before = Date.now();
 
       const res = await confirm(ev.id).expect(200);
@@ -371,18 +328,22 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(row.arrangementsConfirmedAt!.getTime()).toBeGreaterThanOrEqual(before - 1000);
     });
 
+    // TC-S3-73 · US-42 AC-4 · setup: base-users + tc-s3-70-setup + tc-s3-70b-setup · fails if an event in planning cannot be confirmed
+    // Code: EventConfirmationService.confirm
     it('US-42: confirming works from PLANNING too', async () => {
-      const ev = await seedEvent(EventStatus.PLANNING);
-      await seedBooking(ev.id, 'Hall A');
+      const ev = EVENT;
+      await given('tc-s3-70b-setup'); // Hall A approved
 
       await confirm(ev.id).expect(200);
 
       expect((await event(ev.id)).status).toBe(EventStatus.AWAITING_SAFETY_CHECK);
     });
 
+    // TC-S3-74 · US-42 AC-5 · setup: base-users + tc-s3-70-setup + tc-s3-70b-setup · fails if the Organiser is not told, or cannot see the confirmation
+    // Code: EventConfirmationService.confirm -> notifySafely; EventsService.findMyRequest
     it('US-42 AC-5: the Organiser is notified and sees the new status', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Hall A');
+      const ev = EVENT;
+      await given('tc-s3-70b-setup'); // Hall A approved
 
       await confirm(ev.id).expect(200);
 
@@ -402,9 +363,11 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(view.body.arrangementsConfirmedAt).not.toBeNull();
     });
 
+    // TC-S3-72 · US-42 AC-3 · setup: base-users + tc-s3-70-setup + tc-s3-70b-setup · fails if someone other than the assigned Coordinator can confirm
+    // Code: EventConfirmationService.confirm -> AccessControlService
     it('US-42 AC-3: a Coordinator not assigned to the event cannot confirm it (404: they cannot see it)', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Hall A');
+      const ev = EVENT;
+      await given('tc-s3-70b-setup'); // Hall A approved
 
       await confirm(ev.id, 'otherCoordinator').expect(404);
       await confirm(ev.id, 'organiser').expect(403);
@@ -412,26 +375,33 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect((await event(ev.id)).status).toBe(EventStatus.PLANNING);
     });
 
+    // TC-S3-73 · US-42 AC-4 · setup: base-users + tc-s3-70-setup + tc-s3-73c-setup + tc-s3-70b-setup · fails if an event not yet in planning can be confirmed
+    // Code: EventConfirmationService.confirm status check
     it('US-42: an event that is not in planning cannot be confirmed (409)', async () => {
-      const ev = await seedEvent(EventStatus.APPROVED);
-      await seedBooking(ev.id, 'Hall A');
+      await given('tc-s3-73c-setup');
+      const ev = EVENT;
+      await given('tc-s3-70b-setup'); // Hall A approved
 
       await confirm(ev.id).expect(409);
 
       expect((await event(ev.id)).status).toBe(EventStatus.APPROVED);
     });
 
+    // TC-S3-73 · US-42 AC-4 · setup: base-users + tc-s3-70-setup + tc-s3-70b-setup · fails if an event can be confirmed twice
+    // Code: setStatus transition table
     it('US-42: confirming twice is refused the second time (409)', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Hall A');
+      const ev = EVENT;
+      await given('tc-s3-70b-setup'); // Hall A approved
 
       await confirm(ev.id).expect(200);
       await confirm(ev.id).expect(409);
     });
 
+    // TC-S3-70, TC-S3-71 · US-42 AC-1/AC-2 · setup: base-users + tc-s3-70-setup + tc-s3-71-setup · fails if an event that is not ready can be confirmed through the API, or the refusal hides what is missing
+    // Code: EventConfirmationService.confirm re-checks readiness
     it('US-42 AC-1/AC-2: an event that is not ready gets 409 with the checklist', async () => {
-      const ev = await seedEvent();
-      await seedBooking(ev.id, 'Hall A', BookingStatus.REQUESTED);
+      const ev = EVENT;
+      await given('tc-s3-71-setup'); // Hall A only requested
 
       const res = await confirm(ev.id).expect(409);
 
@@ -446,9 +416,12 @@ describe('US-42 confirm event when arrangements are ready (e2e)', () => {
       expect(await prisma.notification.count()).toBe(0);
     });
 
+    // TC-S3-70 · US-42 AC-1 · setup: base-users + tc-s3-70-setup + tc-s3-70b-setup · fails if a booking reversed while Confirm is in progress is missed
+    // Code: EventConfirmationService.confirm locks the venues, then re-checks
     it('US-42: a booking reverted while Confirm waits for the venue lock is caught by the re-check', async () => {
-      const ev = await seedEvent();
-      const booking = await seedBooking(ev.id, 'Hall A');
+      const ev = EVENT;
+      await given('tc-s3-70b-setup');
+      const booking = { id: 'BKG-089', venueId: 'VEN-057' }; // Hall A, approved
 
       // The checklist the Coordinator is looking at says ready.
       expect((await readiness(ev.id).expect(200)).body.ready).toBe(true);

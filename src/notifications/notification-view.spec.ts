@@ -43,6 +43,13 @@ describe('Notifications page: presenting a notification', () => {
     it('gives no link when the notification names no event', () => {
       expect(linkFor(Role.EVENT_COORDINATOR, null)).toBeNull();
     });
+
+    // TC-S3-59 · US-40 AC-3 · setup: none (unit) · fails if Technical Support are not sent to the item a status notice names, or an unknown role gets a link
+    // Code: linkFor (equipment link; default case)
+    it('US-60: Technical Support go to the equipment item when one is named; an unknown role gets no link', () => {
+      expect(linkFor(Role.TECHNICAL_SUPPORT_STAFF, 'e1', null, 'EQP-1')).toBe('/equipment/inventory/EQP-1');
+      expect(linkFor('SOMEONE_ELSE', 'e1')).toBeNull();
+    });
   });
 
   describe('separates the reason from the message', () => {
@@ -83,6 +90,12 @@ describe('Notifications page: presenting a notification', () => {
         summary: 'Your change request for "Gala" was approved; the event has been updated.',
         reason: null,
       });
+    });
+
+    // TC-S3-59 · US-40 AC-3 · setup: none (unit) · fails if an empty reason after "Reason: " is shown as a blank reason
+    // Code: splitReason (nothing after the marker)
+    it('treats an empty reason as none', () => {
+      expect(splitReason('Rejected. Reason:  ')).toEqual({ summary: 'Rejected.', reason: null });
     });
   });
 });

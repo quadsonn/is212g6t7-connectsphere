@@ -152,4 +152,14 @@ describe('TechnicalSupportNotifier (US-66)', () => {
       );
     });
   });
+
+  // TC-S4-106 · US-66 AC-3 · setup: none (unit) · fails if a requirements change for an event that has gone notifies anyone or throws
+  // Code: TechnicalSupportNotifier.requirementsChanged (event not found)
+  it('US-66 AC-3: an event that has gone notifies no one', async () => {
+    prisma.eventRequest.findUnique.mockResolvedValue(null);
+
+    await expect(notifier.requirementsChanged('EVT-404')).resolves.toBe(0);
+    expect(notifications.notifySafely).not.toHaveBeenCalled();
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
 });

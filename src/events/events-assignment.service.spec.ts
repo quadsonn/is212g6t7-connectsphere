@@ -468,4 +468,54 @@ describe('EventsAssignmentService', () => {
       expect(notifications.notifySafely).not.toHaveBeenCalled();
     });
   });
+
+  describe('failure and fallback paths', () => {
+    // TC-S3-167 · US-55 AC-9 · setup: none (unit) · fails if losing an assignment race to a request that has since gone crashes instead of a 409
+    // Code: EventsAssignmentService.assign -> alreadyAssigned(null)
+    it('reports a lost race as already assigned even when the request has gone', async () => {
+      prisma.eventRequest.update.mockRejectedValue(noRowMatched());
+      prisma.eventRequest.findUnique.mockResolvedValue(null);
+
+      const error = await service
+        .assign(lead, 'event-1', { coordinatorId: fatima.id })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(error.getResponse()).toMatchObject({
+        message: 'this request is already assigned',
+        currentAssignee: null,
+      });
+    });
+
+    // TC-S3-164 · US-55 AC-6 · setup: none (unit) · fails if a database failure during assignment is swallowed or recorded as a success
+    // Code: EventsAssignmentService.swapCoordinator (rethrows anything but P2025)
+    it('lets an unexpected database error through, recording and notifying nothing', async () => {
+      prisma.eventRequest.update.mockRejectedValue(new Error('connection lost'));
+
+      await expect(
+        service.assign(lead, 'event-1', { coordinatorId: fatima.id }),
+      ).rejects.toThrow('connection lost');
+      expect(events.recordChange).not.toHaveBeenCalled();
+      expect(notifications.notifySafely).not.toHaveBeenCalled();
+    });
+
+    // TC-S3-165, TC-S3-175 · US-55 AC-7, US-56 AC-8 · setup: none (unit) · fails if a notice cannot be written for an unnamed event or an actor whose name cannot be read
+    // Code: EventsAssignmentService.assign / reassign messages; actorName fallback
+    it('still words every notice for an unnamed event and an unknown actor', async () => {
+      access.assertEventAccess.mockResolvedValue(queued({ name: null }));
+      const ghost = { ...lead, userId: 'gone-1' };
+
+      await service.assign(ghost, 'event-1', { coordinatorId: fatima.id });
+      access.assertEventAccess.mockResolvedValue(assigned({ name: null }));
+      await service.reassign(ghost, 'event-1', { coordinatorId: fatima.id });
+
+      expect(notifications.notifySafely.mock.calls.map(([n]) => n.message)).toEqual([
+        '"An event" has been assigned to you by the Event Coordinator Lead.',
+        'Fatima is now the coordinator for "your event".',
+        '"an event" has been reassigned from you to Fatima.',
+        'You are now the coordinator for "an event", reassigned to you from Marcus by the Event Coordinator Lead.',
+        'Your coordinator for "an event" is now Fatima.',
+      ]);
+    });
+  });
 });

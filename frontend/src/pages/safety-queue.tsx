@@ -6,15 +6,17 @@ import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states';
 import { useSafetyQueue } from '@/features/safety/hooks/use-safety';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDate, formatDateTime, STRETCHED_LINK } from '@/lib/utils';
 import type { SafetyQueueEntry } from '@/types/api';
 
 function QueueRow({ entry }: { entry: SafetyQueueEntry }) {
   return (
-    <li className="flex flex-wrap items-start justify-between gap-3 px-5 py-4">
+    <li className="group relative flex flex-wrap items-start justify-between gap-3 px-5 py-4 transition-colors hover:bg-ink-50">
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="font-medium text-ink-900">{entry.name ?? 'Untitled event'}</p>
+          <p className="font-medium text-ink-900 group-hover:text-brand-700 group-hover:underline">
+            {entry.name ?? 'Untitled event'}
+          </p>
           {entry.previousReviews > 0 ? (
             <Badge className="bg-amber-50 text-amber-900 ring-amber-400" srPrefix="Re-check">
               Re-check · {entry.previousReviews} earlier
@@ -37,7 +39,7 @@ function QueueRow({ entry }: { entry: SafetyQueueEntry }) {
           {entry.queuedAt ? formatDateTime(entry.queuedAt) : '—'}
         </p>
       </div>
-      <LinkButton to={`/safety/checks/${entry.id}`} variant="secondary" size="sm">
+      <LinkButton to={`/safety/checks/${entry.id}`} variant="secondary" size="sm" className={STRETCHED_LINK}>
         Review
       </LinkButton>
     </li>

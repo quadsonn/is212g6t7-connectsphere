@@ -1,11 +1,12 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventStatus, NotificationType, PrismaClient, Role } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { NotificationType, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
 /**
  * Notifications page e2e — a user reads and marks their own notifications.
@@ -18,6 +19,11 @@ import { listenOnLoopback } from './listen-on-loopback';
  * The types used all exist on the shared base; the page does not display the
  * type, so the story-specific types (VENUE_UNAVAILABLE, CHANGE_REQUEST_DECIDED)
  * are not needed here.
+ *
+ * Pre-condition for every test: reset the testDB, then run base-users.sql,
+ * tc-s1-25-setup.sql (the Lead) and tc-s3-59-setup.sql (a Safety Officer and
+ * the "gala", EVT-195). The notifications a test reads come from the tc-s3
+ * script its test case names (see docs/testing/sprint3-test-cases.md).
  */
 describe('Notifications page (e2e)', () => {
   let app: INestApplication;
@@ -25,7 +31,28 @@ describe('Notifications page (e2e)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from base-users, tc-s1-25-setup and tc-s3-59-setup. */
+  const ids: Record<string, string> = {
+    organiser: 'USR-006',
+    coordinator: 'USR-004',
+    otherCoordinator: 'USR-005',
+    staff: 'USR-010',
+    tech: 'USR-009',
+    attendee: 'USR-001',
+    lead: 'USR-012',
+    safety: 'USR-017',
+    gala: 'EVT-195',
+  };
+  const LOGINS: Record<string, string> = {
+    organiser: 'organiser@example.com',
+    coordinator: 'coord.a@example.com',
+    otherCoordinator: 'coord.b@example.com',
+    staff: 'venue.staff@example.com',
+    tech: 'tech.support@example.com',
+    attendee: 'attendee@example.com',
+    lead: 'lead@example.com',
+    safety: 'safety@example.com',
+  };
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
@@ -54,33 +81,16 @@ describe('Notifications page (e2e)', () => {
       'the booking of Main Hall for "gala" was rejected. Reason: Closed for repairs. Alternative venues suggested: East Hall.',
   };
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
+  /** Loads a test case's setup script(s) on top of the base scripts. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
-  /** A notification for `who` about the gala, at a fixed time (for ordering). */
-  const notify = async (
-    who: string,
-    type: NotificationType,
-    message: string,
-    createdAt = new Date(),
-  ) =>
-    (
-      await prisma.notification.create({
-        data: { recipientId: ids[who], type, message, relatedEventId: ids.gala, createdAt },
-      })
-    ).id;
-
-  const clear = async () => {
-    await prisma.notification.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
+  const loadBase = async () => {
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s1-25-setup');
+    await loadSql(prisma, 'tc-s3-59-setup');
   };
 
   beforeAll(async () => {
@@ -88,50 +98,32 @@ describe('Notifications page (e2e)', () => {
       imports: [AppModule],
     }).compile();
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await loadBase();
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
-    await clear();
     await prisma.$disconnect();
     await app.close();
   });
 
   beforeEach(async () => {
-    await clear();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('otherCoordinator', 'other@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('staff', 'staff@example.com', Role.VENUE_STAFF);
-    await seedUser('tech', 'tech@example.com', Role.TECHNICAL_SUPPORT_STAFF);
-    await seedUser('attendee', 'attendee@example.com', Role.ATTENDEE);
-    await seedUser('lead', 'lead@example.com', Role.EVENT_COORDINATOR_LEAD);
-    await seedUser('safety', 'safety@example.com', Role.SAFETY_OFFICER);
-
-    ids.gala = (
-      await prisma.eventRequest.create({
-        data: {
-          organiserId: ids.organiser,
-          coordinatorId: ids.coordinator,
-          name: 'gala',
-          purpose: 'p',
-          description: 'd',
-          category: 'c',
-          proposedStart: new Date('2030-10-01T01:00:00.000Z'),
-          proposedEnd: new Date('2030-10-01T05:00:00.000Z'),
-          expectedAttendance: 50,
-          status: EventStatus.PLANNING,
-        },
-      })
-    ).id;
+    await loadBase();
   });
 
   describe('US-52 AC-1: the Coordinator sees that a booked venue became unavailable, with the reason', () => {
+    // TC-S3-61 · US-40 AC-5 (US-52 AC-1 notice) · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-61b-setup · fails if the inbox drops the reason, event or link of a stored notice
+    // Code: NotificationsInboxService.list -> splitReason, linkFor
     it('shows the notification, its reason, the event and a link to it', async () => {
-      await notify('coordinator', NotificationType.VENUE_CHANGED_BOOKINGS_AFFECTED, MESSAGES.venueUnavailable);
+      await given('tc-s3-61b-setup'); // the Coordinator's only notice: venue unavailable
 
       const { body } = await inbox('coordinator').expect(200);
 
@@ -156,8 +148,10 @@ describe('Notifications page (e2e)', () => {
   });
 
   describe('US-47 AC-6 / US-48 AC-9: the Organiser sees rejections and change request outcomes, with reasons', () => {
+    // TC-S3-61 · US-40 AC-5 (US-47 AC-6 notice) · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-61b-setup · fails if the Organiser's newest notice is not shown first with its reason
+    // Code: NotificationsInboxService.list -> splitReason, linkFor
     it('US-47 AC-6: shows the unfulfillable rejection with its reason and comment', async () => {
-      await notify('organiser', NotificationType.EVENT_STATUS_CHANGED, MESSAGES.unfulfillable);
+      await given('tc-s3-61b-setup'); // the Organiser's newest: the unfulfillable rejection
 
       const [item] = (await inbox('organiser').expect(200)).body;
 
@@ -170,8 +164,10 @@ describe('Notifications page (e2e)', () => {
       });
     });
 
+    // TC-S3-61 · US-40 AC-5 (US-48 AC-9 notice) · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-60b-setup · fails if the change request outcome loses its reason or link
+    // Code: NotificationsInboxService.list -> splitReason, linkFor
     it('US-48 AC-9: shows the change request outcome with the reason', async () => {
-      await notify('organiser', NotificationType.EVENT_CHANGE_REQUESTED, MESSAGES.changeRejected);
+      await given('tc-s3-60b-setup');
 
       const [item] = (await inbox('organiser').expect(200)).body;
 
@@ -182,8 +178,10 @@ describe('Notifications page (e2e)', () => {
       });
     });
 
+    // TC-S3-67 · US-41 AC-5 · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-67-setup · fails if the Coordinator's rejection notice drops the suggested alternatives
+    // Code: NotificationsInboxService.list -> splitReason
     it('US-41: the Coordinator sees a rejection with its suggested alternatives', async () => {
-      await notify('coordinator', NotificationType.VENUE_BOOKING_DECIDED, MESSAGES.bookingRejected);
+      await given('tc-s3-67-setup');
 
       const [item] = (await inbox('coordinator').expect(200)).body;
 
@@ -196,10 +194,10 @@ describe('Notifications page (e2e)', () => {
   });
 
   describe('each user sees only their own notifications', () => {
+    // TC-S3-61 · US-40 AC-5 · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-61b-setup · fails if a user sees someone else's notices, or their own out of order
+    // Code: NotificationsInboxService.list filters by recipientId, orders by createdAt desc
     it('lists only the caller’s, newest first', async () => {
-      await notify('organiser', NotificationType.EVENT_CHANGE_REQUESTED, MESSAGES.changeRejected, new Date('2030-01-01T10:00:00Z'));
-      await notify('coordinator', NotificationType.VENUE_CHANGED_BOOKINGS_AFFECTED, MESSAGES.venueUnavailable, new Date('2030-01-01T11:00:00Z'));
-      await notify('organiser', NotificationType.EVENT_STATUS_CHANGED, MESSAGES.unfulfillable, new Date('2030-01-01T12:00:00Z'));
+      await given('tc-s3-61b-setup'); // Organiser 10:00 and 12:00, Coordinator 11:00
 
       const organiser = (await inbox('organiser').expect(200)).body;
       expect(organiser.map((n: { message: string }) => n.message)).toEqual([
@@ -213,8 +211,11 @@ describe('Notifications page (e2e)', () => {
       await inbox('otherCoordinator').expect(200).expect([]);
     });
 
+    // TC-S3-60 · US-40 AC-4 · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-60b-setup · fails if a user can mark someone else's notice read
+    // Code: NotificationsInboxService.markRead scopes to the caller
     it('refuses to mark another user’s notification (404), and leaves it unread', async () => {
-      const mine = await notify('organiser', NotificationType.EVENT_CHANGE_REQUESTED, MESSAGES.changeRejected);
+      await given('tc-s3-60b-setup');
+      const mine = 'NTF-011'; // the Organiser's
 
       await markRead(mine, 'coordinator').expect(404);
       await markRead('no-such-notification', 'organiser').expect(404);
@@ -225,10 +226,10 @@ describe('Notifications page (e2e)', () => {
   });
 
   describe('unread count and marking read', () => {
+    // TC-S3-60 · US-40 AC-4 · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-60c-setup · fails if the unread count does not follow marking one, then all
+    // Code: NotificationsInboxService.unreadCount / markRead / markAllRead
     it('updates the count after marking one read, then all', async () => {
-      await notify('organiser', NotificationType.EVENT_CHANGE_REQUESTED, MESSAGES.changeRejected, new Date('2030-01-01T10:00:00Z'));
-      await notify('organiser', NotificationType.EVENT_STATUS_CHANGED, MESSAGES.unfulfillable, new Date('2030-01-01T11:00:00Z'));
-      await notify('organiser', NotificationType.EVENT_STATUS_CHANGED, 'Another update.', new Date('2030-01-01T12:00:00Z'));
+      await given('tc-s3-60c-setup'); // three unread for the Organiser
       await unread('organiser').expect(200).expect({ unread: 3 });
 
       const [newest] = (await inbox('organiser').expect(200)).body;
@@ -242,8 +243,11 @@ describe('Notifications page (e2e)', () => {
       expect(after.every((n: { read: boolean }) => n.read)).toBe(true);
     });
 
+    // TC-S3-60 · US-40 AC-4 · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-60b-setup · fails if marking unread leaves the read time or the count wrong
+    // Code: NotificationsInboxService.markUnread
     it('marks one unread again: it counts again and its read time is cleared', async () => {
-      const id = await notify('organiser', NotificationType.EVENT_CHANGE_REQUESTED, MESSAGES.changeRejected);
+      await given('tc-s3-60b-setup');
+      const id = 'NTF-011';
       await markRead(id, 'organiser').expect(200);
       await unread('organiser').expect(200).expect({ unread: 0 });
 
@@ -253,8 +257,11 @@ describe('Notifications page (e2e)', () => {
       await unread('organiser').expect(200).expect({ unread: 1 });
     });
 
+    // TC-S3-60 · US-40 AC-4 · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-60b-setup · fails if a user can mark someone else's notice unread
+    // Code: NotificationsInboxService.markUnread scopes to the caller
     it('refuses to mark another user’s notification unread (404), leaving it read', async () => {
-      const id = await notify('organiser', NotificationType.EVENT_CHANGE_REQUESTED, MESSAGES.changeRejected);
+      await given('tc-s3-60b-setup');
+      const id = 'NTF-011';
       await markRead(id, 'organiser').expect(200);
 
       await markUnread(id, 'coordinator').expect(404);
@@ -263,8 +270,11 @@ describe('Notifications page (e2e)', () => {
       expect(stored.read).toBe(true);
     });
 
+    // TC-S3-60 · US-40 AC-4 · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-60b-setup · fails if marking read twice overwrites the first read time
+    // Code: NotificationsInboxService.markRead keeps an existing readAt
     it('marking one read twice keeps its first read time', async () => {
-      const id = await notify('organiser', NotificationType.EVENT_CHANGE_REQUESTED, MESSAGES.changeRejected);
+      await given('tc-s3-60b-setup');
+      const id = 'NTF-011';
 
       const first = (await markRead(id, 'organiser').expect(200)).body.readAt;
       const second = (await markRead(id, 'organiser').expect(200)).body.readAt;
@@ -272,9 +282,10 @@ describe('Notifications page (e2e)', () => {
       expect(second).toBe(first);
     });
 
+    // TC-S3-60 · US-40 AC-4 · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-61b-setup · fails if mark all read touches another user's notices
+    // Code: NotificationsInboxService.markAllRead scopes to the caller
     it('mark all read touches only the caller’s notifications', async () => {
-      await notify('organiser', NotificationType.EVENT_CHANGE_REQUESTED, MESSAGES.changeRejected);
-      await notify('coordinator', NotificationType.VENUE_CHANGED_BOOKINGS_AFFECTED, MESSAGES.venueUnavailable);
+      await given('tc-s3-61b-setup'); // two for the Organiser, one for the Coordinator
 
       await markAll('organiser').expect(200);
 
@@ -283,6 +294,8 @@ describe('Notifications page (e2e)', () => {
   });
 
   describe('role access', () => {
+    // TC-S3-60 · US-40 AC-4 · setup: base-users + tc-s1-25-setup + tc-s3-59-setup · fails if a role cannot open its own notifications
+    // Code: NotificationsController, permission NOTIFICATION:READ for every role
     it.each(['organiser', 'coordinator', 'staff', 'tech', 'attendee', 'lead', 'safety'])(
       '%s can open their own notifications',
       async (who) => {
@@ -292,10 +305,10 @@ describe('Notifications page (e2e)', () => {
       },
     );
 
+    // TC-S3-59 · US-40 AC-3 · setup: base-users + tc-s1-25-setup + tc-s3-59-setup + tc-s3-59b-setup · fails if a role's notice links to the wrong page, or an Attendee is linked to an event they cannot see
+    // Code: notification-view.ts linkFor
     it('roles with an event page get a link to it; others get none', async () => {
-      for (const who of ['organiser', 'coordinator', 'staff', 'tech', 'attendee', 'lead', 'safety']) {
-        await notify(who, NotificationType.EVENT_STATUS_CHANGED, 'Something happened.');
-      }
+      await given('tc-s3-59b-setup'); // one notice about the gala per role
 
       const linkOf = async (who: string) => (await inbox(who).expect(200)).body[0].link;
       expect(await linkOf('organiser')).toBe(`/organiser/${ids.gala}`);
@@ -313,6 +326,8 @@ describe('Notifications page (e2e)', () => {
       expect(await linkOf('safety')).toBe(`/safety/checks/${ids.gala}`);
     });
 
+    // TC-S3-60 · US-40 AC-4 · setup: base-users + tc-s1-25-setup + tc-s3-59-setup · fails if the inbox answers without a token
+    // Code: JwtAuthGuard on NotificationsController
     it('is refused without a token (401)', async () => {
       await http().get('/notifications').expect(401);
       await http().get('/notifications/unread-count').expect(401);

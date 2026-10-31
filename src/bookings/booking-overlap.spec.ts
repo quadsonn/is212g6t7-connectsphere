@@ -1,4 +1,6 @@
-import { paddedRange } from './booking-overlap';
+import { BookingStatus } from '@prisma/client';
+
+import { isLive, paddedRange } from './booking-overlap';
 
 /** US-49 — the padded window a booking occupies once venue buffers apply. */
 describe('paddedRange (US-49)', () => {
@@ -28,5 +30,15 @@ describe('paddedRange (US-49)', () => {
     expect(end).toEqual(at('12:00'));
     expect(padded.start).not.toBe(start);
     expect(padded.end).not.toBe(end);
+  });
+});
+
+describe('isLive (US-54)', () => {
+  // TC-S3-157 · US-54 AC-6 · setup: none (unit) · fails if a booking's liveness is not judged against the current time by default
+  // Code: isLive (default now)
+  it('judges a hold against the current time when no time is given', () => {
+    const hour = 3_600_000;
+    expect(isLive({ status: BookingStatus.HELD, holdExpiresAt: new Date(Date.now() + hour) })).toBe(true);
+    expect(isLive({ status: BookingStatus.HELD, holdExpiresAt: new Date(Date.now() - hour) })).toBe(false);
   });
 });

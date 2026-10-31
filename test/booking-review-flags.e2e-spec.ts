@@ -1,28 +1,44 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  BookingDecisionKind,
-  BookingStatus,
-  EventStatus,
-  PrismaClient,
-  Role,
-  VenueStatus,
-} from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { BookingDecisionKind, BookingStatus, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { overlapsRange, windowsOverlap } from '../src/bookings/booking-overlap';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
-/** US-51 e2e — flagging bookings that conflict after a buffer change. */
+/**
+ * US-51 e2e — flagging bookings that conflict after a buffer change.
+ *
+ * Code under test: VenuesService buffers preview/save (POST
+ * /venues/:id/buffers/preview, PATCH /venues/:id/buffers with
+ * confirmConflicts), recheckReviewFlags, and POST /bookings/:id/resolve-review.
+ *
+ * Pre-condition for every test: reset the testDB, then run base-users.sql,
+ * tc-s1-96-setup.sql (Vince, USR-013) and tc-s3-124-setup.sql (the Sandbox
+ * Auditorium, VEN-065). Bookings come from the tc-s3-135/136/138 scripts.
+ */
 describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from base-users and tc-s1-96-setup. */
+  const ids: Record<string, string> = {
+    staffA: 'USR-010',
+    staffB: 'USR-013',
+    organiser: 'USR-006',
+    coordinator: 'USR-004',
+  };
+  const LOGINS: Record<string, string> = {
+    staffA: 'venue.staff@example.com',
+    staffB: 'venue.staff2@example.com',
+    organiser: 'organiser@example.com',
+    coordinator: 'coord.a@example.com',
+  };
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
@@ -30,57 +46,19 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
   const at = (time: string, day = '2030-10-01') => new Date(`${day}T${time}:00Z`);
   const CUSTOMER = { setupMinutes: 30, turnaroundMinutes: 45 };
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
+  /** Loads a test case's setup script(s) on top of the base scripts. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
-  const seedVenue = async (name = 'Sandbox Auditorium') =>
-    prisma.venue.create({
-      data: {
-        name,
-        location: 'School of Computing, Level 1',
-        capacity: 420,
-        status: VenueStatus.PUBLISHED,
-        managedById: ids.staffA,
-      },
-    });
+  /** The Sandbox Auditorium (tc-s3-124-setup). */
+  const seedVenue = async () => ({ id: 'VEN-065' });
 
-  const seedBooking = async (
-    venueId: string,
-    name: string,
-    start: Date,
-    end: Date,
-    status: BookingStatus = BookingStatus.APPROVED,
-  ) => {
-    const event = await prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinator,
-        name,
-        purpose: 'Teaching',
-        description: 'A session',
-        category: 'Academic',
-        proposedStart: start,
-        proposedEnd: end,
-        expectedAttendance: 50,
-        status: EventStatus.PLANNING,
-      },
-    });
-    return prisma.venueBooking.create({
-      data: { eventId: event.id, venueId, start, end, status, requestedById: ids.coordinator },
-    });
+  /** The customer example: 10:00-12:00 and 12:30-14:00, fine until 30/45 (tc-s3-135-setup). */
+  const customerPair = async (_venueId: string) => {
+    await given('tc-s3-135-setup');
+    return { morning: await booking('BKG-134'), lunch: await booking('BKG-135') };
   };
-
-  /** The customer example: 10:00-12:00 and 12:30-14:00, fine until 30/45. */
-  const customerPair = async (venueId: string) => ({
-    morning: await seedBooking(venueId, 'Morning lecture', at('10:00'), at('12:00')),
-    lunch: await seedBooking(venueId, 'Lunch talk', at('12:30'), at('14:00')),
-  });
 
   const preview = (venueId: string, body: object, who = 'staffA') =>
     http().post(`/venues/${venueId}/buffers/preview`).set('Authorization', as(who)).send(body);
@@ -101,10 +79,19 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s1-96-setup');
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
@@ -113,22 +100,15 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.notification.deleteMany();
-    await prisma.bookingDecision.deleteMany();
-    await prisma.venueBooking.deleteMany();
-    await prisma.venueBlock.deleteMany();
-    await prisma.venue.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('staffA', 'staff.a@example.com', Role.VENUE_STAFF);
-    await seedUser('staffB', 'staff.b@example.com', Role.VENUE_STAFF);
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s1-96-setup');
+    await loadSql(prisma, 'tc-s3-124-setup');
   });
 
   describe('AC-1/AC-3: preview lists clashes before saving', () => {
+    // TC-S3-137 · US-51 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135-setup · fails if the preview misses a clash, lacks its event, time or partner, saves something, or reports touching windows
+    // Code: POST /venues/:id/buffers/preview
     it('US-51: the customer example — both bookings are listed with what they clash with', async () => {
       const venue = await seedVenue();
       const { morning, lunch } = await customerPair(venue.id);
@@ -152,6 +132,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       ]);
     });
 
+    // TC-S3-137 · US-51 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135-setup · fails if the preview misses a clash, lacks its event, time or partner, saves something, or reports touching windows
+    // Code: POST /venues/:id/buffers/preview
     it('US-51: preview saves nothing', async () => {
       const venue = await seedVenue();
       const { morning } = await customerPair(venue.id);
@@ -162,6 +144,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       expect((await booking(morning.id)).needsReview).toBe(false);
     });
 
+    // TC-S3-137 · US-51 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135-setup · fails if the preview misses a clash, lacks its event, time or partner, saves something, or reports touching windows
+    // Code: POST /venues/:id/buffers/preview
     it('US-51: with 0/0 buffers the customer example does not clash', async () => {
       const venue = await seedVenue();
       await customerPair(venue.id);
@@ -171,16 +155,19 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       expect(res.body.clashes).toEqual([]);
     });
 
+    // TC-S3-137 · US-51 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135b-setup · fails if the preview misses a clash, lacks its event, time or partner, saves something, or reports touching windows
+    // Code: POST /venues/:id/buffers/preview
     it('US-51: padded windows that only touch do not clash', async () => {
       const venue = await seedVenue();
-      await seedBooking(venue.id, 'Morning lecture', at('10:00'), at('12:00'));
-      await seedBooking(venue.id, 'Afternoon', at('13:15'), at('14:00'));
+      await given('tc-s3-135b-setup'); // Morning lecture 10:00-12:00, Afternoon 13:15-14:00
 
       const res = await preview(venue.id, CUSTOMER).expect(200);
 
       expect(res.body.clashes).toEqual([]);
     });
 
+    // TC-S3-137 · US-51 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup · fails if the preview misses a clash, lacks its event, time or partner, saves something, or reports touching windows
+    // Code: POST /venues/:id/buffers/preview
     it('US-51: preview validates like the save (whole numbers 0-480)', async () => {
       const venue = await seedVenue();
 
@@ -189,40 +176,45 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
   });
 
   describe('AC-1/AC-2: what is re-checked', () => {
+    // TC-S3-136 · US-51 AC-2 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-136-setup · fails if past bookings are re-checked
+    // Code: recheck considers bookings ending after now only
     it('US-51 AC-2: past bookings are ignored', async () => {
       const venue = await seedVenue();
-      await seedBooking(venue.id, 'Old A', at('10:00', '2020-01-01'), at('12:00', '2020-01-01'));
-      await seedBooking(venue.id, 'Old B', at('12:30', '2020-01-01'), at('14:00', '2020-01-01'));
+      await given('tc-s3-136-setup'); // the same pair on 1 Jan 2020
 
       const res = await preview(venue.id, CUSTOMER).expect(200);
 
       expect(res.body.clashes).toEqual([]);
     });
 
+    // TC-S3-135 · US-51 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-136b-setup · fails if a rejected booking is re-checked
+    // Code: recheck considers live statuses only
     it('US-51: REJECTED bookings are ignored', async () => {
       const venue = await seedVenue();
-      await seedBooking(venue.id, 'Morning lecture', at('10:00'), at('12:00'));
-      await seedBooking(venue.id, 'Rejected talk', at('12:30'), at('14:00'), BookingStatus.REJECTED);
+      await given('tc-s3-136b-setup'); // Morning lecture; Rejected talk 12:30-14:00 REJECTED
 
       const res = await preview(venue.id, CUSTOMER).expect(200);
 
       expect(res.body.clashes).toEqual([]);
     });
 
+    // TC-S3-135 · US-51 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-136c-setup · fails if pending bookings are left out of the re-check
+    // Code: recheck covers REQUESTED, HELD and APPROVED
     it('US-51: REQUESTED bookings are re-checked as well as APPROVED', async () => {
       const venue = await seedVenue();
-      await seedBooking(venue.id, 'Morning lecture', at('10:00'), at('12:00'), BookingStatus.REQUESTED);
-      await seedBooking(venue.id, 'Lunch talk', at('12:30'), at('14:00'));
+      await given('tc-s3-136c-setup'); // Morning lecture REQUESTED; Lunch talk APPROVED
 
       const res = await preview(venue.id, CUSTOMER).expect(200);
 
       expect(res.body.clashes).toHaveLength(2);
     });
 
+    // TC-S3-135 · US-51 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-136d-setup · fails if another venue's bookings are flagged
+    // Code: recheck scoped to the venue
     it('US-51: bookings on another venue are untouched', async () => {
       const venue = await seedVenue();
-      const other = await seedVenue('Other Hall');
-      const { morning } = await customerPair(other.id);
+      await given('tc-s3-136d-setup'); // the pair, on "Other Hall"
+      const morning = await booking('BKG-142');
 
       await save(venue.id, { ...CUSTOMER, confirmConflicts: true }).expect(200);
 
@@ -231,6 +223,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
   });
 
   describe('AC-4/AC-5/AC-6: cancel or save anyway', () => {
+    // TC-S3-137 · US-51 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135-setup · fails if a clashing change saves without confirmation
+    // Code: PATCH /venues/:id/buffers -> 409 with the clashes
     it('US-51 AC-4: without confirmation, a clash is a 409 with the list, and nothing is saved', async () => {
       const venue = await seedVenue();
       const { morning, lunch } = await customerPair(venue.id);
@@ -244,6 +238,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       expect((await booking(morning.id)).needsReview).toBe(false);
     });
 
+    // TC-S3-138, TC-S3-139 · US-51 AC-4/AC-5 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135-setup · fails if saving anyway does not flag the clashing bookings, or changes their times or status
+    // Code: VenuesService.updateBuffers (confirmConflicts) -> flag needsReview, never cancel
     it('US-51 AC-5/AC-6: save anyway — buffers saved, both flagged, times and status unchanged', async () => {
       const venue = await seedVenue();
       const { morning, lunch } = await customerPair(venue.id);
@@ -265,6 +261,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       }
     });
 
+    // TC-S3-140 · US-51 AC-6 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135-setup · fails if a change with no clashes is not saved, or flags something
+    // Code: VenuesService.updateBuffers
     it('US-51 AC-7: no clashes — saved, nothing flagged', async () => {
       const venue = await seedVenue();
       const { morning } = await customerPair(venue.id);
@@ -275,6 +273,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       expect((await booking(morning.id)).needsReview).toBe(false);
     });
 
+    // TC-S3-137 · US-51 AC-3 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup · fails if another Venue Staff member can preview or save
+    // Code: VenuesService buffers (manager only, 404)
     it('US-51: other Venue Staff cannot preview or save (404)', async () => {
       const venue = await seedVenue();
 
@@ -284,6 +284,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
   });
 
   describe('AC-5: the flag shows in the queue and calendar', () => {
+    // TC-S3-138 · US-51 AC-4 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135-setup · fails if the flag is missing from the queue or calendar
+    // Code: BookingsService queue/calendar needsReview
     it('US-51: queue and calendar entries carry needsReview', async () => {
       const venue = await seedVenue();
       const { morning } = await customerPair(venue.id);
@@ -319,6 +321,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
     const resolve = (id: string, who = 'staffA', body: object = {}) =>
       http().post(`/bookings/${id}/resolve-review`).set('Authorization', as(who)).send(body);
 
+    // TC-S3-138 · US-51 AC-4 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135-setup · fails if a flag is not cleared when resolved (manually, or by the clash going away), or anyone else can resolve it
+    // Code: POST /bookings/:id/resolve-review; recheckReviewFlags
     it('US-51: manual resolve clears the flag and writes a BookingDecision', async () => {
       const { morning } = await flaggedPair();
 
@@ -341,6 +345,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       ]);
     });
 
+    // TC-S3-138 · US-51 AC-4 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135-setup · fails if a flag is not cleared when resolved (manually, or by the clash going away), or anyone else can resolve it
+    // Code: POST /bookings/:id/resolve-review; recheckReviewFlags
     it('US-51: other Venue Staff get 404 and other roles 403; the flag stays', async () => {
       const { morning } = await flaggedPair();
 
@@ -351,6 +357,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       expect((await booking(morning.id)).needsReview).toBe(true);
     });
 
+    // TC-S3-138 · US-51 AC-4 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135-setup · fails if a flag is not cleared when resolved (manually, or by the clash going away), or anyone else can resolve it
+    // Code: POST /bookings/:id/resolve-review; recheckReviewFlags
     it('US-51: an unflagged booking cannot be resolved (409)', async () => {
       const venue = await seedVenue();
       const { morning } = await customerPair(venue.id);
@@ -358,10 +366,13 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       await resolve(morning.id).expect(409);
     });
 
+    // TC-S3-138 · US-51 AC-4 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-136c-setup · fails if a flag is not cleared when resolved (manually, or by the clash going away), or anyone else can resolve it
+    // Code: POST /bookings/:id/resolve-review; recheckReviewFlags
     it('US-51: auto-clear — rejecting one booking of a clashing pair clears the other\'s flag', async () => {
       const venue = await seedVenue();
-      const morning = await seedBooking(venue.id, 'Morning lecture', at('10:00'), at('12:00'), BookingStatus.REQUESTED);
-      const lunch = await seedBooking(venue.id, 'Lunch talk', at('12:30'), at('14:00'));
+      await given('tc-s3-136c-setup'); // Morning lecture REQUESTED; Lunch talk APPROVED
+      const morning = await booking('BKG-140');
+      const lunch = await booking('BKG-141');
       await save(venue.id, { ...CUSTOMER, confirmConflicts: true }).expect(200);
 
       await http()
@@ -377,6 +388,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       expect((await booking(morning.id)).needsReview).toBe(false);
     });
 
+    // TC-S3-138 · US-51 AC-4 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135-setup · fails if a flag is not cleared when resolved (manually, or by the clash going away), or anyone else can resolve it
+    // Code: POST /bookings/:id/resolve-review; recheckReviewFlags
     it('US-51: auto-clear — reversing an approval to rejected clears the other\'s flag', async () => {
       const { morning, lunch } = await flaggedPair();
 
@@ -389,10 +402,13 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       expect((await booking(lunch.id)).needsReview).toBe(false);
     });
 
+    // TC-S3-138 · US-51 AC-4 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-138b-setup + tc-s3-135-setup · fails if a flag is not cleared when resolved (manually, or by the clash going away), or anyone else can resolve it
+    // Code: POST /bookings/:id/resolve-review; recheckReviewFlags
     it('US-51: auto re-check keeps a flag that still clashes with something else', async () => {
       const venue = await seedVenue();
       const { morning, lunch } = await customerPair(venue.id);
-      const late = await seedBooking(venue.id, 'Afternoon seminar', at('14:30'), at('16:00'));
+      await given('tc-s3-138b-setup'); // Afternoon seminar 14:30-16:00
+      const late = await booking('BKG-144');
       await save(venue.id, { ...CUSTOMER, confirmConflicts: true }).expect(200);
 
       await http()
@@ -408,6 +424,8 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
   });
 
   describe('windowsOverlap agrees with the Postgres overlap query', () => {
+    // TC-S3-135 · US-51 AC-1 · setup: base-users + tc-s1-96-setup + tc-s3-124-setup + tc-s3-135c-setup · fails if the in-memory clash rule disagrees with the database's
+    // Code: booking-overlap.ts windowsOverlap / overlapsRange
     it.each([
       ['touching', at('12:00'), at('13:00'), false],
       ['overlapping by a minute', at('11:59'), at('13:00'), true],
@@ -415,7 +433,7 @@ describe('US-51 flag bookings that conflict after buffer changes (e2e)', () => {
       ['containing', at('09:00'), at('13:00'), true],
     ])('US-51: %s', async (_label, start, end, expected) => {
       const venue = await seedVenue();
-      await seedBooking(venue.id, 'Morning lecture', at('10:00'), at('12:00'));
+      await given('tc-s3-135c-setup'); // Morning lecture 10:00-12:00
 
       const inDb = await prisma.venueBooking.count({ where: { venueId: venue.id, ...overlapsRange(start, end) } });
 

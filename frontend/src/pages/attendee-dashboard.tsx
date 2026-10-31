@@ -80,7 +80,7 @@ export function AttendeeDashboard() {
                 key={event.id}
                 className="relative flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-ink-50"
               >
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-[1_1_16rem]">
                   <div className="flex flex-wrap items-center gap-2.5">
                     {/* Stretched link: its ::after covers the whole card, so a
                         click anywhere opens the event. Suppressed while the

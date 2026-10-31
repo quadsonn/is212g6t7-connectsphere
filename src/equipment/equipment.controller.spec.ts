@@ -23,11 +23,15 @@ describe('EquipmentController access (US-28 to US-32, US-45)', () => {
         'checkAvailability',
         'commit',
         'findAll',
+        // US-45: units by condition, and the status history with quantities.
+        'findCondition',
+        'findConditions',
         'findEventDetails',
         'findOne',
         'findReleased',
         'findRequirements',
         'findRequirementsForEvent',
+        'findStatusHistory',
         'findUpcomingReservations',
       ].sort(),
     );

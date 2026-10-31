@@ -170,7 +170,7 @@ export function VenueDashboard() {
                 {venues.map((venue) => {
                   const style = VENUE_STATUS_STYLES[venue.status];
                   return (
-                    <tr key={venue.id} className="hover:bg-ink-50">
+                    <tr key={venue.id} className="transition-colors hover:bg-ink-50">
                       <td className="px-5 py-3.5">
                         {venue.imageUrls.length > 0 ? (
                           <img

@@ -1,23 +1,25 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  BookingStatus,
-  EventStatus,
-  NotificationType,
-  PrismaClient,
-  ReservationStatus,
-  Role,
-  VenueStatus,
-} from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { BookingStatus, EventStatus, NotificationType, PrismaClient, ReservationStatus } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
 /**
  * US-47 e2e — the Coordinator rejects an approved request that cannot be
  * fulfilled. One describe per acceptance criterion, named "US-47 AC-n".
+ *
+ * Code under test: EventsUnfulfillableService.reject (POST
+ * /events/:id/reject-unfulfillable, RejectUnfulfillableDto), releasing venue
+ * bookings and equipment reservations, and the Organiser's notification.
+ *
+ * Pre-condition for every test: reset the testDB, then run base-users.sql and
+ * tc-s3-107-setup.sql (the "gala" EVT-238 with its bookings and reservations,
+ * "next" EVT-247 and "bystander" EVT-248). The status tests also load
+ * tc-s3-107b-setup.sql (one "other" event per status).
  */
 describe('US-47 reject unfulfillable request (e2e)', () => {
   let app: INestApplication;
@@ -25,7 +27,45 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from base-users and tc-s3-107-setup. */
+  const ids: Record<string, string> = {
+    organiser: 'USR-006',
+    coordinator: 'USR-004',
+    otherCoordinator: 'USR-005',
+    staff: 'USR-010',
+    tech: 'USR-009',
+    attendee: 'USR-001',
+    hallA: 'VEN-060',
+    hallB: 'VEN-061',
+    hallC: 'VEN-062',
+    projector: 'EQP-018',
+    gala: 'EVT-238',
+    next: 'EVT-247',
+    bystander: 'EVT-248',
+    pendingHold: 'BKG-110',
+    approvedBooking: 'BKG-111',
+    rejectedRequest: 'BKG-112',
+    bystanderBooking: 'BKG-113',
+  };
+  const LOGINS: Record<string, string> = {
+    organiser: 'organiser@example.com',
+    coordinator: 'coord.a@example.com',
+    otherCoordinator: 'coord.b@example.com',
+    staff: 'venue.staff@example.com',
+    tech: 'tech.support@example.com',
+    attendee: 'attendee@example.com',
+  };
+  /** tc-s3-107b-setup: one "other" event per status. */
+  const OTHER: Record<string, string> = {
+    APPROVED: 'EVT-239',
+    AWAITING_ARRANGEMENTS: 'EVT-240',
+    SUBMITTED: 'EVT-241',
+    UNDER_REVIEW: 'EVT-242',
+    CONFIRMED: 'EVT-243',
+    COMPLETED: 'EVT-244',
+    CANCELLED: 'EVT-245',
+    REJECTED: 'EVT-246',
+  };
 
   const START = '2030-10-01T01:00:00.000Z';
   const END = '2030-10-01T09:00:00.000Z';
@@ -41,75 +81,10 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
 
   const VALID = { reason: 'NO_SUITABLE_VENUE', comment: 'Every hall is booked that week.' };
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-  };
-
-  const seedEvent = async (key: string, status: EventStatus = EventStatus.PLANNING) => {
-    const event = await prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinator,
-        name: key,
-        purpose: 'p',
-        description: 'd',
-        category: 'c',
-        proposedStart: new Date(START),
-        proposedEnd: new Date(END),
-        expectedAttendance: 120,
-        equipmentNeeds: 'Projectors',
-        status,
-      },
-    });
-    ids[key] = event.id;
-    return event;
-  };
-
-  const seedBooking = (key: string, event: string, venue: string, status: BookingStatus) =>
-    prisma.venueBooking
-      .create({
-        data: {
-          eventId: ids[event],
-          venueId: ids[venue],
-          start: new Date(START),
-          end: new Date(END),
-          status,
-          expectedAttendance: 120,
-        },
-      })
-      .then((b) => (ids[key] = b.id));
-
-  const seedReservation = (key: string, event: string, quantity: number, status: ReservationStatus) =>
-    prisma.equipmentReservation
-      .create({
-        data: {
-          eventId: ids[event],
-          equipmentId: ids.projector,
-          quantity,
-          start: new Date(START),
-          end: new Date(END),
-          status,
-        },
-      })
-      .then((r) => (ids[key] = r.id));
-
-  const clear = async () => {
-    await prisma.notification.deleteMany();
-    await prisma.equipmentReservation.deleteMany();
-    await prisma.equipment.deleteMany();
-    await prisma.bookingSuggestion.deleteMany();
-    await prisma.bookingDecision.deleteMany();
-    await prisma.venueBooking.updateMany({ data: { replacesBookingId: null, replacedByBookingId: null } });
-    await prisma.venueBooking.deleteMany();
-    await prisma.venue.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
+  /** The "other" event in `status` (loads tc-s3-107b-setup). */
+  const seedEvent = async (key: 'other', status: EventStatus) => {
+    await loadSql(prisma, 'tc-s3-107b-setup');
+    ids[key] = OTHER[status];
   };
 
   beforeAll(async () => {
@@ -118,58 +93,34 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
-    await clear();
     await prisma.$disconnect();
     await app.close();
   });
 
   beforeEach(async () => {
-    await clear();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('otherCoordinator', 'other@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('staff', 'staff@example.com', Role.VENUE_STAFF);
-    await seedUser('tech', 'tech@example.com', Role.TECHNICAL_SUPPORT_STAFF);
-    await seedUser('attendee', 'attendee@example.com', Role.ATTENDEE);
-
-    for (const name of ['hallA', 'hallB', 'hallC']) {
-      ids[name] = (
-        await prisma.venue.create({
-          data: {
-            name,
-            location: 'Campus',
-            capacity: 300,
-            facilities: [],
-            accessibilityFeatures: [],
-            status: VenueStatus.PUBLISHED,
-            managedById: ids.staff,
-          },
-        })
-      ).id;
-    }
-    ids.projector = (
-      await prisma.equipment.create({ data: { type: 'Projector', totalQuantity: 4 } })
-    ).id;
-
-    // The event holds a pending hold, an approved booking, a rejected
-    // request, and two equipment reservations.
-    await seedEvent('gala');
-    await seedBooking('pendingHold', 'gala', 'hallA', BookingStatus.REQUESTED);
-    await seedBooking('approvedBooking', 'gala', 'hallB', BookingStatus.APPROVED);
-    await seedBooking('rejectedRequest', 'gala', 'hallC', BookingStatus.REJECTED);
-    await seedReservation('committed', 'gala', 3, ReservationStatus.APPROVED);
-    await seedReservation('requested', 'gala', 1, ReservationStatus.REQUESTED);
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s3-107-setup');
   });
 
   describe('US-47 AC-1/AC-4: rejecting from the event sets it to Rejected through the normal path', () => {
+    // TC-S3-107, TC-S3-110 · US-47 AC-1/AC-4 · setup: base-users + tc-s3-107-setup · fails if the Coordinator cannot reject from the event, or the status is not Rejected
+    // Code: EventsUnfulfillableService.reject -> setStatus(REJECTED)
     it('rejects the event and stores the reason and comment', async () => {
       const res = await reject(VALID).expect(200);
 
@@ -184,6 +135,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
       expect(event.status).toBe(EventStatus.REJECTED);
     });
 
+    // TC-S3-110 · US-47 AC-4 · setup: base-users + tc-s3-107-setup · fails if rejecting changes anything but the status and reason
+    // Code: EventsUnfulfillableService.reject
     it('changes nothing else about the event', async () => {
       const before = await prisma.eventRequest.findUniqueOrThrow({ where: { id: ids.gala } });
 
@@ -195,6 +148,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
       expect(rest).toEqual(restBefore);
     });
 
+    // TC-S3-110 · US-47 AC-4 · setup: base-users + tc-s3-107-setup + tc-s3-107b-setup · fails if an approved event, or one awaiting arrangements, cannot be rejected
+    // Code: EventsUnfulfillableService.reject (allowed statuses)
     it.each([EventStatus.APPROVED, EventStatus.AWAITING_ARRANGEMENTS])(
       'is allowed from %s too',
       async (status) => {
@@ -203,6 +158,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
       },
     );
 
+    // TC-S3-110 · US-47 AC-4 · setup: base-users + tc-s3-107-setup + tc-s3-107b-setup · fails if an event outside planning can be rejected as unfulfillable
+    // Code: EventsUnfulfillableService.reject (allowed statuses)
     it.each([
       EventStatus.SUBMITTED,
       EventStatus.UNDER_REVIEW,
@@ -220,6 +177,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
       expect(event).toMatchObject({ status, decisionReason: null });
     });
 
+    // TC-S3-110 · US-47 AC-4 · setup: base-users + tc-s3-107-setup · fails if the review rejection now reaches events being arranged
+    // Code: EventsService.reject transition table
     it("leaves US-08's review rejection as it was: refused for an event being arranged", async () => {
       const res = await http()
         .post(`/events/${ids.gala}/reject`)
@@ -235,6 +194,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
   });
 
   describe('US-47 AC-2: each reason category, with a comment', () => {
+    // TC-S3-108 · US-47 AC-2 · setup: base-users + tc-s3-107-setup · fails if a reason category or the comment is lost
+    // Code: RejectUnfulfillableDto reason enum + comment
     it.each([
       ['NO_SUITABLE_VENUE', 'No suitable venue'],
       ['NO_AVAILABLE_EQUIPMENT', 'No available equipment'],
@@ -249,6 +210,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
   });
 
   describe('US-47 AC-3: cannot be submitted without a reason', () => {
+    // TC-S3-109 · US-47 AC-3 · setup: base-users + tc-s3-107-setup · fails if a rejection without a reason or comment is accepted, or releases anything
+    // Code: RejectUnfulfillableDto (@IsEnum reason, @Trim @IsNotEmpty comment)
     it.each([
       ['no reason', { comment: 'x' }, 'a reason is required'],
       ['an unknown reason', { reason: 'TOO_EXPENSIVE', comment: 'x' }, 'a reason is required'],
@@ -269,6 +232,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
   });
 
   describe('US-47 AC-5: tentative holds and reservations are released, records kept', () => {
+    // TC-S3-111 · US-47 AC-5 · setup: base-users + tc-s3-107-setup · fails if a hold or approved booking stays held, or a record is deleted
+    // Code: EventsUnfulfillableService.reject -> BookingsService release
     it("releases the event's pending and approved bookings, keeping them linked", async () => {
       await reject(VALID).expect(200);
 
@@ -288,6 +253,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
       expect(byId.get(ids.approvedBooking)!.releasedAt).not.toBeNull();
     });
 
+    // TC-S3-111 · US-47 AC-5 · setup: base-users + tc-s3-107-setup · fails if a reservation stays held
+    // Code: EventsUnfulfillableService.reject -> EquipmentReservationsService.releaseForCancelledEvent
     it('releases its equipment reservations through the US-33 release', async () => {
       await reject(VALID).expect(200);
 
@@ -299,6 +266,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
       }
     });
 
+    // TC-S3-111 · US-47 AC-5 · setup: base-users + tc-s3-107-setup · fails if released equipment still counts as reserved
+    // Code: equipment-availability.ts ignores RELEASED
     it('makes the equipment available again in availability checks', async () => {
       const check = () =>
         http()
@@ -313,9 +282,10 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
       expect((await check().expect(200)).body).toMatchObject({ availableQuantity: 4, fullyAvailable: true });
     });
 
+    // TC-S3-111 · US-47 AC-5 · setup: base-users + tc-s3-107-setup · fails if the released venue slot stays blocked
+    // Code: BookingsService.request overlap check ignores RELEASED
     it('frees the venue: the approved slot can be booked by another event', async () => {
       await reject(VALID).expect(200);
-      await seedEvent('next');
 
       await http()
         .post('/bookings')
@@ -324,20 +294,10 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
         .expect(201);
     });
 
+    // TC-S3-111 · US-47 AC-5 · setup: base-users + tc-s3-107-setup · fails if rejecting one event releases another's arrangements
+    // Code: EventsUnfulfillableService.reject scopes to the event
     it("never touches another event's bookings or reservations", async () => {
-      await seedEvent('bystander');
-      await seedBooking('bystanderBooking', 'bystander', 'hallC', BookingStatus.APPROVED);
-      await prisma.equipmentReservation.create({
-        data: {
-          eventId: ids.bystander,
-          equipmentId: ids.projector,
-          quantity: 1,
-          start: new Date('2030-11-01T01:00:00Z'),
-          end: new Date('2030-11-01T02:00:00Z'),
-          status: ReservationStatus.APPROVED,
-        },
-      });
-
+      // "bystander" (EVT-248): hallC approved, and 1 projector on 1 Nov 2030 (tc-s3-107-setup).
       await reject(VALID).expect(200);
 
       expect(
@@ -352,6 +312,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
   });
 
   describe('US-47 AC-6: the Organiser is notified with the reason and comment', () => {
+    // TC-S3-112 · US-47 AC-6 · setup: base-users + tc-s3-107-setup · fails if the Organiser is not told, or the notice lacks the reason and comment
+    // Code: EventsUnfulfillableService.reject -> notifySafely
     it('notifies the Organiser, and only them', async () => {
       await reject({ reason: 'NO_VENUE_OR_EQUIPMENT', comment: 'Nothing fits 120 people.' }).expect(200);
 
@@ -381,6 +343,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
       ]);
     });
 
+    // TC-S3-112 · US-47 AC-6 · setup: base-users + tc-s3-107-setup · fails if the Organiser's request does not show the rejection and reason
+    // Code: EventsService.findMyRequest statusView
     it('shows the Organiser the rejection and its reason on their request', async () => {
       await reject(VALID).expect(200);
 
@@ -398,6 +362,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
   });
 
   describe('US-47: only the responsible Coordinator can reject', () => {
+    // TC-S3-107 · US-47 AC-1 · setup: base-users + tc-s3-107-setup · fails if a Coordinator not responsible for the event can reject it
+    // Code: EventsUnfulfillableService.reject -> AccessControlService
     it("refuses another Coordinator (404: the event is not theirs to see), changing nothing", async () => {
       await reject(VALID, 'otherCoordinator').expect(404);
 
@@ -407,6 +373,8 @@ describe('US-47 reject unfulfillable request (e2e)', () => {
       expect(await prisma.notification.count()).toBe(0);
     });
 
+    // TC-S3-107 · US-47 AC-1 · setup: base-users + tc-s3-107-setup · fails if another role can reject the event
+    // Code: @Roles(EVENT_COORDINATOR)
     it.each(['organiser', 'staff', 'tech', 'attendee'])('is refused to %s (403)', async (who) => {
       await reject(VALID, who).expect(403);
     });

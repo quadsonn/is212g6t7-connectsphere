@@ -1,25 +1,28 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  AccessibilityFeature,
-  BookingStatus,
-  EventStatus,
-  NotificationType,
-  PrismaClient,
-  Role,
-  RoomLayout,
-  VenueStatus,
-} from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { BookingStatus, NotificationType, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
 /**
  * US-41 e2e — Venue Staff suggest alternative venues when a booking request
  * can't be fulfilled. One describe per acceptance criterion, named
  * "US-41 AC-n" for traceability.
+ *
+ * Code under test: BookingsService reject/reverse with alternativeVenueIds
+ * (attachSuggestions, booking-suggestions.ts), GET /bookings/:id/alternatives
+ * (BookingSuggestionsService, booking-alternatives.ts ranking), and
+ * POST /bookings/:id/suggestions/:suggestionId/accept.
+ *
+ * Pre-condition for every test: reset the testDB, then run base-users.sql and
+ * tc-s3-63-setup.sql (the Showcase's REQUESTED Main Hall booking, BKG-082, and
+ * East Hall). Each test loads the tc-s3 script its test case names (see
+ * docs/testing/sprint3-test-cases.md). base-venues.sql is not loaded: the
+ * alternatives lists must contain only this file's venues.
  */
 describe('US-41 suggest an alternative venue (e2e)', () => {
   let app: INestApplication;
@@ -27,7 +30,37 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from base-users, tc-s3-63-setup and tc-s3-63c/64-setup. */
+  const ids: Record<string, string> = {
+    organiser: 'USR-006',
+    coordinator: 'USR-004',
+    otherCoordinator: 'USR-005',
+    staff: 'USR-010',
+    otherStaff: 'USR-018',
+    tech: 'USR-009',
+    event: 'EVT-196',
+    mainHall: 'VEN-041',
+    eastHall: 'VEN-042',
+    westHall: 'VEN-043',
+    stairsHall: 'VEN-047',
+    bookedHall: 'VEN-048',
+    blockedHall: 'VEN-049',
+    draftHall: 'VEN-050',
+    seminarRoom: 'VEN-052',
+    exactRoom: 'VEN-053',
+    alumniLounge: 'VEN-054',
+    turnaroundHall: 'VEN-055',
+  };
+  const LOGINS: Record<string, string> = {
+    organiser: 'organiser@example.com',
+    coordinator: 'coord.a@example.com',
+    otherCoordinator: 'coord.b@example.com',
+    staff: 'venue.staff@example.com',
+    otherStaff: 'other.staff@example.com',
+    tech: 'tech.support@example.com',
+  };
+  /** The Showcase's Main Hall request Venue Staff are deciding (tc-s3-63-setup). */
+  const REQUEST = { id: 'BKG-082' } as const;
 
   // The rejected request's slot.
   const START = '2030-10-01T09:00:00.000Z';
@@ -47,107 +80,9 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
   const getBooking = (id: string, who = 'coordinator') =>
     http().get(`/bookings/${id}`).set('Authorization', as(who));
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-  };
-
-  const seedVenue = async (
-    key: string,
-    overrides: {
-      capacity?: number | null;
-      accessibilityFeatures?: AccessibilityFeature[];
-      supportedLayouts?: RoomLayout[];
-      status?: VenueStatus;
-      managedBy?: string;
-    } = {},
-  ) => {
-    const venue = await prisma.venue.create({
-      data: {
-        name: key,
-        location: `${key} building`,
-        capacity: overrides.capacity === undefined ? 200 : overrides.capacity,
-        facilities: [],
-        accessibilityFeatures: overrides.accessibilityFeatures ?? [],
-        supportedLayouts: overrides.supportedLayouts ?? [],
-        status: overrides.status ?? VenueStatus.PUBLISHED,
-        managedById: ids[overrides.managedBy ?? 'staff'],
-      },
-    });
-    ids[key] = venue.id;
-    return venue;
-  };
-
-  const seedEvent = (name: string, coordinator = 'coordinator') =>
-    prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids[coordinator],
-        name,
-        purpose: 'p',
-        description: 'd',
-        category: 'c',
-        proposedStart: new Date(START),
-        proposedEnd: new Date(END),
-        expectedAttendance: 80,
-        preferredLayout: RoomLayout.THEATRE,
-        accessibilityRequirements: [AccessibilityFeature.STEP_FREE_ACCESS],
-        equipmentNeeds: 'Event-level needs, edited after the request.',
-        status: EventStatus.PLANNING,
-      },
-    });
-
-  /** The request Venue Staff are deciding: Main Hall, 80 people, theatre, step-free. */
-  const seedRequest = async (status: BookingStatus = BookingStatus.REQUESTED) => {
-    const event = await seedEvent('Showcase');
-    ids.event = event.id;
-    return prisma.venueBooking.create({
-      data: {
-        eventId: event.id,
-        venueId: ids.mainHall,
-        start: new Date(START),
-        end: new Date(END),
-        expectedAttendance: 80,
-        requestedById: ids.coordinator,
-        status,
-        preferredLayout: RoomLayout.THEATRE,
-        layoutNotes: 'Stage at the front.',
-        accessibilityRequirements: [AccessibilityFeature.STEP_FREE_ACCESS],
-        accessibilityNotes: 'Two wheelchair users.',
-        equipmentNeeds: 'Two projectors.',
-      },
-    });
-  };
-
-  /** Another event holding `venue` over the slot, with the given status. */
-  const occupy = async (venue: string, status: BookingStatus) => {
-    const other = await seedEvent(`Other at ${venue}`);
-    await prisma.venueBooking.create({
-      data: {
-        eventId: other.id,
-        venueId: ids[venue],
-        start: new Date('2030-10-01T10:00:00Z'),
-        end: new Date('2030-10-01T11:00:00Z'),
-        expectedAttendance: 10,
-        status,
-      },
-    });
-  };
-
-  const clear = async () => {
-    await prisma.notification.deleteMany();
-    await prisma.bookingSuggestion.deleteMany();
-    await prisma.bookingDecision.deleteMany();
-    await prisma.venueBooking.deleteMany();
-    await prisma.venueBlock.deleteMany();
-    await prisma.venue.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
+  /** Loads a test case's setup script(s) on top of the base scripts. */
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
   beforeAll(async () => {
@@ -156,46 +91,38 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s3-63-setup');
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
-    await clear();
     await prisma.$disconnect();
     await app.close();
   });
 
   beforeEach(async () => {
-    await clear();
-
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('otherCoordinator', 'other.coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('staff', 'staff@example.com', Role.VENUE_STAFF);
-    await seedUser('otherStaff', 'other.staff@example.com', Role.VENUE_STAFF);
-    await seedUser('tech', 'tech@example.com', Role.TECHNICAL_SUPPORT_STAFF);
-
-    await seedVenue('mainHall');
-    // A good fit managed by someone else: suggestions are not limited to the
-    // rejecting staff member's own venues.
-    await seedVenue('eastHall', {
-      capacity: 100,
-      accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-      supportedLayouts: [RoomLayout.THEATRE],
-      managedBy: 'otherStaff',
-    });
+    await resetDb(prisma);
+    await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s3-63-setup');
   });
 
   describe('US-41 AC-1: rejecting can attach one or more alternative venues', () => {
+    // TC-S3-63 · US-41 AC-1 · setup: base-users + tc-s3-63-setup + tc-s3-63c-setup · fails if rejecting cannot attach several venues
+    // Code: BookingsService decide -> attachSuggestions (booking-suggestions.ts)
     it('records the rejection with the venues attached', async () => {
-      await seedVenue('westHall', {
-        capacity: 150,
-        accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-      });
-      const booking = await seedRequest();
+      await given('tc-s3-63c-setup'); // westHall
+      const booking = REQUEST;
 
       const res = await reject(booking.id, {
         reason: 'Main Hall is closed for repairs.',
@@ -214,8 +141,10 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       expect(Number(second.slice(4))).toBe(Number(first.slice(4)) + 1);
     });
 
+    // TC-S3-63 · US-41 AC-1 · setup: base-users + tc-s3-63-setup · fails if a rejection without alternatives is refused or invents some
+    // Code: BookingsService decide, alternativeVenueIds optional
     it('still rejects without alternatives, as before', async () => {
-      const booking = await seedRequest();
+      const booking = REQUEST;
 
       const res = await reject(booking.id, { reason: 'No.' }).expect(200);
 
@@ -223,8 +152,10 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       expect(await prisma.bookingSuggestion.count()).toBe(0);
     });
 
+    // TC-S3-63 · US-41 AC-1 · setup: base-users + tc-s3-63-setup · fails if a malformed alternatives list is accepted
+    // Code: RejectBookingDto: @IsArray, @ArrayUnique, @ArrayMaxSize(10)
     it('refuses the same venue twice, a non-list, and too many', async () => {
-      const booking = await seedRequest();
+      const booking = REQUEST;
 
       await reject(booking.id, {
         reason: 'r',
@@ -241,8 +172,11 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       );
     });
 
+    // TC-S3-63 · US-41 AC-1 · setup: base-users + tc-s3-63-setup + tc-s3-63b-setup · fails if a reversal to rejected cannot carry alternatives, or an approval can
+    // Code: BookingsService reverse -> attachSuggestions
     it('can be attached when a reversal rejects an approved booking, but not to an approval', async () => {
-      const approved = await seedRequest(BookingStatus.APPROVED);
+      await given('tc-s3-63b-setup'); // BKG-082 already APPROVED
+      const approved = REQUEST;
 
       const res = await http()
         .post(`/bookings/${approved.id}/reverse`)
@@ -265,12 +199,14 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       );
     });
 
+    // TC-S3-63 · US-41 AC-1 · setup: base-users + tc-s3-63-setup · fails if another venue's staff or another role can reject with alternatives
+    // Code: BookingsService.findDecidable (venue manager only); @Roles(VENUE_STAFF)
     it.each([
       ['otherStaff', 404],
       ['coordinator', 403],
       ['tech', 403],
     ])('is refused to %s (%i)', async (who, status) => {
-      const booking = await seedRequest();
+      const booking = REQUEST;
 
       await reject(booking.id, { reason: 'r', alternativeVenueIds: [ids.eastHall] }, who).expect(
         status,
@@ -280,55 +216,14 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
   });
 
   describe('US-41 AC-2: the system proposes candidates ranked by how well they match', () => {
+    // TC-S3-64 · US-41 AC-2 · setup: base-users + tc-s3-63-setup + tc-s3-64-setup · fails if an unfit or busy venue is proposed, or the ranking is wrong
+    // Code: BookingSuggestionsService.alternatives -> rankAlternatives (booking-alternatives.ts)
     it('proposes only free venues that meet capacity and accessibility, best match first', async () => {
-      // Fits, theatre, step-free, closest capacity — ranked first.
-      // eastHall (seeded): capacity 100, theatre, step-free.
-      await seedVenue('bigHall', {
-        capacity: 500,
-        accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-        supportedLayouts: [RoomLayout.THEATRE],
-      });
-      // Fits but no theatre layout — after every layout match.
-      await seedVenue('flatHall', {
-        capacity: 90,
-        accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-      });
-      // Excluded: too small; no step-free access; approved booking; blocked;
-      // unpublished.
-      await seedVenue('tinyRoom', {
-        capacity: 20,
-        accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-      });
-      await seedVenue('stairsHall', { capacity: 200 });
-      await seedVenue('bookedHall', {
-        accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-      });
-      await seedVenue('blockedHall', {
-        accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-      });
-      await seedVenue('draftHall', {
-        accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-        status: VenueStatus.DRAFT,
-      });
-      // Free: only a pending request overlaps — tentative, not a booking.
-      await seedVenue('pendingHall', {
-        capacity: 300,
-        accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-        supportedLayouts: [RoomLayout.THEATRE],
-      });
-
-      const booking = await seedRequest();
-      await occupy('bookedHall', BookingStatus.APPROVED);
-      await occupy('pendingHall', BookingStatus.REQUESTED);
-      await prisma.venueBlock.create({
-        data: {
-          venueId: ids.blockedHall,
-          start: new Date('2030-10-01T11:00:00Z'),
-          end: new Date('2030-10-01T15:00:00Z'),
-          reason: 'Maintenance',
-          createdById: ids.staff,
-        },
-      });
+      // tc-s3-64-setup: eastHall (100, theatre, step-free) is the closest fit;
+      // pendingHall and bigHall also fit; flatHall lacks a theatre layout; the
+      // rest are too small, not step-free, booked, blocked or unpublished.
+      await given('tc-s3-64-setup');
+      const booking = REQUEST;
 
       const res = await alternatives(booking.id).expect(200);
 
@@ -354,15 +249,11 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       });
     });
 
+    // TC-S3-64 · US-41 AC-2 · setup: base-users + tc-s3-63-setup + tc-s3-64b-setup · fails if the requested venue is proposed as its own alternative
+    // Code: BookingSuggestionsService.alternatives excludes booking.venueId
     it('never proposes the venue the request asked for', async () => {
-      await prisma.venue.update({
-        where: { id: ids.mainHall },
-        data: {
-          accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-          supportedLayouts: [RoomLayout.THEATRE],
-        },
-      });
-      const booking = await seedRequest();
+      await given('tc-s3-64b-setup'); // mainHall itself would fit
+      const booking = REQUEST;
 
       const res = await alternatives(booking.id).expect(200);
 
@@ -371,19 +262,11 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       );
     });
 
+    // TC-S3-64 · US-41 AC-2 · setup: base-users + tc-s3-63-setup + tc-s3-64c-setup · fails if a back-to-back booking makes a venue look busy
+    // Code: conflictsFor uses half-open time ranges
     it('allows a booking ending exactly when the slot starts (back-to-back)', async () => {
-      const booking = await seedRequest();
-      const other = await seedEvent('Morning');
-      await prisma.venueBooking.create({
-        data: {
-          eventId: other.id,
-          venueId: ids.eastHall,
-          start: new Date('2030-10-01T07:00:00Z'),
-          end: new Date(START),
-          expectedAttendance: 10,
-          status: BookingStatus.APPROVED,
-        },
-      });
+      const booking = REQUEST;
+      await given('tc-s3-64c-setup'); // eastHall booked 07:00 until the slot starts
 
       const res = await alternatives(booking.id).expect(200);
 
@@ -392,22 +275,26 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       );
     });
 
+    // TC-S3-64 · US-41 AC-2 · setup: base-users + tc-s3-63-setup · fails if another venue's staff or another role can see the candidates
+    // Code: BookingSuggestionsService.alternatives (venue manager only)
     it.each([
       ['otherStaff', 404],
       ['coordinator', 403],
       ['organiser', 403],
     ])('is refused to %s (%i)', async (who, status) => {
-      const booking = await seedRequest();
+      const booking = REQUEST;
       await alternatives(booking.id, who).expect(status);
     });
   });
 
   describe('US-41 AC-3: Venue Staff pick from the candidates or choose another venue manually', () => {
+    // TC-S3-65 · US-41 AC-3 · setup: base-users + tc-s3-63-setup + tc-s3-64-setup · fails if Venue Staff cannot choose a free venue manually
+    // Code: attachSuggestions accepts any published, free, big-enough venue
     it('accepts a free venue that was not among the candidates', async () => {
       // Big enough and free, but no step-free access, so not proposed: a
       // manual choice. (Capacity AC-3: a venue too small is not — see below.)
-      await seedVenue('stairsHall', { capacity: 120 });
-      const booking = await seedRequest();
+      await given('tc-s3-64-setup'); // stairsHall: free, big enough, not step-free
+      const booking = REQUEST;
 
       const proposed = await alternatives(booking.id).expect(200);
       expect(proposed.body.candidates.map((c: { venueId: string }) => c.venueId)).not.toContain(
@@ -427,9 +314,11 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       ).toEqual([ids.eastHall, ids.stairsHall]);
     });
 
+    // TC-S3-65 · US-41 AC-3 · setup: base-users + tc-s3-63-setup + tc-s3-64-setup · fails if an unknown, draft or self venue can be suggested
+    // Code: attachSuggestions venue checks
     it('refuses an unknown or unpublished venue, or the requested venue itself', async () => {
-      await seedVenue('draftHall', { status: VenueStatus.DRAFT });
-      const booking = await seedRequest();
+      await given('tc-s3-64-setup'); // draftHall is unpublished
+      const booking = REQUEST;
 
       const unknown = await reject(booking.id, {
         reason: 'r',
@@ -450,24 +339,14 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
   });
 
   describe("US-41 AC-4: venues that aren't free for the slot can't be suggested", () => {
+    // TC-S3-66 · US-41 AC-4 · setup: base-users + tc-s3-63-setup + tc-s3-66-setup or tc-s3-66b-setup · fails if a venue booked or blocked over the slot can be suggested, or a refused rejection still saves something
+    // Code: attachSuggestions -> conflictsFor, inside the decision's transaction
     it.each([
       ['an approved booking', 'approved'],
       ['a blocked-out period', 'blocked'],
     ])('refuses a venue held by %s, and records nothing', async (_label, kind) => {
-      const booking = await seedRequest();
-      if (kind === 'approved') {
-        await occupy('eastHall', BookingStatus.APPROVED);
-      } else {
-        await prisma.venueBlock.create({
-          data: {
-            venueId: ids.eastHall,
-            start: new Date('2030-10-01T08:00:00Z'),
-            end: new Date('2030-10-01T10:00:00Z'),
-            reason: 'Deep clean',
-            createdById: ids.otherStaff,
-          },
-        });
-      }
+      const booking = REQUEST;
+      await given(kind === 'approved' ? 'tc-s3-66-setup' : 'tc-s3-66b-setup');
 
       const res = await reject(booking.id, {
         reason: 'Main Hall unavailable.',
@@ -484,17 +363,21 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       expect(await prisma.bookingSuggestion.count()).toBe(0);
     });
 
+    // TC-S3-66 · US-41 AC-4 · setup: base-users + tc-s3-63-setup + tc-s3-66c-setup · fails if a pending request stops a venue being suggested
+    // Code: conflictsFor: only hard conflicts refuse
     it('allows a venue with only a pending request overlapping — it is not booked', async () => {
-      const booking = await seedRequest();
-      await occupy('eastHall', BookingStatus.REQUESTED);
+      const booking = REQUEST;
+      await given('tc-s3-66c-setup'); // only a pending request overlaps eastHall
 
       await reject(booking.id, { reason: 'r', alternativeVenueIds: [ids.eastHall] }).expect(200);
     });
   });
 
   describe('US-41 AC-5: the Coordinator sees the suggestions on the rejected request, with the reason', () => {
+    // TC-S3-67 · US-41 AC-5 · setup: base-users + tc-s3-63-setup · fails if the Coordinator cannot see the reason or the suggestions
+    // Code: BookingsService findOne -> BOOKING_INCLUDE decisions.suggestions
     it('shows the reason and the suggested venues on the request', async () => {
-      const booking = await seedRequest();
+      const booking = REQUEST;
       await reject(booking.id, {
         reason: 'Main Hall is closed for repairs.',
         alternativeVenueIds: [ids.eastHall],
@@ -515,8 +398,10 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       ]);
     });
 
+    // TC-S3-67 · US-41 AC-5 · setup: base-users + tc-s3-63-setup · fails if the rejection notice leaves out the suggestions
+    // Code: BookingsService.notifyDecision
     it('names the suggestions in the rejection notification', async () => {
-      const booking = await seedRequest();
+      const booking = REQUEST;
       await reject(booking.id, {
         reason: 'Closed for repairs.',
         alternativeVenueIds: [ids.eastHall],
@@ -530,8 +415,10 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       );
     });
 
+    // TC-S3-67 · US-41 AC-5 · setup: base-users + tc-s3-63-setup · fails if another Coordinator can read the request and its suggestions
+    // Code: AccessControlService scoped booking read (404)
     it('is not shown to another Coordinator', async () => {
-      const booking = await seedRequest();
+      const booking = REQUEST;
       await reject(booking.id, { reason: 'r', alternativeVenueIds: [ids.eastHall] }).expect(200);
 
       await getBooking(booking.id, 'otherCoordinator').expect(404);
@@ -540,7 +427,7 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
 
   describe('US-41 AC-6: accepting a suggestion creates a new request, pre-filled with the original details', () => {
     const rejectWithEastHall = async () => {
-      const booking = await seedRequest();
+      const booking = REQUEST;
       const res = await reject(booking.id, {
         reason: 'Closed.',
         alternativeVenueIds: [ids.eastHall],
@@ -548,6 +435,8 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       return { booking, suggestionId: res.body.decisions.at(-1).suggestions[0].id as string };
     };
 
+    // TC-S3-68 · US-41 AC-6 · setup: base-users + tc-s3-63-setup · fails if accepting does not create a request, or loses the original details
+    // Code: BookingSuggestionsService.accept -> BookingsService.request
     it('creates a pending request for the suggested venue with the original time, attendance and requirements', async () => {
       const { booking, suggestionId } = await rejectWithEastHall();
 
@@ -580,6 +469,8 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       expect(suggestion.acceptedAt).not.toBeNull();
     });
 
+    // TC-S3-68 · US-41 AC-6 · setup: base-users + tc-s3-63-setup · fails if a suggestion can be accepted twice
+    // Code: BookingSuggestionsService.accept checks acceptedBookingId
     it('cannot accept the same suggestion twice', async () => {
       const { booking, suggestionId } = await rejectWithEastHall();
       await accept(booking.id, suggestionId).expect(201);
@@ -590,9 +481,11 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       expect(await prisma.venueBooking.count({ where: { venueId: ids.eastHall } })).toBe(1);
     });
 
+    // TC-S3-68 · US-41 AC-6 · setup: base-users + tc-s3-63-setup + tc-s3-66-setup (after the rejection) · fails if accepting skips the overlap check
+    // Code: BookingsService.request overlap check
     it('goes through the normal request checks: refused if the venue was booked meanwhile', async () => {
       const { booking, suggestionId } = await rejectWithEastHall();
-      await occupy('eastHall', BookingStatus.APPROVED);
+      await given('tc-s3-66-setup'); // eastHall is booked meanwhile
 
       const res = await accept(booking.id, suggestionId).expect(409);
 
@@ -603,6 +496,8 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       ).toBeNull();
     });
 
+    // TC-S3-68 · US-41 AC-6 · setup: base-users + tc-s3-63-setup · fails if a suggestion can be accepted on a request that is no longer rejected
+    // Code: BookingSuggestionsService.accept requires REJECTED
     it('is refused once a reversal has approved the original', async () => {
       const { booking, suggestionId } = await rejectWithEastHall();
       await http()
@@ -615,6 +510,22 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       expect(res.body.message).toBe('suggestions can only be accepted on a rejected request');
     });
 
+    // TC-S3-68 · US-41 AC-6 · setup: base-users + tc-s3-63-setup + tc-s3-68c-setup · fails if a suggestion can be accepted for a slot that has started, or for a request with no attendance to copy
+    // Code: BookingSuggestionsService.accept guards before creating the new request
+    it.each([
+      ['BKG-095', 'BSG-001', 'the requested time has already started; submit a new request instead'],
+      ['BKG-096', 'BSG-002', 'the original request has no expected attendance; submit a new request instead'],
+    ])('refuses to accept the suggestion on %s (409), and creates nothing', async (bookingId, suggestionId, message) => {
+      await given('tc-s3-68c-setup');
+
+      const res = await accept(bookingId, suggestionId).expect(409);
+
+      expect(res.body.message).toBe(message);
+      expect(await prisma.venueBooking.count({ where: { venueId: ids.eastHall } })).toBe(0);
+    });
+
+    // TC-S3-68 · US-41 AC-6 · setup: base-users + tc-s3-63-setup · fails if a suggestion can be accepted through another request or by another Coordinator
+    // Code: BookingSuggestionsService.accept scoping
     it('404s for a suggestion of another request, or another Coordinator', async () => {
       const { booking, suggestionId } = await rejectWithEastHall();
 
@@ -622,6 +533,8 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       await accept(booking.id, suggestionId, 'otherCoordinator').expect(404);
     });
 
+    // TC-S3-68 · US-41 AC-6 · setup: base-users + tc-s3-63-setup · fails if a role other than the Coordinator can accept
+    // Code: @Roles(EVENT_COORDINATOR) on accept
     it.each(['staff', 'organiser', 'tech'])('is refused to %s (403)', async (who) => {
       const { booking, suggestionId } = await rejectWithEastHall();
       await accept(booking.id, suggestionId, who).expect(403);
@@ -629,12 +542,11 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
   });
 
   describe("US-41 AC-7: suggestions are recorded in the request's history", () => {
+    // TC-S3-69 · US-41 AC-7 · setup: base-users + tc-s3-63-setup + tc-s3-63c-setup · fails if suggestions are lost from, or attached to the wrong entry of, the history
+    // Code: BookingDecision.suggestions, decisions ordered by createdAt
     it('keeps each decision with its own suggestions, oldest first', async () => {
-      await seedVenue('westHall', {
-        capacity: 150,
-        accessibilityFeatures: [AccessibilityFeature.STEP_FREE_ACCESS],
-      });
-      const booking = await seedRequest();
+      await given('tc-s3-63c-setup'); // westHall
+      const booking = REQUEST;
       await reject(booking.id, { reason: 'Closed.', alternativeVenueIds: [ids.eastHall] }).expect(
         200,
       );
@@ -671,11 +583,12 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
   describe('Capacity AC-3: Venue Staff can only suggest venues that are free and big enough', () => {
     const ids_of = (list: { venueId: string }[]) => list.map((v) => v.venueId);
 
+    // TC-S3-64 · US-41 AC-2 (capacity) · setup: base-users + tc-s3-63-setup + tc-s3-64-setup · fails if a venue too small is offered
+    // Code: booking-alternatives.ts capacity filter (venues/capacity.ts)
     it('Capacity AC-3: the list excludes venues too small for the expected attendance', async () => {
       // The request is for 80 people.
-      await seedVenue('seminarRoom', { capacity: 40 });
-      await seedVenue('exactRoom', { capacity: 80 });
-      const booking = await seedRequest();
+      await given('tc-s3-64-setup'); // seminarRoom holds 40, exactRoom 80
+      const booking = REQUEST;
 
       const res = await alternatives(booking.id).expect(200);
       const offered = [...ids_of(res.body.candidates), ...ids_of(res.body.others)];
@@ -685,38 +598,13 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       expect(offered).toContain(ids.exactRoom);
     });
 
+    // TC-S3-64, TC-S3-66 · US-41 AC-2/AC-4 · setup: base-users + tc-s3-63-setup + tc-s3-64-setup · fails if a booked, blocked or turning-around venue is offered or accepted
+    // Code: conflictsFor with venue buffers
     it('Capacity AC-3: the list excludes venues that are not free, including within setup or turnaround time', async () => {
       // Big enough, but booked over the slot, blocked out, or (US-50) still
       // turning around after a booking that ends 30 minutes before it.
-      await seedVenue('bookedHall');
-      await seedVenue('blockedHall');
-      await seedVenue('turnaroundHall');
-      await prisma.venue.update({
-        where: { id: ids.turnaroundHall },
-        data: { turnaroundMinutes: 60 },
-      });
-      const booking = await seedRequest();
-      await occupy('bookedHall', BookingStatus.APPROVED);
-      await prisma.venueBlock.create({
-        data: {
-          venueId: ids.blockedHall,
-          start: new Date('2030-10-01T11:00:00Z'),
-          end: new Date('2030-10-01T15:00:00Z'),
-          reason: 'Maintenance',
-          createdById: ids.staff,
-        },
-      });
-      const morning = await seedEvent('Morning');
-      await prisma.venueBooking.create({
-        data: {
-          eventId: morning.id,
-          venueId: ids.turnaroundHall,
-          start: new Date('2030-10-01T07:00:00Z'),
-          end: new Date('2030-10-01T08:30:00Z'),
-          expectedAttendance: 10,
-          status: BookingStatus.APPROVED,
-        },
-      });
+      await given('tc-s3-64-setup');
+      const booking = REQUEST;
 
       const res = await alternatives(booking.id).expect(200);
       const offered = [...ids_of(res.body.candidates), ...ids_of(res.body.others)];
@@ -732,9 +620,11 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       }).expect(409);
     });
 
+    // TC-S3-66 · US-41 AC-4 (capacity) · setup: base-users + tc-s3-63-setup + tc-s3-64-setup · fails if an under-capacity venue can be suggested through the API
+    // Code: attachSuggestions -> capacityShortfall
     it('Capacity AC-3: the server refuses an under-capacity venue even when the page is bypassed, and records nothing', async () => {
-      await seedVenue('alumniLounge', { capacity: 40 });
-      const booking = await seedRequest();
+      await given('tc-s3-64-setup'); // alumniLounge holds 40
+      const booking = REQUEST;
 
       const res = await reject(booking.id, {
         reason: 'Main Hall is closed.',
@@ -752,9 +642,11 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       expect(await prisma.bookingSuggestion.count()).toBe(0);
     });
 
+    // TC-S3-66 · US-41 AC-4 (capacity) · setup: base-users + tc-s3-63-setup + tc-s3-64-setup + tc-s3-63b-setup · fails if a reversal can suggest an under-capacity venue
+    // Code: attachSuggestions -> capacityShortfall
     it('Capacity AC-3: the same check applies when a reversal (US-52) suggests venues', async () => {
-      await seedVenue('alumniLounge', { capacity: 40 });
-      const booking = await seedRequest(BookingStatus.APPROVED);
+      await given('tc-s3-64-setup', 'tc-s3-63b-setup'); // alumniLounge holds 40; BKG-082 APPROVED
+      const booking = REQUEST;
 
       const res = await http()
         .post(`/bookings/${booking.id}/reverse`)
@@ -765,10 +657,11 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       expect(res.body.code).toBe('CAPACITY_EXCEEDED');
     });
 
+    // TC-S3-64 · US-41 AC-2 (capacity) · setup: base-users + tc-s3-63-setup + tc-s3-64d-setup · fails if an unfit venue is offered when none fits
+    // Code: booking-alternatives.ts capacity filter
     it('Capacity AC-4: nothing is offered when no free venue is big enough', async () => {
-      await prisma.venue.update({ where: { id: ids.eastHall }, data: { capacity: 40 } });
-      await seedVenue('seminarRoom', { capacity: 60 });
-      const booking = await seedRequest();
+      await given('tc-s3-64d-setup'); // eastHall cut to 40; seminarRoom holds 60
+      const booking = REQUEST;
 
       const res = await alternatives(booking.id).expect(200);
 
@@ -777,8 +670,10 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
   });
 
   describe('Capacity AC-1/AC-2: the Coordinator cannot request a suggested venue that is too small', () => {
+    // TC-S3-68 · US-41 AC-6 (capacity) · setup: base-users + tc-s3-63-setup + tc-s3-68b-setup (after the rejection) · fails if a suggestion can be accepted for a venue that is now too small
+    // Code: BookingsService.request -> capacityShortfall
     it('Capacity AC-1/AC-2: refuses accepting a suggestion whose venue no longer holds the attendance', async () => {
-      const booking = await seedRequest();
+      const booking = REQUEST;
       const rejected = await reject(booking.id, {
         reason: 'Closed.',
         alternativeVenueIds: [ids.eastHall],
@@ -786,7 +681,7 @@ describe('US-41 suggest an alternative venue (e2e)', () => {
       const suggestionId = rejected.body.decisions.at(-1).suggestions[0].id;
       // Suggested when it fitted; its capacity has since been cut (or the
       // suggestion predates the capacity rule).
-      await prisma.venue.update({ where: { id: ids.eastHall }, data: { capacity: 50 } });
+      await given('tc-s3-68b-setup'); // eastHall cut to 50
 
       const res = await accept(booking.id, suggestionId).expect(409);
 

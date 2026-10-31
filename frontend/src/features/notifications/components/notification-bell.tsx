@@ -83,10 +83,12 @@ export function NotificationBell() {
       </button>
 
       {open ? (
+        // Phones: full width just below the 4rem header, wherever the bell sits.
+        // Tablet and up: anchored under the bell.
         <div
           role="dialog"
           aria-label="Notifications"
-          className="absolute right-0 z-20 mt-2 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-ink-200 bg-white shadow-lg"
+          className="fixed inset-x-2 top-[4.5rem] z-20 rounded-lg border border-ink-200 bg-white shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96"
         >
           <div className="flex items-center justify-between gap-2 border-b border-ink-100 px-4 py-3">
             <p className="text-sm font-semibold text-ink-900">Notifications</p>
@@ -111,7 +113,12 @@ export function NotificationBell() {
               <p className="mt-1 text-xs text-ink-500">Updates about your events and venues will appear here.</p>
             </div>
           ) : (
-            <ul className="max-h-[24rem] divide-y divide-ink-100 overflow-y-auto" aria-label="Recent notifications">
+            // Never taller than the screen: room is left for the header, the
+            // panel's own title row and "View all".
+            <ul
+              className="max-h-[min(24rem,calc(100dvh-11rem))] divide-y divide-ink-100 overflow-y-auto overscroll-contain"
+              aria-label="Recent notifications"
+            >
               {items.map((n) => (
                 <li key={n.id}>
                   <button
@@ -130,17 +137,24 @@ export function NotificationBell() {
                       <span className={cn('block text-ink-900', !n.read && 'font-semibold')}>
                         {notificationTitle(n.type)}
                       </span>
-                      <span className="block text-ink-700">{notificationDetail(n.summary)}</span>
+                      <span className="block break-words text-ink-700">{notificationDetail(n.summary)}</span>
                       {/* Clamped: the page shows a long reason in full. */}
                       {n.reason ? (
                         <span className="line-clamp-2 text-ink-700">
                           <span className="font-medium">{reasonLabel(n.type)}:</span> {n.reason}
                         </span>
                       ) : null}
-                      <span className="block truncate text-xs text-ink-500">
-                        {[n.relatedEvent?.name, n.relatedBooking?.venue.name].filter(Boolean).join(' · ')}
-                        {n.relatedEvent || n.relatedBooking ? ' · ' : ''}
-                        <time dateTime={n.createdAt}>{timeAgo(n.createdAt)}</time>
+                      {/* A long event name is cut short; the time always shows. */}
+                      <span className="flex min-w-0 text-xs text-ink-500">
+                        {n.relatedEvent || n.relatedBooking ? (
+                          <span className="min-w-0 truncate">
+                            {[n.relatedEvent?.name, n.relatedBooking?.venue.name].filter(Boolean).join(' · ')}
+                            {' · '}
+                          </span>
+                        ) : null}
+                        <time dateTime={n.createdAt} className="shrink-0 whitespace-nowrap pl-1 first:pl-0">
+                          {timeAgo(n.createdAt)}
+                        </time>
                       </span>
                     </span>
                     {n.read ? null : <span className="sr-only">Unread</span>}

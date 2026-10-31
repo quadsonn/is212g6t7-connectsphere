@@ -1,25 +1,18 @@
 import { BookingStatus, Prisma } from '@prisma/client';
 
 /**
- * The one definition of "this booking overlaps [from, to)", shared by every
- * story that asks it (US-16 calendar, US-17 availability, US-18 search,
- * US-21/US-23 conflicts, US-24 overlap detection).
+ * The one definition of "this row overlaps [from, to)", shared by every story
+ * that asks it (US-16 calendar, US-17 availability, US-18 search, US-21/US-23
+ * conflicts, US-24 overlap detection), for any table with `start`/`end`
+ * columns: bookings and US-16 venue blocks alike.
  *
- * Half-open on both sides: a booking ending exactly when the range starts, or
+ * Half-open on both sides: a row ending exactly when the range starts, or
  * starting exactly when it ends, does not overlap. Back-to-back slots are not
  * a conflict.
  *
  * Expressed as a Prisma filter rather than a function over loaded rows, so a
  * caller can embed it in a relation filter (`bookings: { none: ... }`) and
  * have Postgres answer for every venue in one query instead of one per venue.
- */
-export function overlapping(from: Date, to: Date): Prisma.VenueBookingWhereInput {
-  return overlapsRange(from, to);
-}
-
-/**
- * The same rule for any table with `start`/`end` columns — US-16 venue blocks
- * as well as bookings — so there is still exactly one definition of it.
  *
  * The database mirrors it once more, unavoidably, in the US-24 EXCLUDE
  * constraint: tsrange(start, end) with its default '[)' bounds.
@@ -50,8 +43,8 @@ export function windowsOverlap(
  * apply: setup time before it, turnaround time after it. The customer's
  * example: 10:00-12:00 with 30/45 minutes occupies 09:30-12:45.
  *
- * Deliberately not an overlap rule. Feed the result to overlapsRange() or
- * overlapping() so there is still exactly one: padded windows that only touch
+ * Deliberately not an overlap rule. Feed the result to overlapsRange() so
+ * there is still exactly one: padded windows that only touch
  * at a boundary do not overlap, the same half-open [start, end) rule.
  *
  * Pure: returns new Dates and never mutates its arguments. Used by US-50
@@ -107,28 +100,6 @@ export function liveBookingsWhere(now: Date = new Date()): Prisma.VenueBookingWh
   return {
     OR: [
       { status: { in: UNEXPIRING_LIVE } },
-      { status: BookingStatus.HELD, holdExpiresAt: { gt: now } },
-    ],
-  };
-}
-
-/**
- * US-18 AC-1 / US-54 — a booking that firmly holds part of the range: an
- * approved one, or a live hold. Pending requests deliberately do not count:
- * the AC says "confirmed", and a venue with only a pending request is still
- * bookable. A live hold does count: it hard-blocks requests (US-54 AC-3), so a
- * search must not offer the venue. (US-21's conflict check also cares about
- * pending ones — that is a different question.)
- */
-export function committedOverlapping(
-  from: Date,
-  to: Date,
-  now: Date = new Date(),
-): Prisma.VenueBookingWhereInput {
-  return {
-    ...overlapping(from, to),
-    OR: [
-      { status: BookingStatus.APPROVED },
       { status: BookingStatus.HELD, holdExpiresAt: { gt: now } },
     ],
   };

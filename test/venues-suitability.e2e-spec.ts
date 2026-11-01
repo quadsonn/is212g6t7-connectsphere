@@ -1,12 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  EquipmentStatus,
-  EventStatus,
-  Facility,
-  PrismaClient,
-  ReservationStatus,
-} from '@prisma/client';
+import { EventStatus, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
@@ -100,7 +94,10 @@ describe('Story 19 venue suitability flags (integration)', () => {
   });
 
   describe('AC-1/AC-2/AC-4: per-requirement flags and an overall indicator', () => {
-    // TC-S2-28 · setup: base-users + tc-s2-28-setup · fails if a fitting venue showed no indicator, or not every check
+    // TC-S2-28 · US-19 AC-1, AC-2, AC-4 · setup: base-users + tc-s2-28-setup · fails if a fitting venue showed no indicator, or not every check
+    // Code: GET /venues/:id/suitability -> getSuitability() -> assessSuitability(): checkCapacity,
+    // checkAccessibility, checkLayout, checkFacilities and checkEquipment, then an explicit overall
+    // verdict.
     it('US-19: reports a suitable venue as positively SUITABLE, with each check shown', async () => {
       const res = await suitability(VENUE.hall, EVENT.fits).expect(200);
 
@@ -116,7 +113,9 @@ describe('Story 19 venue suitability flags (integration)', () => {
       });
     });
 
-    // TC-S2-29 · setup: base-users + tc-s2-28-setup + tc-s2-29-setup · fails if being one over capacity passed, or accessibility gaps were lumped into one warning
+    // TC-S2-29 · US-19 AC-1, AC-2 · setup: base-users + tc-s2-28-setup + tc-s2-29-setup · fails if being one over capacity passed, or accessibility gaps were lumped into one warning
+    // Code: checkCapacity() is UNMET when attendance > capacity; checkAccessibility() lists each
+    // requirement with met true or false.
     it('US-19: flags capacity and each missing accessibility requirement individually', async () => {
       await given('tc-s2-29-setup');
 
@@ -131,21 +130,16 @@ describe('Story 19 venue suitability flags (integration)', () => {
     });
   });
 
-  // The AC-3 tests have no test case ID yet (none in docs/testing for them).
-  // Each sets the facilities and equipment it needs here, on top of
-  // tc-s2-28-setup's Hall (VEN-035) and fitting event (EVT-076).
   describe('AC-3: facilities cover the technical requirements', () => {
-    const venueHas = (facilities: Facility[]) =>
-      prisma.venue.update({ where: { id: VENUE.hall }, data: { facilities } });
-    const eventNeeds = (requiredFacilities: Facility[]) =>
-      prisma.eventRequest.update({ where: { id: EVENT.fits }, data: { requiredFacilities } });
+    /** tc-s2-30-setup.sql: a hall with a projector and mics, and two events needing facilities. */
+    const EQUIPPED = 'VEN-036';
 
-    // No TC ID yet · setup: base-users + tc-s2-28-setup + facilities · fails if met facilities were not flagged one by one
+    // TC-S2-30 · US-19 AC-3 · setup: base-users + tc-s2-28-setup + tc-s2-30-setup · fails if met facilities were not flagged one by one
+    // Code: checkFacilities() lists each of the event's requiredFacilities with met = venue.facilities includes it.
     it('US-19: Given the venue has every required facility, Then facilities are met', async () => {
-      await venueHas([Facility.PROJECTOR, Facility.MICROPHONE]);
-      await eventNeeds([Facility.PROJECTOR, Facility.MICROPHONE]);
+      await given('tc-s2-30-setup');
 
-      const res = await suitability(VENUE.hall, EVENT.fits).expect(200);
+      const res = await suitability(EQUIPPED, 'EVT-180').expect(200);
 
       expect(res.body.overall).toBe('SUITABLE');
       expect(res.body.facilities).toEqual({
@@ -157,19 +151,20 @@ describe('Story 19 venue suitability flags (integration)', () => {
       });
     });
 
-    // No TC ID yet · setup: base-users + tc-s2-28-setup + facilities · fails if a missing facility passed or went unnamed
+    // TC-S2-30 · US-19 AC-3 · setup: base-users + tc-s2-28-setup + tc-s2-30-setup · fails if a missing facility passed or went unnamed
+    // Code: checkFacilities() -> UNMET with the missing item met: false; it counts against the overall verdict.
     it('US-19: Given a required facility the venue lacks, Then it is flagged and the venue may not be suitable', async () => {
-      await venueHas([Facility.PROJECTOR, Facility.MICROPHONE]);
-      await eventNeeds([Facility.PROJECTOR, Facility.STAGE]);
+      await given('tc-s2-30-setup');
 
-      const res = await suitability(VENUE.hall, EVENT.fits).expect(200);
+      const res = await suitability(EQUIPPED, 'EVT-181').expect(200);
 
       expect(res.body.overall).toBe('NOT_SUITABLE');
       expect(res.body.facilities.status).toBe('UNMET');
       expect(res.body.facilities.items).toContainEqual({ requirement: 'STAGE', met: false });
     });
 
-    // No TC ID yet · setup: base-users + tc-s2-28-setup · fails if "nothing required" were reported as unchecked or unmet
+    // TC-S2-30 · US-19 AC-3, AC-4 · setup: base-users + tc-s2-28-setup · fails if "nothing required" were reported as unchecked or unmet
+    // Code: an empty requiredFacilities and no equipment lines -> NOT_REQUIRED, and nothing in notChecked.
     it('US-19: Given no required facilities, Then nothing is required and nothing is reported unchecked', async () => {
       const res = await suitability(VENUE.hall, EVENT.fits).expect(200);
 
@@ -180,72 +175,25 @@ describe('Story 19 venue suitability flags (integration)', () => {
   });
 
   describe('AC-3: the equipment asked for is available over the event dates', () => {
-    /** Another event on the same day (10 Mar 2027), to hold units against. */
-    const seedOtherEvent = () =>
-      prisma.eventRequest.create({
-        data: {
-          organiserId: 'USR-006',
-          coordinatorId: 'USR-004',
-          name: 'Other',
-          purpose: 'Purpose',
-          description: 'Description',
-          category: 'Talk',
-          proposedStart: new Date('2027-03-10T01:00:00Z'),
-          proposedEnd: new Date('2027-03-10T09:00:00Z'),
-          expectedAttendance: 40,
-          status: EventStatus.APPROVED,
-        },
-      });
-
-    const seedEquipment = (
-      totalQuantity: number,
-      operationalStatus: EquipmentStatus = EquipmentStatus.OPERATIONAL,
-    ) => prisma.equipment.create({ data: { type: 'Wireless mic', totalQuantity, operationalStatus } });
-
-    const requires = (equipmentType: string, quantity: number, equipmentId: string | null = null) =>
-      prisma.equipmentRequirement.create({
-        data: { eventId: EVENT.fits, equipmentType, quantity, equipmentId },
-      });
-
-    const reserve = (
-      eventId: string,
-      equipmentId: string,
-      quantity: number,
-      status: ReservationStatus = ReservationStatus.APPROVED,
-    ) =>
-      prisma.equipmentReservation.create({
-        data: {
-          eventId,
-          equipmentId,
-          quantity,
-          // Overlaps EVT-076's 01:00–09:00 UTC.
-          start: new Date('2027-03-10T05:00:00Z'),
-          end: new Date('2027-03-10T12:00:00Z'),
-          status,
-        },
-      });
-
-    // No TC ID yet · setup: base-users + tc-s2-28-setup + equipment · fails if free units were miscounted
+    // TC-S2-184 · US-19 AC-3 · setup: base-users + tc-s2-28-setup + tc-s2-30-setup · fails if free units were miscounted
+    // Code: EquipmentService.freeUnitsForEventRequirements() counts each linked item's free units over the event's dates.
     it('US-19: Given enough free units, Then equipment is met, with the free count', async () => {
-      const mic = await seedEquipment(6);
-      await requires('Wireless mic', 4, mic.id);
+      await given('tc-s2-30-setup');
 
-      const res = await suitability(VENUE.hall, EVENT.fits).expect(200);
+      const res = await suitability(VENUE.hall, 'EVT-182').expect(200);
 
       expect(res.body.equipment).toEqual({
         status: 'MET',
-        items: [{ item: 'Wireless mic', requestedQuantity: 4, availableQuantity: 6, available: true }],
+        items: [{ item: 'Wireless mic A', requestedQuantity: 4, availableQuantity: 6, available: true }],
       });
     });
 
-    // No TC ID yet · setup: base-users + tc-s2-28-setup + equipment + another event · fails if another event's reservation were ignored
+    // TC-S2-184 · US-19 AC-3 · setup: base-users + tc-s2-28-setup + tc-s2-30-setup · fails if another event's reservation were ignored
+    // Code: an overlapping APPROVED reservation for another event (RSV-001, 3 units) is subtracted.
     it("US-19: Given another event's approved reservation leaves too few units, Then equipment is unmet", async () => {
-      const other = await seedOtherEvent();
-      const mic = await seedEquipment(6);
-      await requires('Wireless mic', 4, mic.id);
-      await reserve(other.id, mic.id, 3);
+      await given('tc-s2-30-setup');
 
-      const res = await suitability(VENUE.hall, EVENT.fits).expect(200);
+      const res = await suitability(VENUE.hall, 'EVT-183').expect(200);
 
       expect(res.body.equipment.status).toBe('UNMET');
       expect(res.body.equipment.items[0]).toMatchObject({ availableQuantity: 3, available: false });
@@ -253,44 +201,42 @@ describe('Story 19 venue suitability flags (integration)', () => {
       expect(res.body.overall).toBe('SUITABLE');
     });
 
-    // No TC ID yet · setup: base-users + tc-s2-28-setup + equipment · fails if an event's own reservation counted against it
+    // TC-S2-184 · US-19 AC-3 · setup: base-users + tc-s2-28-setup + tc-s2-30-setup · fails if an event's own reservation counted against it
+    // Code: reservations held by the event being checked (RSV-002) are not subtracted.
     it("US-19: Given the event's own approved reservation, Then its units are not counted against it", async () => {
-      const mic = await seedEquipment(6);
-      await requires('Wireless mic', 4, mic.id);
-      await reserve(EVENT.fits, mic.id, 4);
+      await given('tc-s2-30-setup');
 
-      const res = await suitability(VENUE.hall, EVENT.fits).expect(200);
+      const res = await suitability(VENUE.hall, 'EVT-185').expect(200);
 
       expect(res.body.equipment.items[0]).toMatchObject({ availableQuantity: 6, available: true });
     });
 
-    // No TC ID yet · setup: base-users + tc-s2-28-setup + equipment + another event · fails if a pending reservation held units
+    // TC-S2-184 · US-19 AC-3 · setup: base-users + tc-s2-28-setup + tc-s2-30-setup · fails if a pending reservation held units
+    // Code: only APPROVED reservations hold units (RSV-003 is REQUESTED).
     it('US-19: Given a pending reservation elsewhere, Then it holds no units', async () => {
-      const other = await seedOtherEvent();
-      const mic = await seedEquipment(6);
-      await requires('Wireless mic', 4, mic.id);
-      await reserve(other.id, mic.id, 6, ReservationStatus.REQUESTED);
+      await given('tc-s2-30-setup');
 
-      const res = await suitability(VENUE.hall, EVENT.fits).expect(200);
+      const res = await suitability(VENUE.hall, 'EVT-186').expect(200);
 
       expect(res.body.equipment.items[0].available).toBe(true);
     });
 
-    // No TC ID yet · setup: base-users + tc-s2-28-setup + equipment · fails if an item under maintenance counted as available
+    // TC-S2-184 · US-19 AC-3 · setup: base-users + tc-s2-28-setup + tc-s2-30-setup · fails if an item under maintenance counted as available
+    // Code: an item that is not OPERATIONAL has 0 free units (EQP-005).
     it('US-19: Given an item under maintenance, Then none of its units are available', async () => {
-      const mic = await seedEquipment(6, EquipmentStatus.UNDER_MAINTENANCE);
-      await requires('Wireless mic', 1, mic.id);
+      await given('tc-s2-30-setup');
 
-      const res = await suitability(VENUE.hall, EVENT.fits).expect(200);
+      const res = await suitability(VENUE.hall, 'EVT-187').expect(200);
 
       expect(res.body.equipment.items[0]).toMatchObject({ availableQuantity: 0, available: false });
     });
 
-    // No TC ID yet · setup: base-users + tc-s2-28-setup + a free-text line · fails if an uncheckable line read as a pass
+    // TC-S2-184 · US-19 AC-3 · setup: base-users + tc-s2-28-setup + tc-s2-30-setup · fails if an uncheckable line read as a pass
+    // Code: a line with no equipmentId is NOT_RECORDED and listed in notChecked, never counted as met.
     it('US-19: Given a free-text line, Then it is listed as not checked, never as a pass', async () => {
-      await requires('Fog machine', 1);
+      await given('tc-s2-30-setup');
 
-      const res = await suitability(VENUE.hall, EVENT.fits).expect(200);
+      const res = await suitability(VENUE.hall, 'EVT-188').expect(200);
 
       expect(res.body.equipment).toEqual({
         status: 'NOT_RECORDED',
@@ -301,19 +247,20 @@ describe('Story 19 venue suitability flags (integration)', () => {
       ]);
     });
 
-    // No TC ID yet · setup: base-users + tc-s2-28-setup + equipment · fails if checking reserved equipment
+    // TC-S2-184 · US-19 AC-3, AC-5 · setup: base-users + tc-s2-28-setup + tc-s2-30-setup · fails if checking reserved equipment
+    // Code: getSuitability() only reads; it never creates a reservation.
     it('US-19: reserves nothing while checking', async () => {
-      const mic = await seedEquipment(6);
-      await requires('Wireless mic', 4, mic.id);
+      await given('tc-s2-30-setup');
 
-      await suitability(VENUE.hall, EVENT.fits).expect(200);
+      await suitability(VENUE.hall, 'EVT-182').expect(200);
 
-      expect(await prisma.equipmentReservation.count()).toBe(0);
+      expect(await prisma.equipmentReservation.count()).toBe(3);
     });
   });
 
   describe('AC-5: advisory only', () => {
-    // TC-S2-31 · setup: base-users + tc-s2-28-setup + tc-s2-31-setup · fails if running the check created or changed anything
+    // TC-S2-31 · US-19 AC-5 · setup: base-users + tc-s2-28-setup + tc-s2-31-setup · fails if running the check created or changed anything
+    // Code: getSuitability() only reads; nothing in it writes.
     it('US-19: changes nothing — no booking, reservation, notification or event edit', async () => {
       await given('tc-s2-31-setup');
       const before = await prisma.eventRequest.findUniqueOrThrow({ where: { id: EVENT.misfit } });
@@ -328,7 +275,9 @@ describe('Story 19 venue suitability flags (integration)', () => {
       expect(after.status).toBe(before.status);
     });
 
-    // TC-S2-31 · setup: base-users + tc-s2-28-setup + tc-s2-31-setup · fails if a NOT_SUITABLE flag blocked the booking request
+    // TC-S2-31 · US-19 AC-5 · setup: base-users + tc-s2-28-setup + tc-s2-31-setup · fails if a NOT_SUITABLE flag blocked the booking request
+    // Code: the booking request (POST /bookings) never calls the suitability check, so a flag cannot
+    // block it.
     it('US-19 AC-5: a booking request still submits after suitability reports flags', async () => {
       // Flags are advice, not a gate: the Coordinator may know something the
       // system doesn't. Submits through Story 20. The flag here is accessibility:
@@ -355,7 +304,9 @@ describe('Story 19 venue suitability flags (integration)', () => {
   });
 
   describe('AC-6: a single-venue check, fast', () => {
-    // TC-S2-32 · setup: base-users + tc-s2-28-setup · fails if the check took 2 seconds or more
+    // TC-S2-32 · US-19 AC-6 · setup: base-users + tc-s2-28-setup · fails if the check took 2 seconds or more
+    // Code: two lookups by primary key (venue and event) and one equipment count, then pure
+    // comparison.
     it('US-19: answers within two seconds', async () => {
       const started = Date.now();
       await suitability(VENUE.hall, EVENT.fits).expect(200);
@@ -365,21 +316,23 @@ describe('Story 19 venue suitability flags (integration)', () => {
   });
 
   describe('access: my assigned, active events only', () => {
-    // TC-S2-33 · setup: base-users + tc-s2-28-setup + tc-s2-33-setup · fails if a Coordinator could check another Coordinator's event
+    // TC-S2-33 · US-19 access · setup: base-users + tc-s2-28-setup + tc-s2-33-setup · fails if a Coordinator could check another Coordinator's event
+    // Code: findSuitabilityRequirements() reads only events assigned to the caller (404 otherwise).
     it("US-19: hides another Coordinator's event as not found", async () => {
       await given('tc-s2-33-setup');
 
       await suitability(VENUE.hall, EVENT.theirs).expect(404);
     });
 
-    // TC-S2-33 · setup: base-users + tc-s2-28-setup + tc-s2-33-setup · fails if an unassigned event in the review pool could be checked
+    // TC-S2-33 · US-19 access · setup: base-users + tc-s2-28-setup + tc-s2-33-setup · fails if an unassigned event in the review pool could be checked
+    // Code: an event with no Coordinator is assigned to nobody, so it is 404 too.
     it('US-19: hides an unassigned event from the review pool', async () => {
       await given('tc-s2-33-setup');
 
       await suitability(VENUE.hall, EVENT.pool).expect(404);
     });
 
-    // TC-S2-33 · setup: base-users + tc-s2-28-setup + tc-s2-33-setup · fails if a finished or cancelled event could still be checked
+    // TC-S2-33 · US-19 access · setup: base-users + tc-s2-28-setup + tc-s2-33-setup · fails if a finished or cancelled event could still be checked
     it.each([EventStatus.REJECTED, EventStatus.CANCELLED, EventStatus.COMPLETED])(
       'US-19: hides a %s event as not found',
       async (status) => {
@@ -389,12 +342,14 @@ describe('Story 19 venue suitability flags (integration)', () => {
       },
     );
 
-    // TC-S2-33 · setup: base-users + tc-s2-28-setup · fails if a draft venue could be checked
+    // TC-S2-33 · US-19 access · setup: base-users + tc-s2-28-setup · fails if a draft venue could be checked
+    // Code: getSuitability() looks the venue up with status PUBLISHED (404 otherwise).
     it('US-19: reports a draft venue as not found', async () => {
       await suitability(VENUE.draft, EVENT.fits).expect(404);
     });
 
-    // TC-S2-33 · setup: base-users + tc-s2-28-setup · fails if the check ran without saying which event
+    // TC-S2-33 · US-19 access · setup: base-users + tc-s2-28-setup · fails if the check ran without saying which event
+    // Code: VenueSuitabilityQueryDto.eventId is required (400).
     it('US-19: requires an eventId', async () => {
       await http()
         .get(`/venues/${VENUE.hall}/suitability`)
@@ -402,7 +357,8 @@ describe('Story 19 venue suitability flags (integration)', () => {
         .expect(400);
     });
 
-    // TC-S2-33 · setup: base-users + tc-s2-28-setup · fails if a role other than Coordinator could run the check
+    // TC-S2-33 · US-19 access · setup: base-users + tc-s2-28-setup · fails if a role other than Coordinator could run the check
+    // Code: getSuitability() requires VENUE/CHECK_AVAILABILITY, which only Coordinators hold.
     it.each(['staff', 'organiser'] as const)('US-19: refuses %s with 403', async (who) => {
       await suitability(VENUE.hall, EVENT.fits, who).expect(403);
     });

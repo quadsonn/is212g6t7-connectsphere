@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { resetDb } from './helpers/reset-db';
 import { listenOnLoopback } from './listen-on-loopback';
 
 /**
@@ -63,12 +64,9 @@ describe('US-19 AC-3 required facilities on an event request (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.notification.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.clarificationMessage.deleteMany();
-    await prisma.eventChange.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
+    // Every table, whatever earlier test files left behind (localhost and a
+    // _test database only — resetDb checks before it deletes anything).
+    await resetDb(prisma);
 
     await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
     await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);

@@ -67,6 +67,8 @@ const setQuantity = async (user: ReturnType<typeof userEvent.setup>, value: stri
 beforeEach(() => vi.resetAllMocks());
 
 describe('US-45 equipment status panel (by quantity)', () => {
+  // TC-S3-92 · US-45 AC-5 · fails if the panel does not show the units by condition
+  // Code: EquipmentStatusPanel -> ConditionSummary
   it('US-45: shows the units by condition, e.g. "8 available, 2 damaged, 0 under maintenance"', () => {
     renderPanel(twoDamaged);
     expect(screen.getByLabelText('Units by condition')).toHaveTextContent(
@@ -74,6 +76,8 @@ describe('US-45 equipment status panel (by quantity)', () => {
     );
   });
 
+  // TC-S3-91 · US-45 AC-4 · fails if a move with no units to move is offered
+  // Code: EquipmentStatusPanel (move options)
   it('US-45 AC-1/AC-3: offers only moves with units to move', () => {
     renderPanel(allWorking);
     expect(screen.getByRole('radio', { name: 'Mark as damaged' })).toBeInTheDocument();
@@ -83,6 +87,8 @@ describe('US-45 equipment status panel (by quantity)', () => {
     expect(screen.queryByRole('radio', { name: 'Return from maintenance' })).not.toBeInTheDocument();
   });
 
+  // TC-S3-88, TC-S3-89 · US-45 AC-1, AC-2 · fails if the quantity or the trimmed reason is not sent
+  // Code: EquipmentStatusPanel -> changeStatus
   it('US-45 AC-1/AC-2: mark 2 of 10 damaged — the quantity and trimmed reason are sent', async () => {
     api.listUpcomingReservations.mockResolvedValue([]);
     api.changeStatus.mockResolvedValue({ equipment: item, condition: twoDamaged, affectedReservations: [] });
@@ -109,6 +115,8 @@ describe('US-45 equipment status panel (by quantity)', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('2 units moved from working to damaged');
   });
 
+  // TC-S3-93 · US-45 AC-6 · fails if the warning does not list the reservations left short, with how many
+  // Code: EquipmentStatusPanel (useUpcomingReservations preview)
   it('US-45 AC-5: before saving, lists the reservations the change would leave short, with how many', async () => {
     api.listUpcomingReservations.mockResolvedValue([gala(0, 1)]);
     renderPanel(allWorking);
@@ -129,6 +137,8 @@ describe('US-45 equipment status panel (by quantity)', () => {
     });
   });
 
+  // TC-S3-93 · US-45 AC-6 · fails if a reservation not made shorter is listed as affected
+  // Code: EquipmentStatusPanel (shortByAfter > shortBy)
   it('US-45 AC-5: a reservation already short by as much is not listed as affected', async () => {
     api.listUpcomingReservations.mockResolvedValue([gala(1, 1)]);
     renderPanel(twoDamaged);
@@ -138,6 +148,8 @@ describe('US-45 equipment status panel (by quantity)', () => {
     expect(await screen.findByText('The remaining units still cover every upcoming reservation.')).toBeInTheDocument();
   });
 
+  // TC-S3-90 · US-45 AC-3 · fails if setting units back does not send the quantity
+  // Code: EquipmentStatusPanel -> changeStatus
   it('US-45 AC-3: repair a quantity of damaged units', async () => {
     api.changeStatus.mockResolvedValue({ equipment: item, condition: allWorking, affectedReservations: [] });
     renderPanel(twoDamaged);
@@ -160,6 +172,8 @@ describe('US-45 equipment status panel (by quantity)', () => {
     expect(api.listUpcomingReservations).not.toHaveBeenCalled();
   });
 
+  // TC-S3-91 · US-45 AC-4 · fails if the server's refusal is not shown
+  // Code: EquipmentStatusPanel (error message)
   it('US-45 AC-1: shows the server refusing more units than are working', async () => {
     api.listUpcomingReservations.mockResolvedValue([]);
     api.changeStatus.mockRejectedValue({
@@ -177,6 +191,8 @@ describe('US-45 equipment status panel (by quantity)', () => {
     expect(await screen.findByText(/can't be marked damaged/)).toBeInTheDocument();
   });
 
+  // TC-S3-93, TC-S3-94 · US-45 AC-6, AC-7 · fails if the reservations made short are not shown after saving
+  // Code: EquipmentStatusPanel (affectedReservations)
   it('US-45 AC-5: after saving, shows the reservations the server found short', async () => {
     api.listUpcomingReservations.mockResolvedValue([gala(0, 1)]);
     api.changeStatus.mockResolvedValue({

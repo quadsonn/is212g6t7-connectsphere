@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import {
-  OTHER_ACCESS,
   OTHER_LAYOUT,
   START_TIME_SLOTS,
   TIME_SLOTS,
@@ -243,28 +242,18 @@ export function EventRequestFields({
             label="Accessibility requirements"
             htmlFor="accessibilityRequirements"
             errors={errors.accessibilityRequirements}
-            hint={
-              form.accessibilityRequirements === OTHER_ACCESS
-                ? 'Please describe the accessibility requirements you need in the notes below.'
-                : undefined
-            }
+            hint="Choose every one that applies. Anything else goes in the notes below."
           >
-            <Select
-              id="accessibilityRequirements"
-              value={form.accessibilityRequirements}
-              onChange={(e) => set('accessibilityRequirements', e.target.value)}
-              aria-invalid={invalid('accessibilityRequirements')}
-            >
-              <option value="">None</option>
-              {ACCESSIBILITY_FEATURES.map((feature) => (
-                <option key={feature} value={feature}>
-                  {ACCESSIBILITY_FEATURE_LABELS[feature]}
-                </option>
-              ))}
-              <option value={OTHER_ACCESS}>Other</option>
-            </Select>
+            <div id="accessibilityRequirements">
+              <ChipGroup
+                label="Accessibility requirements"
+                options={ACCESSIBILITY_FEATURES}
+                labels={ACCESSIBILITY_FEATURE_LABELS}
+                values={form.accessibilityRequirements}
+                onChange={(next) => set('accessibilityRequirements', next)}
+              />
+            </div>
           </Field>
-
           <Field
             label="Accessibility notes"
             htmlFor="accessibilityNotes"

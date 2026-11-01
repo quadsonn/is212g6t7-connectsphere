@@ -21,6 +21,8 @@ import { EquipmentService } from '../equipment/equipment.service';
  * filter the service builds; test/venues-search.e2e-spec.ts proves Postgres
  * returns the right venues for it.
  */
+// TC-S2-18 to TC-S2-24 · US-18 AC-1 to AC-5 · unit: search() with Prisma mocked · fails if a filter
+// is dropped, OR-ed, or a draft can be returned
 describe('US-18 VenuesService.search', () => {
   let prisma: {
     venue: { findMany: jest.Mock };
@@ -181,6 +183,8 @@ describe('US-18 VenuesService.search', () => {
     await expect(service.search(coordinator, { minCapacity: 99999 })).resolves.toEqual([]);
   });
 
+  // TC-S2-19 to TC-S2-22 · US-18 AC-1 to AC-4 · unit: VenueSearchDto validation · fails if a bad
+  // range, capacity or vocabulary value is accepted
   describe('VenueSearchDto', () => {
     const parse = async (query: Record<string, unknown>) => {
       const dto = plainToInstance(VenueSearchDto, query);

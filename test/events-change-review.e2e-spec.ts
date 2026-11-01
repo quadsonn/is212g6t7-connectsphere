@@ -109,7 +109,7 @@ describe('Story 37 review change requests (integration)', () => {
     await given('base-users', 'base-venues', 'tc-s2-159-setup', 'tc-s2-172-setup');
   });
 
-  describe('AC-1: pending requests on my own events, oldest first', () => {
+  describe('US-37 AC-1: pending requests on my own events, oldest first', () => {
     // TC-S2-172 · US-37 AC-1 · setup: base-users + base-venues + tc-s2-159-setup + tc-s2-172-setup · fails if a Coordinator saw another Coordinator's or an already-decided request, or the oldest wasn't first
     // Code: listPending() filters PENDING and event.coordinatorId = the caller, ordered by createdAt.
     it("lists only my pending requests, oldest first", async () => {
@@ -132,7 +132,7 @@ describe('Story 37 review change requests (integration)', () => {
     });
   });
 
-  describe('AC-2: a request shows the event as it is now beside what is proposed, with the reason', () => {
+  describe('US-37 AC-2: a request shows the event as it is now beside what is proposed, with the reason', () => {
     // TC-S2-173 · US-37 AC-2 · setup: base-users + base-venues + tc-s2-159-setup + tc-s2-172-setup · fails if the review lacked the current values, the proposed ones, the reason or who asked
     // Code: getForReview() returns the request (proposal, reason, requester) and the event's current dates, attendance and equipment.
     it('shows current and proposed values, the reason and the requester', async () => {
@@ -168,7 +168,7 @@ describe('Story 37 review change requests (integration)', () => {
     });
   });
 
-  describe('AC-6: a warning when the proposed attendance exceeds a booked venue', () => {
+  describe('US-37 AC-6: a warning when the proposed attendance exceeds a booked venue', () => {
     // TC-S2-174 · US-37 AC-6 · setup: base-users + base-venues + tc-s2-159-setup + tc-s2-172-setup · fails if a proposed attendance over the booked venue's capacity raised no warning
     // Code: capacityWarnings() warns for each live booking whose venue holds fewer than proposed.
     it('warns that 350 exceeds Main Hall (300)', async () => {
@@ -195,7 +195,7 @@ describe('Story 37 review change requests (integration)', () => {
     });
   });
 
-  describe('AC-3: rejecting needs a reason', () => {
+  describe('US-37 AC-3: rejecting needs a reason', () => {
     // TC-S2-175 · US-37 AC-3 · setup: base-users + base-venues + tc-s2-159-setup + tc-s2-172-setup · fails if a request could be rejected without a real reason
     // Code: RejectChangeRequestDto trims the reason, then requires it (400); the request stays PENDING.
     it.each([
@@ -222,10 +222,10 @@ describe('Story 37 review change requests (integration)', () => {
     });
   });
 
-  describe('AC-5: the Organiser sees the decision and its reason', () => {
+  describe('US-37 AC-5: the Organiser sees the decision and its reason', () => {
     // TC-S2-176 · US-37 AC-5 · setup: base-users + base-venues + tc-s2-159-setup + tc-s2-172-setup · fails if the Organiser couldn't see the rejection and its reason on their event
     // Code: GET /events/:id for the Organiser adds latestChangeDecision, and pendingChangeRequest becomes null.
-    it('shows the rejection and reason on the Organiser\'s event', async () => {
+    it("shows the rejection and reason on the Organiser's event", async () => {
       await decide(CR.attendance, 'reject', { reason: 'Main Hall cannot hold 350' }).expect(200);
 
       const res = await http().get('/events/EVT-063').set('Authorization', as('organiser')).expect(200);
@@ -239,7 +239,7 @@ describe('Story 37 review change requests (integration)', () => {
     });
   });
 
-  describe('AC-4: approving applies the change and records it', () => {
+  describe('US-37 AC-4: approving applies the change and records it', () => {
     // TC-S2-177 · US-37 AC-4 · setup: base-users + base-venues + tc-s2-159-setup + tc-s2-172-setup · fails if approving didn't apply the new attendance, or the history entry lacked who, what or when
     // Code: approve() writes the proposed values and calls recordChange();
     // attendance feeds the approved Main Hall booking, so the entry is flagged for review (Story 24).
@@ -287,7 +287,7 @@ describe('Story 37 review change requests (integration)', () => {
     });
   });
 
-  describe('a request is decided only once', () => {
+  describe('US-37 AC-3, AC-4: a request is decided only once', () => {
     // TC-S2-179 · US-37 AC-3, AC-4 · setup: base-users + base-venues + tc-s2-159-setup + tc-s2-172-setup · fails if a decided request could be decided again
     // Code: assertPending() refuses anything but PENDING with 409.
     it('refuses a second decision (409)', async () => {
@@ -313,7 +313,7 @@ describe('Story 37 review change requests (integration)', () => {
     });
   });
 
-  describe('access: the assigned Coordinator only', () => {
+  describe('US-37 access: the assigned Coordinator only', () => {
     // TC-S2-180 · US-37 · setup: base-users + base-venues + tc-s2-159-setup + tc-s2-172-setup · fails if a Coordinator could see or decide a request on an event not assigned to them
     // Code: load() reports a request on someone else's event as not found (404).
     it("hides another Coordinator's request (404)", async () => {

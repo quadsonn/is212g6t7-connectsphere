@@ -89,7 +89,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
   });
 
   describe('AC-1: my venues, slots distinguished by status', () => {
-    // TC-S2-01 · setup: base-users + base-venues + tc-s2-01-setup · fails if a draft or another staff member's venue appeared on my calendar
+    // TC-S2-01 · US-16 AC-1 · setup: base-users + base-venues + tc-s2-01-setup · fails if a draft or another staff member's venue appeared on my calendar
+    // Code: GET /calendar -> CalendarService.getCalendar() reads venues where managedById = the
+    // caller and status PUBLISHED.
     it('lists only the published venues I manage', async () => {
       await given('tc-s2-01-setup');
 
@@ -102,7 +104,10 @@ describe('Story 16 venue availability calendar (integration)', () => {
       ]);
     });
 
-    // TC-S2-02 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-02-setup · fails if a status were mislabelled, a rejected request shown, or another staff member's booking leaked in
+    // TC-S2-02 · US-16 AC-1 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-02-setup · fails if a status were mislabelled, a rejected request shown, or another staff member's booking leaked in
+    // Code: kindOf() maps REQUESTED -> PENDING, APPROVED -> CONFIRMED and a live HELD -> TENTATIVE
+    // (US-54); VenueBlock rows are BLOCKED; liveBookingsWhere() leaves REJECTED out; entries are
+    // sorted by start.
     it('marks pending as pending, approved as confirmed and blocks as blocked', async () => {
       await given('tc-s2-01-setup', 'tc-s2-02-setup');
 
@@ -121,14 +126,17 @@ describe('Story 16 venue availability calendar (integration)', () => {
       ]);
     });
 
-    // TC-S2-03 · setup: base-users + base-venues · fails if a role other than Venue Staff could read the calendar
+    // TC-S2-03 · US-16 access · setup: base-users + base-venues · fails if a role other than Venue Staff could read the calendar
+    // Code: GET /calendar is @RequirePermission(BOOKING, DECIDE), which only Venue Staff hold.
     it('is denied to a Coordinator (403)', async () => {
       await calendar({}, 'coordinator').expect(403);
     });
   });
 
   describe('AC-2: day/week/month windows', () => {
-    // TC-S2-04 · setup: base-users + base-venues + tc-s2-04-setup · fails if the week window included a booking from outside it
+    // TC-S2-04 · US-16 AC-2 · setup: base-users + base-venues + tc-s2-04-setup · fails if the week window included a booking from outside it
+    // Code: CalendarQueryDto requires from and to; getCalendar() keeps entries that overlap them
+    // (overlapsRange).
     it('only returns entries in the requested window', async () => {
       await given('tc-s2-04-setup');
 
@@ -137,7 +145,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
       expect(res.body.entries.map((e: { eventName: string }) => e.eventName)).toEqual(['Day two']);
     });
 
-    // TC-S2-04 · setup: base-users + base-venues + tc-s2-04-setup · fails if the server refused the one-day or six-week window the Day and Month views request
+    // TC-S2-04 · US-16 AC-2 · setup: base-users + base-venues + tc-s2-04-setup · fails if the server refused the one-day or six-week window the Day and Month views request
+    // Code: the frontend's Day, Week and Month views each send a from/to window within the 42-day
+    // limit (MAX_CALENDAR_DAYS).
     it('accepts the exact windows the Day, Week and Month views ask for', async () => {
       await given('tc-s2-04-setup');
 
@@ -152,7 +162,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
       ]);
     });
 
-    // TC-S2-04 · setup: base-users + base-venues + tc-s2-04-setup · fails if a day view showed a booking from a different day
+    // TC-S2-04 · US-16 AC-2 · setup: base-users + base-venues + tc-s2-04-setup · fails if a day view showed a booking from a different day
+    // Code: overlapsRange() is strict (start < to, end > from), so an entry ending at midnight is
+    // not on the next day.
     it('excludes an entry from a day it does not touch', async () => {
       await given('tc-s2-04-setup');
 
@@ -161,7 +173,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
       expect(res.body.entries).toEqual([]);
     });
 
-    // TC-S2-04 · setup: base-users + base-venues · fails if an oversized or backwards window were accepted
+    // TC-S2-04 · US-16 AC-2 · setup: base-users + base-venues · fails if an oversized or backwards window were accepted
+    // Code: CalendarQueryDto: to is @IsAfterField('from'); getCalendar() refuses a range over
+    // MAX_CALENDAR_DAYS (42) with 400.
     it('rejects a window over six weeks, or one that ends before it starts (400)', async () => {
       await calendar({ to: '2030-12-31T00:00:00.000Z' }).expect(400);
       await calendar({ to: at(1, 0), from: at(5, 0) }).expect(400);
@@ -169,7 +183,8 @@ describe('Story 16 venue availability calendar (integration)', () => {
   });
 
   describe('AC-3: filter to one venue', () => {
-    // TC-S2-05 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-05-setup · fails if the venue filter let another venue's bookings through
+    // TC-S2-05 · US-16 AC-3 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-05-setup · fails if the venue filter let another venue's bookings through
+    // Code: venueId in CalendarQueryDto adds { id: venueId } to the managed-venues filter.
     it('narrows the venues and entries to the chosen venue', async () => {
       await given('tc-s2-01-setup', 'tc-s2-05-setup');
 
@@ -179,7 +194,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
       expect(res.body.entries.map((e: { eventName: string }) => e.eventName)).toEqual(['Room event']);
     });
 
-    // TC-S2-05 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-05-setup · fails if filtering by another staff member's venue exposed its bookings
+    // TC-S2-05 · US-16 AC-3 · setup: base-users + base-venues + tc-s2-01-setup + tc-s2-05-setup · fails if filtering by another staff member's venue exposed its bookings
+    // Code: the venueId filter is combined with managedById = the caller, so another manager's venue
+    // matches nothing.
     it('returns nothing for a venue I do not manage', async () => {
       await given('tc-s2-01-setup', 'tc-s2-05-setup');
 
@@ -190,7 +207,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
   });
 
   describe('AC-4: a booked slot carries its details', () => {
-    // TC-S2-06 · setup: base-users + base-venues + tc-s2-06-setup · fails if a slot lacked its event name, organiser, time or attendance
+    // TC-S2-06 · US-16 AC-4 · setup: base-users + base-venues + tc-s2-06-setup · fails if a slot lacked its event name, organiser, time or attendance
+    // Code: each booking entry carries eventName, organiserName, start, end and expectedAttendance
+    // from the booking and its event.
     it('includes event name, organiser, time and attendance', async () => {
       await given('tc-s2-06-setup');
 
@@ -206,7 +225,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
       });
     });
 
-    // TC-S2-06 · setup: base-users + base-venues + tc-s2-06-setup · fails if the id a calendar slot carries did not open that booking
+    // TC-S2-06 · US-16 AC-4 · setup: base-users + base-venues + tc-s2-06-setup · fails if the id a calendar slot carries did not open that booking
+    // Code: an entry's id is the booking id; GET /bookings/:id returns the full booking with its
+    // event and organiser.
     it('opens the full booking for that slot (the click-through)', async () => {
       // The UI loads the booking by the id the calendar entry carries.
       await given('tc-s2-06-setup');
@@ -224,7 +245,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
   });
 
   describe('AC-5: reflects changes on refresh', () => {
-    // TC-S2-07 · setup: base-users + base-venues + tc-s2-07-setup · fails if an approval did not show as confirmed on the next read, or the response could be cached
+    // TC-S2-07 · US-16 AC-5 · setup: base-users + base-venues + tc-s2-07-setup · fails if an approval did not show as confirmed on the next read, or the response could be cached
+    // Code: getCalendar() reads the database on every call; Cache-Control: no-store stops a cached
+    // copy.
     it('shows a booking as confirmed on the next read after it is approved', async () => {
       await given('tc-s2-07-setup');
       expect((await calendar().expect(200)).body.entries[0].kind).toBe('PENDING');
@@ -236,7 +259,8 @@ describe('Story 16 venue availability calendar (integration)', () => {
       expect(res.headers['cache-control']).toBe('no-store');
     });
 
-    // TC-S2-07 · setup: base-users + base-venues + tc-s2-07-setup · fails if a withdrawn (reversed) booking still occupied the calendar
+    // TC-S2-07 · US-16 AC-5 · setup: base-users + base-venues + tc-s2-07-setup · fails if a withdrawn (reversed) booking still occupied the calendar
+    // Code: a reversed booking leaves the live statuses getCalendar() reads.
     it('drops a booking from the calendar on the next read after it is cancelled', async () => {
       // A reversal to rejected is how a confirmed booking is withdrawn (Story 22 AC-6).
       await given('tc-s2-07-setup');
@@ -252,7 +276,8 @@ describe('Story 16 venue availability calendar (integration)', () => {
       expect((await calendar().expect(200)).body.entries).toEqual([]);
     });
 
-    // TC-S2-07 · setup: base-users + base-venues + tc-s2-07-setup · fails if a rejected request lingered as tentatively held
+    // TC-S2-07 · US-16 AC-5 · setup: base-users + base-venues + tc-s2-07-setup · fails if a rejected request lingered as tentatively held
+    // Code: liveBookingsWhere() leaves REJECTED bookings off the calendar.
     it('shows a rejected request as gone, not tentative', async () => {
       await given('tc-s2-07-setup');
 
@@ -267,7 +292,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
   });
 
   describe('AC-6: blocked-out periods', () => {
-    // TC-S2-08 · setup: base-users + base-venues · fails if a new block did not appear as BLOCKED with its reason and author
+    // TC-S2-08 · US-16 AC-6 · setup: base-users + base-venues · fails if a new block did not appear as BLOCKED with its reason and author
+    // Code: POST /calendar/blocks -> createBlock() stores a VenueBlock; the calendar shows it as
+    // BLOCKED with its reason and who set it.
     it('blocks out time, which then appears as BLOCKED', async () => {
       await block({ venueId: VENUE.hall, start: at(3, 0), end: at(4, 0), reason: 'Maintenance' }).expect(201);
 
@@ -275,13 +302,16 @@ describe('Story 16 venue availability calendar (integration)', () => {
       expect(entry).toMatchObject({ kind: 'BLOCKED', reason: 'Maintenance', createdByName: 'Vera Venue' });
     });
 
-    // TC-S2-08 · setup: base-users + base-venues · fails if a block without a reason, or ending before it starts, were saved
+    // TC-S2-08 · US-16 AC-6 · setup: base-users + base-venues · fails if a block without a reason, or ending before it starts, were saved
+    // Code: CreateVenueBlockDto: reason @IsNotEmpty, end @IsAfterField('start').
     it('requires a reason and an end after the start (400)', async () => {
       await block({ venueId: VENUE.hall, start: at(3, 0), end: at(4, 0), reason: '' }).expect(400);
       await block({ venueId: VENUE.hall, start: at(4, 0), end: at(3, 0), reason: 'x' }).expect(400);
     });
 
-    // TC-S2-08 · setup: base-users + base-venues + tc-s2-01-setup · fails if staff could block another's venue, or a Coordinator could block at all
+    // TC-S2-08 · US-16 AC-6 · setup: base-users + base-venues + tc-s2-01-setup · fails if staff could block another's venue, or a Coordinator could block at all
+    // Code: createBlock() finds the venue with managedById = the caller (404 otherwise); the route
+    // needs VENUE/UPDATE (403 for a Coordinator).
     it('refuses a venue I do not manage (404) and a Coordinator (403)', async () => {
       await given('tc-s2-01-setup');
 
@@ -289,7 +319,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
       await block({ venueId: VENUE.hall, start: at(3, 0), end: at(4, 0), reason: 'x' }, 'coordinator').expect(403);
     });
 
-    // TC-S2-08 · setup: base-users + base-venues + tc-s2-01-setup · fails if a block could not be removed by its manager, or could be by someone else
+    // TC-S2-08 · US-16 AC-6 · setup: base-users + base-venues + tc-s2-01-setup · fails if a block could not be removed by its manager, or could be by someone else
+    // Code: DELETE /calendar/blocks/:id -> removeBlock() matches the block's venue to the caller
+    // (404 for another manager), then deletes it (204).
     it('removes a block', async () => {
       await given('tc-s2-01-setup');
       const created = await block({ venueId: VENUE.hall, start: at(3, 0), end: at(4, 0), reason: 'Maintenance' }).expect(201);
@@ -299,7 +331,9 @@ describe('Story 16 venue availability calendar (integration)', () => {
       expect((await calendar().expect(200)).body.entries).toEqual([]);
     });
 
-    // TC-S2-09 · setup: base-users + base-venues + tc-s2-09-setup · fails if blocking time over a confirmed booking did not report that booking
+    // TC-S2-09 · US-16 AC-6 · setup: base-users + base-venues + tc-s2-09-setup · fails if blocking time over a confirmed booking did not report that booking
+    // Code: createBlock() returns overlappingBookings: live bookings the new block covers, so staff
+    // can follow them up.
     it('reports existing bookings inside the new block', async () => {
       await given('tc-s2-09-setup');
 
@@ -310,7 +344,8 @@ describe('Story 16 venue availability calendar (integration)', () => {
       );
     });
 
-    // TC-S2-09 · setup: base-users + base-venues + tc-s2-09-setup · fails if a request or an approval could land inside a blocked period
+    // TC-S2-09 · US-16 AC-6 · setup: base-users + base-venues + tc-s2-09-setup · fails if a request or an approval could land inside a blocked period
+    // Code: booking requests and approvals check VenueBlock rows as conflicts (kind BLOCK): 409.
     it('stops a Coordinator requesting, and staff approving, inside a block', async () => {
       await given('tc-s2-09-setup');
       await block({ venueId: VENUE.hall, start: at(2, 0), end: at(3, 0), reason: 'Maintenance' }).expect(201);

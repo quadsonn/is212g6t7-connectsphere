@@ -111,6 +111,18 @@ describe('US-41 alternative venue ranking', () => {
       expect(ranked.map((r) => r.name)).toEqual(['Alpha', 'Beta']);
     });
 
+    // TC-S3-64 · US-41 AC-2 · setup: none (unit) · fails if venues with no name, or a request with no attendance, are listed in an unstable order
+    // Code: rankAlternatives and manualAlternatives sorts (name fallback, venue id tie-break; no spare capacity without an attendance)
+    it('orders unnamed venues by id, and ranks without spare capacity when no attendance was recorded', () => {
+      const venues = [venue({ id: 'b', name: null }), venue({ id: 'c', name: 'Annex' }), venue({ id: 'a', name: null })];
+
+      const ranked = rankAlternatives(venues, needs({ expectedAttendance: null }));
+
+      expect(ranked.map((r) => r.venueId)).toEqual(['a', 'b', 'c']);
+      expect(ranked.every((r) => r.spareCapacity === null)).toBe(true);
+      expect(manualAlternatives(venues, needs(), []).map((m) => m.venueId)).toEqual(['a', 'b', 'c']);
+    });
+
     it('leaves out venues that do not meet the requirements', () => {
       const ranked = rankAlternatives(
         [venue({ id: 'small', capacity: 20 }), venue({ id: 'ok', capacity: 100 })],

@@ -90,5 +90,13 @@ describe('AttendeeChangeNotifier', () => {
       await expect(notifier.notifyRegisteredAttendees(event, [change])).resolves.toBe(0);
       expect(notifications.notifySafely).not.toHaveBeenCalled();
     });
+
+    // TC-S3-46 · US-38 AC-7 · setup: none (unit) · fails if a failure that is not an Error object escapes or breaks the change
+    // Code: AttendeeChangeNotifier.notifyRegisteredAttendees (logs String(error) for a non-Error)
+    it('also swallows a failure that is not an Error object', async () => {
+      prisma.registration.findMany.mockRejectedValue('connection reset');
+
+      await expect(notifier.notifyRegisteredAttendees(event, [change])).resolves.toBe(0);
+    });
   });
 });

@@ -4,7 +4,7 @@ Sprint 2 follows [CONVENTIONS.md](CONVENTIONS.md) (the shared rules: test databa
 
 ## Scope and ownership
 
-- **Sprint 2 stories: 16–37.** Owned by Marilyn. Stories 13–15 belong to Sprint 1 (Raye).
+- **Sprint 2 stories: 16–37.** Owned by Marilyn. Stories 13–15 are written up with Sprint 1 (Raye's document); 14 and 15 were carried over and finished in Sprint 2, so their results are reported with Sprint 2.
 - Sprint 2 artefacts are Sprint 2-named so they can't collide with Sprint 1's:
 
 | Thing | Sprint 2 | Sprint 1 |

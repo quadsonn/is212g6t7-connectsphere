@@ -86,4 +86,18 @@ describe('EquipmentStatusNotifier (US-60)', () => {
     expect(await change(EquipmentStatus.OUT_OF_SERVICE)).toBe(0);
     expect(notifications.notifySafely).not.toHaveBeenCalled();
   });
+
+  // TC-S4-73 · US-60 AC-1 · setup: none (unit) · fails if a vanished item is announced, or an actor whose name cannot be read breaks the notice
+  // Code: EquipmentStatusNotifier.statusChanged (item gone: nothing; actor name fallback)
+  it('US-60: says nothing for an item that has gone, and names an unknown actor "a colleague"', async () => {
+    prisma.equipment.findUnique.mockResolvedValueOnce(null);
+    expect(await change(EquipmentStatus.OUT_OF_SERVICE)).toBe(0);
+    expect(notifications.notifySafely).not.toHaveBeenCalled();
+
+    prisma.user.findUnique.mockResolvedValue(null);
+    await change(EquipmentStatus.OUT_OF_SERVICE);
+    expect(notifications.notifySafely.mock.calls[0][0].message).toBe(
+      '2 of 10 Projector marked Damaged by a colleague. Reason: Cracked lens',
+    );
+  });
 });

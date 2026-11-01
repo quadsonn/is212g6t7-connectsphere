@@ -81,4 +81,29 @@ describe('NotificationsService', () => {
       expect(prisma.notification.create).toHaveBeenCalled();
     });
   });
+
+  // TC-S3-59 · US-40 AC-3 · setup: none (unit) · fails if an equipment notice loses the item it names, or other notices gain an empty one
+  // Code: NotificationsService.notify (relatedEquipmentId only when given)
+  it('US-60: records the equipment item only when one is named', async () => {
+    await service.notify({ recipientId: 'u1', type: NotificationType.EQUIPMENT_STATUS_CHANGED, message: 'm', relatedEquipmentId: 'EQP-1' });
+    await service.notify({ recipientId: 'u1', type: NotificationType.EQUIPMENT_STATUS_CHANGED, message: 'm' });
+
+    expect(prisma.notification.create.mock.calls[0][0].data.relatedEquipmentId).toBe('EQP-1');
+    expect(prisma.notification.create.mock.calls[1][0].data).not.toHaveProperty('relatedEquipmentId');
+  });
+
+  // TC-S3-62 · US-40 AC-6 · setup: none (unit) · fails if an empty batch writes anything, or a batch notice with no event or booking is not stored as none
+  // Code: NotificationsService.notifyMany (empty list; relatedEventId/relatedBookingId ?? null)
+  describe('notifyMany', () => {
+    it('writes nothing for an empty list, and stores missing links as none', async () => {
+      const createMany = jest.fn().mockResolvedValue({ count: 1 });
+      const batch = new NotificationsService({ notification: { createMany } } as unknown as PrismaService);
+
+      await expect(batch.notifyMany([])).resolves.toBe(0);
+      expect(createMany).not.toHaveBeenCalled();
+
+      await expect(batch.notifyMany([{ recipientId: 'u1', type: NotificationType.SAFETY_CHECK_DUE, message: 'm' }])).resolves.toBe(1);
+      expect(createMany.mock.calls[0][0].data[0]).toMatchObject({ relatedEventId: null, relatedBookingId: null });
+    });
+  });
 });

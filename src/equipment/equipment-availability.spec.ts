@@ -32,6 +32,7 @@ describe('equipment availability rules (US-29)', () => {
     equipment = mic,
   ) => computeItemAvailability({ equipment, requestedQuantity, reservations, window });
 
+  // TC-S2-103 · US-29 AC-1 · unit: the pure availability rules · fails if free units are wrong or negative
   describe('US-29 AC-1: available units are shown for a given date and time', () => {
     it('is the total when nothing is committed', () => {
       expect(check(1)).toEqual({
@@ -57,6 +58,8 @@ describe('equipment availability rules (US-29)', () => {
     });
   });
 
+  // TC-S2-106, TC-S2-107, TC-S2-108, TC-S2-109 · US-29 AC-2 · unit: overlaps() and the peak-in-use count · fails if
+  // back-to-back counts as overlapping, separate slots are added together, or unconfirmed reservations count
   describe('US-29 AC-2: equipment reserved for an overlapping event is excluded', () => {
     describe('overlaps()', () => {
       it.each([
@@ -133,6 +136,7 @@ describe('equipment availability rules (US-29)', () => {
     });
   });
 
+  // TC-S2-110 · US-29 AC-3 · unit: the operational-status rule · fails if a damaged or maintained item counts as free
   describe('US-29 AC-3: damaged or under-maintenance equipment is excluded', () => {
     it.each([
       [EquipmentStatus.OPERATIONAL, true],
@@ -155,6 +159,7 @@ describe('equipment availability rules (US-29)', () => {
     );
   });
 
+  // TC-S2-111 · US-29 AC-4 · unit: the shortfall rule · fails if the shortfall or "fully available" is wrong
   describe('US-29 AC-4: indicates when the requested quantity is not fully available', () => {
     const committed = [slot(10, '10:00', '12:00')]; // leaves 14 free
 

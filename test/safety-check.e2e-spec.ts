@@ -1,27 +1,28 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  BookingStatus,
-  EventStatus,
-  NotificationType,
-  PrismaClient,
-  ReservationStatus,
-  Role,
-  VenueStatus,
-} from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { BookingStatus, EventStatus, NotificationType, PrismaClient, ReservationStatus } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
-
-const DAY = 24 * 60 * 60 * 1000;
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
 /**
  * Requirement change 6 e2e — the operational safety check, end to end through
  * the real wiring: the Coordinator confirms the arrangements once they are
  * ready (US-42), which puts the event in the queue; the Safety Officer
  * decides, and CONFIRMED is reachable no other way.
+ *
+ * Code under test: SafetyService (listQueue, getPacket, decide, resubmit,
+ * getHistory), EventConfirmationService.confirm (US-42, the only way into
+ * AWAITING_SAFETY_CHECK), SafetyReadinessService and the Safety Officer
+ * notifications (US-64).
+ *
+ * Pre-condition for every test: reset the testDB, then run base-users.sql and
+ * tc-s3-177-setup.sql (Sam and Mei, the only Safety Officers; Main Hall;
+ * microphones; the "Careers Fair" EVT-300 in planning). Events reach the queue
+ * through the real confirm endpoint, as in use.
  */
 describe('Safety check (e2e)', () => {
   let app: INestApplication;
@@ -29,59 +30,39 @@ describe('Safety check (e2e)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from base-users and tc-s3-177-setup. */
+  const ids: Record<string, string> = {
+    organiser: 'USR-006',
+    coordinator: 'USR-004',
+    otherCoordinator: 'USR-005',
+    officer: 'USR-033',
+    officer2: 'USR-034',
+    venueStaff: 'USR-010',
+    techSupport: 'USR-009',
+    attendee: 'USR-001',
+    mic: 'EQP-022',
+  };
+  const LOGINS: Record<string, string> = {
+    organiser: 'organiser@example.com',
+    coordinator: 'coord.a@example.com',
+    otherCoordinator: 'coord.b@example.com',
+    officer: 'sam.officer@example.com',
+    officer2: 'mei.officer@example.com',
+    venueStaff: 'venue.staff@example.com',
+    techSupport: 'tech.support@example.com',
+    attendee: 'attendee@example.com',
+  };
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
 
-  const seedUser = async (key: string, role: Role, name = key) => {
-    // Login lower-cases the email, so store it lower-cased too.
-    const email = `${key.toLowerCase()}@example.com`;
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 4), name, role },
-    });
-    ids[key] = user.id;
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
   };
 
-  const start = new Date(Date.now() + 30 * DAY);
-  const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
-
-  const seedEvent = (overrides: Record<string, unknown> = {}) =>
-    prisma.eventRequest.create({
-      data: {
-        organiserId: ids.organiser,
-        coordinatorId: ids.coordinator,
-        name: 'Careers Fair',
-        purpose: 'Meet employers',
-        description: 'Stalls and talks',
-        category: 'Careers',
-        proposedStart: start,
-        proposedEnd: end,
-        expectedAttendance: 150,
-        preferredLayout: 'THEATRE',
-        accessibilityRequirements: ['STEP_FREE_ACCESS'],
-        status: EventStatus.PLANNING,
-        ...overrides,
-      },
-    });
-
-  let slot = 0;
-  /** Each call gets its own day: the venue refuses two approved bookings at once. */
-  const seedBooking = (eventId: string, status: BookingStatus = BookingStatus.REQUESTED) => {
-    const day = (slot += 1) * DAY;
-    return prisma.venueBooking.create({
-      data: {
-        eventId,
-        venueId: ids.venue,
-        start: new Date(start.getTime() + day),
-        end: new Date(end.getTime() + day),
-        status,
-        requestedById: ids.coordinator,
-      },
-    });
-  };
+  /** EVT-300 (tc-s3-177-setup): 1 Oct 2030 09:00-13:00 UTC. */
+  const start = new Date('2030-10-01T09:00:00Z');
+  const careersFair = { id: 'EVT-300' };
 
   const statusOf = async (eventId: string) =>
     (await prisma.eventRequest.findUniqueOrThrow({ where: { id: eventId } })).status;
@@ -111,10 +92,9 @@ describe('Safety check (e2e)', () => {
   const reviews = (eventId: string, who: string) =>
     http().get(`/safety/events/${eventId}/reviews`).set('Authorization', as(who));
 
-  /** An event with an approved booking, sitting in the Safety queue. */
-  const queuedEvent = async (overrides: Record<string, unknown> = {}) => {
-    const event = await seedEvent(overrides);
-    const booking = await seedBooking(event.id, BookingStatus.APPROVED);
+  /** An event with an approved booking (tc-s3-177e by default), confirmed into the Safety queue. */
+  const queuedEvent = async (script = 'tc-s3-177e-setup', event = careersFair, booking = { id: 'BKG-163' }) => {
+    await given(script);
     await confirmArrangements(event.id).expect(200);
     expect(await statusOf(event.id)).toBe(EventStatus.AWAITING_SAFETY_CHECK);
     return { event, booking };
@@ -126,10 +106,17 @@ describe('Safety check (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
-
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await given('base-users', 'tc-s3-177-setup');
+    for (const [key, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[key] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
@@ -138,52 +125,16 @@ describe('Safety check (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.notification.deleteMany();
-    await prisma.safetyReview.deleteMany();
-    await prisma.bookingDecision.deleteMany();
-    await prisma.venueBooking.deleteMany();
-    await prisma.venueBlock.deleteMany();
-    await prisma.equipmentReservation.deleteMany();
-    await prisma.equipmentRequirement.deleteMany();
-    await prisma.eventChange.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.venue.deleteMany();
-    await prisma.equipment.deleteMany();
-    await prisma.user.deleteMany();
-
-    await seedUser('organiser', Role.EVENT_ORGANISER);
-    await seedUser('coordinator', Role.EVENT_COORDINATOR, 'Marcus');
-    await seedUser('otherCoordinator', Role.EVENT_COORDINATOR);
-    await seedUser('officer', Role.SAFETY_OFFICER, 'Sam');
-    // US-64: a second officer, to show every Safety Officer is told.
-    await seedUser('officer2', Role.SAFETY_OFFICER, 'Mei');
-    await seedUser('venueStaff', Role.VENUE_STAFF);
-    await seedUser('techSupport', Role.TECHNICAL_SUPPORT_STAFF);
-    await seedUser('attendee', Role.ATTENDEE);
-
-    const venue = await prisma.venue.create({
-      data: {
-        name: 'Main Hall',
-        location: 'Student Centre',
-        capacity: 200,
-        operatingInfo: 'No open flames. Maximum two doors in use after 22:00.',
-        status: VenueStatus.PUBLISHED,
-        managedById: ids.venueStaff,
-      },
-    });
-    ids.venue = venue.id;
-
-    const mic = await prisma.equipment.create({
-      data: { type: 'Wireless microphone', totalQuantity: 10 },
-    });
-    ids.mic = mic.id;
+    await resetDb(prisma);
+    await given('base-users', 'tc-s3-177-setup');
   });
 
   describe('AC-1: an event enters the queue once its arrangements are confirmed', () => {
+    // TC-S3-177 · US-57 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-177b-setup · fails if an event enters the queue before every booking is approved and every requested item reserved, or enters by itself, or the order is wrong
+    // Code: EventConfirmationService.confirm; SafetyReadinessService; SafetyService.listQueue
     it('enters the queue when the Coordinator confirms the ready arrangements (US-42), not on its own', async () => {
-      const event = await seedEvent();
-      const booking = await seedBooking(event.id);
+      await given('tc-s3-177b-setup');
+      const [event, booking] = [careersFair, { id: 'BKG-161' }];
 
       await approveBooking(booking.id).expect(200);
 
@@ -198,10 +149,11 @@ describe('Safety check (e2e)', () => {
       expect(res.body.map((e: { id: string }) => e.id)).toEqual([event.id]);
     });
 
+    // TC-S3-177 · US-57 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-177b-setup + tc-s3-177c-setup · fails if an event enters the queue before every booking is approved and every requested item reserved, or enters by itself, or the order is wrong
+    // Code: EventConfirmationService.confirm; SafetyReadinessService; SafetyService.listQueue
     it('waits while any booking is still pending', async () => {
-      const event = await seedEvent();
-      const first = await seedBooking(event.id);
-      await seedBooking(event.id);
+      await given('tc-s3-177b-setup', 'tc-s3-177c-setup');
+      const [event, first] = [careersFair, { id: 'BKG-161' }];
 
       await approveBooking(first.id).expect(200);
       await confirmArrangements(event.id).expect(409);
@@ -210,12 +162,11 @@ describe('Safety check (e2e)', () => {
       expect((await queue().expect(200)).body).toEqual([]);
     });
 
+    // TC-S3-177 · US-57 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-177d-setup + tc-s3-177b-setup · fails if an event enters the queue before every booking is approved and every requested item reserved, or enters by itself, or the order is wrong
+    // Code: EventConfirmationService.confirm; SafetyReadinessService; SafetyService.listQueue
     it('waits for requested equipment to be reserved, then can be confirmed', async () => {
-      const event = await seedEvent();
-      await prisma.equipmentRequirement.create({
-        data: { eventId: event.id, equipmentId: ids.mic, equipmentType: 'Wireless microphone', quantity: 4 },
-      });
-      const booking = await seedBooking(event.id);
+      await given('tc-s3-177d-setup', 'tc-s3-177b-setup');
+      const [event, booking] = [careersFair, { id: 'BKG-161' }];
       await approveBooking(booking.id).expect(200);
       await confirmArrangements(event.id).expect(409);
 
@@ -225,16 +176,20 @@ describe('Safety check (e2e)', () => {
       expect(await statusOf(event.id)).toBe(EventStatus.AWAITING_SAFETY_CHECK);
     });
 
+    // TC-S3-177 · US-57 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-177f-setup · fails if an event enters the queue before every booking is approved and every requested item reserved, or enters by itself, or the order is wrong
+    // Code: EventConfirmationService.confirm; SafetyReadinessService; SafetyService.listQueue
     it('lists the longest-waiting event first', async () => {
-      const older = await queuedEvent({ name: 'Older' });
+      const older = await queuedEvent();
       await new Promise((resolve) => setTimeout(resolve, 20));
-      const newer = await queuedEvent({ name: 'Newer' });
+      const newer = await queuedEvent('tc-s3-177f-setup', { id: 'EVT-301' }, { id: 'BKG-164' });
 
       const res = await queue().expect(200);
 
       expect(res.body.map((e: { id: string }) => e.id)).toEqual([older.event.id, newer.event.id]);
     });
 
+    // TC-S3-177 · US-57 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if an event enters the queue before every booking is approved and every requested item reserved, or enters by itself, or the order is wrong
+    // Code: EventConfirmationService.confirm; SafetyReadinessService; SafetyService.listQueue
     it('takes an event back out if an approval is withdrawn before it is checked', async () => {
       const { event, booking } = await queuedEvent();
 
@@ -247,26 +202,25 @@ describe('Safety check (e2e)', () => {
       expect(await statusOf(event.id)).toBe(EventStatus.PLANNING);
       expect((await queue().expect(200)).body).toEqual([]);
     });
+
+    // TC-S3-177 · US-57 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-178-setup + tc-s3-177e-setup + tc-s3-177g-setup · fails if an event stays queued once its requested equipment is no longer reserved
+    // Code: SafetyService.listQueue -> SafetyReadinessService.syncAll (EQUIPMENT_NOT_RESERVED)
+    it('takes an event back out once its equipment is no longer reserved', async () => {
+      await given('tc-s3-178-setup');
+      const { event } = await queuedEvent();
+      await given('tc-s3-177g-setup');
+
+      expect((await queue().expect(200)).body).toEqual([]);
+      expect(await statusOf(event.id)).toBe(EventStatus.PLANNING);
+    });
   });
 
   describe('AC-2: the review shows what the Safety Officer needs', () => {
+    // TC-S3-178 · US-57 AC-2 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-178-setup + tc-s3-178b-setup · fails if the review misses attendance, capacity, layout, accessibility, equipment or venue restrictions and blocks, or opens an event not awaiting a check
+    // Code: SafetyService.getPacket
     it('shows attendance, venue capacity, layout, accessibility, equipment and venue restrictions', async () => {
-      const { event, booking } = await queuedEvent();
-      await prisma.equipmentRequirement.create({
-        data: { eventId: event.id, equipmentId: ids.mic, equipmentType: 'Wireless microphone', quantity: 2 },
-      });
-      await prisma.equipmentReservation.create({
-        data: { eventId: event.id, equipmentId: ids.mic, quantity: 2, start, end, status: ReservationStatus.APPROVED },
-      });
-      await prisma.venueBlock.create({
-        data: {
-          venueId: ids.venue,
-          start: new Date(booking.start.getTime() + 60 * 60 * 1000),
-          end: new Date(booking.start.getTime() + 2 * 60 * 60 * 1000),
-          reason: 'Fire alarm testing',
-          createdById: ids.venueStaff,
-        },
-      });
+      const { event } = await queuedEvent();
+      await given('tc-s3-178-setup', 'tc-s3-178b-setup');
 
       const res = await packet(event.id).expect(200);
 
@@ -290,14 +244,18 @@ describe('Safety check (e2e)', () => {
       expect(res.body.equipment.reservations[0]).toMatchObject({ equipmentType: 'Wireless microphone', quantity: 2 });
     });
 
+    // TC-S3-178 · US-57 AC-2 · setup: base-users + tc-s3-177-setup · fails if the review misses attendance, capacity, layout, accessibility, equipment or venue restrictions and blocks, or opens an event not awaiting a check
+    // Code: SafetyService.getPacket
     it('does not open an event that is not awaiting a check', async () => {
-      const event = await seedEvent();
+      const event = careersFair;
 
       await packet(event.id).expect(404);
     });
   });
 
   describe('AC-4/AC-5: approving', () => {
+    // TC-S3-179, TC-S3-181 · US-57 AC-3/AC-5 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the factor comments are not kept, or approving does not confirm the event and record the decision, Safety Officer and time
+    // Code: SafetyService.decide (APPROVED -> CONFIRMED, SafetyReview)
     it('confirms the event and records the decision, the Safety Officer and the time', async () => {
       const { event } = await queuedEvent();
 
@@ -323,6 +281,8 @@ describe('Safety check (e2e)', () => {
       expect((await queue().expect(200)).body).toEqual([]);
     });
 
+    // TC-S3-181 · US-57 AC-5 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the Coordinator is not told of the decision, or is told twice
+    // Code: SafetyService.decide -> notifyCoordinator (SAFETY_CHECK_DECIDED)
     it('notifies the Coordinator', async () => {
       const { event } = await queuedEvent();
       await decide(event.id, { outcome: 'APPROVED' }).expect(200);
@@ -342,6 +302,8 @@ describe('Safety check (e2e)', () => {
   });
 
   describe('AC-3/AC-4: reject and request changes need a reason', () => {
+    // TC-S3-180 · US-57 AC-4 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if reject or request changes is accepted without a reason, or request changes without a stage
+    // Code: SafetyDecisionDto; SafetyService.decide
     it.each(['REJECTED', 'CHANGES_REQUESTED'])('%s without a reason is refused and changes nothing', async (outcome) => {
       const { event } = await queuedEvent();
 
@@ -352,6 +314,8 @@ describe('Safety check (e2e)', () => {
       expect(await prisma.safetyReview.count()).toBe(0);
     });
 
+    // TC-S3-180 · US-57 AC-4 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if reject or request changes is accepted without a reason, or request changes without a stage
+    // Code: SafetyDecisionDto; SafetyService.decide
     it('requesting changes also needs the stage to return to', async () => {
       const { event } = await queuedEvent();
 
@@ -361,6 +325,8 @@ describe('Safety check (e2e)', () => {
   });
 
   describe('AC-6: request changes — back to the Coordinator', () => {
+    // TC-S3-182 · US-57 AC-6 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event is not returned to the Coordinator in planning, the wrong arrangements are flagged or changed, the Coordinator is not told why, or it is requeued by itself
+    // Code: SafetyService.decide (CHANGES_REQUESTED, returnStage, affectedArrangements) -> notifyCoordinator; SafetyReadinessService.syncEvent (never requeues)
     it('returns the event to the Coordinator in planning, flags the stage, changes no arrangement, and says why', async () => {
       const { event, booking } = await queuedEvent();
 
@@ -391,15 +357,11 @@ describe('Safety check (e2e)', () => {
       expect(note.message).toContain('send it back for a safety check');
     });
 
+    // TC-S3-182 · US-57 AC-6 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-178-setup · fails if the event is not returned to the Coordinator in planning, the wrong arrangements are flagged or changed, the Coordinator is not told why, or it is requeued by itself
+    // Code: SafetyService.decide (CHANGES_REQUESTED, returnStage, affectedArrangements) -> notifyCoordinator; SafetyReadinessService.syncEvent (never requeues)
     it('returning to technical planning flags the equipment and leaves it reserved', async () => {
-      const event = await seedEvent();
-      const booking = await seedBooking(event.id, BookingStatus.APPROVED);
-      await prisma.equipmentRequirement.create({
-        data: { eventId: event.id, equipmentId: ids.mic, equipmentType: 'Wireless microphone', quantity: 2 },
-      });
-      const reservation = await prisma.equipmentReservation.create({
-        data: { eventId: event.id, equipmentId: ids.mic, quantity: 2, start, end, status: ReservationStatus.APPROVED },
-      });
+      await given('tc-s3-177e-setup', 'tc-s3-178-setup');
+      const [event, booking, reservation] = [careersFair, { id: 'BKG-163' }, { id: 'RSV-034' }];
       await confirmArrangements(event.id).expect(200);
 
       const res = await decide(event.id, {
@@ -417,6 +379,8 @@ describe('Safety check (e2e)', () => {
       );
     });
 
+    // TC-S3-182, TC-S4-80 · US-57 AC-6, US-62 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event is not returned to the Coordinator in planning, the wrong arrangements are flagged or changed, the Coordinator is not told why, or it is requeued by itself
+    // Code: SafetyService.decide (CHANGES_REQUESTED, returnStage, affectedArrangements) -> notifyCoordinator; SafetyReadinessService.syncEvent (never requeues)
     it('is held out of the queue, however complete its arrangements are, until the Coordinator answers', async () => {
       const { event } = await queuedEvent();
       await decide(event.id, { outcome: 'CHANGES_REQUESTED', returnStage: 'VENUE', reason: 'Add an exit' }).expect(200);
@@ -446,6 +410,8 @@ describe('Safety check (e2e)', () => {
       return queued;
     };
 
+    // TC-S3-185, TC-S4-83 · US-57 AC-9, US-62 AC-4 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('refuses to resubmit an event nothing has changed on', async () => {
       const { event } = await sentBack();
 
@@ -455,6 +421,8 @@ describe('Safety check (e2e)', () => {
       expect(await statusOf(event.id)).toBe(EventStatus.PLANNING);
     });
 
+    // TC-S3-185, TC-S4-85 · US-57 AC-9, US-62 AC-6 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('sends the event back to the Safety Officer once the plan has changed, as a re-check with the history kept', async () => {
       const { event } = await sentBack();
       await editPlan(event.id, { layoutNotes: 'Second exit added at the rear' }).expect(200);
@@ -475,6 +443,8 @@ describe('Safety check (e2e)', () => {
       expect(history.body.map((r: { outcome: string }) => r.outcome)).toEqual(['CHANGES_REQUESTED', 'APPROVED']);
     });
 
+    // TC-S3-185, TC-S4-87 · US-57 AC-9, US-62 AC-8 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('lets the Coordinator tell the Safety Officer what changed, and shows it with the feedback it answers', async () => {
       const { event } = await sentBack();
       await editPlan(event.id, { layoutNotes: 'Second exit added at the rear' }).expect(200);
@@ -495,6 +465,8 @@ describe('Safety check (e2e)', () => {
       expect(mine.body[0].resubmissionComment).toContain('second exit');
     });
 
+    // TC-S3-185, TC-S4-86 · US-57 AC-9, US-62 AC-7 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('treats a blank comment as none, and the comment as optional', async () => {
       const { event } = await sentBack();
       await editPlan(event.id, { layoutNotes: 'Second exit added at the rear' }).expect(200);
@@ -506,6 +478,8 @@ describe('Safety check (e2e)', () => {
       expect(opened.body.history[0].resubmittedAt).not.toBeNull();
     });
 
+    // TC-S3-185, TC-S4-86 · US-57 AC-9, US-62 AC-7 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('refuses a comment that is too long and does not send the event back', async () => {
       const { event } = await sentBack();
       await editPlan(event.id, { layoutNotes: 'Second exit added at the rear' }).expect(200);
@@ -515,15 +489,47 @@ describe('Safety check (e2e)', () => {
       expect(await statusOf(event.id)).toBe(EventStatus.PLANNING);
     });
 
+    // TC-S3-185, TC-S4-84 · US-57 AC-9, US-62 AC-5 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-177c-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('counts a changed booking as a change, and a new one that is not yet approved as not ready', async () => {
       const { event } = await sentBack();
-      await seedBooking(event.id, BookingStatus.REQUESTED);
+      await given('tc-s3-177c-setup');
 
       const res = await resubmit(event.id).expect(409);
 
       expect(res.body.message).toMatch(/still pending/i);
     });
 
+    // TC-S4-84 · US-62 AC-5 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-177d-setup · fails if an event is sent back while requested equipment is not fully reserved, or the unmet condition is not named
+    // Code: SafetyService.resubmit (readiness reasons: EQUIPMENT_NOT_RESERVED)
+    it('blocks a send-back while requested equipment is not fully reserved, and says so', async () => {
+      const { event } = await sentBack();
+      await given('tc-s3-177d-setup'); // 4 microphones needed, none reserved
+      await editPlan(event.id, { layoutNotes: 'Second exit added at the rear' }).expect(200);
+
+      const res = await resubmit(event.id).expect(409);
+
+      expect(res.body.message).toMatch(/requested equipment is not fully reserved/);
+      expect(await statusOf(event.id)).toBe(EventStatus.PLANNING);
+    });
+
+    // TC-S4-81 · US-62 AC-2 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the Coordinator cannot see the reason, the stage to rework or the arrangements flagged for re-review
+    // Code: SafetyService.getHistory (Coordinator scope) -> reason, returnStage, affectedArrangements
+    it("shows the Coordinator the reason, the stage to rework and what is flagged", async () => {
+      const { event } = await sentBack();
+
+      const [review] = (await reviews(event.id, 'coordinator').expect(200)).body;
+
+      expect(review).toMatchObject({
+        outcome: 'CHANGES_REQUESTED',
+        reason: 'Add an exit',
+        returnStage: 'VENUE',
+        affectedArrangements: ['VENUE_BOOKING'],
+      });
+    });
+
+    // TC-S3-185, TC-S4-88 · US-57 AC-9, US-62 AC-9 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('cannot be resubmitted twice', async () => {
       const { event } = await sentBack();
       await editPlan(event.id, { layoutNotes: 'Second exit added at the rear' }).expect(200);
@@ -532,12 +538,27 @@ describe('Safety check (e2e)', () => {
       await resubmit(event.id).expect(409);
     });
 
+    // TC-S3-185, TC-S4-82 · US-57 AC-9, US-62 AC-3 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup + tc-s3-185-setup · fails if an event cancelled while feedback waits can be sent back for a check
+    // Code: SafetyService.resubmit (SAFETY_CHECK_ELIGIBLE_STATUSES)
+    it('cannot send back an event that was cancelled while the feedback waited', async () => {
+      const { event } = await sentBack();
+      await given('tc-s3-185-setup');
+
+      await resubmit(event.id).expect(409);
+
+      expect(await statusOf(event.id)).toBe(EventStatus.CANCELLED);
+    });
+
+    // TC-S3-185, TC-S4-88 · US-57 AC-9, US-62 AC-9 · setup: base-users + tc-s3-177-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('has nothing to answer when there is no feedback', async () => {
-      const event = await seedEvent();
+      const event = careersFair;
 
       await resubmit(event.id).expect(409);
     });
 
+    // TC-S3-185, TC-S4-89 · US-57 AC-9, US-62 AC-10 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event returns to the queue without a change, twice, by the wrong user, or earlier checks are lost
+    // Code: SafetyService.resubmit (hasChangesSince, readiness, resubmissionComment)
     it('is the assigned Coordinator’s alone', async () => {
       const { event } = await sentBack();
       await editPlan(event.id, { layoutNotes: 'Second exit added at the rear' }).expect(200);
@@ -551,6 +572,8 @@ describe('Safety check (e2e)', () => {
   });
 
   describe('AC-7: reject', () => {
+    // TC-S3-183, TC-S4-80 · US-57 AC-7, US-62 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if a rejected event is not blocked, stays queued, has its arrangements changed, or the Coordinator is not told why
+    // Code: SafetyService.decide (REJECTED -> SAFETY_REJECTED) -> notifyCoordinator
     it('blocks the event, takes it out of the queue, leaves its arrangements alone and tells the Coordinator why', async () => {
       const { event, booking } = await queuedEvent();
 
@@ -572,6 +595,8 @@ describe('Safety check (e2e)', () => {
       expect(note.message).toContain('No safe route out');
     });
 
+    // TC-S3-183, TC-S3-185, TC-S4-82 · US-57 AC-7/AC-9, US-62 AC-3 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if a rejected event can be resubmitted without returning to planning and changing, or is requeued by itself
+    // Code: SafetyService.resubmit; start-planning from SAFETY_REJECTED
     it('is reworked by the Coordinator: resume planning, change the plan, send it back', async () => {
       const { event } = await queuedEvent();
       await decide(event.id, { outcome: 'REJECTED', reason: 'No safe route out' }).expect(200);
@@ -606,8 +631,10 @@ describe('Safety check (e2e)', () => {
   });
 
   describe('AC-8: no approved check, no preparation', () => {
+    // TC-S3-184 · US-57 AC-8 · setup: base-users + tc-s3-177-setup · fails if an event can reach CONFIRMED any way but an approved safety check, or be pulled out of a pending check
+    // Code: event-status.machine (CONFIRMED only from the safety decision); EventConfirmationService
     it('has no route that confirms an event, whoever asks', async () => {
-      const event = await seedEvent();
+      const event = careersFair;
 
       for (const who of ['coordinator', 'officer', 'organiser']) {
         // POST /events/:id/confirm is US-42's Confirm arrangements: it leads
@@ -625,6 +652,8 @@ describe('Safety check (e2e)', () => {
       expect(await statusOf(event.id)).toBe(EventStatus.PLANNING);
     });
 
+    // TC-S3-184 · US-57 AC-8 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if an event can reach CONFIRMED any way but an approved safety check, or be pulled out of a pending check
+    // Code: event-status.machine (CONFIRMED only from the safety decision); EventConfirmationService
     it('a Coordinator cannot pull an event out of its pending check', async () => {
       const { event } = await queuedEvent();
 
@@ -633,6 +662,17 @@ describe('Safety check (e2e)', () => {
       expect(await statusOf(event.id)).toBe(EventStatus.AWAITING_SAFETY_CHECK);
     });
 
+    // TC-S3-180 · US-57 AC-4 · setup: base-users + tc-s3-177-setup · fails if a decision or a history is given for an event that does not exist
+    // Code: SafetyService.decide (locked row), getHistory (officer scope)
+    it('refuses a decision on, or the history of, an event that does not exist (404)', async () => {
+      await decide('EVT-999', { outcome: 'APPROVED' }).expect(404);
+      await reviews('EVT-999', 'officer').expect(404);
+
+      expect(await prisma.safetyReview.count()).toBe(0);
+    });
+
+    // TC-S3-180 · US-57 AC-4 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if an event that has been decided can be decided again
+    // Code: SafetyService.decide (AWAITING_SAFETY_CHECK only, 409)
     it('refuses a second decision on an event that has already been decided', async () => {
       const { event } = await queuedEvent();
       await decide(event.id, { outcome: 'APPROVED' }).expect(200);
@@ -642,6 +682,8 @@ describe('Safety check (e2e)', () => {
       expect(await statusOf(event.id)).toBe(EventStatus.CONFIRMED);
     });
 
+    // TC-S3-180 · US-57 AC-4 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if two simultaneous decisions are both recorded
+    // Code: SafetyService.decide (status claim inside the transaction)
     it('lets only one of two simultaneous decisions win', async () => {
       const { event } = await queuedEvent();
 
@@ -656,6 +698,8 @@ describe('Safety check (e2e)', () => {
   });
 
   describe('AC-10: only the Safety Officer can decide', () => {
+    // TC-S3-186 · US-57 AC-10 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if any other role can decide, see the queue or open a review
+    // Code: SafetyController @Roles(SAFETY_OFFICER); JwtAuthGuard
     it('refuses every other role at the decision, the queue and the review', async () => {
       const { event } = await queuedEvent();
 
@@ -668,12 +712,16 @@ describe('Safety check (e2e)', () => {
       expect(await prisma.safetyReview.count()).toBe(0);
     });
 
+    // TC-S3-186 · US-57 AC-10 · setup: base-users + tc-s3-177-setup · fails if any other role can decide, see the queue or open a review
+    // Code: SafetyController @Roles(SAFETY_OFFICER); JwtAuthGuard
     it('requires authentication', async () => {
       await http().get('/safety/queue').expect(401);
     });
   });
 
   describe('history', () => {
+    // TC-S3-185, TC-S4-81 · US-57 AC-9, US-62 AC-2 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the event's Coordinator cannot see earlier checks and reasons, or another Coordinator can
+    // Code: SafetyService.getHistory
     it('shows the checks and reasons to the event’s Coordinator, and to no other Coordinator', async () => {
       const { event } = await queuedEvent();
       await decide(event.id, { outcome: 'REJECTED', reason: 'No safe route out' }).expect(200);
@@ -703,6 +751,8 @@ describe('Safety check (e2e)', () => {
         timeZone: 'Asia/Singapore',
       }).format(d);
 
+    // TC-S4-96, TC-S4-99 · US-64 AC-1, AC-4 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if an event entering the Safety queue does not alert every Safety Officer exactly once, or alerts anyone else
+    // Code: EventConfirmationService.confirm -> SafetyCheckNotifier.notifyCheckDue (SAFETY_CHECK_DUE to every SAFETY_OFFICER)
     it('AC1: Given two Safety Officers, When the Coordinator confirms, Then each is alerted once, and nobody else', async () => {
       const { event } = await queuedEvent();
 
@@ -710,6 +760,8 @@ describe('Safety check (e2e)', () => {
       expect(notes.map((n) => n.recipientId).sort()).toEqual([ids.officer, ids.officer2].sort());
     });
 
+    // TC-S4-97 · US-64 AC-2 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if the alert does not name the event and its date
+    // Code: SafetyCheckNotifier.notifyCheckDue (message: name and Singapore date)
     it('AC2: Given a dated event, When it enters the queue, Then the alert names the event and its date', async () => {
       const { event } = await queuedEvent();
 
@@ -719,15 +771,19 @@ describe('Safety check (e2e)', () => {
       }
     });
 
+    // TC-S4-96 · US-64 AC-1 · setup: base-users + tc-s3-177-setup + tc-s3-177b-setup · fails if an alert is sent when the event did not enter the queue
+    // Code: EventConfirmationService.confirm (alert only after the transaction commits)
     it('AC1: Given the confirmation is refused, Then nobody is alerted', async () => {
-      const event = await seedEvent();
-      await seedBooking(event.id); // still REQUESTED, so not ready
+      await given('tc-s3-177b-setup'); // BKG-161 still REQUESTED, so not ready
+      const event = careersFair;
 
       await confirmArrangements(event.id).expect(409);
 
       expect(await safetyNotices(event.id)).toEqual([]);
     });
 
+    // TC-S4-96, TC-S4-99 · US-64 AC-1, AC-4 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if a resubmission into the queue does not alert every Safety Officer again, once each
+    // Code: SafetyService.resubmit -> SafetyCheckNotifier.notifyCheckDue
     it('AC1: Given feedback answered with a changed plan, When the Coordinator resubmits, Then every Safety Officer is alerted again', async () => {
       const { event } = await queuedEvent();
       await decide(event.id, { outcome: 'CHANGES_REQUESTED', returnStage: 'VENUE', reason: 'Add an exit' }).expect(200);
@@ -746,6 +802,8 @@ describe('Safety check (e2e)', () => {
       );
     });
 
+    // TC-S4-98 · US-64 AC-3 · setup: base-users + tc-s3-177-setup + tc-s3-177e-setup · fails if opening the alert does not take the Safety Officer to the event's safety check page
+    // Code: notification-view linkFor (SAFETY_OFFICER -> /safety/checks/:id)
     it('AC1: the alert is in the officer’s inbox, titled by type and linked to the existing safety check page', async () => {
       const { event } = await queuedEvent();
 

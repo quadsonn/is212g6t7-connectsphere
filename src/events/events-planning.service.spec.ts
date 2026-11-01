@@ -88,6 +88,8 @@ describe('EventsService planning edits and history (US-24, US-25)', () => {
     );
   });
 
+  // TC-S2-68, TC-S2-69, TC-S2-70 · US-24 AC-1 · unit: updateDuringPlanning() with Prisma mocked · fails if an edit
+  // writes unchanged fields, is allowed outside planning or by another Coordinator, or saves dates out of order
   describe('US-24 AC-1: edits are saved during planning', () => {
     it('writes only the fields that changed', async () => {
       const result = await service.updateDuringPlanning(coordinator, 'event-1', {
@@ -152,6 +154,8 @@ describe('EventsService planning edits and history (US-24, US-25)', () => {
     });
   });
 
+  // TC-S2-71, TC-S2-73 · US-24 AC-2 · unit: updateDuringPlanning() · fails if a change to a confirmed arrangement
+  // is not flagged, or one with nothing confirmed is
   describe('US-24 AC-2: changes to confirmed arrangements are flagged', () => {
     it('flags an attendance change when a venue booking is approved', async () => {
       prisma.venueBooking.count.mockResolvedValue(1);
@@ -190,6 +194,8 @@ describe('EventsService planning edits and history (US-24, US-25)', () => {
     });
   });
 
+  // TC-S2-75, TC-S2-77, TC-S2-79, TC-S2-80 · US-25 AC-1 to AC-3 · unit: recordChange() and getChangeHistory() ·
+  // fails if an entry loses who made it, the list is out of order, or an empty history says nothing
   describe('US-25: history', () => {
     it('records who made the change', async () => {
       await service.updateDuringPlanning(coordinator, 'event-1', { expectedAttendance: 500 });
@@ -240,6 +246,8 @@ describe('EventsService planning edits and history (US-24, US-25)', () => {
     });
   });
 
+  // TC-S2-70 · US-24 AC-1 · unit: startPlanning() · fails if an approved event can't reach planning, or an
+  // unapproved one can
   describe('starting planning', () => {
     it('moves an APPROVED event to PLANNING', async () => {
       stored = event({ status: EventStatus.APPROVED });

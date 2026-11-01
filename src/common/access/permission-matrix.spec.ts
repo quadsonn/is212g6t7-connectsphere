@@ -13,6 +13,8 @@ import { Action, Resource, Scope } from './permission.types';
 describe('Permission matrix (US-02)', () => {
   const ALL_ROLES = Object.values(Role);
 
+  // TC-S1-67 · US-02 AC-1 · unit: isPermitted()/permissionScope() on the matrix · fails if any role
+  // gains an action with no explicit row
   describe('AC-1: default-deny', () => {
     it('denies an action with no grant', () => {
       expect(permissionScope(Role.ATTENDEE, Resource.EVENT, Action.CREATE)).toBeNull();
@@ -50,6 +52,7 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  // TC-S1-68 · US-02 AC-2 · unit · fails if an explicit grant in the matrix stops being permitted
   describe('AC-2: granted actions are permitted', () => {
     it('lets an Organiser create and submit their own events', () => {
       expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.CREATE)).toBe(Scope.OWN);
@@ -85,6 +88,8 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  // TC-S1-71, TC-S1-72, TC-S1-73 · US-02 AC-5/AC-6/AC-7 · unit · fails if a role's scope (OWN,
+  // ASSIGNED, PUBLIC) changes
   describe('scopes encode the relationship, not just the role', () => {
     it('scopes an Organiser to their own events', () => {
       expect(permissionScope(Role.EVENT_ORGANISER, Resource.EVENT, Action.READ)).toBe(Scope.OWN);
@@ -104,6 +109,8 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  // TC-S1-70 · US-02 AC-4 · unit: permittedActionsFor() · fails if what the client is told differs
+  // from what the guard enforces
   describe('AC-4: permittedActionsFor drives the UI from the same table', () => {
     it('lists an Attendee’s capabilities', () => {
       const actions = permittedActionsFor(Role.ATTENDEE);
@@ -136,6 +143,8 @@ describe('Permission matrix (US-02)', () => {
     });
   });
 
+  // TC-S1-69 · US-02 AC-3 · unit: rolesWithPermission() · fails if a route's @Roles list drifts from
+  // the matrix
   describe('rolesWithPermission keeps @Roles() derived from the matrix', () => {
     it('finds the roles that may read events', () => {
       const roles = rolesWithPermission(Resource.EVENT, Action.READ);

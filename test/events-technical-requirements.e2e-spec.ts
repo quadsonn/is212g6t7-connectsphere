@@ -107,7 +107,7 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     await given('base-users', 'tc-s2-68-setup');
   });
 
-  describe('AC-1: required equipment (type and quantity) is saved', () => {
+  describe('US-27 AC-1: required equipment (type and quantity) is saved', () => {
     // TC-S2-89 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if an equipment line wasn't saved against the event, or lost its quantity or notes
     // Code: setTechnicalRequirements() writes one EquipmentRequirement row per line and returns them.
     it('saves each line against the event', async () => {
@@ -148,7 +148,7 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     });
   });
 
-  describe('AC-1: invalid equipment lines are refused', () => {
+  describe('US-27 AC-1: invalid equipment lines are refused', () => {
     // TC-S2-90 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a line without a type, or with a zero or fractional quantity, were saved
     // Code: EquipmentRequirementDto (@IsNotEmpty type, @IsInt @IsPositive quantity) answers 400.
     it.each([
@@ -164,7 +164,7 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     // TC-S2-90 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a type made only of spaces counted as a type
     // Code: EquipmentRequirementDto trims equipmentType (@Trim()) before
     // @IsNotEmpty() checks it, so '   ' is refused like an empty type.
-    it('US-27 AC-1: whitespace-only equipment type refused', async () => {
+    it('rejects a type made only of spaces (400)', async () => {
       const res = await record({ equipment: [{ equipmentType: '   ', quantity: 1 }] }).expect(400);
 
       expect(res.body.message).toEqual([expect.stringContaining('equipmentType is required')]);
@@ -173,7 +173,7 @@ describe('Story 27 record equipment and technical requirements (integration)', (
 
     // TC-S2-90 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a type with surrounding spaces were refused, or saved with the spaces
     // Code: @Trim() keeps the words and drops only the surrounding spaces.
-    it('US-27 AC-1: a normal equipment type is still saved, trimmed', async () => {
+    it('saves a type with surrounding spaces, trimmed', async () => {
       const res = await record({ equipment: [{ equipmentType: '  Laser projector  ', quantity: 2 }] }).expect(200);
 
       expect(res.body.equipmentRequirements).toEqual([
@@ -196,8 +196,8 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     });
   });
 
-  describe('AC-1: equipment is picked from the catalogue', () => {
-    // US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if the Coordinator couldn't load the catalogue to pick from
+  describe('US-27 AC-1: equipment is picked from the catalogue', () => {
+    // TC-S2-188 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if the Coordinator couldn't load the catalogue to pick from
     // Code: GET /events/equipment-catalogue is @Roles(EVENT_ORGANISER, EVENT_COORDINATOR).
     it('lets the Coordinator list the catalogue', async () => {
       const projector = await prisma.equipment.create({
@@ -209,13 +209,13 @@ describe('Story 27 record equipment and technical requirements (integration)', (
       expect(res.body).toEqual([{ id: projector.id, type: 'Laser projector', description: null, location: 'AV store' }]);
     });
 
-    // US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a role with no picker could read the catalogue through this route
+    // TC-S2-188 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a role with no picker could read the catalogue through this route
     // Code: RolesGuard answers 403 to anyone but Organisers and Coordinators.
     it.each(['tech', 'attendee'] as const)('refuses %s (403)', async (who) => {
       await http().get('/events/equipment-catalogue').set('Authorization', as(who)).expect(403);
     });
 
-    // US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a picked item wasn't linked to the catalogue, or kept a name other than the catalogue's
+    // TC-S2-188 · US-27 AC-1 · setup: base-users + tc-s2-68-setup · fails if a picked item wasn't linked to the catalogue, or kept a name other than the catalogue's
     // Code: setTechnicalRequirements() names a line with an equipmentId after its catalogue item.
     it('saves a picked item linked to the catalogue, under its catalogue name', async () => {
       const projector = await prisma.equipment.create({
@@ -241,7 +241,7 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     });
   });
 
-  describe('AC-2: technical support needed is saved', () => {
+  describe('US-27 AC-2: technical support needed is saved', () => {
     // TC-S2-91 · US-27 AC-2 · setup: base-users + tc-s2-68-setup · fails if the technical support description wasn't saved against the event
     // Code: setTechnicalRequirements() saves the trimmed text to technicalSupportNeeds.
     it('saves the description against the event', async () => {
@@ -253,7 +253,7 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     });
   });
 
-  describe('"Given the Event Coordinator is planning an event": who and when', () => {
+  describe('US-27 AC-1, AC-2: only the assigned Coordinator, only during planning', () => {
     // TC-S2-92 · US-27 AC-1, AC-2 · setup: base-users + tc-s2-68-setup + tc-s2-70-setup · fails if requirements could be recorded before planning starts
     // Code: assertInPlanning() answers 409 outside PLANNING_STATUSES.
     it('refuses an event that is not in planning (409)', async () => {
@@ -276,7 +276,7 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     });
   });
 
-  describe('AC-3: Technical Support see the recorded requirements', () => {
+  describe('US-27 AC-3: Technical Support see the recorded requirements', () => {
     // TC-S2-93 · US-27 AC-3 · setup: base-users + tc-s2-68-setup · fails if Technical Support couldn't see the recorded equipment or support needs on the event
     // Code: recorded requirements make the event RELATED for Technical Support,
     // and GET /events/:id includes them for that role.
@@ -340,7 +340,7 @@ describe('Story 27 record equipment and technical requirements (integration)', (
     });
   });
 
-  describe('history (with Story 25)', () => {
+  describe('US-27 AC-1, AC-2 with US-25: each save is in the history', () => {
     // TC-S2-96 · US-27 AC-1, AC-2 (US-25 AC-2) · setup: base-users + tc-s2-68-setup · fails if a requirements save left no history entry, or the entry lacked the before and after
     // Code: setTechnicalRequirements() records each changed part through recordChange(),
     // describing equipment lines as "<quantity> × <type> (<notes>)".

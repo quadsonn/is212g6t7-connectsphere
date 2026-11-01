@@ -72,14 +72,17 @@ function toIso(date: string, time: string): string {
 export function BookingRequestForm({
   event,
   replacing,
+  initialVenueId = '',
 }: {
   event: CoordinatorRequestView;
   replacing?: VenueBooking;
+  /** A venue already chosen, e.g. from "Request this venue" on its page. */
+  initialVenueId?: string;
 }) {
   const { data: venues, isPending: venuesLoading } = useVenues({ sortBy: 'name' });
   const create = useCreateBookingRequest();
 
-  const [venueId, setVenueId] = useState('');
+  const [venueId, setVenueId] = useState(initialVenueId);
   const initialStart = replacing?.start ?? event.proposedStart;
   const initialEnd = replacing?.end ?? event.proposedEnd;
   const initialAttendance = replacing?.expectedAttendance ?? event.expectedAttendance;

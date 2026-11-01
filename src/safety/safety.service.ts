@@ -324,8 +324,9 @@ export class SafetyService {
    *
    * Nothing is un-approved or released: the Coordinator works from what is
    * there, changes what the Safety Officer objected to, and resubmits. Until
-   * they do, the event is held out of the queue (SafetyReadinessService.isHeld),
-   * so an unchanged event cannot bounce straight back.
+   * they do, the event stays out of the queue: only Confirm (US-42) or a
+   * resubmit puts it back, and a resubmit needs a change, so an unchanged event
+   * cannot bounce straight back.
    */
   async decide(
     user: AuthenticatedUser,

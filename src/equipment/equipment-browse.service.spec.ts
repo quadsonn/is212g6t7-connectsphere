@@ -37,6 +37,8 @@ describe('EquipmentService browse (US-28)', () => {
     );
   });
 
+  // TC-S2-97, TC-S2-98 · US-28 AC-1 · unit: findAll() with Prisma mocked · fails if the list misses a key field,
+  // reads more than it shows, or lets a role without the grant read it
   describe('US-28 AC-1: the list carries the at-a-glance fields', () => {
     it('reads straight from the database, scoped by the permission matrix', async () => {
       await service.findAllForUser(tech);
@@ -78,6 +80,7 @@ describe('EquipmentService browse (US-28)', () => {
     });
   });
 
+  // TC-S2-100 · US-28 AC-3 · unit: findAll() search and sort · fails if lookup by type or sorting is wrong
   describe('US-28 AC-3: finding one item without scrolling', () => {
     it('filters by a case-insensitive type substring', async () => {
       await service.findAllForUser(tech, { search: 'mic' });
@@ -119,6 +122,7 @@ describe('EquipmentService browse (US-28)', () => {
     });
   });
 
+  // TC-S2-101 · US-28 AC-4 · unit: findAll() · fails if the catalogue is served from a cache
   describe('US-28 AC-4: no stale data', () => {
     it('queries the database on every call', async () => {
       await service.findAllForUser(tech);
@@ -129,6 +133,8 @@ describe('EquipmentService browse (US-28)', () => {
     });
   });
 
+  // TC-S2-99 · US-28 AC-2 · unit: findOne() · fails if the detail lacks the operational status, or an unknown id
+  // is revealed
   describe('US-28 AC-2: one item’s full detail', () => {
     it('returns the item when it exists and the caller may read it', async () => {
       const item = { id: 'eq-1', type: 'Projector (4K)', statusChanges: [] };

@@ -15,6 +15,8 @@ const relative = (from: string, to: string) => relativePath(from, to).replace(/\
  * added in a new story would otherwise pass every behavioural test, because
  * nothing at runtime distinguishes a legitimate update from a smuggled one.
  */
+// TC-S1-88 · US-11 AC-3 · unit: scans the source · fails if any code outside setStatus() writes the
+// status column, bypassing the transition check
 describe('status write audit (US-11)', () => {
   const SRC = join(__dirname, '..');
 

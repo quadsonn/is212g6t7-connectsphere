@@ -97,7 +97,9 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
   });
 
   describe('AC-1: the calendar covers at least the current and next month', () => {
-    // TC-S2-12 · setup: base-users + base-venues · fails if the default range missed today or stopped before the end of next month
+    // TC-S2-12 · US-17 AC-1 · setup: base-users + base-venues · fails if the default range missed today or stopped before the end of next month
+    // Code: GET /venues/:id/availability -> getAvailability(); with no month or from/to,
+    // resolveRange() covers the 1st of this month to the last day of next month.
     it('defaults to every day of the current and next month', async () => {
       // Reads today's date by design: the AC is about the current month.
       const res = await availability('coordinator', VENUE.hall).expect(200);
@@ -108,7 +110,9 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
       expect(res.body.map((d: { date: string }) => d.date)).toContain(dayKeyOf(new Date()));
     });
 
-    // TC-S2-12 · setup: base-users + base-venues + tc-s2-12-setup · fails if an existing booking did not show on its venue's calendar
+    // TC-S2-12 · US-17 AC-1 · setup: base-users + base-venues + tc-s2-12-setup · fails if an existing booking did not show on its venue's calendar
+    // Code: findBookingSlotsForVenue() feeds aggregateAvailability(), which marks an APPROVED
+    // booking's days 'booked'.
     it('shows existing bookings for that venue', async () => {
       await given('tc-s2-12-setup');
 
@@ -117,7 +121,8 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
       expect(statusOn(res.body, '2027-03-10')).toBe('booked');
     });
 
-    // TC-S2-12 · setup: base-users + base-venues + tc-s2-12-setup · fails if one venue's booking appeared on a different venue's calendar
+    // TC-S2-12 · US-17 AC-1 · setup: base-users + base-venues + tc-s2-12-setup · fails if one venue's booking appeared on a different venue's calendar
+    // Code: findBookingSlotsForVenue() filters by venueId.
     it("ignores another venue's bookings", async () => {
       await given('tc-s2-12-setup');
 
@@ -126,7 +131,8 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
       expect(statusOn(res.body, '2027-03-10')).toBe('free');
     });
 
-    // TC-S2-12 · setup: base-users + base-venues · fails if a browser or proxy could serve a stale calendar
+    // TC-S2-12 · US-17 AC-1 · setup: base-users + base-venues · fails if a browser or proxy could serve a stale calendar
+    // Code: the availability route sends Cache-Control: no-store.
     it('is not cached', async () => {
       const res = await availability('coordinator', VENUE.hall).expect(200);
 
@@ -135,32 +141,19 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
   });
 
   describe('AC-1: the calendar shows blocked-off periods', () => {
-    // These tests have no test case ID yet (none in docs/testing for them).
-    // Each inserts its block rows here, on top of the named setup scripts.
+    /** tc-s2-182-setup.sql: every block's reason, and who set it. */
     const BLOCK_REASON = 'Confidential renovation';
-    /** Vera Venue (base-users.sql), who manages the base venues. */
     const STAFF_ID = 'USR-010';
-
-    /** A Venue Staff block, Singapore local time. */
-    const seedBlock = (start: string, end: string, venueId: string = VENUE.hall) =>
-      prisma.venueBlock.create({
-        data: {
-          venueId,
-          start: new Date(`${start}+08:00`),
-          end: new Date(`${end}+08:00`),
-          reason: BLOCK_REASON,
-          createdById: STAFF_ID,
-        },
-      });
 
     const slots = (who: keyof typeof USERS, venueId: string, query = '') =>
       http()
         .get(`/venues/${venueId}/availability/slots${query}`)
         .set('Authorization', as(who));
 
-    // No TC ID yet · setup: base-users + base-venues + a block · fails if a blocked day showed as free
+    // TC-S2-182 · US-17 AC-1 · setup: base-users + base-venues + tc-s2-182-setup · fails if a blocked day showed as free, or the next day as blocked
+    // Code: getAvailability() -> findBlockWindowsForVenue(); aggregateAvailability() marks every day a block touches BLOCKED.
     it('Given a block on a day, Then that day is blocked', async () => {
-      await seedBlock('2027-03-15T09:00:00', '2027-03-15T13:00:00');
+      await given('tc-s2-182-setup');
 
       const res = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
 
@@ -168,9 +161,10 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
       expect(statusOn(res.body, '2027-03-16')).toBe('free');
     });
 
-    // No TC ID yet · setup: base-users + base-venues + a block · fails if a multi-day block marked only its first day, or ran past midnight
+    // TC-S2-182 · US-17 AC-1 · setup: base-users + base-venues + tc-s2-182-setup · fails if a multi-day block marked only its first day, or ran past midnight
+    // Code: aggregateAvailability() walks each Singapore day from the block's start to its end (exclusive).
     it('Given a block across several days, Then every day it touches is blocked', async () => {
-      await seedBlock('2027-03-20T00:00:00', '2027-03-23T00:00:00');
+      await given('tc-s2-182-setup');
 
       const res = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
 
@@ -182,42 +176,32 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
       expect(statusOn(res.body, '2027-03-23')).toBe('free');
     });
 
-    // No TC ID yet · setup: base-users + base-venues + tc-s2-12-setup + a block · fails if a booking hid a block on the same day
+    // TC-S2-182 · US-17 AC-1 · setup: base-users + base-venues + tc-s2-12-setup + tc-s2-182-setup · fails if a booking hid a block on the same day
+    // Code: DayStatus BLOCKED outranks BOOKED in aggregateAvailability().
     it('Given a block and an approved booking on the same day, Then the day is blocked', async () => {
-      await given('tc-s2-12-setup');
-      await seedBlock('2027-03-10T18:00:00', '2027-03-10T20:00:00');
+      await given('tc-s2-12-setup', 'tc-s2-182-setup');
 
       const res = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
 
       expect(statusOn(res.body, '2027-03-10')).toBe('blocked');
     });
 
-    // No TC ID yet · setup: base-users + base-venues + a block on another venue · fails if one venue's block appeared on another's calendar
+    // TC-S2-182 · US-17 AC-1 · setup: base-users + base-venues + tc-s2-182-setup · fails if one venue's block appeared on another's calendar
+    // Code: findBlockWindowsForVenue() filters by venueId (BLK-004 is on Seminar Room).
     it("ignores another venue's blocks", async () => {
-      await seedBlock('2027-03-15T09:00:00', '2027-03-15T13:00:00', VENUE.room);
+      await given('tc-s2-182-setup');
 
-      const res = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
+      const hall = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
+      const room = await availability('coordinator', VENUE.room, '?month=2027-03').expect(200);
 
-      expect(statusOn(res.body, '2027-03-15')).toBe('free');
+      expect(statusOn(hall.body, '2027-03-25')).toBe('free');
+      expect(statusOn(room.body, '2027-03-25')).toBe('blocked');
     });
 
-    // No TC ID yet · setup: base-users + base-venues + a block · fails if the reason or author of a block reached a Coordinator
-    it('never reveals why the period is blocked or who blocked it', async () => {
-      const block = await seedBlock('2027-03-15T09:00:00', '2027-03-15T13:00:00');
-
-      const days = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
-      const times = await slots('coordinator', VENUE.hall, '?from=2027-03-15&to=2027-03-15').expect(200);
-
-      for (const raw of [JSON.stringify(days.body), JSON.stringify(times.body)]) {
-        for (const secret of [BLOCK_REASON, block.id, STAFF_ID]) {
-          expect(raw).not.toContain(secret);
-        }
-      }
-    });
-
-    // No TC ID yet · setup: base-users + base-venues + a block · fails if a day's times left out a blocked period
+    // TC-S2-182 · US-17 AC-1 · setup: base-users + base-venues + tc-s2-182-setup · fails if a day's times left out a blocked period
+    // Code: getOccupancy() lists each block as one BLOCKED segment.
     it("Given a block, Then the day's times list it as a blocked period", async () => {
-      await seedBlock('2027-03-15T09:00:00', '2027-03-15T13:00:00');
+      await given('tc-s2-182-setup');
 
       const res = await slots('coordinator', VENUE.hall, '?from=2027-03-15&to=2027-03-15').expect(200);
 
@@ -235,19 +219,36 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
       ]);
     });
 
-    // No TC ID yet · setup: base-users + base-venues + tc-s2-12-setup + a block · fails if blocks and bookings were not in time order
+    // TC-S2-182 · US-17 AC-1 · setup: base-users + base-venues + tc-s2-12-setup + tc-s2-182-setup · fails if blocks and bookings were not in time order
+    // Code: getOccupancy() sorts bookings and blocks together by start time.
     it('lists bookings and blocks together, earliest first', async () => {
-      await given('tc-s2-12-setup');
-      await seedBlock('2027-03-10T06:00:00', '2027-03-10T08:00:00');
+      await given('tc-s2-12-setup', 'tc-s2-182-setup');
 
       const res = await slots('coordinator', VENUE.hall, '?from=2027-03-10&to=2027-03-10').expect(200);
 
       expect(res.body.map((entry: { status: string }) => entry.status)).toEqual(['blocked', 'booked']);
     });
+
+    // TC-S2-183 · US-17 AC-3 · setup: base-users + base-venues + tc-s2-182-setup · fails if the reason or author of a block reached a Coordinator
+    // Code: findBlockWindowsForVenue() selects start and end only; neither response carries a block's id, reason or creator.
+    it('never reveals why the period is blocked or who blocked it', async () => {
+      await given('tc-s2-182-setup');
+
+      const days = await availability('coordinator', VENUE.hall, '?month=2027-03').expect(200);
+      const times = await slots('coordinator', VENUE.hall, '?from=2027-03-15&to=2027-03-15').expect(200);
+
+      for (const raw of [JSON.stringify(days.body), JSON.stringify(times.body)]) {
+        for (const secret of [BLOCK_REASON, 'BLK-001', STAFF_ID]) {
+          expect(raw).not.toContain(secret);
+        }
+      }
+    });
   });
 
   describe('AC-2: each month loads on its own, within two seconds', () => {
-    // TC-S2-13 · setup: base-users + base-venues · fails if a future month returned the wrong days or took 2 seconds or more
+    // TC-S2-13 · US-17 AC-2 · setup: base-users + base-venues · fails if a future month returned the wrong days or took 2 seconds or more
+    // Code: ?month=YYYY-MM -> resolveRange() returns that month's first to last day; one month per
+    // call keeps each load small.
     it('returns exactly the requested future month', async () => {
       const started = Date.now();
       const res = await availability('coordinator', VENUE.hall, '?month=2027-02').expect(200);
@@ -258,7 +259,9 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
       expect(res.body.at(-1).date).toBe('2027-02-28');
     });
 
-    // TC-S2-13 · setup: base-users + base-venues + tc-s2-13-setup · fails if a heavily booked month took 2 seconds or more
+    // TC-S2-13 · US-17 AC-2 · setup: base-users + base-venues + tc-s2-13-setup · fails if a heavily booked month took 2 seconds or more
+    // Code: two indexed queries (bookings and blocks for the venue and range), then an in-memory
+    // pass per day.
     it('still loads a busy month within two seconds', async () => {
       // The test above times an almost empty month; this one times a heavily
       // booked month (168 bookings), the realistic worst case.
@@ -272,19 +275,23 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
       expect(res.body.every((d: { status: string }) => d.status === 'booked')).toBe(true);
     });
 
-    // TC-S2-13 · setup: base-users + base-venues · fails if a month that doesn't exist were accepted
+    // TC-S2-13 · US-17 AC-2 · setup: base-users + base-venues · fails if a month that doesn't exist were accepted
+    // Code: VenueAvailabilityQueryDto.month must match YYYY-MM with a real month (400).
     it('rejects a malformed month', async () => {
       await availability('coordinator', VENUE.hall, '?month=2027-13').expect(400);
     });
 
-    // TC-S2-13 · setup: base-users + base-venues · fails if an oversized range could be requested in one go
+    // TC-S2-13 · US-17 AC-2 · setup: base-users + base-venues · fails if an oversized range could be requested in one go
+    // Code: resolveRange() refuses from/to spanning more than MAX_RANGE_DAYS (400).
     it('rejects a range longer than two months', async () => {
       await availability('coordinator', VENUE.hall, '?from=2027-01-01&to=2027-04-01').expect(400);
     });
   });
 
   describe('AC-3: booked days are distinguished without identifying the booking', () => {
-    // TC-S2-14 · setup: base-users + base-venues + tc-s2-14-setup · fails if a day carried any field beyond its date and status
+    // TC-S2-14 · US-17 AC-3 · setup: base-users + base-venues + tc-s2-14-setup · fails if a day carried any field beyond its date and status
+    // Code: the result is serialised through DayAvailabilityDto with excludeExtraneousValues, so
+    // only date and status leave the server.
     it('returns only date and status for every day', async () => {
       await given('tc-s2-14-setup');
 
@@ -295,7 +302,9 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
       }
     });
 
-    // TC-S2-14 · setup: base-users + base-venues + tc-s2-14-setup · fails if another booking's event or organiser leaked to the Coordinator
+    // TC-S2-14 · US-17 AC-3 · setup: base-users + base-venues + tc-s2-14-setup · fails if another booking's event or organiser leaked to the Coordinator
+    // Code: findBookingSlotsForVenue() returns anonymous slots, and DayAvailabilityDto exposes date
+    // and status only.
     it('never mentions the event, its id, or its organiser', async () => {
       await given('tc-s2-14-setup');
 
@@ -307,7 +316,8 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
       }
     });
 
-    // TC-S2-14 · setup: base-users + base-venues + tc-s2-14-setup · fails if a confirmed day were not marked booked, or the day after were
+    // TC-S2-14 · US-17 AC-3 · setup: base-users + base-venues + tc-s2-14-setup · fails if a confirmed day were not marked booked, or the day after were
+    // Code: statusFor(): APPROVED -> booked.
     it('marks an approved day as booked', async () => {
       await given('tc-s2-14-setup');
 
@@ -319,7 +329,9 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
   });
 
   describe('AC-4: pending-only days are tentative', () => {
-    // TC-S2-15 · setup: base-users + base-venues + tc-s2-15-setup · fails if a pending-only day looked free or booked instead of tentative
+    // TC-S2-15 · US-17 AC-4 · setup: base-users + base-venues + tc-s2-15-setup · fails if a pending-only day looked free or booked instead of tentative
+    // Code: statusFor(): a pending REQUESTED booking -> tentative, which is styled apart from free
+    // and booked.
     it('marks a day with only a pending request as tentative', async () => {
       await given('tc-s2-15-setup');
 
@@ -328,7 +340,9 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
       expect(statusOn(res.body, '2027-03-12')).toBe('tentative');
     });
 
-    // TC-S2-15 · setup: base-users + base-venues + tc-s2-15-setup · fails if a rejected request still made its day look taken
+    // TC-S2-15 · US-17 AC-4 · setup: base-users + base-venues + tc-s2-15-setup · fails if a rejected request still made its day look taken
+    // Code: findBookingSlotsForVenue() reads live bookings only (liveBookingsWhere()), so REJECTED
+    // adds nothing.
     it('treats a rejected request as free', async () => {
       await given('tc-s2-15-setup');
 
@@ -339,22 +353,26 @@ describe('Story 17 view a venue availability calendar (integration)', () => {
   });
 
   describe('access: Coordinators only, published venues only', () => {
-    // TC-S2-16 · setup: base-users + base-venues · fails if a role other than Coordinator could read a venue's availability
+    // TC-S2-16 · US-17 access · setup: base-users + base-venues · fails if a role other than Coordinator could read a venue's availability
+    // Code: getAvailability() requires VENUE/CHECK_AVAILABILITY, which only Coordinators hold.
     it.each(['staff', 'organiser', 'tech', 'attendee'] as const)('refuses %s with 403', async (who) => {
       await availability(who, VENUE.hall).expect(403);
     });
 
-    // TC-S2-16 · setup: base-users + base-venues · fails if availability were readable without logging in
+    // TC-S2-16 · US-17 access · setup: base-users + base-venues · fails if availability were readable without logging in
+    // Code: JwtAuthGuard on VenuesController (401).
     it('refuses an unauthenticated caller', async () => {
       await http().get(`/venues/${VENUE.hall}/availability`).expect(401);
     });
 
-    // TC-S2-16 · setup: base-users + base-venues · fails if an unpublished (draft) venue's calendar were reachable
+    // TC-S2-16 · US-17 access · setup: base-users + base-venues · fails if an unpublished (draft) venue's calendar were reachable
+    // Code: getAvailability() looks the venue up with status PUBLISHED (404 otherwise).
     it('reports a draft venue as not found', async () => {
       await availability('coordinator', VENUE.draft).expect(404);
     });
 
-    // TC-S2-16 · setup: base-users + base-venues · fails if an unknown venue id returned anything but 404
+    // TC-S2-16 · US-17 access · setup: base-users + base-venues · fails if an unknown venue id returned anything but 404
+    // Code: the same lookup: no such venue is 404.
     it('reports an unknown venue as not found', async () => {
       await availability('coordinator', 'does-not-exist').expect(404);
     });

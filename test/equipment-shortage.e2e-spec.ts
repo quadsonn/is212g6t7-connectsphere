@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   EquipmentStatus,
@@ -7,13 +7,13 @@ import {
   NotificationType,
   PrismaClient,
   ReservationStatus,
-  Role,
 } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { listenOnLoopback } from './listen-on-loopback';
+import { configureApp } from '../src/configure-app';
+import { loadSql } from './helpers/load-sql';
+import { resetDb } from './helpers/reset-db';
 
 const { OPERATIONAL, OUT_OF_SERVICE } = EquipmentStatus;
 
@@ -32,6 +32,14 @@ const { OPERATIONAL, OUT_OF_SERVICE } = EquipmentStatus;
  *        becomes invalid if the alternative is gone when accepted
  *
  * Nothing is decided automatically.
+ *
+ * The names above follow the reopened story's numbering. The written test
+ * cases (TC-S3-94 to 98, and Story 67's TC-S4-110) follow the cards' own
+ * numbering; each test's tag names both.
+ *
+ * Pre-condition for every test: reset the testDB, then run tc-s3-88-setup.sql
+ * (the users) and tc-s3-94-setup.sql (Projector x10, Laser projector x4,
+ * Screen x1; "Gala" and "Fair", confirmed, 5 projectors each at the same time).
  */
 describe('US-45 resolving an equipment shortage (e2e)', () => {
   let app: INestApplication;
@@ -39,13 +47,37 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
 
   const PASSWORD = 'correct-horse-battery-staple';
   const tokens: Record<string, string> = {};
-  const ids: Record<string, string> = {};
+  /** Fixed rows from tc-s3-88-setup and tc-s3-94-setup. */
+  const ids: Record<string, string> = {
+    tech: 'USR-046',
+    tech2: 'USR-047',
+    coordinator: 'USR-048',
+    otherCoordinator: 'USR-050',
+    organiser: 'USR-051',
+    projector: 'EQP-034',
+    laser: 'EQP-035',
+    screen: 'EQP-036',
+    gala: 'EVT-322',
+    fair: 'EVT-323',
+    galaRes: 'RSV-052',
+    fairRes: 'RSV-053',
+  };
+  const LOGINS: Record<string, string> = {
+    tech: 'tech@example.com',
+    tech2: 'tech2@example.com',
+    coordinator: 'coordinator@example.com',
+    otherCoordinator: 'other@example.com',
+    organiser: 'organiser@example.com',
+  };
 
   const START = '2030-10-01T09:00:00.000Z';
   const END = '2030-10-01T17:00:00.000Z';
 
   const as = (who: string) => `Bearer ${tokens[who]}`;
   const http = () => request(app.getHttpServer());
+  const given = async (...scripts: string[]) => {
+    for (const script of scripts) await loadSql(prisma, script);
+  };
 
   const markDamaged = (quantity: number, equipmentId = ids.projector) =>
     http()
@@ -88,103 +120,40 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
   const notices = (who: string, type: NotificationType) =>
     prisma.notification.findMany({ where: { recipientId: ids[who], type } });
 
-  const seedUser = async (key: string, email: string, role: Role) => {
-    const user = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash(PASSWORD, 10), name: key, role },
-    });
-    const res = await http().post('/auth/login').send({ email, password: PASSWORD });
-    tokens[key] = res.body.accessToken;
-    ids[key] = user.id;
-  };
-
-  const seedEvent = async (
-    name: string,
-    status: EventStatus = EventStatus.CONFIRMED,
-    start = START,
-    end = END,
-  ) =>
-    (
-      await prisma.eventRequest.create({
-        data: {
-          organiserId: ids.organiser,
-          coordinatorId: ids.coordinator,
-          technicalSupportId: ids.tech2,
-          name,
-          purpose: 'p',
-          description: 'd',
-          category: 'c',
-          proposedStart: new Date(start),
-          proposedEnd: new Date(end),
-          expectedAttendance: 100,
-          status,
-        },
-      })
-    ).id;
-
-  const seedReservation = async (eventId: string, quantity: number, equipmentId = ids.projector, start = START, end = END) =>
-    (
-      await prisma.equipmentReservation.create({
-        data: {
-          eventId,
-          equipmentId,
-          quantity,
-          start: new Date(start),
-          end: new Date(end),
-          status: ReservationStatus.APPROVED,
-        },
-      })
-    ).id;
-
-  const clear = async () => {
-    await prisma.eventChange.deleteMany();
-    await prisma.equipmentReservation.updateMany({ data: { replacedById: null } });
-    await prisma.equipmentReservation.deleteMany();
-    await prisma.equipment.deleteMany();
-    await prisma.notification.deleteMany();
-    await prisma.revokedToken.deleteMany();
-    await prisma.eventRequest.deleteMany();
-    await prisma.user.deleteMany();
-  };
-
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await listenOnLoopback(app);
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
 
     prisma = new PrismaClient();
+
+    // Users keep their fixed IDs after every reset, so these tokens stay valid.
+    await resetDb(prisma);
+    await given('tc-s3-88-setup');
+    for (const [who, email] of Object.entries(LOGINS)) {
+      const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+      tokens[who] = res.body.accessToken;
+    }
   });
 
   afterAll(async () => {
-    await clear();
     await prisma.$disconnect();
     await app.close();
   });
 
   beforeEach(async () => {
-    await clear();
-
-    await seedUser('tech', 'tech@example.com', Role.TECHNICAL_SUPPORT_STAFF);
-    await seedUser('tech2', 'tech2@example.com', Role.TECHNICAL_SUPPORT_STAFF);
-    await seedUser('coordinator', 'coordinator@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('otherCoordinator', 'other@example.com', Role.EVENT_COORDINATOR);
-    await seedUser('organiser', 'organiser@example.com', Role.EVENT_ORGANISER);
-
-    ids.projector = (await prisma.equipment.create({ data: { type: 'Projector', totalQuantity: 10 } })).id;
-    ids.laser = (await prisma.equipment.create({ data: { type: 'Laser projector', totalQuantity: 4 } })).id;
-    ids.screen = (await prisma.equipment.create({ data: { type: 'Screen', totalQuantity: 1 } })).id;
-
+    await resetDb(prisma);
     // Two confirmed events holding 5 projectors each at the same time.
-    ids.gala = await seedEvent('Gala');
-    ids.fair = await seedEvent('Fair');
-    ids.galaRes = await seedReservation(ids.gala, 5);
-    ids.fairRes = await seedReservation(ids.fair, 5);
+    await given('tc-s3-88-setup', 'tc-s3-94-setup');
   });
 
   describe('US-45 AC-5: affected reservations are flagged "Short by N"', () => {
+    // TC-S3-94 · US-45 AC-7 · setup: tc-s3-88 + tc-s3-94 · fails if a short reservation is not flagged on the Coordinator's event page with how many short
+    // Code: EquipmentShortageService.findEventReservations (shortBy); events view
     it('US-45 AC-5: on the Coordinator\'s event page, with how many short', async () => {
       await markDamaged(3).expect(200);
 
@@ -195,6 +164,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       ]);
     });
 
+    // TC-S3-94 · US-45 AC-7 · setup: tc-s3-88 + tc-s3-94 · fails if the Organiser's event page does not flag the shortage
+    // Code: EquipmentShortageService.findEventReservations; organiser view
     it("US-45 AC-5: on the Organiser's event page too", async () => {
       await markDamaged(3).expect(200);
 
@@ -203,6 +174,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect(view.equipmentShortages).toEqual([expect.objectContaining({ reservationId: ids.galaRes, shortBy: 3 })]);
     });
 
+    // TC-S3-94 · US-45 AC-7 · setup: tc-s3-88 + tc-s3-94 · fails if Technical Support's screens do not show how many short
+    // Code: EquipmentShortageActionsService.listForEvent; EquipmentService.findUpcomingReservations
     it("US-45 AC-5: on Technical Support's event and item screens", async () => {
       await markDamaged(3).expect(200);
 
@@ -218,12 +191,22 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       );
     });
 
+    // TC-S3-94 · US-45 AC-7 · setup: tc-s3-88 + tc-s3-94 · fails if Technical Support's event screen does not 404 for an unknown event
+    // Code: EquipmentShortageActionsService.listForEvent (404)
+    it("US-45 AC-5: Technical Support's event screen 404s for an unknown event", async () => {
+      await http().get('/equipment/events/EVT-999999/reservations').set('Authorization', as('tech')).expect(404);
+    });
+
+    // TC-S3-94 · US-45 AC-7 · setup: tc-s3-88 + tc-s3-94 · fails if a reservation is flagged while the working units cover it
+    // Code: computeShortages (none short)
     it('US-45 AC-5: nothing is flagged while the working units cover every reservation', async () => {
       // 10 working for 5 + 5 reserved.
       expect((await coordinatorView(ids.gala)).equipmentShortages).toEqual([]);
       expect(await techView(ids.gala)).toEqual([expect.objectContaining({ shortBy: 0 })]);
     });
 
+    // TC-S3-94 · US-45 AC-7 · setup: tc-s3-88 + tc-s3-94 · fails if the flag stays after the units are repaired
+    // Code: loadShortages (computed on read, never stored)
     it('US-45 AC-5: the flag clears by itself after a repair', async () => {
       await markDamaged(3).expect(200);
       await repair(3).expect(200);
@@ -231,6 +214,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect((await coordinatorView(ids.gala)).equipmentShortages).toEqual([]);
     });
 
+    // TC-S3-94 · US-45 AC-7 · setup: tc-s3-88 + tc-s3-94 · fails if the flag stays after a reservation is reduced to fit
+    // Code: loadShortages (computed on read)
     it('US-45 AC-5: the flag clears by itself once a reservation is reduced to fit', async () => {
       await markDamaged(3).expect(200);
       await reduce(ids.fairRes, { quantity: 2, reason: 'Fair can manage with 2' }).expect(200);
@@ -239,9 +224,11 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect((await coordinatorView(ids.fair)).equipmentShortages).toEqual([]);
     });
 
+    // TC-S3-94 · US-45 AC-7 · setup: tc-s3-88 + tc-s3-94 + tc-s3-94b · fails if a finished event's reservation is flagged
+    // Code: upcomingReservationsWhere (end > now)
     it('US-45 AC-5: a reservation already over is never flagged', async () => {
-      const past = await seedEvent('Last year', EventStatus.COMPLETED, '2020-10-01T09:00:00.000Z', '2020-10-01T17:00:00.000Z');
-      await seedReservation(past, 10, ids.projector, '2020-10-01T09:00:00.000Z', '2020-10-01T17:00:00.000Z');
+      await given('tc-s3-94b-setup');
+      const past = 'EVT-324';
 
       await markDamaged(10).expect(200);
 
@@ -252,14 +239,26 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
   describe('US-45 AC-6: Technical Support reduce or release a reservation, with a reason', () => {
     beforeEach(async () => {
       await markDamaged(3).expect(200);
+      // Kept by design: clears the status change's notices, so each test counts only its own.
       await prisma.notification.deleteMany();
     });
 
+    // TC-S3-98 · US-45 AC-11 · setup: tc-s3-88 + tc-s3-94 · fails if a reservation can be reduced without a reason
+    // Code: ReduceReservationDto (reason required)
     it.each([undefined, '', '   '])('US-45 AC-6: reducing needs a reason (%p)', async (reason) => {
       await reduce(ids.galaRes, { quantity: 2, reason }).expect(400);
       expect(await reservation(ids.galaRes)).toMatchObject({ quantity: 5 });
     });
 
+    // TC-S3-98 · US-45 AC-11 · setup: tc-s3-88 + tc-s3-94 · fails if a reason that is not text is accepted
+    // Code: ReduceReservationDto (reason: @IsString after the trim)
+    it('US-45 AC-6: a reason that is not text is refused', async () => {
+      await reduce(ids.galaRes, { quantity: 2, reason: 42 }).expect(400);
+      expect(await reservation(ids.galaRes)).toMatchObject({ quantity: 5 });
+    });
+
+    // TC-S3-98 · US-45 AC-11 · setup: tc-s3-88 + tc-s3-94 · fails if reducing does not free the units, or misses the history entry or the Coordinator's notice
+    // Code: EquipmentShortageActionsService.reduce; EquipmentNotifier.reservationAdjusted
     it('US-45 AC-6: reduce to fewer units — availability, history and the Coordinator all follow', async () => {
       const res = await reduce(ids.galaRes, { quantity: 2, reason: '  Gala can use the screen instead  ' }).expect(200);
 
@@ -290,6 +289,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       });
     });
 
+    // TC-S3-98 · US-45 AC-11 · setup: tc-s3-88 + tc-s3-94 · fails if a reservation can be "reduced" to as many or more units
+    // Code: EquipmentShortageActionsService.reduce (quantity < reserved)
     it('US-45 AC-6: reducing to the same or more units is refused — release it instead', async () => {
       const res = await reduce(ids.galaRes, { quantity: 5, reason: 'x' }).expect(400);
       expect(res.body.message).toEqual([
@@ -297,11 +298,15 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       ]);
     });
 
+    // TC-S3-98 · US-45 AC-11 · setup: tc-s3-88 + tc-s3-94 · fails if a reservation can be released without a reason
+    // Code: ReleaseReservationDto (reason required)
     it.each([undefined, '   '])('US-45 AC-6: releasing needs a reason (%p)', async (reason) => {
       await release(ids.galaRes, { reason }).expect(400);
       expect(await reservation(ids.galaRes)).toMatchObject({ status: ReservationStatus.APPROVED });
     });
 
+    // TC-S3-98 · US-45 AC-11 · setup: tc-s3-88 + tc-s3-94 · fails if releasing does not free the units, deletes the record, or misses the history or the notice
+    // Code: EquipmentShortageActionsService.release
     it('US-45 AC-6: release — the units are freed, the record is kept, history and the Coordinator follow', async () => {
       const res = await release(ids.galaRes, { reason: 'Gala moved to the laser projectors' }).expect(200);
 
@@ -330,25 +335,33 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       ]);
     });
 
+    // TC-S3-98 · US-45 AC-11 · setup: tc-s3-88 + tc-s3-94 · fails if a released reservation can be reduced or released again
+    // Code: EquipmentShortageActionsService (APPROVED only, 409)
     it('US-45 AC-6: a released reservation cannot be adjusted again', async () => {
       await release(ids.galaRes, { reason: 'x' }).expect(200);
       await reduce(ids.galaRes, { quantity: 1, reason: 'x' }).expect(409);
       await release(ids.galaRes, { reason: 'x' }).expect(409);
     });
 
+    // TC-S3-98 · US-45 AC-11 · setup: tc-s3-88 + tc-s3-94 + tc-s3-98b · fails if a finished reservation can be adjusted
+    // Code: EquipmentShortageActionsService (upcoming only, 409)
     it('US-45 AC-6: a reservation already over cannot be adjusted', async () => {
-      const past = await seedEvent('Last year', EventStatus.COMPLETED, '2020-10-01T09:00:00.000Z', '2020-10-01T17:00:00.000Z');
-      const pastRes = await seedReservation(past, 4, ids.projector, '2020-10-01T09:00:00.000Z', '2020-10-01T17:00:00.000Z');
+      await given('tc-s3-98b-setup');
+      const pastRes = 'RSV-055';
 
       await reduce(pastRes, { quantity: 1, reason: 'x' }).expect(409);
     });
 
+    // TC-S3-98 · US-45 AC-11 · setup: tc-s3-88 + tc-s3-94 · fails if another role can reduce or release
+    // Code: EquipmentShortageController (@Roles TECHNICAL_SUPPORT_STAFF)
     it.each(['coordinator', 'organiser'])('US-45 AC-6: only Technical Support may adjust (%s is refused)', async (who) => {
       await reduce(ids.galaRes, { quantity: 2, reason: 'x' }, who).expect(403);
       await release(ids.galaRes, { reason: 'x' }, who).expect(403);
       expect(await reservation(ids.galaRes)).toMatchObject({ quantity: 5, status: ReservationStatus.APPROVED });
     });
 
+    // TC-S3-98 · US-45 AC-11 · setup: tc-s3-88 + tc-s3-94 · fails if an unknown reservation does not 404
+    // Code: EquipmentShortageActionsService.reduce (404)
     it('US-45 AC-6: 404s for a reservation that does not exist', async () => {
       await reduce('RSV-999999', { quantity: 1, reason: 'x' }).expect(404);
     });
@@ -358,12 +371,15 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
     beforeEach(async () => {
       // 7 projectors work for 10 reserved: Gala and Fair are each short by 3.
       await markDamaged(3).expect(200);
+      // Kept by design: clears the status change's notices, so each test counts only its own.
       await prisma.notification.deleteMany();
     });
 
     const suggestLaser = (quantity = 3, reservationId = ids.galaRes) =>
       suggest(reservationId, { alternativeEquipmentId: ids.laser, quantity, reason: 'Same brightness' });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if the list offers an item not free in the needed quantity, or the short item itself
+    // Code: EquipmentShortageActionsService.alternatives
     it('US-45 AC-7: offers only other items free in the needed quantity', async () => {
       const res = await http()
         .get(`/equipment/reservations/${ids.galaRes}/alternatives`)
@@ -375,11 +391,41 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect(res.body).toEqual([{ equipmentId: ids.laser, type: 'Laser projector', location: null, availableQuantity: 4 }]);
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 + tc-s3-97 · fails if an item another event holds part of is offered for more than it has free
+    // Code: EquipmentShortageActionsService.alternatives (other items' reservations in the window)
+    it('US-45 AC-7: counts what other events hold of an item, offering it only up to its free units', async () => {
+      // Fair holds 2 of the 4 laser projectors at the same time.
+      await given('tc-s3-97-setup');
+      const list = (quantity: number) =>
+        http()
+          .get(`/equipment/reservations/${ids.galaRes}/alternatives`)
+          .query({ quantity })
+          .set('Authorization', as('tech'))
+          .expect(200);
+
+      expect((await list(3)).body).toEqual([]);
+      expect((await list(2)).body).toEqual([{ equipmentId: ids.laser, type: 'Laser projector', location: null, availableQuantity: 2 }]);
+    });
+
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if the alternatives of an unknown reservation do not 404
+    // Code: EquipmentShortageActionsService.alternatives (404)
+    it('US-45 AC-7: 404s for the alternatives of an unknown reservation', async () => {
+      await http()
+        .get('/equipment/reservations/RSV-999999/alternatives')
+        .query({ quantity: 1 })
+        .set('Authorization', as('tech'))
+        .expect(404);
+    });
+
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if a suggestion can be made without a reason
+    // Code: SuggestAlternativeDto (reason required)
     it('US-45 AC-7: suggesting needs a reason', async () => {
       await suggest(ids.galaRes, { alternativeEquipmentId: ids.laser, quantity: 3, reason: ' ' }).expect(400);
       expect(await prisma.equipmentSuggestion.count()).toBe(0);
     });
 
+    // TC-S3-95, TC-S4-110 · US-45 AC-8, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if a suggestion is not recorded with a readable ID, or the Coordinator is not told
+    // Code: EquipmentShortageActionsService.suggest; EquipmentNotifier.alternativeSuggested
     it('US-45 AC-7: a suggestion is recorded, readable ID and all, and the Coordinator is told', async () => {
       const res = await suggestLaser().expect(201);
 
@@ -395,6 +441,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       ]);
     });
 
+    // TC-S3-96, TC-S4-110 · US-45 AC-9, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if the Coordinator does not see the suggestion and its reason, or the Organiser does
+    // Code: latestAnswer; events view (Coordinator only)
     it('US-45 AC-7: the Coordinator sees it on the event page; the Organiser does not', async () => {
       await suggestLaser().expect(201);
 
@@ -409,26 +457,45 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect(organiser.equipmentShortages[0].openSuggestion).toBeNull();
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if an item not free in that quantity for the event's time can be suggested
+    // Code: EquipmentShortageActionsService.suggest (availability for the window)
     it('US-45 AC-7: only from items available in that quantity for the event\'s time', async () => {
       const res = await suggest(ids.galaRes, { alternativeEquipmentId: ids.screen, quantity: 3, reason: 'x' }).expect(409);
       expect(res.body.message).toBe("only 1 Screen are free for the event's date and time");
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if the short item can be suggested as its own alternative
+    // Code: EquipmentShortageActionsService.suggest (400)
     it('US-45 AC-7: never the short item itself', async () => {
       await suggest(ids.galaRes, { alternativeEquipmentId: ids.projector, quantity: 3, reason: 'x' }).expect(400);
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if more units than are reserved can be suggested
+    // Code: EquipmentShortageActionsService.suggest (quantity <= reserved)
+    it('US-45 AC-7: never more units than the reservation holds', async () => {
+      const res = await suggest(ids.galaRes, { alternativeEquipmentId: ids.laser, quantity: 6, reason: 'x' }).expect(400);
+      expect(res.body.message).toEqual(['quantity must be at most the 5 reserved']);
+      expect(await prisma.equipmentSuggestion.count()).toBe(0);
+    });
+
+    // TC-S3-95, TC-S4-110 · US-45 AC-8, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if an alternative can be suggested before the event is confirmed
+    // Code: EquipmentShortageActionsService.suggest (CONFIRMED only)
     it('US-45 AC-7: only for a confirmed event', async () => {
+      // Kept by design: takes the event back into planning after the shortage arose.
       await prisma.eventRequest.update({ where: { id: ids.gala }, data: { status: EventStatus.PLANNING } });
       const res = await suggestLaser().expect(409);
       expect(res.body.message).toMatch(/only for a confirmed event/);
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if an alternative can be suggested for a reservation that is not short
+    // Code: EquipmentShortageActionsService.suggest (shortBy > 0)
     it('US-45 AC-7: only for a reservation that is short', async () => {
       await repair(3).expect(200);
       await suggestLaser().expect(409);
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if two suggestions can be open at once, or none can follow a decided one
+    // Code: EquipmentShortageActionsService.suggest (one OPEN per reservation)
     it('US-45 AC-7: only one open suggestion per short reservation at a time', async () => {
       await suggestLaser(2).expect(201);
       const second = await suggestLaser(3).expect(409);
@@ -440,6 +507,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       await suggestLaser(3).expect(201);
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if the database stores two open suggestions for one reservation
+    // Code: EquipmentSuggestion partial unique index (OPEN)
     it('US-45 AC-7: the database itself allows only one open suggestion per reservation', async () => {
       await suggestLaser().expect(201);
       await expect(
@@ -455,6 +524,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       ).rejects.toThrow();
     });
 
+    // TC-S3-97, TC-S4-110 · US-45 AC-10, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if accepting does not reserve the alternative and reduce the short reservation in one step
+    // Code: EquipmentShortageActionsService.accept
     it('US-45 AC-7: accepting reserves the alternative and reduces the short reservation, in one step', async () => {
       const { body: suggestion } = await suggestLaser(3).expect(201);
 
@@ -478,6 +549,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect((await coordinatorView(ids.gala)).equipmentShortages).toEqual([]);
     });
 
+    // TC-S3-97, TC-S4-110 · US-45 AC-10, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if accepting misses the history entry, or Technical Support are not told
+    // Code: EquipmentShortageActionsService.accept (EventsService.recordChange; toTechnicalSupport)
     it('US-45 AC-7: accepting records the change in the history and tells Technical Support', async () => {
       const { body: suggestion } = await suggestLaser(3).expect(201);
       await accept(suggestion.id).expect(200);
@@ -500,6 +573,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       }
     });
 
+    // TC-S3-97 · US-45 AC-10 · setup: tc-s3-88 + tc-s3-94 · fails if accepting for every unit leaves the short reservation held
+    // Code: EquipmentShortageActionsService.accept (remaining 0 -> RELEASED)
     it('US-45 AC-7: accepting a suggestion for every unit releases the short reservation', async () => {
       // Gala down to 4 first: 4 + 5 on 7 working, so it is still short by 2.
       await reduce(ids.galaRes, { quantity: 4, reason: 'Trim' }).expect(200);
@@ -516,6 +591,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       ]);
     });
 
+    // TC-S3-97, TC-S4-110 · US-45 AC-10, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if declining changes the reservation, reserves the alternative, records history, or Technical Support are not told
+    // Code: EquipmentShortageActionsService.decline
     it('US-45 AC-7: declining keeps the original reservation unchanged, and tells Technical Support', async () => {
       const { body: suggestion } = await suggestLaser().expect(201);
 
@@ -532,10 +609,12 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect(await prisma.eventChange.count({ where: { eventId: ids.gala } })).toBe(0);
     });
 
+    // TC-S3-97, TC-S4-110 · US-45 AC-10, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 + tc-s3-97 · fails if a suggestion can be accepted after the alternative stopped being free
+    // Code: EquipmentShortageActionsService.accept (re-check -> INVALID)
     it('US-45 AC-7: becomes invalid if the alternative is no longer available when accepted', async () => {
       const { body: suggestion } = await suggestLaser(3).expect(201);
       // Meanwhile 2 of the 4 laser projectors go to another event.
-      await seedReservation(ids.fair, 2, ids.laser);
+      await given('tc-s3-97-setup');
 
       const res = await accept(suggestion.id).expect(409);
 
@@ -547,6 +626,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect(await prisma.equipmentReservation.count({ where: { eventId: ids.gala, equipmentId: ids.laser } })).toBe(0);
     });
 
+    // TC-S3-96, TC-S4-110 · US-45 AC-9, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if a decided suggestion can be decided again
+    // Code: EquipmentShortageActionsService (OPEN only, 409)
     it('US-45 AC-7: a suggestion cannot be decided twice', async () => {
       const { body: suggestion } = await suggestLaser().expect(201);
       await decline(suggestion.id).expect(200);
@@ -554,6 +635,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       await decline(suggestion.id).expect(409);
     });
 
+    // TC-S3-97 · US-45 AC-10 · setup: tc-s3-88 + tc-s3-94 · fails if an accept and a decline at once can both win
+    // Code: EquipmentShortageActionsService (row lock on the suggestion)
     it('US-45 AC-7: a simultaneous accept and decline — exactly one wins', async () => {
       const { body: suggestion } = await suggestLaser().expect(201);
 
@@ -565,6 +648,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect(laserReserved).toBe(final.status === EquipmentSuggestionStatus.ACCEPTED ? 1 : 0);
     });
 
+    // TC-S3-96, TC-S4-110 · US-45 AC-9, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if another Coordinator or Technical Support can decide
+    // Code: EquipmentShortageActionsService.accept / decline (own event, 404; @Roles)
     it("US-45 AC-7: only the event's own Coordinator decides; Technical Support cannot", async () => {
       const { body: suggestion } = await suggestLaser().expect(201);
 
@@ -576,6 +661,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       });
     });
 
+    // TC-S3-97 · US-45 AC-10 · setup: tc-s3-88 + tc-s3-94 · fails if a suggestion stays open after its reservation is released
+    // Code: EquipmentShortageActionsService.release (open suggestion -> INVALID)
     it('US-45 AC-7: releasing the short reservation closes its open suggestion', async () => {
       const { body: suggestion } = await suggestLaser().expect(201);
 
@@ -587,11 +674,31 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       await accept(suggestion.id).expect(409);
     });
 
+    // TC-S3-97, TC-S4-110 · US-45 AC-10, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if a suggestion can still be accepted after the event was cancelled and its equipment released
+    // Code: EquipmentShortageActionsService.accept (short reservation no longer holds units -> INVALID)
+    it('US-45 AC-7: becomes invalid if the event is cancelled before the Coordinator decides', async () => {
+      const { body: suggestion } = await suggestLaser().expect(201);
+      await http()
+        .post(`/events/${ids.gala}/cancel`)
+        .set('Authorization', as('organiser'))
+        .send({ reason: 'Speaker withdrew', confirm: true })
+        .expect(200);
+
+      const res = await accept(suggestion.id).expect(409);
+
+      expect(res.body.message).toBe('This suggestion is no longer valid: the short reservation no longer holds any units.');
+      expect(await prisma.equipmentReservation.count({ where: { equipmentId: ids.laser } })).toBe(0);
+    });
+
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if "no valid alternative" can be recorded without a reason
+    // Code: NoAlternativeDto (reason required)
     it.each([undefined, '', '   '])('US-45 AC-7: "no valid alternative" needs a reason (%p)', async (reason) => {
       await noAlternative(ids.galaRes, { reason }).expect(400);
       expect(await prisma.equipmentSuggestion.count()).toBe(0);
     });
 
+    // TC-S3-95, TC-S4-110 · US-45 AC-8, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if "no valid alternative" is not recorded, the Coordinator is not told, or the reservation changes
+    // Code: EquipmentShortageActionsService.noAlternative; EquipmentNotifier.noAlternative
     it('US-45 AC-7: "no valid alternative" is recorded, and the Coordinator is told', async () => {
       const res = await noAlternative(ids.galaRes, { reason: '  Nothing else that bright  ' }).expect(201);
 
@@ -615,6 +722,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect(await reservation(ids.galaRes)).toMatchObject({ quantity: 5, status: ReservationStatus.APPROVED });
     });
 
+    // TC-S3-96, TC-S4-110 · US-45 AC-9, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if the Coordinator does not see "no valid alternative", or the Organiser does
+    // Code: latestAnswer; events view (Coordinator only)
     it('US-45 AC-7: the Coordinator sees it on the event page; the Organiser does not', async () => {
       await noAlternative(ids.galaRes, { reason: 'Nothing else that bright' }).expect(201);
 
@@ -629,6 +738,8 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect(organiser.equipmentShortages[0].noAlternative).toBeNull();
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if Technical Support's screens do not show "no valid alternative"
+    // Code: EquipmentShortageActionsService.listForEvent (latestAnswer)
     it("US-45 AC-7: Technical Support's screens show it too", async () => {
       await noAlternative(ids.galaRes, { reason: 'Nothing else that bright' }).expect(201);
 
@@ -637,28 +748,39 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       ]);
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if "no valid alternative" can be recorded before the event is confirmed
+    // Code: EquipmentShortageActionsService.noAlternative (CONFIRMED only)
     it('US-45 AC-7: "no valid alternative" only for a confirmed event', async () => {
+      // Kept by design: takes the event back into planning after the shortage arose.
       await prisma.eventRequest.update({ where: { id: ids.gala }, data: { status: EventStatus.PLANNING } });
       await noAlternative(ids.galaRes, { reason: 'x' }).expect(409);
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if "no valid alternative" can be recorded for a reservation that is not short
+    // Code: EquipmentShortageActionsService.noAlternative (shortBy > 0)
     it('US-45 AC-7: "no valid alternative" only for a reservation that is short', async () => {
       await repair(3).expect(200);
       await noAlternative(ids.galaRes, { reason: 'x' }).expect(409);
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if "no valid alternative" can be recorded while a suggestion is open
+    // Code: EquipmentShortageActionsService.noAlternative (409)
     it('US-45 AC-7: not while a suggestion is open — the Coordinator decides that first', async () => {
       await suggestLaser().expect(201);
       const res = await noAlternative(ids.galaRes, { reason: 'x' }).expect(409);
       expect(res.body.message).toMatch(/the Coordinator decides it first/);
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if "no valid alternative" can be recorded twice in a row
+    // Code: EquipmentShortageActionsService.noAlternative (409)
     it('US-45 AC-7: not recorded twice in a row', async () => {
       await noAlternative(ids.galaRes, { reason: 'x' }).expect(201);
       const res = await noAlternative(ids.galaRes, { reason: 'y' }).expect(409);
       expect(res.body.message).toMatch(/already recorded/);
     });
 
+    // TC-S3-95, TC-S3-96 · US-45 AC-8, AC-9 · setup: tc-s3-88 + tc-s3-94 · fails if a later suggestion is refused, or does not replace "no valid alternative" on the page
+    // Code: latestAnswer (newest answer wins)
     it('US-45 AC-7: an alternative can still be suggested later, and then replaces it on the page', async () => {
       await noAlternative(ids.galaRes, { reason: 'Nothing yet' }).expect(201);
       await suggestLaser().expect(201);
@@ -668,16 +790,22 @@ describe('US-45 resolving an equipment shortage (e2e)', () => {
       expect(short.openSuggestion).toMatchObject({ alternativeEquipment: { id: ids.laser } });
     });
 
+    // TC-S3-96, TC-S4-110 · US-45 AC-9, US-67 AC-4 · setup: tc-s3-88 + tc-s3-94 · fails if "no valid alternative" can be accepted or declined
+    // Code: EquipmentShortageActionsService (OPEN only, 409)
     it('US-45 AC-7: there is nothing to accept or decline on "no valid alternative"', async () => {
       const { body } = await noAlternative(ids.galaRes, { reason: 'x' }).expect(201);
       await accept(body.id).expect(409);
       await decline(body.id).expect(409);
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if another role can record "no valid alternative"
+    // Code: EquipmentShortageController (@Roles TECHNICAL_SUPPORT_STAFF)
     it('US-45 AC-7: only Technical Support may record it', async () => {
       await noAlternative(ids.galaRes, { reason: 'x' }, 'coordinator').expect(403);
     });
 
+    // TC-S3-95 · US-45 AC-8 · setup: tc-s3-88 + tc-s3-94 · fails if the database stores "no valid alternative" naming an item
+    // Code: EquipmentSuggestion_no_alternative_names_nothing CHECK
     it('US-45 AC-7: the database requires a "no valid alternative" record to name no item', async () => {
       await expect(
         prisma.equipmentSuggestion.create({

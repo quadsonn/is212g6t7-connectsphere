@@ -408,7 +408,7 @@ export function VenueDraftForm({
             {/* The buttons sit outside the <form> so the sections above come first;
               form={formId} keeps Save submitting it. */}
             <div className="mt-8 space-y-4 border-t border-ink-100 pt-6">
-                <div className="flex gap-3">
+                <div className="flex justify-center gap-3">
                     <Button type="submit" form={formId} disabled={busy}>
                         {createDraft.isPending || update.isPending
                             ? 'Saving…'
@@ -443,8 +443,8 @@ export function VenueDraftForm({
                 ))}
 
                 {successMessage ? (
-                    <>
-                        <p role="status" className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-green-50 px-3 py-2">
+                        <p role="status" className="text-sm text-green-700">
                             {successMessage}
                         </p>
                         <Button
@@ -454,7 +454,7 @@ export function VenueDraftForm({
                         >
                             Back to venue catalogue
                         </Button>
-                    </>
+                    </div>
                 ) : null}
             </div>
         </>

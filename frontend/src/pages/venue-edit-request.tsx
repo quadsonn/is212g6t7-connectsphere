@@ -45,26 +45,27 @@ export function VenueEditRequest() {
                         <ErrorState message={apiErrorMessage(error, 'Could not load this venue.')} />
                     ) : null}
                     {venue ? (
-                        <>
-                            <VenueDraftForm
-                                venueId={venue.id}
-                                initialValues={venue}
-                                initialStatus={venue.status}
-                                onPublished={() => navigate('/venues')}
-                            />
+                        <VenueDraftForm
+                            venueId={venue.id}
+                            initialValues={venue}
+                            initialStatus={venue.status}
+                            onPublished={() => navigate('/venues')}
+                            beforeActions={
+                                <>
+                                    <div className="mt-8 border-t border-ink-100 pt-6">
+                                        <h3 className="mb-3 text-sm font-semibold text-ink-800">
+                                            Setup and turnaround time
+                                        </h3>
+                                        <VenueBuffersCard venue={venue} />
+                                    </div>
 
-                            <div className="mt-8 border-t border-ink-100 pt-6">
-                                <h3 className="mb-3 text-sm font-semibold text-ink-800">
-                                    Setup and turnaround time
-                                </h3>
-                                <VenueBuffersCard venue={venue} />
-                            </div>
-
-                            <div className="mt-8 border-t border-ink-100 pt-6">
-                                <h3 className="mb-3 text-sm font-semibold text-ink-800">Photos</h3>
-                                <VenueImagesEditor venueId={venue.id} images={venue.imageUrls} />
-                            </div>
-                        </>
+                                    <div className="mt-8 border-t border-ink-100 pt-6">
+                                        <h3 className="mb-3 text-sm font-semibold text-ink-800">Photos</h3>
+                                        <VenueImagesEditor venueId={venue.id} images={venue.imageUrls} />
+                                    </div>
+                                </>
+                            }
+                        />
                     ) : null}
                 </CardContent>
             </Card>

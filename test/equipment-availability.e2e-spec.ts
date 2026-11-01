@@ -99,7 +99,7 @@ describe('Story 29 check equipment availability for a date and time (integration
     await given('base-users', 'tc-s2-103-setup');
   });
 
-  describe('AC-1: how many units are free for the date and time', () => {
+  describe('US-29 AC-1: how many units are free for the date and time', () => {
     // TC-S2-103 · US-29 AC-1 · setup: base-users + tc-s2-103-setup · fails if the free count for the window was wrong, incomplete or cacheable
     // Code: with nothing reserved and the item OPERATIONAL, all 24 units are free.
     it('returns the free count for the window', async () => {
@@ -123,7 +123,7 @@ describe('Story 29 check equipment availability for a date and time (integration
     });
   });
 
-  describe('access: Technical Support only', () => {
+  describe('US-29 access: Technical Support only', () => {
     // TC-S2-104 · US-29 · setup: base-users + tc-s2-103-setup · fails if another role could check equipment availability
     // Code: the route is @Roles(TECHNICAL_SUPPORT_STAFF), so RolesGuard answers 403.
     it.each(['coordinator', 'organiser', 'attendee', 'venueStaff'] as const)('refuses %s (403)', async (who) => {
@@ -137,7 +137,7 @@ describe('Story 29 check equipment availability for a date and time (integration
     });
   });
 
-  describe('AC-1: the check needs a valid window, quantity and item', () => {
+  describe('US-29 AC-1: the check needs a valid window, quantity and item', () => {
     // TC-S2-105 · US-29 AC-1 · setup: base-users + tc-s2-103-setup · fails if a window ending before it starts were checked
     // Code: CheckAvailabilityDto refuses an end not after the start with 400.
     it('rejects an end that is not after the start (400)', async () => {
@@ -166,7 +166,7 @@ describe('Story 29 check equipment availability for a date and time (integration
     });
   });
 
-  describe('AC-2: equipment reserved for an overlapping event is excluded', () => {
+  describe('US-29 AC-2: equipment reserved for an overlapping event is excluded', () => {
     // TC-S2-106 · US-29 AC-2 · setup: base-users + tc-s2-103-setup + tc-s2-106-setup · fails if units reserved at an overlapping time were still counted as free, or another item's reservation were subtracted
     // Code: holdingReservationsWhere() selects this item's APPROVED reservations
     // overlapping the window: the 10 mics from 12:00, not the 4 PA systems.
@@ -209,7 +209,7 @@ describe('Story 29 check equipment availability for a date and time (integration
     });
   });
 
-  describe('AC-3: damaged or under-maintenance equipment is excluded', () => {
+  describe('US-29 AC-3: damaged or under-maintenance equipment is excluded', () => {
     // TC-S2-110 · US-29 AC-3 · setup: base-users + tc-s2-103-setup · fails if units under maintenance or out of service were offered as free
     // Code: isLendable() is false for UNDER_MAINTENANCE and OUT_OF_SERVICE, so every unit is unavailable.
     it.each([
@@ -228,7 +228,7 @@ describe('Story 29 check equipment availability for a date and time (integration
     });
   });
 
-  describe('AC-4: the shortfall when the request exceeds what is free', () => {
+  describe('US-29 AC-4: the shortfall when the request exceeds what is free', () => {
     // TC-S2-111 · US-29 AC-4 · setup: base-users + tc-s2-103-setup + tc-s2-106-setup · fails if a request over the free count wasn't flagged, or the shortfall was wrong
     // Code: shortfall = max(0, requested - available); fullyAvailable = shortfall is 0. 2 of 6 PA systems are free.
     it.each([
@@ -253,7 +253,7 @@ describe('Story 29 check equipment availability for a date and time (integration
     });
   });
 
-  describe('AC-5: several equipment types in the same request', () => {
+  describe('US-29 AC-5: several equipment types in the same request', () => {
     // TC-S2-112 · US-29 AC-5 · setup: base-users + tc-s2-103-setup + tc-s2-106-setup · fails if checking several types for one window mixed up their counts
     // Code: the API checks one item per call; the availability page sends one
     // call per equipment row for the same window (manual TC-S2-113). Each answer

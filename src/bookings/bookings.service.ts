@@ -970,14 +970,16 @@ export class BookingsService implements VenueBookingLookup {
 
   /**
    * An approval is a venue CHANGE, rather than a first booking or one more
-   * venue of a multi-venue event, when it takes the place of a booking at a
-   * different venue that was once approved and has since been rejected (a
-   * reversal). The most recently approved such booking is the one replaced, so
-   * a chain of replacements (A, then B, then C) names B when C is approved.
+   * venue of a multi-venue event, in two cases:
+   *  - US-52: it is a replacement request (`replacesBookingId`). Approving it
+   *    has just released the original, so the original's venue is the old one.
+   *  - Otherwise, it takes the place of a booking at a different venue that was
+   *    once approved and has since been rejected (a reversal). The most
+   *    recently approved such booking is the one replaced, so a chain of
+   *    replacements (A, then B, then C) names B when C is approved.
    *
-   * AMBIGUOUS: the app has no "replace venue" action; this is how a
-   * replacement shows up in the data. A second venue approved while the first
-   * is still approved replaces nothing, so it notifies no one.
+   * A second venue approved while the first is still approved replaces
+   * nothing, so it notifies no one.
    *
    * After commit and best-effort: it must never fail the approval itself.
    */
@@ -985,6 +987,20 @@ export class BookingsService implements VenueBookingLookup {
     if (!this.attendeeChanges) return;
 
     try {
+      if (approved.replacesBookingId) {
+        const original = await this.prisma.venueBooking.findUnique({
+          where: { id: approved.replacesBookingId },
+          select: { venueId: true, venue: { select: { name: true } } },
+        });
+        if (original && original.venueId !== approved.venueId) {
+          await this.attendeeChanges.notifyRegisteredAttendees(
+            { id: approved.eventId, name: approved.event.name },
+            [venueChange(original.venue.name, approved.venue.name)],
+          );
+        }
+        return;
+      }
+
       const earlier = await this.prisma.venueBooking.findMany({
         where: {
           eventId: approved.eventId,

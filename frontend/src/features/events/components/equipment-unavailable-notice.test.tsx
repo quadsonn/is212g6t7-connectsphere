@@ -17,6 +17,8 @@ const item = (overrides: Partial<UnavailableEquipment> = {}): UnavailableEquipme
 });
 
 describe('EquipmentUnavailableNotice', () => {
+  // TC-S4-107 · US-67 AC-1 · fails if an alert shows with nothing to flag
+  // Code: EquipmentUnavailableNotice
   it('renders nothing when there is nothing to flag', () => {
     const { container } = render(<EquipmentUnavailableNotice items={[]} />);
     expect(container).toBeEmptyDOMElement();
@@ -25,6 +27,8 @@ describe('EquipmentUnavailableNotice', () => {
     expect(none).toBeEmptyDOMElement();
   });
 
+  // TC-S4-107 · US-67 AC-1 · fails if an affected item is not flagged with its status, as an alert
+  // Code: EquipmentUnavailableNotice
   it('flags each affected item with its status, as an alert', () => {
     render(
       <EquipmentUnavailableNotice

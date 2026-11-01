@@ -9,7 +9,11 @@ import { loadSql } from './helpers/load-sql';
 import { resetDb } from './helpers/reset-db';
 
 /**
- * US-07 e2e — one describe per acceptance criterion.
+ * US-07 (Review a submitted request for clarity/completeness), integration tests: the real Nest app over HTTP
+ * (Supertest) and the local test database, one describe per acceptance
+ * criterion. Code under test: GET /events/assigned/:id (findAssignedRequest) and
+ * POST /events/:id/approve -> approve(): assertIsAssignedTo, claimForDecision
+ * (row lock), setStatus(APPROVED).
  *
  * Pre-condition for every test: reset the testDB, then run
  * test/fixtures/sql/base-users.sql; each test then loads the tc-s1 script its
@@ -27,6 +31,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     coordinatorA: { id: 'USR-004', email: 'coord.a@example.com' },
     coordinatorB: { id: 'USR-005', email: 'coord.b@example.com' },
     attendee: { id: 'USR-001', email: 'attendee@example.com' },
+    /** From tc-s1-25-setup.sql, loaded only by the tests that need it. */
+    lead: { id: 'USR-012', email: 'lead@example.com' },
   } as const;
   const ids = Object.fromEntries(
     Object.entries(USERS).map(([key, user]) => [key, user.id]),
@@ -87,6 +93,7 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
     // reset, so these tokens stay valid for every test in the file.
     await resetDb(prisma);
     await loadSql(prisma, 'base-users');
+    await loadSql(prisma, 'tc-s1-25-setup');
     for (const [key, { email }] of Object.entries(USERS)) {
       const res = await http().post('/auth/login').send({ email, password: PASSWORD }).expect(200);
       tokens[key] = res.body.accessToken;
@@ -104,7 +111,9 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   describe('AC-1: current status is displayed', () => {
-    // TC-S1-02 · setup: base-users + tc-s1-02-setup · fails if the Coordinator view reported a different status from the one stored
+    // TC-S1-02 · US-07 AC-1 · setup: base-users + tc-s1-02-setup · fails if the Coordinator view reported a different status from the one stored
+    // Code: GET /events/assigned/:id (findAssignedRequest, @Roles EVENT_COORDINATOR) returns the
+    // stored status.
     it.each([
       EventStatus.DRAFT,
       EventStatus.SUBMITTED,
@@ -123,7 +132,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(res.body.status).toBe(status);
     });
 
-    // TC-S1-02 · setup: base-users + tc-s1-02-setup · fails if a returned request lost its status or its outstanding question
+    // TC-S1-02 · US-07 AC-1 · setup: base-users + tc-s1-02-setup · fails if a returned request lost its status or its outstanding question
+    // Code: RETURNED is reported with clarificationRequest in its statusView.
     it('shows a returned request with its outstanding question', async () => {
       // US-08 made RETURNED a status in its own right.
       await given('tc-s1-02-setup');
@@ -139,6 +149,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(res.body.clarificationRequest).toMatch(/attendance/);
     });
 
+    // TC-S1-02 · US-07 AC-1 · setup: base-users + tc-s1-02-setup · fails if a draft were reported as returned
+    // Code: statusView only reports a clarification when clarificationRequest is set.
     it('does not mark an ordinary draft as returned', async () => {
       await given('tc-s1-02-setup');
       const event = EVENT.draft;
@@ -153,7 +165,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   describe('AC-2: all details are displayed', () => {
-    // TC-S1-03 · setup: base-users + tc-s1-01-setup · fails if a detail field was dropped or altered in the Coordinator view
+    // TC-S1-03 · US-07 AC-2 · setup: base-users + tc-s1-01-setup · fails if a detail field was dropped or altered in the Coordinator view
+    // Code: findAssignedRequest() returns the full stored row to the assigned Coordinator.
     it('returns name, purpose, description and proposed date & time', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -178,7 +191,9 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   describe('AC-3: approving updates the status', () => {
-    // TC-S1-01 · setup: base-users + tc-s1-01-setup · fails if Approve did not persist APPROVED
+    // TC-S1-01 · US-07 AC-3 · setup: base-users + tc-s1-01-setup · fails if Approve did not persist APPROVED
+    // Code: POST /events/:id/approve -> approve(): assertIsAssignedTo, claimForDecision (row
+    // lock), setStatus(APPROVED).
     it('moves a submitted request to APPROVED', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -196,6 +211,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.APPROVED);
     });
 
+    // TC-S1-01 · US-07 AC-3 · setup: base-users + tc-s1-02-setup · fails if a request under review could not be approved
+    // Code: the status machine allows UNDER_REVIEW -> APPROVED.
     it('approves from UNDER_REVIEW', async () => {
       await given('tc-s1-02-setup');
       const event = EVENT.underReview;
@@ -211,7 +228,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.APPROVED);
     });
 
-    // TC-S1-01 · setup: base-users + tc-s1-01-setup · fails if the Organiser's list did not reflect the approval
+    // TC-S1-01 · US-07 AC-3, US-05 AC-4 · setup: base-users + tc-s1-01-setup · fails if the Organiser's list did not reflect the approval
+    // Code: the Organiser's GET /events/mine reads the new status from the same row.
     it('is visible to the Organiser afterwards', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -229,7 +247,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(mine.body[0].status).toBe(EventStatus.APPROVED);
     });
 
-    // TC-S1-04 · setup: base-users + tc-s1-02-setup · fails if a DRAFT could be approved (illegal transition)
+    // TC-S1-04 · US-07 AC-3 · setup: base-users + tc-s1-02-setup · fails if a DRAFT could be approved (illegal transition)
+    // Code: setStatus() checks the status machine; DRAFT -> APPROVED is not an edge (409).
     it('refuses to approve a DRAFT', async () => {
       await given('tc-s1-02-setup');
       const event = EVENT.draft;
@@ -245,7 +264,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.DRAFT);
     });
 
-    // TC-S1-04 · setup: base-users + tc-s1-02-setup · fails if a CANCELLED request could be approved
+    // TC-S1-04 · US-07 AC-3 · setup: base-users + tc-s1-02-setup · fails if a CANCELLED request could be approved
+    // Code: CANCELLED has no outgoing edge, so 409.
     it('refuses to approve a CANCELLED request', async () => {
       await given('tc-s1-02-setup');
       const event = EVENT.cancelled;
@@ -256,7 +276,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
         .expect(409);
     });
 
-    // TC-S1-05 · setup: base-users + tc-s1-01-setup · fails if a repeated Approve errored or changed the status
+    // TC-S1-05 · US-07 AC-3 · setup: base-users + tc-s1-01-setup · fails if a repeated Approve errored or changed the status
+    // Code: approve() treats APPROVED -> APPROVED as a no-op and records nothing new.
     it('is idempotent — approving twice leaves it APPROVED', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -276,6 +297,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.APPROVED);
     });
 
+    // TC-S1-01 · US-07 AC-3 · setup: base-users + tc-s1-01-setup · fails if an approved request still showed an old question or reason
+    // Code: approve() sets clarificationRequest and decisionReason to null before setStatus().
     it('clears a stale clarification and rejection reason', async () => {
       await given('tc-s1-02-setup');
       const event = EVENT.stale;
@@ -294,8 +317,9 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   describe('conflict: simultaneous decisions on one request', () => {
-    // TC-S1-07 · setup: base-users + tc-s1-01-setup (fresh before each of 20 iterations) · fails if approve and reject can both succeed, or the final status contradicts the decision that won
-    // Fixed in 61401ec; regression test for audit gap #2
+    // TC-S1-07 · US-07 AC-3, US-08 AC-3 · setup: base-users + tc-s1-01-setup (fresh before each of 20 iterations) · fails if approve and reject can both succeed, or the final status contradicts the winner
+    // Code: claimForDecision() row-locks the request (SELECT ... FOR UPDATE) while it still has
+    // the status read; the loser gets 409 (audit gap #2).
     it('lets exactly one of a simultaneous approve and reject succeed, and stores that outcome', async () => {
       const ITERATIONS = 20;
       const violations: string[] = [];
@@ -340,7 +364,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
   });
 
   describe('assignment ownership and role', () => {
-    // TC-S1-06 · setup: base-users + tc-s1-01-setup · fails if a Coordinator could approve an event assigned to someone else
+    // TC-S1-06 · US-07 AC-3, US-02 AC-6 · setup: base-users + tc-s1-01-setup · fails if a Coordinator could approve an event assigned to someone else
+    // Code: assertEventAccess(REVIEW) under ASSIGNED scope finds nothing, so 404.
     it('refuses a Coordinator assigned to a different event', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -356,6 +381,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.SUBMITTED);
     });
 
+    // TC-S1-06 · US-07 AC-3, US-02 AC-6 · setup: base-users + tc-s1-02-setup · fails if a Coordinator could approve a request nobody assigned to them
+    // Code: coordinatorId is NULL, so ASSIGNED scope never matches (Week 7 Change 5).
     it('refuses to approve an unassigned request from the pool', async () => {
       await given('tc-s1-02-setup');
       const event = EVENT.unassigned;
@@ -371,12 +398,18 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.SUBMITTED);
     });
 
+    // TC-S1-06 · US-07 AC-3, US-10 · setup: base-users + tc-s1-02-setup + tc-s1-25-setup · fails if the Coordinator the Lead assigned could not approve
+    // Code: POST /assignments/queue/:id/assign sets coordinatorId; approve() then passes
+    // assertIsAssignedTo.
     it('approves once that request has been assigned', async () => {
-      await given('tc-s1-02-setup');
+      await given('tc-s1-02-setup', 'tc-s1-25-setup');
       const event = EVENT.unassigned;
-      // Assignment is the Coordinator Lead's queue now (/assignments), not a
-      // self-assign; as on main, the request starts out assigned.
-      await prisma.eventRequest.update({ where: { id: event.id }, data: { coordinatorId: ids.coordinatorB } });
+      // Week 7 Change 5: the Lead assigns it from the unassigned queue (US-55).
+      await http()
+        .post(`/assignments/queue/${event.id}/assign`)
+        .set('Authorization', as('lead'))
+        .send({ coordinatorId: ids.coordinatorB })
+        .expect(200);
 
       await http()
         .post(`/events/${event.id}/approve`)
@@ -389,7 +422,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.APPROVED);
     });
 
-    // TC-S1-06 · setup: base-users + tc-s1-01-setup · fails if an Organiser or Attendee could approve
+    // TC-S1-06 · US-07 AC-3, US-02 AC-3 · setup: base-users + tc-s1-01-setup · fails if an Organiser or Attendee could approve
+    // Code: POST /events/:id/approve is @Roles(EVENT_COORDINATOR); RolesGuard answers 403.
     it.each(['organiser', 'attendee'])('refuses %s at the role gate', async (who) => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;
@@ -405,6 +439,8 @@ describe('US-07 coordinator reviews and approves (e2e)', () => {
       expect(stored.status).toBe(EventStatus.SUBMITTED);
     });
 
+    // TC-S1-06 · US-07 AC-3, US-02 AC-8 · setup: base-users + tc-s1-01-setup · fails if a request could be approved without signing in
+    // Code: JwtAuthGuard answers 401.
     it('refuses an unauthenticated caller', async () => {
       await given('tc-s1-01-setup');
       const event = EVENT.submitted;

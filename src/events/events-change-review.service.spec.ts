@@ -206,7 +206,9 @@ describe('EventsChangeReviewService (US-37)', () => {
 
   const recorded = () => events.recordChange.mock.calls[0];
 
-  describe('AC-1: pending requests for events assigned to this Coordinator only', () => {
+  // TC-S2-172, TC-S2-180 · US-37 AC-1 · unit: listPending() with Prisma mocked · fails if a Coordinator sees
+  // another's requests
+  describe('US-37 AC-1: pending requests for events assigned to this Coordinator only', () => {
     it('lists PENDING requests on events whose coordinator is the caller', async () => {
       await service.listPending(coordinator);
 
@@ -252,7 +254,8 @@ describe('EventsChangeReviewService (US-37)', () => {
     });
   });
 
-  describe('AC-2: current vs proposed, plus the Organiser’s reason', () => {
+  // TC-S2-173 · US-37 AC-2 · unit: getForReview() · fails if current or proposed values, or the reason, are missing
+  describe('US-37 AC-2: current vs proposed, plus the Organiser’s reason', () => {
     it('returns the request with its reason, and the event as it is now', async () => {
       requirements = [
         { id: 'r1', equipmentId: 'camera', equipmentType: 'Camera', quantity: 1, notes: null },
@@ -274,7 +277,9 @@ describe('EventsChangeReviewService (US-37)', () => {
     });
   });
 
-  describe('AC-3 / AC-5: reject — a reason is recorded, the event is unchanged', () => {
+  // TC-S2-175, TC-S2-176, TC-S2-179 · US-37 AC-3, AC-5 · unit: reject() · fails if the reason is not kept, the event
+  // changes, or a decided request is decided again
+  describe('US-37 AC-3, AC-5: reject — a reason is recorded, the event is unchanged', () => {
     it('marks the request REJECTED with who, when and why', async () => {
       await service.reject(coordinator, 'cr-1', { reason: 'Venue is booked solid' });
 
@@ -339,7 +344,9 @@ describe('EventsChangeReviewService (US-37)', () => {
     });
   });
 
-  describe('AC-4: approve — the event is updated, the request approved, the change recorded', () => {
+  // TC-S2-177, TC-S2-178, TC-S2-179 · US-37 AC-4 · unit: approve() · fails if the event is not updated, the
+  // request not approved, or the change not recorded
+  describe('US-37 AC-4: approve — the event is updated, the request approved, the change recorded', () => {
     it('updates the event to the proposed attendance and marks the request APPROVED', async () => {
       await service.approve(coordinator, 'cr-1');
 
@@ -522,7 +529,8 @@ describe('EventsChangeReviewService (US-37)', () => {
     });
   });
 
-  describe('AC-6: a capacity warning before deciding', () => {
+  // TC-S2-174 · US-37 AC-6 · unit: getForReview() · fails if a capacity warning is missing before deciding
+  describe('US-37 AC-6: a capacity warning before deciding', () => {
     const booking = (capacity: number | null, status: BookingStatus = BookingStatus.APPROVED) => ({
       id: 'booking-1',
       status,

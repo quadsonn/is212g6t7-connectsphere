@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode, useId, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import {
     ROOM_LAYOUTS,
     type VenueDraftPayload,
     type VenueStatus,
+    type VenueUpdateWarning,
 } from '@/types/api';
 
 import { useCreateVenueDraft, usePublishVenue, useUpdateVenue } from '../hooks/use-venues';
@@ -119,6 +120,7 @@ export function VenueDraftForm({
     initialStatus,
     onSaved,
     onPublished,
+    beforeActions,
 }: {
     venueId?: string;
     initialValues?: VenueDraftPayload;
@@ -128,8 +130,13 @@ export function VenueDraftForm({
     initialStatus?: VenueStatus;
     onSaved?: (venueId: string) => void;
     onPublished?: () => void;
+    /** Sections shown after the fields and before Save/Publish, so the buttons
+     * stay at the bottom of the page. Rendered outside the <form>: a section
+     * with its own form (buffers) cannot be nested inside this one. */
+    beforeActions?: ReactNode;
 }) {
     const navigate = useNavigate();
+    const formId = useId();
 
     const initialHours = parseOperatingInfo(initialValues?.operatingInfo);
     const [startTime, setStartTime] = useState(initialHours.start);
@@ -151,6 +158,8 @@ export function VenueDraftForm({
     const [savedId, setSavedId] = useState<string | null>(venueId ?? null);
     const [status, setStatus] = useState<VenueStatus>(initialStatus ?? 'DRAFT');
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    // US-14 AC-3: bookings the last save may have affected, from the API.
+    const [warnings, setWarnings] = useState<VenueUpdateWarning[]>([]);
 
     const createDraft = useCreateVenueDraft();
     const update = useUpdateVenue();
@@ -185,7 +194,8 @@ export function VenueDraftForm({
     /** Creates the venue if it doesn't exist yet, or updates it if it does. */
     const persist = async (): Promise<string> => {
         if (savedId) {
-            await update.mutateAsync({ id: savedId, payload: form });
+            const updated = await update.mutateAsync({ id: savedId, payload: form });
+            setWarnings(updated.warnings ?? []);
             return savedId;
         }
         const venue = await createDraft.mutateAsync(form);
@@ -198,6 +208,7 @@ export function VenueDraftForm({
         setErrors({});
         setGeneralError(null);
         setSuccessMessage(null);
+        setWarnings([]);
         const wasNew = !savedId;
         try {
             await persist();
@@ -213,6 +224,7 @@ export function VenueDraftForm({
         setErrors({});
         setGeneralError(null);
         setSuccessMessage(null);
+        setWarnings([]);
         try {
             const id = await persist();
             await publish.mutateAsync(id);
@@ -229,200 +241,222 @@ export function VenueDraftForm({
     };
 
     return (
-        <form
-            className="space-y-6"
-            onSubmit={(e) => {
-                e.preventDefault();
-                handleSaveDraft();
-            }}
-        >
-            {generalError ? (
-                <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {generalError}
-                </p>
-            ) : null}
-
-            <Field label="Venue name" htmlFor="venue-name" errors={errors.name} required>
-                <Input
-                    id="venue-name"
-                    value={form.name ?? ''}
-                    onChange={(e) => update_('name', e.target.value)}
-                    aria-invalid={(errors.name?.length ?? 0) > 0}
-                />
-            </Field>
-
-            <Field label="Location" htmlFor="venue-location" errors={errors.location} required>
-                <Input
-                    id="venue-location"
-                    value={form.location ?? ''}
-                    onChange={(e) => update_('location', e.target.value)}
-                    aria-invalid={(errors.location?.length ?? 0) > 0}
-                />
-            </Field>
-
-            <Field label="Capacity" htmlFor="venue-capacity" errors={errors.capacity} required>
-                <Input
-                    id="venue-capacity"
-                    type="number"
-                    min={1}
-                    value={form.capacity ?? ''}
-                    onChange={(e) => update_('capacity', e.target.value ? Number(e.target.value) : null)}
-                    aria-invalid={(errors.capacity?.length ?? 0) > 0}
-                />
-            </Field>
-
-            {/* US-18: fixed vocabularies so Coordinators can search on them.
-                Anything outside a list goes in the short "other" line beneath. */}
-            <Field label="Facilities" htmlFor="venue-facility-notes" errors={errors.facilities ?? errors.facilityNotes}>
-                <div className="space-y-2">
-                    <ChipGroup
-                        label="Facilities"
-                        options={FACILITIES}
-                        labels={FACILITY_LABELS}
-                        values={form.facilities ?? []}
-                        onChange={(next) => update_('facilities', next)}
-                    />
-                    <Input
-                        id="venue-facility-notes"
-                        placeholder="Other facilities (optional)"
-                        value={form.facilityNotes ?? ''}
-                        onChange={(e) => update_('facilityNotes', e.target.value)}
-                    />
-                </div>
-            </Field>
-
-            <Field
-                label="Accessibility"
-                htmlFor="venue-accessibility-notes"
-                errors={errors.accessibilityFeatures ?? errors.accessibilityNotes}
+        <>
+            <form
+                id={formId}
+                className="space-y-6"
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSaveDraft();
+                }}
             >
-                <div className="space-y-2">
-                    <ChipGroup
-                        label="Accessibility features"
-                        options={ACCESSIBILITY_FEATURES}
-                        labels={ACCESSIBILITY_FEATURE_LABELS}
-                        values={form.accessibilityFeatures ?? []}
-                        onChange={(next) => update_('accessibilityFeatures', next)}
-                    />
-                    <Input
-                        id="venue-accessibility-notes"
-                        placeholder="Other accessibility provision (optional)"
-                        value={form.accessibilityNotes ?? ''}
-                        onChange={(e) => update_('accessibilityNotes', e.target.value)}
-                    />
-                </div>
-            </Field>
+                {generalError ? (
+                    <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                        {generalError}
+                    </p>
+                ) : null}
 
-            <Field label="Supported layouts" htmlFor="venue-layout-notes" errors={errors.supportedLayouts}>
-                <div className="space-y-2">
-                    <ChipGroup
-                        label="Supported layouts"
-                        options={ROOM_LAYOUTS}
-                        labels={LAYOUT_LABELS}
-                        values={form.supportedLayouts ?? []}
-                        onChange={(next) => update_('supportedLayouts', next)}
-                    />
-                    {/* Blank means no other layout (null), matching the old "Other" toggle. */}
+                <Field label="Venue name" htmlFor="venue-name" errors={errors.name} required>
                     <Input
-                        id="venue-layout-notes"
-                        placeholder="Other layout (optional)"
-                        value={form.layoutNotes ?? ''}
-                        onChange={(e) => update_('layoutNotes', e.target.value || null)}
+                        id="venue-name"
+                        value={form.name ?? ''}
+                        onChange={(e) => update_('name', e.target.value)}
+                        aria-invalid={(errors.name?.length ?? 0) > 0}
                     />
-                </div>
-            </Field>
+                </Field>
 
-            <Field label="Operating hours" htmlFor="venue-operating-start" errors={errors.operatingInfo}>
-                <div className="space-y-3">
-                    <label className="flex items-center gap-2 text-sm text-ink-700">
-                        <input
-                            type="checkbox"
-                            checked={is24Hours}
-                            onChange={(e) => {
-                                const checked = e.target.checked;
-                                setIs24Hours(checked);
-                                applyOperatingHours(startTime, endTime, checked);
-                            }}
-                            className="size-4 rounded border-ink-300"
+                <Field label="Location" htmlFor="venue-location" errors={errors.location} required>
+                    <Input
+                        id="venue-location"
+                        value={form.location ?? ''}
+                        onChange={(e) => update_('location', e.target.value)}
+                        aria-invalid={(errors.location?.length ?? 0) > 0}
+                    />
+                </Field>
+
+                <Field label="Capacity" htmlFor="venue-capacity" errors={errors.capacity} required>
+                    <Input
+                        id="venue-capacity"
+                        type="number"
+                        min={1}
+                        value={form.capacity ?? ''}
+                        onChange={(e) => update_('capacity', e.target.value ? Number(e.target.value) : null)}
+                        aria-invalid={(errors.capacity?.length ?? 0) > 0}
+                    />
+                </Field>
+
+                {/* US-18: fixed vocabularies so Coordinators can search on them.
+                    Anything outside a list goes in the short "other" line beneath. */}
+                <Field label="Facilities" htmlFor="venue-facility-notes" errors={errors.facilities ?? errors.facilityNotes}>
+                    <div className="space-y-2">
+                        <ChipGroup
+                            label="Facilities"
+                            options={FACILITIES}
+                            labels={FACILITY_LABELS}
+                            values={form.facilities ?? []}
+                            onChange={(next) => update_('facilities', next)}
                         />
-                        Open 24 hours
-                    </label>
+                        <Input
+                            id="venue-facility-notes"
+                            placeholder="Other facilities (optional)"
+                            value={form.facilityNotes ?? ''}
+                            onChange={(e) => update_('facilityNotes', e.target.value)}
+                        />
+                    </div>
+                </Field>
 
-                    {!is24Hours ? (
-                        <div className="flex flex-wrap items-center gap-2">
-                            <select
-                                id="venue-operating-start"
-                                value={startTime}
+                <Field
+                    label="Accessibility"
+                    htmlFor="venue-accessibility-notes"
+                    errors={errors.accessibilityFeatures ?? errors.accessibilityNotes}
+                >
+                    <div className="space-y-2">
+                        <ChipGroup
+                            label="Accessibility features"
+                            options={ACCESSIBILITY_FEATURES}
+                            labels={ACCESSIBILITY_FEATURE_LABELS}
+                            values={form.accessibilityFeatures ?? []}
+                            onChange={(next) => update_('accessibilityFeatures', next)}
+                        />
+                        <Input
+                            id="venue-accessibility-notes"
+                            placeholder="Other accessibility provision (optional)"
+                            value={form.accessibilityNotes ?? ''}
+                            onChange={(e) => update_('accessibilityNotes', e.target.value)}
+                        />
+                    </div>
+                </Field>
+
+                <Field label="Supported layouts" htmlFor="venue-layout-notes" errors={errors.supportedLayouts}>
+                    <div className="space-y-2">
+                        <ChipGroup
+                            label="Supported layouts"
+                            options={ROOM_LAYOUTS}
+                            labels={LAYOUT_LABELS}
+                            values={form.supportedLayouts ?? []}
+                            onChange={(next) => update_('supportedLayouts', next)}
+                        />
+                        {/* Blank means no other layout (null), matching the old "Other" toggle. */}
+                        <Input
+                            id="venue-layout-notes"
+                            placeholder="Other layout (optional)"
+                            value={form.layoutNotes ?? ''}
+                            onChange={(e) => update_('layoutNotes', e.target.value || null)}
+                        />
+                    </div>
+                </Field>
+
+                <Field label="Operating hours" htmlFor="venue-operating-start" errors={errors.operatingInfo}>
+                    <div className="space-y-3">
+                        <label className="flex items-center gap-2 text-sm text-ink-700">
+                            <input
+                                type="checkbox"
+                                checked={is24Hours}
                                 onChange={(e) => {
-                                    setStartTime(e.target.value);
-                                    applyOperatingHours(e.target.value, endTime, is24Hours);
+                                    const checked = e.target.checked;
+                                    setIs24Hours(checked);
+                                    applyOperatingHours(startTime, endTime, checked);
                                 }}
-                                className="h-10 rounded-lg border border-ink-300 bg-white px-3 text-sm text-ink-900"
-                            >
-                                <option value="">Start time</option>
-                                {TIME_OPTIONS.map((t) => (
-                                    <option key={t} value={t}>
-                                        {formatTime(t)}
-                                    </option>
-                                ))}
-                            </select>
-                            <span className="text-ink-500">to</span>
-                            <select
-                                id="venue-operating-end"
-                                value={endTime}
-                                onChange={(e) => {
-                                    setEndTime(e.target.value);
-                                    applyOperatingHours(startTime, e.target.value, is24Hours);
-                                }}
-                                className="h-10 rounded-lg border border-ink-300 bg-white px-3 text-sm text-ink-900"
-                            >
-                                <option value="">End time</option>
-                                {END_TIME_OPTIONS.map((t) => (
-                                    <option key={t} value={t}>
-                                        {formatTime(t)}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                                className="size-4 rounded border-ink-300"
+                            />
+                            Open 24 hours
+                        </label>
+
+                        {!is24Hours ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                    id="venue-operating-start"
+                                    value={startTime}
+                                    onChange={(e) => {
+                                        setStartTime(e.target.value);
+                                        applyOperatingHours(e.target.value, endTime, is24Hours);
+                                    }}
+                                    className="h-10 rounded-lg border border-ink-300 bg-white px-3 text-sm text-ink-900"
+                                >
+                                    <option value="">Start time</option>
+                                    {TIME_OPTIONS.map((t) => (
+                                        <option key={t} value={t}>
+                                            {formatTime(t)}
+                                        </option>
+                                    ))}
+                                </select>
+                                <span className="text-ink-500">to</span>
+                                <select
+                                    id="venue-operating-end"
+                                    value={endTime}
+                                    onChange={(e) => {
+                                        setEndTime(e.target.value);
+                                        applyOperatingHours(startTime, e.target.value, is24Hours);
+                                    }}
+                                    className="h-10 rounded-lg border border-ink-300 bg-white px-3 text-sm text-ink-900"
+                                >
+                                    <option value="">End time</option>
+                                    {END_TIME_OPTIONS.map((t) => (
+                                        <option key={t} value={t}>
+                                            {formatTime(t)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        ) : null}
+                    </div>
+                </Field>
+            </form>
+
+            {beforeActions}
+
+            {/* The buttons sit outside the <form> so the sections above come first;
+              form={formId} keeps Save submitting it. */}
+            <div className="mt-8 space-y-4 border-t border-ink-100 pt-6">
+                <div className="flex justify-center gap-3">
+                    <Button type="submit" form={formId} disabled={busy}>
+                        {createDraft.isPending || update.isPending
+                            ? 'Saving…'
+                            : savedId
+                                ? 'Save changes'
+                                : 'Save draft'}
+                    </Button>
+
+                    {/* Enabled by field completeness, not by having saved first. Hidden
+                once already published — publishing an already-published venue
+                is meaningless, unlike a draft, which should stay publishable. */}
+                    {status !== 'PUBLISHED' ? (
+                        <Button type="button" onClick={handlePublish} disabled={!isPublishable || busy}>
+                            {publish.isPending ? 'Publishing…' : 'Publish to catalogue'}
+                        </Button>
                     ) : null}
                 </div>
-            </Field>
 
-            <div className="flex gap-3">
-                <Button type="submit" disabled={busy}>
-                    {createDraft.isPending || update.isPending
-                        ? 'Saving…'
-                        : savedId
-                            ? 'Save changes'
-                            : 'Save draft'}
-                </Button>
+                {/* At the bottom, next to the buttons that caused it — not at the top,
+              which would need scrolling back up to see on a long form. */}
+                {/* US-14 AC-3: the change is saved, but the bookings it may affect
+              are named here as well as in the notifications inbox. */}
+                {warnings.map((warning) => (
+                    <div
+                        key={warning.code}
+                        role="alert"
+                        className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800"
+                    >
+                        <p className="font-medium">Existing bookings may need review</p>
+                        <p>{warning.message}</p>
+                    </div>
+                ))}
 
-                {/* Enabled by field completeness, not by having saved first. Hidden
-            once already published — publishing an already-published venue
-            is meaningless, unlike a draft, which should stay publishable. */}
-                {status !== 'PUBLISHED' ? (
-                    <Button type="button" onClick={handlePublish} disabled={!isPublishable || busy}>
-                        {publish.isPending ? 'Publishing…' : 'Publish to catalogue'}
-                    </Button>
+                {successMessage ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-green-50 px-3 py-2">
+                        <p role="status" className="text-sm text-green-700">
+                            {successMessage}
+                        </p>
+                        <Button
+                            type="button"
+                            onClick={() => navigate('/venues')}
+                            className="border border-ink-200 bg-white text-ink-700 shadow-sm hover:bg-ink-50"
+                        >
+                            Back to venue catalogue
+                        </Button>
+                    </div>
                 ) : null}
             </div>
-
-            {/* At the bottom, next to the buttons that caused it — not at the top,
-          which would need scrolling back up to see on a long form. */}
-            {successMessage ? (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-green-50 px-3 py-2">
-                    <p role="status" className="text-sm text-green-700">
-                        {successMessage}
-                    </p>
-                    <Button
-                        type="button"
-                        onClick={() => navigate('/venues')}
-                        className="border border-ink-200 bg-white text-ink-700 shadow-sm hover:bg-ink-50"
-                    >
-                        Back to venue catalogue
-                    </Button>
-                </div>
-            ) : null}
-        </form>
+        </>
     );
 }

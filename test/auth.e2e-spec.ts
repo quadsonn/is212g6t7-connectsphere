@@ -9,7 +9,10 @@ import { loadSql } from './helpers/load-sql';
 import { resetDb } from './helpers/reset-db';
 
 /**
- * US-01 e2e — one describe per acceptance criterion.
+ * US-01 (Log in securely), integration tests: the real Nest app over HTTP
+ * (Supertest) and the local test database, one describe per acceptance criterion.
+ * Code under test: AuthController -> AuthService (login, logout, lockout),
+ * JwtStrategy (signature, expiry, revoked jti) and UnauthorizedFilter.
  *
  * Pre-condition for every test: reset the testDB, then run
  * test/fixtures/sql/base-users.sql (see docs/testing/sprint1-test-cases.md).
@@ -55,7 +58,9 @@ describe('US-01 secure login (e2e)', () => {
   });
 
   describe('AC-1: registered user with valid credentials is authenticated', () => {
-    // TC-S1-55 · setup: base-users · fails if valid credentials stop issuing a token
+    // TC-S1-55 · US-01 AC-1 · setup: base-users · fails if valid credentials stop issuing a token
+    // Code: AuthService.login() checks the bcrypt hash, resets the failure count and issueToken()
+    // signs a JWT.
     it('returns 200 with an access token', async () => {
       const res = await login(EMAIL, PASSWORD).expect(200);
 
@@ -63,7 +68,9 @@ describe('US-01 secure login (e2e)', () => {
       expect(res.body.accessToken.split('.')).toHaveLength(3);
     });
 
-    // TC-S1-55 · setup: base-users · fails if the token no longer identifies the user and role
+    // TC-S1-55 · US-01 AC-1 · setup: base-users · fails if the token no longer identifies the user and role
+    // Code: issueToken() signs { sub: user.id, role, jti }, which JwtStrategy and RolesGuard read
+    // on every request.
     it('issues a token carrying userId and role', async () => {
       const res = await login(EMAIL, PASSWORD).expect(200);
 
@@ -78,7 +85,8 @@ describe('US-01 secure login (e2e)', () => {
       expect(claims.role).toBe('EVENT_ORGANISER');
     });
 
-    // TC-S1-55 · setup: base-users · fails if a fresh token cannot open a protected route
+    // TC-S1-55 · US-01 AC-1 · setup: base-users · fails if a fresh token cannot open a protected route
+    // Code: JwtAuthGuard accepts the new token, and GET /auth/me answers 200.
     it('establishes a session that opens protected routes', async () => {
       const { body } = await login(EMAIL, PASSWORD).expect(200);
 
@@ -90,7 +98,9 @@ describe('US-01 secure login (e2e)', () => {
   });
 
   describe('AC-2: bad credentials are rejected with a generic error', () => {
-    // TC-S1-56 · setup: base-users · fails if a wrong password gets a token or a specific message
+    // TC-S1-56 · US-01 AC-2 · setup: base-users · fails if a wrong password gets a token or a specific message
+    // Code: login() throws UnauthorizedException(INVALID_CREDENTIALS_MESSAGE) after
+    // recordFailedAttempt().
     it('rejects a wrong password with 401 and no token', async () => {
       const res = await login(EMAIL, 'wrong-password').expect(401);
 
@@ -98,7 +108,9 @@ describe('US-01 secure login (e2e)', () => {
       expect(res.body.message).toBe('invalid email or password');
     });
 
-    // TC-S1-56 · setup: base-users · fails if an unknown email gets a token or a specific message
+    // TC-S1-56 · US-01 AC-2 · setup: base-users · fails if an unknown email gets a token or a specific message
+    // Code: login() finds no user and throws the same UnauthorizedException as for a wrong
+    // password.
     it('rejects an unknown email with 401 and no token', async () => {
       const res = await login('nobody@example.com', PASSWORD).expect(401);
 
@@ -106,7 +118,9 @@ describe('US-01 secure login (e2e)', () => {
       expect(res.body.message).toBe('invalid email or password');
     });
 
-    // TC-S1-56 · setup: base-users · fails if the two failures can be told apart
+    // TC-S1-56 · US-01 AC-2 · setup: base-users · fails if the two failures can be told apart
+    // Code: both paths throw INVALID_CREDENTIALS_MESSAGE through UnauthorizedFilter, so status and
+    // body are identical.
     it('returns byte-identical bodies for both, revealing neither field', async () => {
       const wrongPassword = await login(EMAIL, 'wrong-password').expect(401);
       const unknownEmail = await login('nobody@example.com', PASSWORD).expect(401);
@@ -123,13 +137,17 @@ describe('US-01 secure login (e2e)', () => {
   });
 
   describe('AC-3: unauthenticated users cannot reach protected routes', () => {
-    // TC-S1-57 · setup: base-users · fails if a protected route answers without a token
+    // TC-S1-57 · US-01 AC-3 · setup: base-users · fails if a protected route answers without a token
+    // Code: JwtAuthGuard (@UseGuards on the route) rejects a missing Authorization header with 401 before the
+    // controller runs.
     it('rejects a request with no token', async () => {
       const res = await request(app.getHttpServer()).get('/auth/me').expect(401);
       expect(res.body.userId).toBeUndefined();
     });
 
-    // TC-S1-57 · setup: base-users · fails if a 401 stops telling the client where to log in, or leaks protected data
+    // TC-S1-57 · US-01 AC-3 · setup: base-users · fails if a 401 stops telling the client where to log in, or leaks protected data
+    // Code: UnauthorizedFilter sets WWW-Authenticate and adds loginUrl "/auth/login"; the frontend
+    // redirects on it.
     it('points an unauthenticated caller at the login page', async () => {
       const res = await request(app.getHttpServer()).get('/auth/me').expect(401);
 
@@ -139,7 +157,8 @@ describe('US-01 secure login (e2e)', () => {
       expect(res.body.role).toBeUndefined();
     });
 
-    // TC-S1-57 · setup: base-users · fails if a malformed token is accepted
+    // TC-S1-57 · US-01 AC-3 · setup: base-users · fails if a malformed token is accepted
+    // Code: passport-jwt cannot decode the token, so JwtAuthGuard answers 401.
     it('rejects a malformed token', async () => {
       await request(app.getHttpServer())
         .get('/auth/me')
@@ -147,7 +166,9 @@ describe('US-01 secure login (e2e)', () => {
         .expect(401);
     });
 
-    // TC-S1-57 · setup: base-users · fails if a forged token is accepted
+    // TC-S1-57 · US-01 AC-3 · setup: base-users · fails if a forged token is accepted
+    // Code: JwtStrategy verifies the signature with JWT_SECRET; a forged one fails verification
+    // (401).
     it('rejects a token signed with the wrong secret', async () => {
       const forged = [
         Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'),
@@ -161,14 +182,17 @@ describe('US-01 secure login (e2e)', () => {
         .expect(401);
     });
 
-    // TC-S1-57 · setup: base-users · fails if logout works unauthenticated
+    // TC-S1-57 · US-01 AC-3 · setup: base-users · fails if logout works unauthenticated
+    // Code: POST /auth/logout is behind JwtAuthGuard like every other protected route.
     it('rejects logout without a token', async () => {
       await request(app.getHttpServer()).post('/auth/logout').expect(401);
     });
   });
 
   describe('AC-4: logout terminates the session', () => {
-    // TC-S1-59 · setup: base-users · fails if a logged-out token still works
+    // TC-S1-59 · US-01 AC-4 · setup: base-users · fails if a logged-out token still works
+    // Code: logout() stores the token's jti in RevokedToken; JwtStrategy.validate() refuses a
+    // revoked jti (401).
     it('returns 204 and makes the token unusable afterwards', async () => {
       const { body } = await login(EMAIL, PASSWORD).expect(200);
       const auth = `Bearer ${body.accessToken}`;
@@ -178,7 +202,9 @@ describe('US-01 secure login (e2e)', () => {
       await request(app.getHttpServer()).get('/auth/me').set('Authorization', auth).expect(401);
     });
 
-    // TC-S1-59 · setup: base-users · fails if a new login cannot restore access
+    // TC-S1-59 · US-01 AC-4 · setup: base-users · fails if a new login cannot restore access
+    // Code: each login issues a new jti, so a fresh token is not covered by the earlier
+    // revocation.
     it('requires logging in again to regain access', async () => {
       const first = await login(EMAIL, PASSWORD).expect(200);
       await request(app.getHttpServer())
@@ -195,7 +221,8 @@ describe('US-01 secure login (e2e)', () => {
         .expect(200);
     });
 
-    // TC-S1-59 · setup: base-users · fails if logout revokes more than its own token
+    // TC-S1-59 · US-01 AC-4 · setup: base-users · fails if logout revokes more than its own token
+    // Code: logout() revokes only the calling token's jti, not every token of the user.
     it('does not revoke other sessions belonging to the same user', async () => {
       const sessionA = await login(EMAIL, PASSWORD).expect(200);
       const sessionB = await login(EMAIL, PASSWORD).expect(200);
@@ -213,7 +240,9 @@ describe('US-01 secure login (e2e)', () => {
   });
 
   describe('AC-5: 15 failures in 30 minutes locks the account', () => {
-    // TC-S1-60 · setup: base-users · fails if the account locks before the 15th failure
+    // TC-S1-60 · US-01 AC-5 · setup: base-users · fails if the account locks before the 15th failure
+    // Code: recordFailedAttempt() counts failures in the window and only locks at
+    // LOGIN_MAX_FAILED_ATTEMPTS (15).
     it('stays open for the first 14 failures', async () => {
       for (let i = 0; i < 14; i++) {
         await login(EMAIL, 'wrong-password').expect(401);
@@ -226,7 +255,9 @@ describe('US-01 secure login (e2e)', () => {
       await login(EMAIL, PASSWORD).expect(200);
     });
 
-    // TC-S1-60 · setup: base-users · fails if the 15th failure does not lock or the helpline message is missing
+    // TC-S1-60 · US-01 AC-5 · setup: base-users · fails if the 15th failure does not lock or the helpline message is missing
+    // Code: the 15th failure sets lockedUntil; the next attempt throws
+    // HttpException(ACCOUNT_LOCKED_MESSAGE, 429).
     it('locks on the 15th and points the user at the helpline', async () => {
       for (let i = 0; i < 14; i++) {
         await login(EMAIL, 'wrong-password').expect(401);
@@ -240,7 +271,8 @@ describe('US-01 secure login (e2e)', () => {
       expect(locked.body.accessToken).toBeUndefined();
     });
 
-    // TC-S1-60 · setup: base-users · fails if a locked account accepts the correct password
+    // TC-S1-60 · US-01 AC-5 · setup: base-users · fails if a locked account accepts the correct password
+    // Code: login() checks lockedUntil before the password, so even the right password gets 429.
     it('refuses the correct password while locked', async () => {
       for (let i = 0; i < 15; i++) {
         await login(EMAIL, 'wrong-password').expect(401);
@@ -250,7 +282,9 @@ describe('US-01 secure login (e2e)', () => {
       expect(res.body.accessToken).toBeUndefined();
     });
 
-    // TC-S1-62 · setup: base-users · fails if non-consecutive failures still count toward the lock
+    // TC-S1-62 · US-01 AC-5 · setup: base-users · fails if non-consecutive failures still count toward the lock
+    // Code: a successful login runs resetFailedAttempts(), clearing the count and the window start
+    // ("consecutive").
     it('resets the count after a successful login', async () => {
       for (let i = 0; i < 5; i++) {
         await login(EMAIL, 'wrong-password').expect(401);
@@ -262,7 +296,9 @@ describe('US-01 secure login (e2e)', () => {
       expect(user.failedWindowStartedAt).toBeNull();
     });
 
-    // TC-S1-62 · setup: base-users · fails if the lock is permanent rather than temporary
+    // TC-S1-62 · US-01 AC-5 · setup: base-users · fails if the lock is permanent rather than temporary
+    // Code: the lock is only lockedUntil > now, so once it passes the next login is allowed
+    // ("temporarily").
     it('unlocks once the lock period has elapsed', async () => {
       for (let i = 0; i < 15; i++) {
         await login(EMAIL, 'wrong-password').expect(401);
@@ -299,7 +335,9 @@ describe('US-01 secure login (e2e)', () => {
 
     afterEach(() => jest.useRealTimers());
 
-    // TC-S1-61 · setup: base-users · fails if failures spread beyond 30 minutes still lock the account
+    // TC-S1-61 · US-01 AC-5 · setup: base-users · fails if failures spread beyond 30 minutes still lock the account
+    // Code: recordFailedAttempt() restarts the count when the window (LOGIN_FAILED_WINDOW_MINUTES,
+    // 30) has passed.
     it('does not lock when the 15 failures are spread beyond 30 minutes', async () => {
       const t0 = Date.now();
       freezeAt(t0);
@@ -321,11 +359,14 @@ describe('US-01 secure login (e2e)', () => {
   });
 
   describe('DTO validation', () => {
+    // TC-S1-66 · US-01 AC-2 · setup: base-users · fails if a malformed email reached the credential check
+    // Code: LoginDto @IsEmail refuses it in the ValidationPipe (400), before AuthService runs.
     it('rejects a malformed email with 400', async () => {
       await login('not-an-email', PASSWORD).expect(400);
     });
 
-    // TC-S1-56 · setup: base-users · fails if a non-string email crashes the login (500) instead of failing validation
+    // TC-S1-66 · US-01 AC-2 · setup: base-users · fails if a non-string email crashes the login (500) instead of failing validation
+    // Code: LoginDto @IsEmail answers 400 "email must be a valid email address" for a number.
     it('rejects a non-string email with 400 and a validation message', async () => {
       const res = await request(app.getHttpServer())
         .post('/auth/login')
@@ -336,10 +377,15 @@ describe('US-01 secure login (e2e)', () => {
       expect(res.body.accessToken).toBeUndefined();
     });
 
+    // TC-S1-66 · US-01 AC-2 · setup: base-users · fails if an empty password was sent on to the credential check
+    // Code: LoginDto password is @IsString @IsNotEmpty, so '' is a 400 validation error.
     it('rejects an empty password with 400', async () => {
       await login(EMAIL, '').expect(400);
     });
 
+    // TC-S1-66 · US-01 AC-1 · setup: base-users · fails if a client-supplied role were trusted, or an extra field broke login
+    // Code: ValidationPipe whitelist strips role; the token's role comes from the stored user
+    // only.
     it('ignores unexpected fields rather than trusting them', async () => {
       await request(app.getHttpServer())
         .post('/auth/login')

@@ -379,4 +379,19 @@ describe('EventsCancellationService (US-43)', () => {
       expect(ownConfirmation()).toEqual([]);
     });
   });
+
+  // TC-S3-82 · US-43 AC-8 · setup: none (unit) · fails if cancelling an event with no name breaks the notices
+  // Code: EventsCancellationService.notifyCancelled and organiserConfirmation (name fallbacks)
+  it('AC-8: words both notices for an event with no name', async () => {
+    const unnamed = { ...liveEvent, name: null };
+    access.assertEventAccess.mockResolvedValue(unnamed);
+    tx.eventRequest.findUniqueOrThrow.mockResolvedValue(unnamed);
+    events.setStatus.mockResolvedValue({ ...unnamed, status: EventStatus.CANCELLED });
+
+    await service.cancel(organiser, 'event-1', dto);
+
+    const messages = notifications.notifySafely.mock.calls.map(([n]) => n.message);
+    expect(messages).toContain('An event has been cancelled. Reason: Speaker withdrew');
+    expect(messages.find((m) => m.startsWith('You cancelled'))).toMatch(/^You cancelled "your event"\./);
+  });
 });

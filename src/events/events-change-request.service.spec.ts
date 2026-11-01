@@ -97,7 +97,9 @@ describe('EventsChangeRequestService (US-36)', () => {
     );
   });
 
-  describe('AC: a submitted request is saved as Pending and linked to the event', () => {
+  // TC-S2-167 · US-36 AC-8 · unit: createChangeRequest() with Prisma mocked · fails if the request is not saved as
+  // Pending on the event, or stores unchanged fields
+  describe('US-36 AC-8: a submitted request is saved as Pending and linked to the event', () => {
     it('saves PENDING, linked to the event and the requester, with the reason', async () => {
       const result = await service.request(
         organiser,
@@ -140,7 +142,8 @@ describe('EventsChangeRequestService (US-36)', () => {
     });
   });
 
-  describe('AC: at least one field must differ', () => {
+  // TC-S2-161 · US-36 AC-2 · unit: createChangeRequest() · fails if a request that changes nothing is saved
+  describe('US-36 AC-2: at least one field must differ', () => {
     it('rejects a request identical to the event', async () => {
       await expect(
         service.request(
@@ -162,7 +165,8 @@ describe('EventsChangeRequestService (US-36)', () => {
     });
   });
 
-  describe('AC: proposed dates cannot be in the past; end must be after start', () => {
+  // TC-S2-162 · US-36 AC-3 · unit: createChangeRequest() · fails if a past date, or an end before the stored start, is saved
+  describe('US-36 AC-3: proposed dates cannot be in the past; end must be after start', () => {
     it('rejects a start in the past', async () => {
       await expect(
         service.request(organiser, 'event-1', dto({ proposedStart: inDays(-1) })),
@@ -194,7 +198,9 @@ describe('EventsChangeRequestService (US-36)', () => {
     });
   });
 
-  describe('AC: equipment changes — add, remove, change quantity, from the catalogue', () => {
+  // TC-S2-164, TC-S2-165 · US-36 AC-5, AC-6 · unit: createChangeRequest() · fails if an equipment change is lost,
+  // or an item not in the catalogue is accepted
+  describe('US-36 AC-5, AC-6: equipment changes — add, remove, change quantity, from the catalogue', () => {
     it('saves the complete proposed list when an item is added', async () => {
       await service.request(
         organiser,
@@ -289,7 +295,8 @@ describe('EventsChangeRequestService (US-36)', () => {
     });
   });
 
-  describe('AC: only submitted or confirmed events (and those live in between)', () => {
+  // TC-S2-169 · US-36 AC-10 · unit: createChangeRequest() · fails if a finished event takes a request
+  describe('US-36 AC-10: only submitted or confirmed events (and those live in between)', () => {
     it.each([EventStatus.SUBMITTED, EventStatus.CONFIRMED, EventStatus.RETURNED])(
       'accepts a request for a %s event',
       async (status) => {
@@ -316,7 +323,9 @@ describe('EventsChangeRequestService (US-36)', () => {
     });
   });
 
-  describe('AC: Organisers can only request changes to their own events', () => {
+  // TC-S2-170 · US-36 AC-11 · unit: createChangeRequest() · fails if an Organiser can request a change to someone
+  // else's event
+  describe('US-36 AC-11: Organisers can only request changes to their own events', () => {
     it('asks the access layer for REQUEST_CHANGE on this event', async () => {
       await service.request(organiser, 'event-1', dto({ proposedAttendance: 80 }));
 
@@ -371,7 +380,9 @@ describe('EventsChangeRequestService (US-36)', () => {
     });
   });
 
-  describe('AC: equipment items are selected from the catalogue', () => {
+  // TC-S2-159, TC-S2-165 · US-36 AC-1, AC-6 · unit: the catalogue lookup · fails if the form is not offered the
+  // catalogue
+  describe('US-36 AC-6: equipment items are selected from the catalogue', () => {
     it('lists the catalogue for the picker with only id, type, description and location', async () => {
       prisma.equipment.findMany.mockResolvedValue([
         { id: 'projector', type: 'Projector', description: null, location: 'Store room A' },
@@ -387,7 +398,8 @@ describe('EventsChangeRequestService (US-36)', () => {
     });
   });
 
-  describe('one pending request per event', () => {
+  // TC-S2-167 · US-36 AC-8 · unit: createChangeRequest() · fails if a second pending request is allowed
+  describe('US-36 AC-8: one pending request per event', () => {
     it('refuses a second while one is pending', async () => {
       prisma.eventChangeRequest.findFirst.mockResolvedValue({ id: 'cr-0' });
 
@@ -413,6 +425,8 @@ describe('EventsChangeRequestService (US-36)', () => {
 });
 
 /** US-36 AC: the original details still show, with the pending request alongside. */
+// TC-S2-168 · US-36 AC-9 · unit: the event view · fails if the event shows the proposed values instead of the
+// original ones, or the pending request is missing
 describe('EventsService viewing an event with a pending change request (US-36)', () => {
   const organiser: AuthenticatedUser = {
     userId: 'organiser-1',

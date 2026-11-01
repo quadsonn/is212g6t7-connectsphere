@@ -9,7 +9,11 @@ import { loadSql } from './helpers/load-sql';
 import { resetDb } from './helpers/reset-db';
 
 /**
- * US-04 e2e — one describe per acceptance criterion.
+ * US-04 (Save an incomplete request as a draft), integration tests: the real
+ * Nest app over HTTP (Supertest) and the local test database, one describe per
+ * acceptance criterion. Code under test: POST /events/drafts (saveDraft,
+ * DraftEventRequestDto), PATCH /events/:id (updateDraft), POST /events/:id/submit
+ * (submitDraft: re-validates against CreateEventRequestDto, then setStatus).
  *
  * Pre-condition for every test: reset the testDB, then run
  * test/fixtures/sql/base-users.sql; a test that needs more loads the tc-s1
@@ -93,7 +97,9 @@ describe('US-04 save event request as draft (e2e)', () => {
   });
 
   describe('AC-1: saves without full submission validation, at DRAFT', () => {
-    // TC-S1-31 · setup: base-users · fails if draft saving enforced submission rules, or accepted values of the wrong type
+    // TC-S1-31 · US-04 AC-1 · setup: base-users · fails if draft saving enforced submission rules, or accepted values of the wrong type
+    // Code: POST /events/drafts uses DraftEventRequestDto, where every field is @IsOptional;
+    // saveDraft() stores it as DRAFT.
     it('accepts a completely empty draft', async () => {
       const res = await http()
         .post('/events/drafts')
@@ -105,7 +111,9 @@ describe('US-04 save event request as draft (e2e)', () => {
       expect(res.body.id).toEqual(expect.any(String));
     });
 
-    // TC-S1-31 · setup: base-users · fails if draft saving enforced submission rules, or accepted values of the wrong type
+    // TC-S1-31 · US-04 AC-1 · setup: base-users · fails if draft saving enforced submission rules, or accepted values of the wrong type
+    // Code: DraftEventRequestDto has no @IsNotEmpty, so missing purpose, dates or attendance are
+    // allowed.
     it('accepts a draft with required fields still empty', async () => {
       const res = await http()
         .post('/events/drafts')
@@ -119,7 +127,8 @@ describe('US-04 save event request as draft (e2e)', () => {
       expect(res.body.expectedAttendance).toBeNull();
     });
 
-    // TC-S1-31 · setup: base-users · fails if draft saving enforced submission rules, or accepted values of the wrong type
+    // TC-S1-31 · US-04 AC-1 · setup: base-users · fails if draft saving enforced submission rules, or accepted values of the wrong type
+    // Code: DraftEventRequestDto has no @MinDate; the future-date rule only runs at submission.
     it('accepts a date in the past, which submission would reject', async () => {
       await http()
         .post('/events/drafts')
@@ -131,7 +140,9 @@ describe('US-04 save event request as draft (e2e)', () => {
         .expect(201);
     });
 
-    // TC-S1-31 · setup: base-users · fails if draft saving enforced submission rules, or accepted values of the wrong type
+    // TC-S1-31 · US-04 AC-1 · setup: base-users · fails if draft saving enforced submission rules, or accepted values of the wrong type
+    // Code: DraftEventRequestDto still type-checks what is given (@IsInt, @IsDate, enums), so bad
+    // types get 400.
     it('still rejects incoherent data', async () => {
       await http()
         .post('/events/drafts')
@@ -149,6 +160,8 @@ describe('US-04 save event request as draft (e2e)', () => {
         .expect(400);
     });
 
+    // TC-S1-78 · US-04 AC-1, US-02 AC-3 · setup: base-users · fails if a non-Organiser could save a draft
+    // Code: @Roles(EVENT_ORGANISER) on POST /events/drafts; RolesGuard answers 403.
     it('refuses a non-Organiser', async () => {
       await http()
         .post('/events/drafts')
@@ -157,13 +170,16 @@ describe('US-04 save event request as draft (e2e)', () => {
         .expect(403);
     });
 
+    // TC-S1-78 · US-04 AC-1, US-02 AC-8 · setup: base-users · fails if a draft could be saved without signing in
+    // Code: JwtAuthGuard answers 401 before the controller.
     it('refuses an unauthenticated caller', async () => {
       await http().post('/events/drafts').send({}).expect(401);
     });
   });
 
   describe('AC-2: returning later to continue editing', () => {
-    // TC-S1-32 · setup: base-users · fails if a reopened draft lost what was entered
+    // TC-S1-32 · US-04 AC-2 · setup: base-users · fails if a reopened draft lost what was entered
+    // Code: GET /events/:id (OWN scope) returns the stored draft field by field.
     it('opens the saved draft with what was entered', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -183,7 +199,9 @@ describe('US-04 save event request as draft (e2e)', () => {
       });
     });
 
-    // TC-S1-32 · setup: base-users · fails if a reopened draft lost what was entered
+    // TC-S1-32 · US-04 AC-2 · setup: base-users · fails if a reopened draft lost what was entered
+    // Code: PATCH /events/:id -> updateDraft() merges the new fields into the stored DRAFT,
+    // keeping the rest.
     it('fills in the missing fields incrementally', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -207,7 +225,9 @@ describe('US-04 save event request as draft (e2e)', () => {
       expect(after.body.purpose).toBe('Added on the second visit');
     });
 
-    // TC-S1-38 · setup: base-users + tc-s1-22-setup · fails if an Organiser could edit or submit someone else's draft
+    // TC-S1-38 · US-04 AC-2, US-02 AC-5 · setup: base-users + tc-s1-22-setup · fails if an Organiser could edit or submit someone else's draft
+    // Code: updateDraft() loads the row through assertEventAccess(UPDATE), OWN scope, so another's
+    // draft is 404.
     it('refuses to edit another Organiser’s draft', async () => {
       await given('tc-s1-22-setup');
       const created = await http()
@@ -230,7 +250,9 @@ describe('US-04 save event request as draft (e2e)', () => {
   });
 
   describe('AC-3: drafts are distinguishable in the list', () => {
-    // TC-S1-33 · setup: base-users · fails if drafts and submitted requests were labelled alike
+    // TC-S1-33 · US-04 AC-3 · setup: base-users · fails if drafts and submitted requests were labelled alike
+    // Code: the list returns each request's own status; the screen's badge comes from it (UI part:
+    // TC-S1-34).
     it('marks a draft DRAFT and a submitted request SUBMITTED', async () => {
       await http()
         .post('/events/drafts')
@@ -258,6 +280,9 @@ describe('US-04 save event request as draft (e2e)', () => {
       expect(byName['Freshman Orientation 2030']).toBe(EventStatus.SUBMITTED);
     });
 
+    // TC-S1-33 · US-04 AC-3 · setup: base-users · fails if a Coordinator could see an Organiser's unfinished draft
+    // Code: a DRAFT has no Coordinator and is not in the Lead's queue, so no Coordinator's
+    // ASSIGNED scope matches it.
     it('keeps drafts out of the Coordinator review queue', async () => {
       await http()
         .post('/events/drafts')
@@ -275,7 +300,9 @@ describe('US-04 save event request as draft (e2e)', () => {
   });
 
   describe('AC-4: a completed draft submits via the transition method', () => {
-    // TC-S1-35 · setup: base-users · fails if submitting a complete draft did not move it to SUBMITTED
+    // TC-S1-35 · US-04 AC-4 · setup: base-users · fails if submitting a complete draft did not move it to SUBMITTED
+    // Code: POST /events/:id/submit -> submitDraft() re-validates against CreateEventRequestDto,
+    // then setStatus(SUBMITTED).
     it('moves DRAFT -> SUBMITTED', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -293,6 +320,9 @@ describe('US-04 save event request as draft (e2e)', () => {
       expect(submitted.body.status).toBe(EventStatus.SUBMITTED);
     });
 
+    // TC-S1-35 · US-04 AC-4, US-03 AC-2 · setup: base-users · fails if a submitted draft skipped the Lead's queue and reached a Coordinator
+    // Code: submitDraft() leaves coordinatorId NULL, so it waits in the Lead's unassigned queue
+    // (Week 7 Change 5).
     it('keeps it out of every Coordinator’s view once submitted, until the Lead assigns it', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -313,7 +343,9 @@ describe('US-04 save event request as draft (e2e)', () => {
       expect(queue.body).toHaveLength(0);
     });
 
-    // TC-S1-36 · setup: base-users · fails if an incomplete or past-dated draft could be submitted
+    // TC-S1-36 · US-04 AC-4 · setup: base-users · fails if an incomplete or past-dated draft could be submitted
+    // Code: assertReadyForSubmission() runs class-validator with CreateEventRequestDto and answers
+    // 400 with every message.
     it('blocks submitting an incomplete draft and flags each missing field', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -337,7 +369,8 @@ describe('US-04 save event request as draft (e2e)', () => {
       expect(stored.status).toBe(EventStatus.DRAFT);
     });
 
-    // TC-S1-36 · setup: base-users · fails if an incomplete or past-dated draft could be submitted
+    // TC-S1-36 · US-04 AC-4 · setup: base-users · fails if an incomplete or past-dated draft could be submitted
+    // Code: the same check applies @MinDate(now) at submission time, not at save time.
     it('blocks submitting a draft whose date has since passed', async () => {
       const created = await http()
         .post('/events/drafts')
@@ -359,7 +392,8 @@ describe('US-04 save event request as draft (e2e)', () => {
       );
     });
 
-    // TC-S1-38 · setup: base-users + tc-s1-22-setup · fails if an Organiser could edit or submit someone else's draft
+    // TC-S1-38 · US-04 AC-4, US-02 AC-5 · setup: base-users + tc-s1-22-setup · fails if an Organiser could edit or submit someone else's draft
+    // Code: submitDraft() loads through assertEventAccess(SUBMIT), OWN scope, so 404.
     it('refuses to submit another Organiser’s draft', async () => {
       await given('tc-s1-22-setup');
       const created = await http()
@@ -385,7 +419,8 @@ describe('US-04 save event request as draft (e2e)', () => {
       return res.body.id as string;
     };
 
-    // TC-S1-37 · setup: base-users · fails if a submitted request could still be edited or re-submitted
+    // TC-S1-37 · US-04 AC-5 · setup: base-users · fails if a submitted request could still be edited or re-submitted
+    // Code: assertIsEditable() allows only DRAFT or RETURNED, so a SUBMITTED request gets 409.
     it('refuses to edit it', async () => {
       const id = await submitOne();
 
@@ -398,7 +433,8 @@ describe('US-04 save event request as draft (e2e)', () => {
       expect(res.body.message).toMatch(/SUBMITTED/);
     });
 
-    // TC-S1-37 · setup: base-users · fails if a submitted request could still be edited or re-submitted
+    // TC-S1-37 · US-04 AC-5 · setup: base-users · fails if a submitted request could still be edited or re-submitted
+    // Code: assertIsEditable() throws before any update is written.
     it('leaves the stored record untouched after a refused edit', async () => {
       const id = await submitOne();
 
@@ -412,7 +448,8 @@ describe('US-04 save event request as draft (e2e)', () => {
       expect(stored.name).toBe(completeFields.name);
     });
 
-    // TC-S1-37 · setup: base-users · fails if a submitted request could still be edited or re-submitted
+    // TC-S1-37 · US-04 AC-5 · setup: base-users · fails if a submitted request could still be edited or re-submitted
+    // Code: submitDraft() calls assertIsEditable() first, so a second submit is 409.
     it('refuses to submit it again', async () => {
       const id = await submitOne();
 
@@ -422,7 +459,8 @@ describe('US-04 save event request as draft (e2e)', () => {
         .expect(409);
     });
 
-    // TC-S1-37 · setup: base-users · fails if a submitted request could still be edited or re-submitted
+    // TC-S1-37 · US-04 AC-5 · setup: base-users · fails if a submitted request could still be edited or re-submitted
+    // Code: GET /events/:id still returns it, read-only, with status SUBMITTED.
     it('still shows it, with its status', async () => {
       const id = await submitOne();
 

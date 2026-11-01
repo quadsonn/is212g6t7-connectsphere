@@ -22,7 +22,7 @@ export function AppShell() {
   const slot = useMemo(() => ({ node: slotNode, setActive: setSlotActive }), [slotNode]);
 
   return (
-    <div className="min-h-screen bg-ink-50">
+    <div className="min-h-screen bg-canvas">
       <a href="#main" className="skip-link">
         Skip to main content
       </a>

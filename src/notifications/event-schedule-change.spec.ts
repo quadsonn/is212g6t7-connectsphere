@@ -46,6 +46,19 @@ describe('event schedule change notice', () => {
     });
   });
 
+  // TC-S3-42 · US-38 AC-3 · setup: none (unit) · fails if a date stored as a Date, or a value that is not a date, breaks the old → new wording
+  // Code: formatValue (Date objects formatted the same as ISO strings; unparsable values shown as they are)
+  describe('AC-3: values that are not ISO strings', () => {
+    it('formats a Date like its ISO string, and shows an unreadable value as it is', () => {
+      const iso = '2030-10-01T01:00:00.000Z';
+      const [asText] = scheduleChangesFrom([{ field: 'proposedStart', previous: iso, next: 'TBC' }]);
+      const [asDate] = scheduleChangesFrom([{ field: 'proposedStart', previous: new Date(iso), next: 'TBC' }]);
+
+      expect(asDate.previous).toBe(asText.previous);
+      expect(asDate.next).toBe('TBC');
+    });
+  });
+
   describe('AC-4: several fields changed in one update are one message', () => {
     it('lists Start, End and Venue together, in a fixed order', () => {
       const start = scheduleChangesFrom([

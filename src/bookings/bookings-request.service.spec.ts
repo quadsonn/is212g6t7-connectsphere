@@ -108,6 +108,8 @@ describe('BookingsService createRequest (US-20)', () => {
     );
   });
 
+  // TC-S2-34 · US-20 AC-1 · unit: CreateBookingRequestDto and createRequest() with Prisma mocked ·
+  // fails if a request without a valid date, times or attendance gets through
   describe('AC-1: date, start/end time and expected attendance are required', () => {
     const errorsFor = async (body: Record<string, unknown>) => {
       const errors = await validate(plainToInstance(CreateBookingRequestDto, body));
@@ -163,6 +165,8 @@ describe('BookingsService createRequest (US-20)', () => {
     });
   });
 
+  // TC-S2-35 · US-20 AC-2 · unit: createRequest() · fails if the event's requirements are not copied
+  // onto the request
   describe('AC-2: event requirements are attached to the request', () => {
     it('copies layout, accessibility and equipment needs from the event', async () => {
       await service.createRequest(coordinator, dto());
@@ -194,6 +198,8 @@ describe('BookingsService createRequest (US-20)', () => {
     });
   });
 
+  // TC-S2-35 · US-20 AC-3 · unit: createRequest() · fails if a new request is written as anything
+  // but pending
   describe('AC-3: a new request is pending, not confirmed', () => {
     it('never writes a status, so the REQUESTED default applies', async () => {
       const result = await service.createRequest(coordinator, dto());
@@ -203,6 +209,8 @@ describe('BookingsService createRequest (US-20)', () => {
     });
   });
 
+  // TC-S2-36, TC-S2-37 · US-20 AC-4 · unit: createRequest() · fails if a confirmed overlap does not
+  // block, or a touching slot does
   describe('AC-4: overlap with a confirmed booking blocks submission', () => {
     it('throws 409 naming the conflicting booking', async () => {
       prisma.venueBooking.findMany.mockResolvedValue([existing(BookingStatus.APPROVED)]);
@@ -264,6 +272,8 @@ describe('BookingsService createRequest (US-20)', () => {
     });
   });
 
+  // TC-S2-38 · US-20 AC-5 · unit: createRequest() · fails if a pending overlap blocks, or gives no
+  // warning
   describe('AC-5: overlap with only a pending request is allowed with a warning', () => {
     it('creates the request and returns a warning', async () => {
       prisma.venueBooking.findMany.mockResolvedValue([existing(BookingStatus.REQUESTED)]);
@@ -283,6 +293,8 @@ describe('BookingsService createRequest (US-20)', () => {
     });
   });
 
+  // TC-S2-39 · US-20 AC-6 · unit: findMyRequests() · fails if a request is missing from its
+  // requester's history
   describe('AC-6: the request appears in the Coordinator\'s history', () => {
     it('records the Coordinator as the requester', async () => {
       await service.createRequest(coordinator, dto());
@@ -304,6 +316,8 @@ describe('BookingsService createRequest (US-20)', () => {
     });
   });
 
+  // TC-S2-40 · US-20 access · unit: createRequest() · fails if a request can be made for someone
+  // else's or an unapproved event
   describe('authorisation and preconditions', () => {
     it('is denied to a role without BOOKING/CREATE', async () => {
       access.requireScope.mockImplementation(() => {
@@ -346,6 +360,8 @@ describe('BookingsService createRequest (US-20)', () => {
     });
   });
 
+  // TC-S2-40 · US-20 access · unit: findOneForUser() · fails if a request is readable by someone not
+  // involved
   describe('viewing one request in full', () => {
     it('lets a Coordinator open requests they raised or on their events', async () => {
       await service.findOneForUser(coordinator, 'booking-1');

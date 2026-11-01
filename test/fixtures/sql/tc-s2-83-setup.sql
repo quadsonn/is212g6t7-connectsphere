@@ -3,7 +3,8 @@
 --
 -- Pre-condition for TC-S2-83 (Story 26 AC-1), and the base for TC-S2-84 to
 -- TC-S2-88. Load AFTER base-users.sql (which has two Coordinators:
--- USR-004 "Cody Coordinator" and USR-005 "Casey Coordinator").
+-- USR-004 "Cody Coordinator" and USR-005 "Casey Coordinator"). Since Week 7
+-- Change 5 the Lead reassigns, so the tests also load tc-s1-25-setup.sql.
 --
 --   EVT-107  PLANNING "Freshman Orientation 2030", USR-006 / USR-004
 

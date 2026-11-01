@@ -15,6 +15,8 @@ import { ChangeArrangementCheckService } from './change-arrangement-check.servic
 import { EventsService } from './events.service';
 import { EventsTechnicalSupportService } from './events-technical-support.service';
 import { EventsUnfulfillableService } from './events-unfulfillable.service';
+import { EquipmentShortageActionsService } from './equipment-shortage-actions.service';
+import { EquipmentShortageController } from './equipment-shortage.controller';
 
 /**
  * E2/E3 — event requests, drafts, review, status. E8 change requests live here.
@@ -24,7 +26,7 @@ import { EventsUnfulfillableService } from './events-unfulfillable.service';
   // EquipmentModule: US-33 releases an event's equipment on cancellation.
   // BookingsModule: US-38 moves an event's bookings when its dates change.
   imports: [NotificationsModule, EquipmentModule, BookingsModule],
-  controllers: [EventsController, EventsAssignmentController],
+  controllers: [EventsController, EventsAssignmentController, EquipmentShortageController],
   providers: [
     EventsService,
     EventsAssignmentService,
@@ -40,6 +42,7 @@ import { EventsUnfulfillableService } from './events-unfulfillable.service';
     // US-61: assign a Technical Support member to an event.
     EventsTechnicalSupportService,
     EventsRequestNotifier,
+    EquipmentShortageActionsService,
   ],
   exports: [EventsService],
 })

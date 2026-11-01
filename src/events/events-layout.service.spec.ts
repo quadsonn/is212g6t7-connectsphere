@@ -80,6 +80,8 @@ describe('EventsService layout & accessibility (US-06)', () => {
     );
   });
 
+  // TC-S1-47, TC-S1-49 · US-06 AC-1, AC-2 · unit: createAndSubmit()/saveDraft() with Prisma mocked ·
+  // fails if the layout or its notes are not saved as given
   describe('AC-1 / AC-2: layout selection and notes', () => {
     it('persists a selected layout on submission', async () => {
       await service.createAndSubmit(
@@ -118,6 +120,7 @@ describe('EventsService layout & accessibility (US-06)', () => {
     });
   });
 
+  // TC-S1-50 · US-06 AC-3 · unit · fails if the requirements list or notes are altered before saving
   describe('AC-3: accessibility requirements', () => {
     it('persists multiple requirements', async () => {
       await service.createAndSubmit(
@@ -177,6 +180,7 @@ describe('EventsService layout & accessibility (US-06)', () => {
     });
   });
 
+  // TC-S1-52 · US-06 AC-4 · unit · fails if a draft loses its preferences on save or edit
   describe('AC-4: values persist on a draft too', () => {
     it('saves layout and accessibility on a draft', async () => {
       await service.saveDraft(organiser, {
@@ -224,6 +228,7 @@ describe('EventsService layout & accessibility (US-06)', () => {
     });
   });
 
+  // TC-S1-53 · US-06 AC-5 · unit · fails if missing preferences block saving or submitting
   describe('AC-5: these are preferences, not blockers', () => {
     it('submits with no layout or accessibility at all', async () => {
       const result = await service.createAndSubmit(organiser, submission());

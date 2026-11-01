@@ -42,7 +42,8 @@ export interface EventRequestFormState {
   expectedAttendance: string;
   preferredLayout: string;
   layoutNotes: string;
-  accessibilityRequirements: string;
+  /** US-06 AC-3: any number of requirements, as the API stores them. */
+  accessibilityRequirements: AccessibilityFeature[];
   accessibilityNotes: string;
   requiredFacilities: Facility[];
   equipmentNeeds: string;
@@ -83,9 +84,6 @@ export const START_TIME_SLOTS = TIME_SLOTS.slice(0, -1);
  */
 export const OTHER_LAYOUT = 'OTHER';
 
-/** Same idea for accessibility: 'Other' is described in accessibilityNotes. */
-export const OTHER_ACCESS = 'OTHER';
-
 export const EMPTY_EVENT_REQUEST_FORM: EventRequestFormState = {
   name: '',
   purpose: '',
@@ -98,7 +96,7 @@ export const EMPTY_EVENT_REQUEST_FORM: EventRequestFormState = {
   expectedAttendance: '',
   preferredLayout: '',
   layoutNotes: '',
-  accessibilityRequirements: '',
+  accessibilityRequirements: [],
   accessibilityNotes: '',
   requiredFacilities: [],
   equipmentNeeds: '',
@@ -123,7 +121,8 @@ export function mapExistingToForm(existing: OrganiserRequestView): EventRequestF
       existing.expectedAttendance != null ? String(existing.expectedAttendance) : '',
     preferredLayout: existing.preferredLayout ?? '',
     layoutNotes: existing.layoutNotes ?? '',
-    accessibilityRequirements: existing.accessibilityRequirements[0] ?? '',
+    // Every stored requirement, not just the first: saving the form must not drop any.
+    accessibilityRequirements: existing.accessibilityRequirements ?? [],
     accessibilityNotes: existing.accessibilityNotes ?? '',
     requiredFacilities: existing.requiredFacilities ?? [],
     equipmentNeeds: existing.equipmentNeeds ?? '',
@@ -159,11 +158,8 @@ export function toPayload(form: EventRequestFormState): EventRequestPayload {
         ? undefined
         : ((text(form.preferredLayout) as RoomLayout) ?? undefined),
     layoutNotes: text(form.layoutNotes),
-    accessibilityRequirements:
-      form.accessibilityRequirements === '' ||
-      form.accessibilityRequirements === OTHER_ACCESS
-        ? undefined
-        : [form.accessibilityRequirements as AccessibilityFeature],
+    // Always sent, like requiredFacilities: an empty list is a value (none).
+    accessibilityRequirements: form.accessibilityRequirements,
     accessibilityNotes: text(form.accessibilityNotes),
     // Always sent, like registrationEnabled: an empty list is a value (none).
     requiredFacilities: form.requiredFacilities,

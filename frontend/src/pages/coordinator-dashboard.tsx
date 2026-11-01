@@ -14,7 +14,7 @@ import { useEvents } from '@/features/events/hooks/use-events';
 import { attendanceBandLabel } from '@/lib/attendance-bands';
 import { apiErrorMessage } from '@/lib/api-client';
 import { COORDINATOR_QUEUE_STATUSES } from '@/lib/status';
-import { formatDateRange } from '@/lib/utils';
+import { formatDateRange, STRETCHED_LINK } from '@/lib/utils';
 import type { EventStatus } from '@/types/api';
 
 /**
@@ -100,10 +100,15 @@ export function CoordinatorDashboard() {
         {queue && queue.length > 0 ? (
           <ul className="divide-y divide-ink-100">
             {queue.map((event) => (
-              <li key={event.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2.5">
-                    <span className="truncate font-medium text-ink-900">{event.name}</span>
+              <li
+                key={event.id}
+                className="group relative flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-ink-50"
+              >
+                <div className="min-w-0 flex-[1_1_16rem]">
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <span className="min-w-0 break-words font-medium text-ink-900 group-hover:text-brand-700 group-hover:underline">
+                      {event.name}
+                    </span>
                     <EventStatusBadge status={event.status} />
                     {venueUnavailable.has(event.id) ? (
                       <Badge className="bg-red-50 text-red-800 ring-red-300">Venue unavailable</Badge>
@@ -116,7 +121,12 @@ export function CoordinatorDashboard() {
                 </div>
 
                 <div className="flex shrink-0 flex-wrap gap-2">
-                  <LinkButton to={`/coordinator/events/${event.id}`} size="sm" variant="secondary">
+                  <LinkButton
+                    to={`/coordinator/events/${event.id}`}
+                    size="sm"
+                    variant="secondary"
+                    className={STRETCHED_LINK}
+                  >
                     View details
                   </LinkButton>
                 </div>

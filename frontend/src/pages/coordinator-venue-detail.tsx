@@ -1,7 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Select } from '@/components/ui/form';
 import { ErrorState, LoadingState } from '@/components/ui/states';
@@ -78,11 +78,19 @@ export function CoordinatorVenueDetail() {
                 {venue.location} · {venue.capacity} seats
               </p>
             </div>
-            {/* AC-5 (US-20): never gated on suitability. Disabled only because
-                the request flow (US-21) is not on this branch yet. */}
-            <Button disabled title="The booking request flow (US-21) is not available yet">
+            {/* US-19 AC-5: never gated on suitability. The request itself is
+                made on the event's page (US-20), with this venue chosen; until
+                an event is picked, the button leads to the Suitability tab. */}
+            <Link
+              to={
+                eventId
+                  ? `/coordinator/events/${eventId}?venueId=${venue.id}`
+                  : `/coordinator/venues/${venue.id}?tab=suitability`
+              }
+              className={buttonVariants()}
+            >
               Request this venue
-            </Button>
+            </Link>
           </header>
 
           <Card className="px-5 pt-4 pb-5">

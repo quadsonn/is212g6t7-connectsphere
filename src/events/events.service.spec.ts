@@ -87,6 +87,8 @@ describe('EventsService (US-03)', () => {
     );
   });
 
+  // TC-S1-23 · US-03 AC-1 · unit: EventsService.createAndSubmit() with Prisma mocked · fails if a
+  // valid request is not saved as SUBMITTED for the caller
   describe('AC-1: a valid request is recorded as SUBMITTED', () => {
     it('creates the record then transitions it to SUBMITTED', async () => {
       prisma.eventRequest.create.mockResolvedValue(draftRow());
@@ -151,6 +153,7 @@ describe('EventsService (US-03)', () => {
     });
   });
 
+  // TC-S1-29 · US-03 AC-5 · unit · fails if the attendance number is altered before it is saved
   describe('AC-5: attendance is stored as given', () => {
     it('persists a positive whole number unchanged', async () => {
       prisma.eventRequest.create.mockResolvedValue(draftRow());
@@ -166,6 +169,8 @@ describe('EventsService (US-03)', () => {
     });
   });
 
+  // TC-S1-23 · US-03 AC-1, US-11 · unit: setStatus() · fails if a status changes without going
+  // through the transition check
   describe('setStatus: the only way status changes', () => {
     it('applies a legal transition', async () => {
       prisma.eventRequest.update.mockResolvedValue(
@@ -216,6 +221,7 @@ describe('EventsService (US-03)', () => {
     });
   });
 
+  // TC-S1-28 · US-03 AC-4 · unit · fails if the Organiser's view drops a detail or the status
   describe('AC-4: viewing a submitted request', () => {
     it('enforces ownership before returning anything', async () => {
       const event = draftRow({ status: EventStatus.SUBMITTED });
@@ -252,6 +258,8 @@ describe('EventsService (US-03)', () => {
     });
   });
 
+  // TC-S1-73 · US-02 AC-7 · unit · fails if an Attendee's list includes an event they cannot
+  // register for
   describe("Attendee list: only events they can register for", () => {
     const attendee: AuthenticatedUser = {
       userId: 'att-1',

@@ -87,6 +87,8 @@ describe('BookingsService decisions (US-22)', () => {
 
   const decisionRow = () => prisma.bookingDecision.create.mock.calls[0][0].data;
 
+  // TC-S2-48 · US-22 AC-1, access · unit: approve()/reject() with Prisma mocked · fails if staff can
+  // decide a request on a venue they do not manage
   describe('AC-1: actions act on a request the staff member can open', () => {
     it('only finds requests for venues the caller manages', async () => {
       prisma.venueBooking.findFirst.mockResolvedValue(null);
@@ -98,6 +100,8 @@ describe('BookingsService decisions (US-22)', () => {
     });
   });
 
+  // TC-S2-49 · US-22 AC-2 · unit: reject() and RejectBookingDto · fails if a rejection without a
+  // reason is accepted
   describe('AC-2: rejecting requires a reason', () => {
     it('the DTO refuses an empty reason', async () => {
       const errors = await validate(plainToInstance(RejectBookingDto, { reason: '' }));
@@ -116,6 +120,7 @@ describe('BookingsService decisions (US-22)', () => {
     });
   });
 
+  // TC-S2-50 · US-22 AC-3 · unit: approve() · fails if a note is required, or one given is lost
   describe('AC-3: approving allows an optional note', () => {
     it('the DTO accepts no note', async () => {
       expect(await validate(plainToInstance(ApproveBookingDto, {}))).toEqual([]);
@@ -135,6 +140,7 @@ describe('BookingsService decisions (US-22)', () => {
     });
   });
 
+  // TC-S2-51 · US-22 AC-4 · unit: BookingDecision rows · fails if a decision has no time or decider
   describe('AC-4: the decision is timestamped and attributed', () => {
     it('writes a decision row attributed to the caller, in the same transaction', async () => {
       await service.approve(staff, 'booking-1', {});
@@ -151,6 +157,8 @@ describe('BookingsService decisions (US-22)', () => {
     });
   });
 
+  // TC-S2-52 · US-22 AC-5 · unit: decision notifications · fails if the requester or Organiser is
+  // not told the outcome and reason
   describe('AC-5: the Coordinator and Organiser are told', () => {
     it('notifies the requester and the organiser', async () => {
       await service.reject(staff, 'booking-1', { reason: 'Maintenance' });
@@ -192,6 +200,8 @@ describe('BookingsService decisions (US-22)', () => {
     });
   });
 
+  // TC-S2-53 · US-22 AC-6 · unit: reverse() · fails if a reversal overwrites the original decision
+  // instead of adding one
   describe('AC-6: a reversal is a new recorded action', () => {
     it('the DTO requires a reason', async () => {
       const errors = await validate(plainToInstance(ReverseBookingDto, {}));
@@ -222,6 +232,8 @@ describe('BookingsService decisions (US-22)', () => {
     });
   });
 
+  // TC-S2-54 · US-22 AC-7 · unit: claim before deciding · fails if a decided request can be decided
+  // again
   describe('AC-7: the same request cannot be decided twice', () => {
     it.each([BookingStatus.APPROVED, BookingStatus.REJECTED])(
       'refuses a second decision once %s',
@@ -250,6 +262,8 @@ describe('BookingsService decisions (US-22)', () => {
     });
   });
 
+  // TC-S2-55 · US-22 AC-3, US-23 AC-5 · unit: approve() · fails if approval does not re-check the
+  // slot
   describe('approval keeps the venue free of double-commitment', () => {
     it('refuses to approve over another confirmed booking', async () => {
       prisma.venueBooking.findMany.mockResolvedValue([

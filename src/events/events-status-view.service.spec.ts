@@ -75,6 +75,8 @@ describe('EventsService status view (US-05)', () => {
     );
   });
 
+  // TC-S1-39 · US-05 AC-1 · unit: findMyRequests()/toOrganiserView() with Prisma mocked · fails if a
+  // status is reported as something else
   describe('AC-1: every status is reported', () => {
     // One row per distinct status-view outcome: no decision, a rejection with
     // its reason, a return with its reason, and a terminal status. That every
@@ -133,6 +135,7 @@ describe('EventsService status view (US-05)', () => {
     });
   });
 
+  // TC-S1-41 · US-05 AC-2 · unit · fails if a REJECTED request's view drops the Coordinator's reason
   describe('AC-2: a rejected request shows the reason', () => {
     it('surfaces decisionReason', async () => {
       prisma.eventRequest.findMany.mockResolvedValue([
@@ -159,6 +162,8 @@ describe('EventsService status view (US-05)', () => {
     });
   });
 
+  // TC-S1-42, TC-S1-43 · US-05 AC-3 · unit · fails if the question is missing when asked, or shown
+  // when not
   describe('AC-3: clarification is visible, with the question asked', () => {
     it('flags clarification and shows what is being asked', async () => {
       prisma.eventRequest.findMany.mockResolvedValue([
@@ -204,6 +209,8 @@ describe('EventsService status view (US-05)', () => {
     });
   });
 
+  // TC-S1-44, TC-S1-45 · US-05 AC-4 · unit · fails if the view is built from anything but the latest
+  // stored row
   describe('AC-4: the most recent state is what is shown', () => {
     it('reflects whatever status the record currently holds', async () => {
       prisma.eventRequest.findMany.mockResolvedValueOnce([
@@ -228,6 +235,7 @@ describe('EventsService status view (US-05)', () => {
     });
   });
 
+  // TC-S1-46 · US-05 AC-5 · unit · fails if the query is not filtered on organiserId
   describe('AC-5: only the Organiser’s own requests', () => {
     it('scopes the query through the shared access layer', async () => {
       await service.findMyRequests(organiser);
@@ -251,6 +259,7 @@ describe('EventsService status view (US-05)', () => {
     });
   });
 
+  // TC-S1-44 · US-05 AC-4, US-11 · unit · fails if viewing a status could change it
   describe('read-only: owns no transition logic', () => {
     it('never writes when listing', async () => {
       prisma.eventRequest.findMany.mockResolvedValue([row()]);

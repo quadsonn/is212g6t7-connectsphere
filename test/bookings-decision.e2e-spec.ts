@@ -327,5 +327,19 @@ describe('Story 22 approve/reject a booking request with reason (integration)', 
       expect(res.body.conflicts).toEqual([expect.objectContaining({ bookingId: BOOKING.first })]);
       expect(await statusOf(BOOKING.second)).toBe(BookingStatus.REQUESTED);
     });
+
+    // TC-S2-55, TC-S1-105 · US-22 AC-3, US-14 AC-3 · setup: base-users + base-venues + tc-s2-48-setup · fails if a request is approved after its venue's capacity was cut below the expected attendance
+    // Code: VenuesService.updateDraft (capacity cut) -> BookingsService.recordDecision (capacityShortfall under the lock, 409 CAPACITY_EXCEEDED)
+    it('refuses to approve a request its venue can no longer hold', async () => {
+      await http().patch('/venues/VEN-002').set('Authorization', as('staff')).send({ capacity: 50 }).expect(200);
+
+      const res = await act(BOOKING.showcase, 'approve').expect(409);
+
+      expect(res.body).toMatchObject({
+        code: 'CAPACITY_EXCEEDED',
+        message: 'Cannot approve: Main Hall holds 50, but expected attendance is 80.',
+      });
+      expect(await statusOf(BOOKING.showcase)).toBe(BookingStatus.REQUESTED);
+    });
   });
 });

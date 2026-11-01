@@ -37,7 +37,7 @@ test.describe('US-36 and US-37: change requests (browser)', () => {
     await signOut(page);
     await signIn(page, USERS.coordinator);
     await page.goto('/coordinator/change-requests');
-    await page.getByRole('listitem').filter({ hasText: 'Tech Talk' }).getByRole('link').click();
+    await page.getByRole('listitem').filter({ hasText: 'Tech Talk' }).getByRole('link', { name: 'Review' }).click();
     await page.getByRole('button', { name: 'Reject' }).click();
     await page.getByLabel(/Reason for rejecting/).fill('No larger room is free that day');
     await page.getByRole('button', { name: 'Confirm rejection' }).click();
@@ -64,7 +64,7 @@ test.describe('US-36 and US-37: change requests (browser)', () => {
     await expect(page.getByText("Casey's Event")).toHaveCount(0);
 
     // AC-2, AC-6: the reason, the side-by-side values, and the warning before deciding.
-    await page.getByRole('listitem').filter({ hasText: 'Tech Talk' }).getByRole('link').click();
+    await page.getByRole('listitem').filter({ hasText: 'Tech Talk' }).getByRole('link', { name: 'Review' }).click();
     await expect(page.getByText('More sign-ups than expected')).toBeVisible();
     await expect(page.getByRole('row', { name: /Expected attendance 120 350/ })).toBeVisible();
     await expect(page.getByRole('alert').filter({ hasText: 'Check before you decide' })).toContainText('Main Hall');

@@ -61,8 +61,8 @@ test.describe('US-13 to US-15: venues (browser)', () => {
     await signOut(page);
     await signIn(page, USERS.coordinator);
     await page.goto('/coordinator/venues');
-    await expect(page.getByText('Sandbox Auditorium')).toBeVisible();
-    await expect(page.getByText(/School of Computing, Level 1 · 420 seats/)).toBeVisible();
+    // Each venue is a card: name, location and seats.
+    await expect(page.getByRole('link', { name: /^Sandbox Auditorium School of Computing, Level 1 420 seats/ })).toBeVisible();
   });
 
   // TC-S1-107 · US-14 AC-1 to AC-4 · setup: base-users + base-venues + tc-s1-105-setup · fails if an edit was not saved and shown to the Coordinator, the booking warning or notification was missing, or a blanked name was saved
@@ -95,7 +95,7 @@ test.describe('US-13 to US-15: venues (browser)', () => {
     await signOut(page);
     await signIn(page, USERS.coordinator);
     await page.goto('/coordinator/venues');
-    await expect(page.getByText(/Block A, Level 1 · 100 seats/)).toBeVisible();
+    await expect(page.getByRole('link', { name: /^Main Hall Block A, Level 1 100 seats/ })).toBeVisible();
   });
 
   // TC-S1-111 · US-15 AC-1 to AC-3 · setup: base-users + base-venues · fails if the catalogue lacked a venue or its key details, could not look one up or sort, or opening a venue did not show its details

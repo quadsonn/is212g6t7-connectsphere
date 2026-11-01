@@ -22,9 +22,13 @@ test.describe('US-28 to US-31: Technical Support and equipment (browser)', () =>
     await signIn(page, USERS.techSupport);
     await page.goto('/equipment/inventory');
 
-    // AC-1: every item, with its details at a glance.
-    await expect(page.getByRole('row', { name: /Wireless microphone Handheld UHF mic\. 24 AV Store, Level 1/ })).toBeVisible();
-    await expect(page.getByRole('row', { name: /Folding table — 40 —/ })).toBeVisible();
+    // AC-1: every item, with its details at a glance (US-45 added its condition).
+    await expect(
+      page.getByRole('row', {
+        name: /Wireless microphone Handheld UHF mic\. 24 24 available, 0 damaged, 0 under maintenance AV Store, Level 1/,
+      }),
+    ).toBeVisible();
+    await expect(page.getByRole('row', { name: /Folding table — 40 40 available, 0 damaged, 0 under maintenance —/ })).toBeVisible();
 
     // AC-3: lookup by type.
     await page.getByLabel('Look up equipment by type').fill('proj');
@@ -70,13 +74,15 @@ test.describe('US-28 to US-31: Technical Support and equipment (browser)', () =>
     await signIn(page, USERS.techSupport);
     await page.goto('/equipment');
 
+    const eventCard = (name: string) => page.getByRole('listitem').filter({ hasText: name });
     for (const name of ['Organiser Only', 'Rows Only', 'Notes Only', 'All Three']) {
-      await expect(page.getByRole('button', { name: new RegExp(name) })).toBeVisible();
+      await expect(eventCard(name)).toBeVisible();
     }
     await expect(page.getByText('None Recorded')).toHaveCount(0);
     await expect(page.getByText('Draft With Everything')).toHaveCount(0);
 
-    await page.getByRole('button', { name: /All Three/ }).click();
+    await eventCard('All Three').getByRole('link', { name: 'View details' }).click();
+    await expect(page).toHaveURL(/\/equipment\/requirements\/EVT-/);
     await expect(page.getByText('Mics and a projector.')).toBeVisible();
     await expect(page.getByRole('row', { name: /PA system 1/ })).toBeVisible();
     await expect(page.getByText('Technician on call.')).toBeVisible();

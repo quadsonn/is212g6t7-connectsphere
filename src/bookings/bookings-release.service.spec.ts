@@ -46,3 +46,32 @@ describe('BookingsService.countReleasableForEvent (US-43)', () => {
     expect(statuses).not.toContain(BookingStatus.RELEASED);
   });
 });
+
+/**
+ * US-44 — backstop: both callers name who cancelled, so the release is never
+ * run without an actor in the app. Without one it is recorded as the system's.
+ */
+describe('BookingsService.releaseForCancelledEvent (US-44)', () => {
+  // TC-S3-83 · US-44 AC-1 · setup: none (unit) · fails if a release with no actor named is not recorded as the system's
+  // Code: BookingsService.releaseForCancelledEvent (actorId defaults to null)
+  it('records a release with no actor named as made by no one', async () => {
+    const tx = {
+      venueBooking: {
+        findMany: jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'BKG-1', status: BookingStatus.APPROVED }]),
+        update: jest.fn(),
+      },
+      bookingDecision: { create: jest.fn() },
+    };
+    const service = new BookingsService(
+      {} as PrismaService,
+      {} as AccessControlService,
+      {} as NotificationsService,
+      { bookingReleasedForCancellation: jest.fn() } as unknown as VenueActivityNotifier,
+      {} as HoldNotifier,
+    );
+
+    await expect(service.releaseForCancelledEvent('event-1', tx as never)).resolves.toEqual(['BKG-1']);
+
+    expect(tx.bookingDecision.create.mock.calls[0][0].data.decidedById).toBeNull();
+  });
+});
